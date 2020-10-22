@@ -38,11 +38,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.composer.Composer;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
+import org.yaml.snakeyaml.nodes.Node;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
@@ -125,11 +128,35 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    static class CustomConstructor extends Constructor
+    @SuppressWarnings("unchecked") //getSingleData returns Object, not T
+    public static <T> T fromMap(Map<String,Object> map, Class<T> klass)
+    {
+        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        YamlConfigurationLoader.MissingPropertiesChecker propertiesChecker = new YamlConfigurationLoader.MissingPropertiesChecker();
+        constructor.setPropertyUtils(propertiesChecker);
+        Yaml yaml = new Yaml(constructor);
+        Node node = yaml.represent(map);
+        constructor.setComposer(new Composer(null, null)
+        {
+            @Override
+            public Node getSingleNode()
+            {
+                return node;
+            }
+        });
+        return (T) constructor.getSingleData(klass);
+    }
+
+    static class CustomConstructor extends CustomClassLoaderConstructor
     {
         CustomConstructor(Class<?> theRoot)
         {
-            super(theRoot);
+            this(theRoot, Yaml.class.getClassLoader());
+        }
+
+        CustomConstructor(Class<?> theRoot, ClassLoader classLoader)
+        {
+            super(theRoot, classLoader);
 
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
