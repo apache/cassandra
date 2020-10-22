@@ -34,6 +34,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -757,7 +758,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 tokens = Collections.singletonList(StorageService.instance.getTokenMetadata().partitioner.getRandomToken());
             }
 
-            // do not pass go, do not collect 200 dollars, just gtfo
             long expireTime = computeExpireTime();
             epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
             epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
@@ -786,14 +786,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private boolean sendGossip(Message<GossipDigestSyn> message, Set<InetAddressAndPort> epSet)
     {
-        List<InetAddressAndPort> liveEndpoints = ImmutableList.copyOf(epSet);
+        List<InetAddressAndPort> endpoints = ImmutableList.copyOf(epSet);
 
-        int size = liveEndpoints.size();
+        int size = endpoints.size();
         if (size < 1)
             return false;
         /* Generate a random number from 0 -> size */
         int index = (size == 1) ? 0 : random.nextInt(size);
-        InetAddressAndPort to = liveEndpoints.get(index);
+        InetAddressAndPort to = endpoints.get(index);
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestSyn to {} ...", to);
         if (firstSynSendAt == 0)
@@ -825,7 +825,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             double prob = unreachableEndpointCount / (liveEndpointCount + 1);
             double randDbl = random.nextDouble();
             if (randDbl < prob)
-                sendGossip(message, unreachableEndpoints.keySet());
+            {
+                sendGossip(message, Sets.filter(unreachableEndpoints.keySet(),
+                                                ep -> !isDeadState(getEndpointStateMap().get(ep))));
+            }
         }
     }
 
@@ -1839,6 +1842,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isEnabled()
     {
+        ScheduledFuture<?> scheduledGossipTask = this.scheduledGossipTask;
         return (scheduledGossipTask != null) && (!scheduledGossipTask.isCancelled());
     }
 
