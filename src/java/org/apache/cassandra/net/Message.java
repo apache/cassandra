@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -367,8 +368,13 @@ public class Message<T>
             this.id = id;
             this.verb = verb;
             this.from = from;
-            this.createdAtNanos = createdAtNanos;
             this.expiresAtNanos = expiresAtNanos;
+            if (verb.isResponse())
+                // Correct createdAtNanos to enforce the contraint, createdAtNanos <= expiresAtNanos
+                this.createdAtNanos = Math.min(createdAtNanos, expiresAtNanos);
+            else
+                this.createdAtNanos = createdAtNanos;
+            Preconditions.checkArgument(this.createdAtNanos <= this.expiresAtNanos, "createdAtNanos cannot be more recent than expiresAtNanos");
             this.flags = flags;
             this.params = params;
         }

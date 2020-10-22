@@ -39,6 +39,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.assertj.core.api.Assertions;
+import org.openjdk.jmh.annotations.TearDown;
 
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
@@ -209,6 +211,27 @@ public class MessageTest
     {
         Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
         assertNull(msg.header.traceSession());
+    }
+
+    @Test
+    public void testCreateMessageWithMoreRecentCreatedAt()
+    {
+        // in the case of request message, throw IllegalArgumentException
+        Assertions.assertThatThrownBy(() -> Message.builder(Verb.ECHO_REQ, noPayload)
+                                                   .from(FBUtilities.getBroadcastAddressAndPort())
+                                                   .withCreatedAt(100)
+                                                   .withExpiresAt(0)
+                                                   .build())
+                  .isInstanceOf(IllegalArgumentException.class)
+                  .hasMessage("createdAtNanos cannot be more recent than expiresAtNanos");
+
+        // in the case of response message, correct 'createdAt'
+        Assertions.assertThat(Message.builder(Verb.ECHO_RSP, noPayload)
+                                     .from(FBUtilities.getBroadcastAddressAndPort())
+                                     .withCreatedAt(100)
+                                     .withExpiresAt(0)
+                                     .build())
+                  .matches(msg -> msg.header.createdAtNanos == 0);
     }
 
     private void testAddTraceHeaderWithType(TraceType traceType)
