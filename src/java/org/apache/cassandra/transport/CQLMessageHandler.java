@@ -299,7 +299,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             Frame.Header header = cqlFrameDecoder.extractHeader(buf);
             // max (CQL) frame size defaults to 256mb, so should be safe to downcast
             int frameSize = Ints.checkedCast(header.bodySizeInBytes);
-            receivedCount++;
             receivedBytes += buf.remaining();
 
             if (throwOnOverload)
@@ -331,7 +330,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             {
                 if (!acquireCapacityAndQueueOnFailure(header, endpointReserve, globalReserve))
                 {
-                    receivedCount++;
                     receivedBytes += frame.frameSize;
                     return false;
                 }
@@ -460,7 +458,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             {
                 try
                 {
-                    logger.info("XXX PROCESSING LARGE MESSAGE");
                     processCqlFrame(assembleFrame());
                 }
                 catch (Exception e)

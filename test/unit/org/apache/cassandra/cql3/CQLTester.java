@@ -514,17 +514,11 @@ public abstract class CQLTester
         if (server != null)
             return;
 
-        prepareNetwork();
-        initializeNetwork(decorator);
-    }
-
-    protected static void prepareNetwork()
-    {
         SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
-
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
+        initializeNetwork(decorator);
     }
 
     protected static void reinitializeNetwork()

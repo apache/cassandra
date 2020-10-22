@@ -65,15 +65,21 @@ public class ExceptionHandlers
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 Frame frame = errorMessage.encode(version);
                 FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.frameSize(frame.header));
-                frame.encodeInto(payload.buffer);
-                frame.release();
-                payload.finish();
-                ChannelPromise promise = ctx.newPromise();
-                // On protocol exception, close the channel as soon as the message has been sent
-                if (cause instanceof ProtocolException)
-                    promise.addListener(future -> ctx.close());
-                ctx.writeAndFlush(payload, promise);
-                payload.release();
+                try
+                {
+                    frame.encodeInto(payload.buffer);
+                    frame.release();
+                    payload.finish();
+                    ChannelPromise promise = ctx.newPromise();
+                    // On protocol exception, close the channel as soon as the message has been sent
+                    if (cause instanceof ProtocolException)
+                        promise.addListener(future -> ctx.close());
+                    ctx.writeAndFlush(payload, promise);
+                }
+                finally
+                {
+                    payload.release();
+                }
             }
         }
     }

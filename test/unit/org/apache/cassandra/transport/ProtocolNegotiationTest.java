@@ -37,7 +37,7 @@ public class ProtocolNegotiationTest extends CQLTester
     @BeforeClass
     public static void setup()
     {
-        prepareNetwork();
+        requireNetwork();
     }
 
     @Test
