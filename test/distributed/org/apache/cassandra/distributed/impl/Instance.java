@@ -52,6 +52,7 @@ import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -132,13 +133,6 @@ import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCass
 
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
-    private static final Map<Class<?>, Function<Object, Object>> mapper = new HashMap<Class<?>, Function<Object, Object>>() {{
-        this.put(IInstanceConfig.ParameterizedClass.class, (obj) -> {
-            IInstanceConfig.ParameterizedClass pc = (IInstanceConfig.ParameterizedClass) obj;
-            return new org.apache.cassandra.config.ParameterizedClass(pc.class_name, pc.parameters);
-        });
-    }};
-
     public final IInstanceConfig config;
     private final long startedAt = System.nanoTime();
 
@@ -266,6 +260,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerInboundFilter(ICluster cluster)
     {
         MessagingService.instance().inboundSink.add(message -> {
+            if (isShutdown())
+                return false;
             IMessage serialized = serializeMessage(message.from(), toCassandraInetAddressAndPort(broadcastAddress()), message);
             int fromNum = cluster.get(serialized.from()).config().num();
             int toNum = config.num(); // since this instance is reciving the message, to will always be this instance
@@ -276,6 +272,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private void registerOutboundFilter(ICluster cluster)
     {
         MessagingService.instance().outboundSink.add((message, to) -> {
+            if (isShutdown())
+                return false;
             IMessage serialzied = serializeMessage(message.from(), to, message);
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
             int toNum = cluster.get(fromCassandraInetAddressAndPort(to)).config().num();
@@ -530,9 +528,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     private Config loadConfig(IInstanceConfig overrides)
     {
-        Config config = new Config();
-        overrides.propagate(config, mapper);
-        return config;
+        Map<String,Object> params = ((InstanceConfig) overrides).getParams();
+        return YamlConfigurationLoader.fromMap(params, Config.class);
     }
 
     public Future<Void> shutdown()
