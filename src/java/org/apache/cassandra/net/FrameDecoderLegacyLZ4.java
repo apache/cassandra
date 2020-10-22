@@ -32,6 +32,7 @@ import net.jpountz.lz4.LZ4SafeDecompressor;
 import net.jpountz.xxhash.XXHash32;
 import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Integer.reverseBytes;
 import static java.lang.String.format;
@@ -46,6 +47,8 @@ import static org.apache.cassandra.utils.ByteBufferUtil.copyBytes;
  */
 class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
 {
+    private static final BufferPool bufferPool = BufferPools.forNetworking();
+
     FrameDecoderLegacyLZ4(BufferPoolAllocator allocator, int messagingVersion)
     {
         super(allocator, messagingVersion);
@@ -122,7 +125,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             assert msg instanceof BufferPoolAllocator.Wrapped;
             ByteBuffer buf = ((BufferPoolAllocator.Wrapped) msg).adopt();
             // netty will probably have mis-predicted the space needed
-            BufferPool.putUnusedPortion(buf);
+            bufferPool.putUnusedPortion(buf);
 
             CorruptLZ4Frame error = null;
             try
@@ -252,7 +255,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             }
             catch (Throwable t)
             {
-                BufferPool.put(out);
+                bufferPool.put(out);
                 throw t;
             }
         }
@@ -269,7 +272,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
         {
             if (null != stash)
             {
-                BufferPool.put(stash);
+                bufferPool.put(stash);
                 stash = null;
             }
 
@@ -348,7 +351,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             ByteBuffer out = allocator.getAtLeast(capacity);
             in.flip();
             out.put(in);
-            BufferPool.put(in);
+            bufferPool.put(in);
             return out;
         }
 

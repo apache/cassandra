@@ -41,7 +41,7 @@ import org.junit.Assert;
 
 public class ColumnFilterTest
 {
-    final static ColumnFilter.Serializer serializer = new ColumnFilter.Serializer();
+    private static final ColumnFilter.Serializer serializer = new ColumnFilter.Serializer();
 
     @Test
     public void testColumnFilterSerialisationRoundTrip() throws Exception
@@ -193,12 +193,12 @@ public class ColumnFilterTest
         assertEquals("set[1], v1", columnFilter.toString());
     }
 
-    static void testRoundTrip(ColumnFilter columnFilter, TableMetadata metadata, int version) throws Exception
+    private static void testRoundTrip(ColumnFilter columnFilter, TableMetadata metadata, int version) throws Exception
     {
         testRoundTrip(columnFilter, columnFilter, metadata, version);
     }
 
-    static void testRoundTrip(ColumnFilter columnFilter, ColumnFilter expected, TableMetadata metadata, int version) throws Exception
+    private static void testRoundTrip(ColumnFilter columnFilter, ColumnFilter expected, TableMetadata metadata, int version) throws Exception
     {
         DataOutputBuffer output = new DataOutputBuffer();
         serializer.serialize(columnFilter, output, version);
@@ -206,5 +206,111 @@ public class ColumnFilterTest
         DataInputPlus input = new DataInputBuffer(output.buffer(), false);
         ColumnFilter deserialized = serializer.deserialize(input, version, metadata);
         Assert.assertEquals(deserialized, expected);
+    }
+
+    /**
+     * Tests whether a filter fetches and/or queries columns and cells.
+     */
+    @Test
+    public void testFetchedQueried()
+    {
+        TableMetadata metadata = TableMetadata.builder("ks", "table")
+                                              .partitioner(Murmur3Partitioner.instance)
+                                              .addPartitionKeyColumn("k", Int32Type.instance)
+                                              .addRegularColumn("simple", Int32Type.instance)
+                                              .addRegularColumn("complex", SetType.getInstance(Int32Type.instance, true))
+                                              .build();
+
+        ColumnMetadata simple = metadata.getColumn(ByteBufferUtil.bytes("simple"));
+        ColumnMetadata complex = metadata.getColumn(ByteBufferUtil.bytes("complex"));
+        CellPath path1 = CellPath.create(ByteBufferUtil.bytes(1));
+        CellPath path2 = CellPath.create(ByteBufferUtil.bytes(2));
+        ColumnFilter filter;
+
+        // select only the simple column, without table metadata
+        filter = ColumnFilter.selection(RegularAndStaticColumns.builder().add(simple).build());
+        assertFetchedQueried(true, true, filter, simple);
+        assertFetchedQueried(false, false, filter, complex);
+        assertFetchedQueried(false, false, filter, complex, path1);
+        assertFetchedQueried(false, false, filter, complex, path2);
+
+        // select only the complex column, without table metadata
+        filter = ColumnFilter.selection(RegularAndStaticColumns.builder().add(complex).build());
+        assertFetchedQueried(false, false, filter, simple);
+        assertFetchedQueried(true, true, filter, complex);
+        assertFetchedQueried(true, true, filter, complex, path1);
+        assertFetchedQueried(true, true, filter, complex, path2);
+
+        // select both the simple and complex columns, without table metadata
+        filter = ColumnFilter.selection(RegularAndStaticColumns.builder().add(simple).add(complex).build());
+        assertFetchedQueried(true, true, filter, simple);
+        assertFetchedQueried(true, true, filter, complex);
+        assertFetchedQueried(true, true, filter, complex, path1);
+        assertFetchedQueried(true, true, filter, complex, path2);
+
+        // select only the simple column, with table metadata
+        filter = ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(simple).build());
+        assertFetchedQueried(true, true, filter, simple);
+        assertFetchedQueried(true, false, filter, complex);
+        assertFetchedQueried(true, false, filter, complex, path1);
+        assertFetchedQueried(true, false, filter, complex, path2);
+
+        // select only the complex column, with table metadata
+        filter = ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(complex).build());
+        assertFetchedQueried(true, false, filter, simple);
+        assertFetchedQueried(true, true, filter, complex);
+        assertFetchedQueried(true, true, filter, complex, path1);
+        assertFetchedQueried(true, true, filter, complex, path2);
+
+        // select both the simple and complex columns, with table metadata
+        filter = ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(simple).add(complex).build());
+        assertFetchedQueried(true, true, filter, simple);
+        assertFetchedQueried(true, true, filter, complex);
+        assertFetchedQueried(true, true, filter, complex, path1);
+        assertFetchedQueried(true, true, filter, complex, path2);
+
+        // select only the simple column, with selection builder
+        filter = ColumnFilter.selectionBuilder().add(simple).build();
+        assertFetchedQueried(true, true, filter, simple);
+        assertFetchedQueried(false, false, filter, complex);
+        assertFetchedQueried(false, false, filter, complex, path1);
+        assertFetchedQueried(false, false, filter, complex, path2);
+
+        // select only a cell of the complex column, with selection builder
+        filter = ColumnFilter.selectionBuilder().select(complex, path1).build();
+        assertFetchedQueried(false, false, filter, simple);
+        assertFetchedQueried(true, true, filter, complex);
+        assertFetchedQueried(true, true, filter, complex, path1);
+        assertFetchedQueried(true, false, filter, complex, path2);
+
+        // select both the simple column and a cell of the complex column, with selection builder
+        filter = ColumnFilter.selectionBuilder().add(simple).select(complex, path1).build();
+        assertFetchedQueried(true, true, filter, simple);
+        assertFetchedQueried(true, true, filter, complex);
+        assertFetchedQueried(true, true, filter, complex, path1);
+        assertFetchedQueried(true, false, filter, complex, path2);
+    }
+
+    private static void assertFetchedQueried(boolean expectedFetched,
+                                             boolean expectedQueried,
+                                             ColumnFilter filter,
+                                             ColumnMetadata column)
+    {
+        assert !expectedQueried || expectedFetched;
+        boolean actualFetched = filter.fetches(column);
+        assertEquals(expectedFetched, actualFetched);
+        assertEquals(expectedQueried, actualFetched && filter.fetchedColumnIsQueried(column));
+    }
+
+    private static void assertFetchedQueried(boolean expectedFetched,
+                                             boolean expectedQueried,
+                                             ColumnFilter filter,
+                                             ColumnMetadata column,
+                                             CellPath path)
+    {
+        assert !expectedQueried || expectedFetched;
+        boolean actualFetched = filter.fetches(column);
+        assertEquals(expectedFetched, actualFetched);
+        assertEquals(expectedQueried, actualFetched && filter.fetchedCellIsQueried(column, path));
     }
 }

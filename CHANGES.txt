@@ -1,4 +1,9 @@
 4.0-beta3
+ * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)
+ * Fail truncation requests when they fail on a replica (CASSANDRA-16208)
+ * Move compact storage validation earlier in startup process (CASSANDRA-16063)
+ * Fix ByteBufferAccessor cast exceptions are thrown when trying to query a virtual table (CASSANDRA-16155)
+ * Consolidate node liveness check for forced repair (CASSANDRA-16113)
  * Use unsigned short in ValueAccessor.sliceWithShortLength (CASSANDRA-16147)
  * Abort repairs when getting a truncation request (CASSANDRA-15854)
  * Remove bad assert when getting active compactions for an sstable (CASSANDRA-15457)
@@ -18,7 +23,9 @@
  * NPE thrown while updating speculative execution time if keyspace is removed during task execution (CASSANDRA-15949)
  * Show the progress of data streaming and index build (CASSANDRA-15406)
  * Add flag to disable chunk cache and disable by default (CASSANDRA-16036)
+ * Upgrade to snakeyaml >= 1.26 version for CVE-2017-18640 fix (CASSANDRA-16150)
 Merged from 3.11:
+ * Fix ColumnFilter to avoid querying cells of unselected complex columns (CASSANDRA-15977)
  * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
@@ -26,6 +33,10 @@ Merged from 3.11:
 Merged from 3.0:
  * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
+Merged from 2.2:
+ * Package tools/bin scripts as executable (CASSANDRA-16151)
+ * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
+ * Automatically drop compact storage on tables for which it is safe (CASSANDRA-16048)
 
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)

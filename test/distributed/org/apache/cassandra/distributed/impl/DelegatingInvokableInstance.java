@@ -95,6 +95,12 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
         delegate().setMessagingVersion(endpoint, version);
     }
 
+    @Override
+    public String getReleaseVersionString()
+    {
+        return delegate().getReleaseVersionString();
+    }
+
     public void flush(String keyspace)
     {
         delegate().flush(keyspace);

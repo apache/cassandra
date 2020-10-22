@@ -1847,7 +1847,7 @@ public abstract class CQLTester
             throw new IllegalArgumentException("Invalid number of arguments, got " + values.length);
 
         int size = values.length / 2;
-        Map m = new LinkedHashMap(size);
+        Map<Object, Object> m = new LinkedHashMap<>(size);
         for (int i = 0; i < size; i++)
             m.put(values[2 * i], values[(2 * i) + 1]);
         return m;

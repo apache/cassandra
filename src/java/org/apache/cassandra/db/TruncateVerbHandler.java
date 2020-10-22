@@ -34,31 +34,31 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
 
     public void doVerb(Message<TruncateRequest> message)
     {
-        TruncateRequest t = message.payload;
-        Tracing.trace("Applying truncation of {}.{}", t.keyspace, t.table);
+        TruncateRequest truncation = message.payload;
+        Tracing.trace("Applying truncation of {}.{}", truncation.keyspace, truncation.table);
         try
         {
-            ColumnFamilyStore cfs = Keyspace.open(t.keyspace).getColumnFamilyStore(t.table);
+            ColumnFamilyStore cfs = Keyspace.open(truncation.keyspace).getColumnFamilyStore(truncation.table);
             cfs.truncateBlocking();
         }
-        catch (Exception e)
+        catch (Throwable throwable)
         {
-            logger.error("Error in truncation", e);
-            respondError(t, message);
+            logger.error("Error in truncation", throwable);
+            respondError(truncation, message);
 
-            if (FSError.findNested(e) != null)
-                throw FSError.findNested(e);
+            if (FSError.findNested(throwable) != null)
+                throw FSError.findNested(throwable);
         }
         Tracing.trace("Enqueuing response to truncate operation to {}", message.from());
 
-        TruncateResponse response = new TruncateResponse(t.keyspace, t.table, true);
-        logger.trace("{} applied.  Enqueuing response to {}@{} ", t, message.id(), message.from());
+        TruncateResponse response = new TruncateResponse(truncation.keyspace, truncation.table, true);
+        logger.trace("{} applied.  Enqueuing response to {}@{} ", truncation, message.id(), message.from());
         MessagingService.instance().send(message.responseWith(response), message.from());
     }
 
-    private static void respondError(TruncateRequest t, Message truncateRequestMessage)
+    private static void respondError(TruncateRequest truncation, Message truncateRequestMessage)
     {
-        TruncateResponse response = new TruncateResponse(t.keyspace, t.table, false);
+        TruncateResponse response = new TruncateResponse(truncation.keyspace, truncation.table, false);
         MessagingService.instance().send(truncateRequestMessage.responseWith(response), truncateRequestMessage.from());
     }
 }

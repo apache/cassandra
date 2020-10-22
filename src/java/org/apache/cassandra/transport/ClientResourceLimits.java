@@ -27,7 +27,10 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Reservoir;
+import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
 import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
 
@@ -63,6 +66,11 @@ public class ClientResourceLimits
         logger.info("Changed native_max_transport_requests_in_bytes from {} to {}", existingLimit, newLimit);
     }
 
+    public static long getCurrentGlobalUsage()
+    {
+        return GLOBAL_LIMIT.using();
+    }
+
     public static long getEndpointLimit()
     {
         return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
@@ -75,6 +83,41 @@ public class ClientResourceLimits
         for (Allocator allocator : PER_ENDPOINT_ALLOCATORS.values())
             existingLimit = allocator.endpointAndGlobal.endpoint().setLimit(newLimit);
         logger.info("Changed native_max_transport_requests_in_bytes_per_ip from {} to {}", existingLimit, newLimit);
+    }
+
+    public static Snapshot getCurrentIpUsage()
+    {
+        DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir();
+        for (Allocator allocator : PER_ENDPOINT_ALLOCATORS.values())
+        {
+            histogram.update(allocator.endpointAndGlobal.endpoint().using());
+        }
+        return histogram.getSnapshot();
+    }
+
+    /**
+     * This will recompute the ip usage histo on each query of the snapshot when requested instead of trying to keep
+     * a histogram up to date with each request
+     */
+    public static Reservoir ipUsageReservoir()
+    {
+        return new Reservoir()
+        {
+            public int size()
+            {
+                return PER_ENDPOINT_ALLOCATORS.size();
+            }
+
+            public void update(long l)
+            {
+                throw new IllegalStateException();
+            }
+
+            public Snapshot getSnapshot()
+            {
+                return getCurrentIpUsage();
+            }
+        };
     }
 
     /**

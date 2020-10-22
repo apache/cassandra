@@ -40,6 +40,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -53,6 +54,7 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
+import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
@@ -855,6 +857,84 @@ public final class SchemaKeyspace
     static Keyspaces fetchNonSystemKeyspaces()
     {
         return fetchKeyspacesWithout(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
+    }
+
+    public static void validateNonCompact() throws StartupException
+    {
+        String query = String.format("SELECT keyspace_name, table_name, flags FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
+
+        StringBuilder messages = new StringBuilder();
+        for (UntypedResultSet.Row row : query(query))
+        {
+            String keyspaceName = row.getString("keyspace_name");
+            if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
+                continue;
+
+            Set<TableMetadata.Flag> flags = TableMetadata.Flag.fromStringSet(row.getFrozenSet("flags", UTF8Type.instance));
+            if (TableMetadata.Flag.isLegacyCompactTable(flags))
+            {
+                String tableName = row.getString("table_name");
+                if (isSafeToDropCompactStorage(keyspaceName, tableName))
+                {
+                    flags.remove(TableMetadata.Flag.DENSE);
+                    flags.add(TableMetadata.Flag.COMPOUND);
+                    String update = String.format("UPDATE %s.%s SET flags={%s} WHERE keyspace_name='%s' AND table_name='%s'",
+                                                  SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES,
+                                                  TableMetadata.Flag.toStringSet(flags).stream()
+                                                                                       .map(f -> "'" + f + "'")
+                                                                                       .collect(Collectors.joining(", ")),
+                                                  keyspaceName, tableName);
+
+                    logger.info("Safely dropping COMPACT STORAGE on {}.{}", keyspaceName, tableName);
+                    executeInternal(update);
+                }
+                else
+                {
+                    messages.append(String.format("ALTER TABLE %s.%s DROP COMPACT STORAGE;\n",
+                                                  maybeQuote(row.getString("keyspace_name")),
+                                                  maybeQuote(tableName)));
+                }
+            }
+        }
+
+        if (messages.length() != 0)
+        {
+            throw new StartupException(StartupException.ERR_OUTDATED_SCHEMA,
+                                       String.format("Compact Tables are not allowed in Cassandra starting with 4.0 version. " +
+                                                     "In order to migrate off Compact Storage, downgrade to the latest Cassandra version, " +
+                                                     "and run the following CQL commands: \n\n%s\n" +
+                                                     "Then restart the node with the new Cassandra version.",
+                                                     messages));
+        }
+    }
+
+    private static boolean isSafeToDropCompactStorage(String keyspaceName, String tableName)
+    {
+        if (!Boolean.parseBoolean(System.getProperty("cassandra.auto_drop_compact_storage", "false")))
+            return false;
+
+        String columnQuery = String.format("SELECT kind, type FROM %s.%s WHERE keyspace_name='%s' and table_name='%s'",
+                                           SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS, keyspaceName, tableName);
+
+        String simpleType = "empty";
+        int simpleCount = 0;
+        for (UntypedResultSet.Row row : query(columnQuery))
+        {
+            String kind = row.getString("kind");
+            if (kind.equalsIgnoreCase("partition_key") || kind.equalsIgnoreCase("clustering"))
+                continue;
+
+            if (kind.equalsIgnoreCase("static"))
+                return false;
+
+            simpleCount++; // if not partition, clustering, or static column then its a regular columnb
+            simpleType = row.getString("type"); // only save one type becuase if there is > 1 simple column then false is returned
+        }
+
+        if (simpleCount == 1 && !simpleType.equalsIgnoreCase("empty"))
+            return true;
+
+        return false;
     }
 
     private static Keyspaces fetchKeyspacesWithout(Set<String> excludedKeyspaceNames)
