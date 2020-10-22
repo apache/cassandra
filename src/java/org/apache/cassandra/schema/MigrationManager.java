@@ -21,8 +21,9 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
+import java.util.function.LongSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +51,13 @@ public class MigrationManager
 
     public static final MigrationManager instance = new MigrationManager();
 
-    private static final RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
+    private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
+
+    @VisibleForTesting
+    public static void setUptimeFn(LongSupplier supplier)
+    {
+        getUptimeFn = supplier;
+    }
 
     private static final int MIGRATION_DELAY_IN_MS = 60000;
 
@@ -100,7 +107,7 @@ public class MigrationManager
             return;
         }
 
-        if (Schema.instance.isEmpty() || runtimeMXBean.getUptime() < MIGRATION_DELAY_IN_MS)
+        if (Schema.instance.isEmpty() || getUptimeFn.getAsLong() < MIGRATION_DELAY_IN_MS)
         {
             // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
             logger.debug("Immediately submitting migration task for {}, " +
