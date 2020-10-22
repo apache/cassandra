@@ -152,7 +152,7 @@ public class InboundConnectionSettings
                                              acceptMessaging, acceptStreaming, socketFactory, handlers);
     }
 
-    public InboundConnectionSettings withLegacyDefaults()
+    public InboundConnectionSettings withLegacySslStoragePortDefaults()
     {
         ServerEncryptionOptions encryption = this.encryption;
         if (encryption == null)
