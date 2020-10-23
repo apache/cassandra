@@ -194,7 +194,7 @@ public abstract class CQLTester
         }
     }
 
-    public static volatile ResultMessage recordedSchemaChangeResult;
+    public static volatile ResultMessage lastRecordedSchemaChange;
 
     private List<String> keyspaces = new ArrayList<>();
     private List<String> tables = new ArrayList<>();
@@ -949,14 +949,14 @@ public abstract class CQLTester
                                           String keyspace, String name,
                                           String... argTypes)
     {
-        ResultMessage schemaChangeRes = recordedSchemaChangeResult;
+        ResultMessage schemaChangeRes = lastRecordedSchemaChange;
         Assert.assertTrue(schemaChangeRes instanceof ResultMessage.SchemaChange);
-        ResultMessage.SchemaChange schemaChange = (ResultMessage.SchemaChange) schemaChangeRes;
-        Assert.assertSame(change, schemaChange.change.change);
-        Assert.assertSame(target, schemaChange.change.target);
-        Assert.assertEquals(keyspace, schemaChange.change.keyspace);
-        Assert.assertEquals(name, schemaChange.change.name);
-        Assert.assertEquals(argTypes != null ? Arrays.asList(argTypes) : null, schemaChange.change.argTypes);
+        Event.SchemaChange schemaChange = ((ResultMessage.SchemaChange) schemaChangeRes).change;
+        Assert.assertSame(change, schemaChange.change);
+        Assert.assertSame(target, schemaChange.target);
+        Assert.assertEquals(keyspace, schemaChange.keyspace);
+        Assert.assertEquals(name, schemaChange.name);
+        Assert.assertEquals(argTypes != null ? Arrays.asList(argTypes) : null, schemaChange.argTypes);
     }
 
     protected static void schemaChange(String query)
@@ -977,7 +977,8 @@ public abstract class CQLTester
             QueryOptions options = QueryOptions.forInternalCalls(Collections.<ByteBuffer>emptyList());
 
             ResultMessage result = statement.executeLocally(queryState, options);
-            recordedSchemaChangeResult = recordSchemaChange ? result : recordedSchemaChangeResult;
+            if (recordSchemaChange)
+                lastRecordedSchemaChange = result;
         }
         catch (Exception e)
         {
