@@ -52,7 +52,8 @@ import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Event.SchemaChange.Change;
+import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -413,42 +414,40 @@ public class AggregationTest extends CQLTester
                                "LANGUAGE javascript " +
                                "AS '\"string\";';");
 
-        String a = createAggregate(KEYSPACE,
-                                   "double",
-                                   "CREATE OR REPLACE AGGREGATE %s(double) " +
-                                   "SFUNC " + shortFunctionName(f) + " " +
-                                   "STYPE double " +
-                                   "INITCOND 0");
+        String a = createAggregateName(KEYSPACE);
+        String aggregateName = shortFunctionName(a);
+        registerAggregate(a, "double");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "double");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
+                           "SFUNC " + shortFunctionName(f) + " " +
+                           "STYPE double " +
+                           "INITCOND 0",
+                           Change.CREATED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "double");
 
-        schemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
-                     "SFUNC " + shortFunctionName(f) + " " +
-                     "STYPE double " +
-                     "INITCOND 1");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
+                           "SFUNC " + shortFunctionName(f) + " " +
+                           "STYPE double " +
+                           "INITCOND 1",
+                           Change.UPDATED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "double");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "double");
+        registerAggregate(a, "int");
 
-        createAggregateOverload(a,
-                                "int",
-                                "CREATE OR REPLACE AGGREGATE %s(int) " +
-                                "SFUNC " + shortFunctionName(f) + " " +
-                                "STYPE int " +
-                                "INITCOND 0");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a + "(int) " +
+                           "SFUNC " + shortFunctionName(f) + " " +
+                           "STYPE int " +
+                           "INITCOND 0",
+                           Change.CREATED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "int");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "int");
-
-        schemaChange("DROP AGGREGATE " + a + "(double)");
-
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "double");
+        assertSchemaChange("DROP AGGREGATE " + a + "(double)",
+                           Change.DROPPED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "double");
 
         // The aggregate with nested tuple should be created without throwing InvalidRequestException. See CASSANDRA-15857
         String f1 = createFunction(KEYSPACE,
@@ -459,16 +458,16 @@ public class AggregationTest extends CQLTester
                                    "LANGUAGE javascript " +
                                    "AS '\"string\";';");
 
-        String a1 = createAggregate(KEYSPACE,
-                                    "list<tuple<int, int>>",
-                                    "CREATE OR REPLACE AGGREGATE %s(list<tuple<int, int>>) " +
-                                    "SFUNC " + shortFunctionName(f1) + " " +
-                                    "STYPE double " +
-                                    "INITCOND 0");
+        String a1 = createAggregateName(KEYSPACE);
+        registerAggregate(a1, "list<tuple<int, int>>");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a1).name,
-                               "list<tuple<int, int>>");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a1 + "(list<tuple<int, int>>) " +
+                           "SFUNC " + shortFunctionName(f1) + " " +
+                           "STYPE double " +
+                           "INITCOND 0",
+                           Change.CREATED, Target.AGGREGATE,
+                           KEYSPACE, shortFunctionName(a1),
+                           "list<tuple<int, int>>");
     }
 
     @Test
@@ -1603,10 +1602,10 @@ public class AggregationTest extends CQLTester
                                         "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                         "INITCOND null");
         // Same as above, dropping a function with explicity frozen tuple should be allowed.
-        schemaChange("DROP AGGREGATE " + toDrop + "(frozen<tuple<int, int>>);");
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, shortFunctionName(toDrop),
-                               "frozen<tuple<int, int>>");
+        assertSchemaChange("DROP AGGREGATE " + toDrop + "(frozen<tuple<int, int>>);",
+                           Change.DROPPED, Target.AGGREGATE,
+                           KEYSPACE, shortFunctionName(toDrop),
+                           "frozen<tuple<int, int>>");
 
         String aggregation = createAggregate(KEYSPACE,
                                              "tuple<int, int>",
@@ -1619,10 +1618,10 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(tuple(7, 8)));
 
-        schemaChange("DROP AGGREGATE " + aggregation + "(frozen<tuple<int, int>>);");
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, shortFunctionName(aggregation),
-                               "frozen<tuple<int, int>>");
+        assertSchemaChange("DROP AGGREGATE " + aggregation + "(frozen<tuple<int, int>>);",
+                           Change.DROPPED, Target.AGGREGATE,
+                           KEYSPACE, shortFunctionName(aggregation),
+                           "frozen<tuple<int, int>>");
     }
 
     @Test
