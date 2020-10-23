@@ -177,6 +177,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return isShutdown;
     }
 
+    /**
+     * for in-jvm dtest use - forces isShutdown to be set to whatever passed in.
+     */
+    @VisibleForTesting
+    public void setIsShutdownUnsafeForTests(boolean isShutdown)
+    {
+        this.isShutdown = isShutdown;
+    }
+
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
         return Keyspace.open(keyspaceName).getReplicationStrategy()
