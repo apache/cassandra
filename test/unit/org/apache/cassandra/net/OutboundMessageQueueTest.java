@@ -95,7 +95,7 @@ public class OutboundMessageQueueTest
     @Test
     public void testExpirationOnIteration()
     {
-        FreeRunningClock clock = new FreeRunningClock();
+        FreeRunningClock clock = new FreeRunningClock(approxTime.now());
 
         List<Message> expiredMessages = new LinkedList<>();
         long startTime = clock.now();
@@ -170,7 +170,7 @@ public class OutboundMessageQueueTest
     @Test
     public void testExpirationOnAdd()
     {
-        FreeRunningClock clock = new FreeRunningClock();
+        FreeRunningClock clock = new FreeRunningClock(approxTime.now());
 
         List<Message> expiredMessages = new LinkedList<>();
         long startTime = clock.now();
