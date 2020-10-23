@@ -576,6 +576,7 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
             else
                 onCorruptFrame();
 
+            received += frame.frameSize;
             if (size == received)
                 onComplete();
             return size == received;
