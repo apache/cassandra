@@ -158,7 +158,6 @@ public class InboundConnectionSettings
         if (encryption == null)
             encryption = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
         encryption = encryption.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-        encryption.applyConfig();
 
         return this.withBindAddress(bindAddress.withPort(DatabaseDescriptor.getSSLStoragePort()))
                    .withEncryption(encryption)

@@ -23,6 +23,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import javax.xml.crypto.Data;
+
 import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -39,16 +41,19 @@ import static org.junit.Assert.assertTrue;
 
 public class NativeTransportServiceTest
 {
+    static EncryptionOptions defaultOptions;
+
     @BeforeClass
     public static void setupDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        defaultOptions = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
     }
 
     @After
     public void resetConfig()
     {
-        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(options -> options.withEnabled(false));
+        DatabaseDescriptor.updateNativeProtocolEncryptionOptions(update -> new EncryptionOptions(defaultOptions).applyConfig());
         DatabaseDescriptor.setNativeTransportPortSSL(null);
     }
 
@@ -187,11 +192,11 @@ public class NativeTransportServiceTest
                     }, false, 1);
     }
 
-    @Test
+    @Test(expected=java.lang.IllegalStateException.class)
     public void testSSLPortWithDisabledEncryption()
     {
         // ssl+non-ssl settings: client encryption disabled and additional ssl port specified
-        // should get a WARN in the logs
+        // should get an illegal state exception
         DatabaseDescriptor.updateNativeProtocolEncryptionOptions(
         options -> options.withEnabled(false));
         DatabaseDescriptor.setNativeTransportPortSSL(8432);

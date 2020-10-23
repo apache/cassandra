@@ -114,7 +114,7 @@ public class SimpleClient implements Closeable
             throw new IllegalArgumentException(String.format("Beta version of server used (%s), but USE_BETA flag is not set", version));
 
         this.version = version;
-        this.encryptionOptions = encryptionOptions;
+        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
     }
 
     public SimpleClient(String host, int port)
