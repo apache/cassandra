@@ -221,7 +221,7 @@ public class MessageTest
                                                    .withExpiresAt(0)
                                                    .build())
                   .isInstanceOf(IllegalArgumentException.class)
-                  .hasMessage("createdAtNanos cannot be more recent than expiresAtNanos");
+                  .hasMessage("createdAtNanos (100) cannot be more recent than expiresAtNanos (0)");
 
         // in the case of response message, correct 'createdAt'
         Assertions.assertThat(Message.builder(Verb.ECHO_RSP, noPayload)

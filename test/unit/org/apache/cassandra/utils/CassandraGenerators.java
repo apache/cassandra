@@ -69,8 +69,9 @@ import org.quicktheories.impl.Constraint;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.allowReversed;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
-import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_GEN;
+import static org.apache.cassandra.utils.Generators.SMALL_TIME_SPAN_NANOS;
 import static org.apache.cassandra.utils.Generators.TIMESTAMP_NANOS;
+import static org.apache.cassandra.utils.Generators.TINY_TIME_SPAN_NANOS;
 
 public final class CassandraGenerators
 {
@@ -117,11 +118,14 @@ public final class CassandraGenerators
     private static Gen<Message<NoPayload>> responseGen(Verb verb)
     {
         return gen(rnd -> {
-            long timeSpan = SMALL_TIME_SPAN_GEN.generate(rnd);
-            long createdAt = TIMESTAMP_NANOS.generate(rnd);
+            long timeSpan = SMALL_TIME_SPAN_NANOS.generate(rnd);
+            long delay = TINY_TIME_SPAN_NANOS.generate(rnd); // network & processing delay
+            long requestCreatedAt = TIMESTAMP_NANOS.generate(rnd);
+            long createdAt = requestCreatedAt + delay;
+            long expiresAt = requestCreatedAt + timeSpan;
             return Message.builder(verb, NoPayload.noPayload)
                           .withCreatedAt(createdAt)
-                          .withExpiresAt(createdAt + timeSpan)
+                          .withExpiresAt(expiresAt)
                           .from(INET_ADDRESS_AND_PORT_GEN.generate(rnd))
                           .build();
         }).describedAs(CassandraGenerators::toStringRecursive);

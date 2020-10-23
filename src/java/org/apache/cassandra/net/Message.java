@@ -374,7 +374,9 @@ public class Message<T>
                 this.createdAtNanos = Math.min(createdAtNanos, expiresAtNanos);
             else
                 this.createdAtNanos = createdAtNanos;
-            Preconditions.checkArgument(this.createdAtNanos <= this.expiresAtNanos, "createdAtNanos cannot be more recent than expiresAtNanos");
+            Preconditions.checkArgument(this.createdAtNanos <= this.expiresAtNanos,
+                                        "createdAtNanos (%s) cannot be more recent than expiresAtNanos (%s)",
+                                        this.createdAtNanos, this.expiresAtNanos);
             this.flags = flags;
             this.params = params;
         }

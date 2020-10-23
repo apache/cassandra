@@ -222,14 +222,14 @@ public class FramingTest
     public void testSerializeSizeMatchesEdgeCases() // See CASSANDRA-16103
     {
         int v40 = MessagingService.Version.VERSION_40.value;
-        Consumer<Long> subTest = timeGap ->
+        Consumer<Long> subTest = timeGapInMillis ->
         {
             long createdAt = 0;
-            long expiresAt = createdAt + timeGap;
+            long expiresAt = createdAt + TimeUnit.MILLISECONDS.toNanos(timeGapInMillis);
             Message<NoPayload> message = Message.builder(Verb.READ_REPAIR_RSP, NoPayload.noPayload)
                                                 .from(FBUtilities.getBroadcastAddressAndPort())
                                                 .withCreatedAt(createdAt)
-                                                .withExpiresAt(TimeUnit.MILLISECONDS.toNanos(expiresAt))
+                                                .withExpiresAt(expiresAt)
                                                 .build();
 
             try (DataOutputBuffer out = new DataOutputBuffer(20))
