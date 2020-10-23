@@ -40,6 +40,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
@@ -230,11 +231,11 @@ public class FramingTest
                                                 .withCreatedAt(createdAt)
                                                 .withExpiresAt(TimeUnit.MILLISECONDS.toNanos(expiresAt))
                                                 .build();
-            FrameEncoder.Payload payload = FrameEncoderCrc.instance.allocator().allocate(true, 20);
-            try (DataOutputBufferFixed out = new DataOutputBufferFixed(payload.buffer))
+
+            try (DataOutputBuffer out = new DataOutputBuffer(20))
             {
                 Message.serializer.serialize(message, out, v40);
-                Assert.assertEquals(message.serializedSize(v40), payload.length());
+                Assert.assertEquals(message.serializedSize(v40), out.getLength());
             }
             catch (IOException ioe)
             {
