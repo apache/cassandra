@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.Arrays;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.commons.lang3.StringUtils.isEmpty;
