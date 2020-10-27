@@ -795,7 +795,7 @@ tablePartitionKey[CreateTableStatement.Raw stmt]
 
 tableProperty[CreateTableStatement.Raw stmt]
     : property[stmt.attrs]
-    | K_COMPACT K_STORAGE { throw new SyntaxException("COMPACT STORAGE tables are not allowed starting with version 4.0"); }
+    | K_COMPACT K_STORAGE { $stmt.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' tableClusteringOrder[stmt] (',' tableClusteringOrder[stmt])* ')'
     ;
 
