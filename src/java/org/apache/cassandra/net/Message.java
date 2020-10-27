@@ -369,14 +369,7 @@ public class Message<T>
             this.verb = verb;
             this.from = from;
             this.expiresAtNanos = expiresAtNanos;
-            if (verb.isResponse())
-                // Correct createdAtNanos to enforce the contraint, createdAtNanos <= expiresAtNanos
-                this.createdAtNanos = Math.min(createdAtNanos, expiresAtNanos);
-            else
-                this.createdAtNanos = createdAtNanos;
-            Preconditions.checkArgument(this.createdAtNanos <= this.expiresAtNanos,
-                                        "createdAtNanos (%s) cannot be more recent than expiresAtNanos (%s)",
-                                        this.createdAtNanos, this.expiresAtNanos);
+            this.createdAtNanos = createdAtNanos;
             this.flags = flags;
             this.params = params;
         }
