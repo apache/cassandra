@@ -211,27 +211,6 @@ public class MessageTest
         assertNull(msg.header.traceSession());
     }
 
-    @Test
-    public void testCreateMessageWithMoreRecentCreatedAt()
-    {
-        // in the case of request message, throw IllegalArgumentException
-        Assertions.assertThatThrownBy(() -> Message.builder(Verb.ECHO_REQ, noPayload)
-                                                   .from(FBUtilities.getBroadcastAddressAndPort())
-                                                   .withCreatedAt(100)
-                                                   .withExpiresAt(0)
-                                                   .build())
-                  .isInstanceOf(IllegalArgumentException.class)
-                  .hasMessage("createdAtNanos (100) cannot be more recent than expiresAtNanos (0)");
-
-        // in the case of response message, correct 'createdAt'
-        Assertions.assertThat(Message.builder(Verb.ECHO_RSP, noPayload)
-                                     .from(FBUtilities.getBroadcastAddressAndPort())
-                                     .withCreatedAt(100)
-                                     .withExpiresAt(0)
-                                     .build())
-                  .matches(msg -> msg.header.createdAtNanos == 0);
-    }
-
     private void testAddTraceHeaderWithType(TraceType traceType)
     {
         try
