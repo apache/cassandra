@@ -55,6 +55,7 @@ public class InstrumentingCache<K, V>
 
     public V get(K key)
     {
+        metrics.requests.mark();
         V v = map.get(key);
         if (v != null)
             metrics.hits.mark();
