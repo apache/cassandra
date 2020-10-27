@@ -224,6 +224,11 @@ public class TableMetadata implements SchemaElement
         return unbuild().params(params).build();
     }
 
+    public TableMetadata withSwapped(Set<Flag> flags)
+    {
+        return unbuild().flags(flags).build();
+    }
+
     public TableMetadata withSwapped(Triggers triggers)
     {
         return unbuild().triggers(triggers).build();
@@ -473,7 +478,7 @@ public class TableMetadata implements SchemaElement
         if (!previous.id.equals(id))
             except("Table ID mismatch (found %s; expected %s)", id, previous.id);
 
-        if (!previous.flags.equals(flags))
+        if (!previous.flags.equals(flags) && (!Flag.isCQLTable(flags) || Flag.isCQLTable(previous.flags)))
             except("Table type mismatch (found %s; expected %s)", flags, previous.flags);
 
         if (previous.partitionKeyColumns.size() != partitionKeyColumns.size())

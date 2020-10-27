@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
@@ -396,11 +398,31 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
     }
 
+
+    /**
+     * ALTER TABLE <table> DROP COMPACT STORAGE
+     */
+    private static class DropCompactStorage extends AlterTableStatement
+    {
+        private DropCompactStorage(String keyspaceName, String tableName)
+        {
+            super(keyspaceName, tableName);
+        }
+
+        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        {
+            if (!table.isCompactTable())
+                throw AlterTableStatement.ire("Cannot DROP COMPACT STORAGE on table without COMPACT STORAGE");
+
+            return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(ImmutableSet.of(TableMetadata.Flag.COMPOUND))));
+        }
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private enum Kind
         {
-            ALTER_COLUMN, ADD_COLUMNS, DROP_COLUMNS, RENAME_COLUMNS, ALTER_OPTIONS
+            ALTER_COLUMN, ADD_COLUMNS, DROP_COLUMNS, RENAME_COLUMNS, ALTER_OPTIONS, DROP_COMPACT_STORAGE
         }
 
         private final QualifiedName name;
@@ -432,11 +454,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             switch (kind)
             {
-                case   ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName);
-                case    ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns);
-                case   DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, timestamp);
-                case RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns);
-                case  ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs);
+                case          ALTER_COLUMN: return new AlterColumn(keyspaceName, tableName);
+                case           ADD_COLUMNS: return new AddColumns(keyspaceName, tableName, addedColumns);
+                case          DROP_COLUMNS: return new DropColumns(keyspaceName, tableName, droppedColumns, timestamp);
+                case        RENAME_COLUMNS: return new RenameColumns(keyspaceName, tableName, renamedColumns);
+                case         ALTER_OPTIONS: return new AlterOptions(keyspaceName, tableName, attrs);
+                case  DROP_COMPACT_STORAGE: return new DropCompactStorage(keyspaceName, tableName);
             }
 
             throw new AssertionError();
@@ -457,6 +480,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             kind = Kind.DROP_COLUMNS;
             droppedColumns.add(name);
+        }
+
+        public void dropCompactStorage()
+        {
+            kind = Kind.DROP_COMPACT_STORAGE;
         }
 
         public void timestamp(long timestamp)

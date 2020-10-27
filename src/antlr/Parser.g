@@ -947,6 +947,8 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
       | K_RENAME id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1); }
          ( K_AND idn=ident K_TO toIdn=ident { $stmt.rename(idn, toIdn); } )*
 
+      | K_DROP K_COMPACT K_STORAGE { $stmt.dropCompactStorage(); }
+
       | K_WITH properties[$stmt.attrs] { $stmt.attrs(); }
       )
     ;

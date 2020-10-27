@@ -134,4 +134,26 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
             }
         }).run();
     }
+
+    @Test
+    public void compactStorageUpgradeTest() throws Throwable
+    {
+        new TestCase()
+        .nodes(2)
+        .nodesToUpgrade(1, 2)
+        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .setup((cluster) -> {
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck) VALUES (1,1)", ConsistencyLevel.ALL);
+        })
+        .runAfterClusterUpgrade((cluster) -> {
+            cluster.forEach((inst) -> {
+                System.out.println("inst.getReleaseVersionString() = " + inst.getReleaseVersionString());
+            });
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl DROP COMPACT STORAGE");
+            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
+                                                      ConsistencyLevel.ALL),
+                       row(1, 1, null));
+        }).run();
+    }
 }
