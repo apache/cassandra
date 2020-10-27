@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
