@@ -18,7 +18,7 @@
 //
 // Jenkins declaration of how to build and test the current codebase.
 //  Jenkins infrastructure related settings should be kept in
-//    https://github.com/apache/cassandra-builds/blob/master/jenkins-dsl/cassandra_job_dsl_seed.groovy
+//    https://github.com/apache/cassandra-builds/blob/trunk/jenkins-dsl/cassandra_job_dsl_seed.groovy
 //
 // Validate/lint this file using the following command
 // `curl -X POST  -F "jenkinsfile=<.jenkins/Jenkinsfile" https://ci-cassandra.apache.org/pipeline-model-converter/validate`
