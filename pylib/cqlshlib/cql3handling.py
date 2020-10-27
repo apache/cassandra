@@ -14,15 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .cqlhandling import CqlParsingRuleSet, Hint
 from cassandra.metadata import maybe_escape_name
-
+from cqlshlib import helptopics
+from cqlshlib.cqlhandling import CqlParsingRuleSet, Hint
 
 simple_cql_types = set(('ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'duration', 'float',
                         'inet', 'int', 'smallint', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'uuid', 'varchar', 'varint'))
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
-from . import helptopics
 cqldocs = helptopics.CQL3HelpTopics()
 
 

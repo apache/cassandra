@@ -30,7 +30,7 @@ echo "No appropriate python interpreter found." >&2
 exit 1
 ":"""
 
-from __future__ import with_statement
+from __future__ import division, unicode_literals
 
 import cmd
 import codecs

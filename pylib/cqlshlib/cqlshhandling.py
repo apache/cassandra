@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import os
+
 from cqlshlib import cqlhandling
 
 # we want the cql parser to understand our cqlsh-specific commands too

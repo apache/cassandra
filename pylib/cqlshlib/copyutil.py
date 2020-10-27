@@ -16,6 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
 import csv
 import datetime
 import json
@@ -25,6 +26,8 @@ import os
 import platform
 import random
 import re
+import signal
+import six
 import struct
 import sys
 import threading
@@ -48,11 +51,12 @@ from six.moves.queue import Queue
 
 from cassandra import OperationTimedOut
 from cassandra.cluster import Cluster, DefaultConnection
-from cassandra.cqltypes import ReversedType, UserType
+from cassandra.cqltypes import ReversedType, UserType, BytesType
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRoundRobinPolicy, FallthroughRetryPolicy
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
 from cassandra.util import Date, Time
+from cqlshlib.util import profile_on, profile_off
 
 from cqlshlib.cql3handling import CqlRuleSet
 from cqlshlib.displaying import NO_COLOR_MAP
@@ -308,8 +312,8 @@ class CopyTask(object):
         """
         Convert all option values to valid string literals unless they are path names
         """
-        return dict([(k, v.decode('string_escape') if k not in ['errfile', 'ratefile'] else v)
-                     for k, v, in opts.iteritems()])
+        return dict([(k, v if k not in ['errfile', 'ratefile'] else v)
+                     for k, v, in opts.items()])
 
     def parse_options(self, opts, direction):
         """
@@ -322,9 +326,9 @@ class CopyTask(object):
         opts = self.clean_options(self.maybe_read_config_file(opts, direction))
 
         dialect_options = dict()
-        dialect_options['quotechar'] = opts.pop('quote', '"')
-        dialect_options['escapechar'] = opts.pop('escape', '\\')
-        dialect_options['delimiter'] = opts.pop('delimiter', ',')
+        dialect_options['quotechar'] = ensure_str(opts.pop('quote', '"'))
+        dialect_options['escapechar'] = ensure_str(opts.pop('escape', '\\'))
+        dialect_options['delimiter'] = ensure_str(opts.pop('delimiter', ','))
         if dialect_options['quotechar'] == dialect_options['escapechar']:
             dialect_options['doublequote'] = True
             del dialect_options['escapechar']
@@ -332,7 +336,7 @@ class CopyTask(object):
             dialect_options['doublequote'] = False
 
         copy_options = dict()
-        copy_options['nullval'] = opts.pop('null', '')
+        copy_options['nullval'] = ensure_str(opts.pop('null', ''))
         copy_options['header'] = bool(opts.pop('header', '').lower() == 'true')
         copy_options['encoding'] = opts.pop('encoding', 'utf8')
         copy_options['maxrequests'] = int(opts.pop('maxrequests', 6))
@@ -354,7 +358,7 @@ class CopyTask(object):
         copy_options['consistencylevel'] = shell.consistency_level
         copy_options['decimalsep'] = opts.pop('decimalsep', '.')
         copy_options['thousandssep'] = opts.pop('thousandssep', '')
-        copy_options['boolstyle'] = [s.strip() for s in opts.pop('boolstyle', 'True, False').split(',')]
+        copy_options['boolstyle'] = [ensure_str(s.strip()) for s in opts.pop('boolstyle', 'True, False').split(',')]
         copy_options['numprocesses'] = int(opts.pop('numprocesses', self.get_num_processes(16)))
         copy_options['begintoken'] = opts.pop('begintoken', '')
         copy_options['endtoken'] = opts.pop('endtoken', '')

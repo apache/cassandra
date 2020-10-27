@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
+
 import binascii
 import calendar
 import datetime
@@ -21,12 +23,12 @@ import math
 import os
 import re
 import sys
-import six
 import platform
 
 from six import ensure_text
 
 from collections import defaultdict
+
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
 from . import wcwidth
@@ -220,7 +222,6 @@ _formatters = {}
 def format_value(val, cqltype, **kwargs):
     if val == EMPTY:
         return format_value_default('', **kwargs)
-
     formatter = get_formatter(val, cqltype)
     return formatter(val, cqltype=cqltype, **kwargs)
 
