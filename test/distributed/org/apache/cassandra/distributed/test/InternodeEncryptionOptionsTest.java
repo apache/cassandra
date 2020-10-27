@@ -45,19 +45,6 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
     }
 
     @Test
-    public void supplyingEnabledWillNotStartTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(2).withConfig(c ->
-                                                                 c.set("server_encryption_options",
-                                                                       ImmutableMap.builder().putAll(validKeystore)
-                                                                                   .put("enabled", false).build()))
-                                        .createWithoutStarting())
-        {
-            assertCannotStartDueToConfigurationException(cluster);
-        }
-    }
-
-    @Test
     public void legacySslPortProvidedWithEncryptionNoneWillNotStartTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {

@@ -23,12 +23,16 @@ import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class EncryptionOptions
 {
+    Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
+
     public enum TlsEncryptionPolicy
     {
         UNENCRYPTED("unencrypted"), OPTIONAL("optionally encrypted"), ENCRYPTED("encrypted");
@@ -400,14 +404,16 @@ public class EncryptionOptions
 
         private ServerEncryptionOptions applyConfigInternal()
         {
-            if (this.enabled != null)
-            {
-                throw new ConfigurationException("enabled should not be configured for server_encryption_options, must use internode_encryption");
-            }
+
 
             super.applyConfig();
 
             isEnabled = this.internode_encryption != InternodeEncryption.none;
+
+            if (this.enabled != null && this.enabled && !isEnabled)
+            {
+                logger.warn("Setting server_encryption_options.enabled has no effect, use internode_encryption");
+            }
 
             // regardless of the optional flag, if the internode encryption is set to rack or dc
             // it must be optional so that unencrypted connections within the rack or dc can be established.

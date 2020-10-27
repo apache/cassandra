@@ -114,21 +114,6 @@ public class EncryptionOptionsTest
     }
 
     @Test
-    public void serverEnabled()
-    {
-        Map<String, Object> yaml = ImmutableMap.of(
-        "server_encryption_options", ImmutableMap.of(
-            "enabled", false
-            )
-        );
-
-        EncryptionOptions.ServerEncryptionOptions options = YamlConfigurationLoader.fromMap(yaml, Config.class).server_encryption_options;
-        Assertions.assertThatThrownBy(() -> options.applyConfig())
-                  .isInstanceOf(ConfigurationException.class)
-                  .hasMessageContaining("enabled should not be configured");
-    }
-
-    @Test
     public void isEnabledServer()
     {
         Map<String, Object> yaml = ImmutableMap.of(
