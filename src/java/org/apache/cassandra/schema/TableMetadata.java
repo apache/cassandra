@@ -101,7 +101,6 @@ public class TableMetadata implements SchemaElement
             return !isSuper(flags) && !isDense(flags) && isCompound(flags);
         }
 
-
         public static boolean isStaticCompactTable(Set<TableMetadata.Flag> flags)
         {
             return !Flag.isSuper(flags) && !Flag.isDense(flags) && !Flag.isCompound(flags);

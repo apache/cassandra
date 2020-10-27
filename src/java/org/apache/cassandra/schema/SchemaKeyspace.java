@@ -859,35 +859,6 @@ public final class SchemaKeyspace
         return fetchKeyspacesWithout(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }
 
-    private static boolean isSafeToDropCompactStorage(String keyspaceName, String tableName)
-    {
-        if (!Boolean.parseBoolean(System.getProperty("cassandra.auto_drop_compact_storage", "false")))
-            return false;
-
-        String columnQuery = String.format("SELECT kind, type FROM %s.%s WHERE keyspace_name='%s' and table_name='%s'",
-                                           SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS, keyspaceName, tableName);
-
-        String simpleType = "empty";
-        int simpleCount = 0;
-        for (UntypedResultSet.Row row : query(columnQuery))
-        {
-            String kind = row.getString("kind");
-            if (kind.equalsIgnoreCase("partition_key") || kind.equalsIgnoreCase("clustering"))
-                continue;
-
-            if (kind.equalsIgnoreCase("static"))
-                return false;
-
-            simpleCount++; // if not partition, clustering, or static column then its a regular columnb
-            simpleType = row.getString("type"); // only save one type becuase if there is > 1 simple column then false is returned
-        }
-
-        if (simpleCount == 1 && !simpleType.equalsIgnoreCase("empty"))
-            return true;
-
-        return false;
-    }
-
     private static Keyspaces fetchKeyspacesWithout(Set<String> excludedKeyspaceNames)
     {
         String query = format("SELECT keyspace_name FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
