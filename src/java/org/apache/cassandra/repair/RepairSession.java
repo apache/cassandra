@@ -314,6 +314,21 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public void forceShutdown(Throwable reason)
     {
         setException(reason);
+
+        // Ensure that all outstandig futures are cancled.
+        // Otherwise, when task executer will be shutdown later in this method, the thread of the repair job will
+        // wait forever on the outstanding futures. If that happen the repair thread won't be finished and won't release the memory.
+
+        for (ValidationTask validationTask: validating.values())
+        {
+            validationTask.cancel(true);
+        }
+
+        for (RemoteSyncTask syncTask: syncingTasks.values())
+        {
+            syncTask.cancel(true);
+        }
+
         taskExecutor.shutdownNow();
         terminate();
     }
