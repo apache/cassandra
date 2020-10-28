@@ -263,6 +263,11 @@ public class TableMetadata implements SchemaElement
         return false;
     }
 
+    public boolean isStaticCompactTable()
+    {
+        return false;
+    }
+
     public ImmutableCollection<ColumnMetadata> columns()
     {
         return columns.values();
@@ -1415,6 +1420,7 @@ public class TableMetadata implements SchemaElement
                    : UTF8Type.instance;
         }
 
+        @Override
         public boolean isStaticCompactTable()
         {
             return !Flag.isSuper(flags) && !Flag.isDense(flags) && !Flag.isCompound(flags);

@@ -87,11 +87,9 @@ public interface PartitionRangeReadQuery extends ReadQuery
 
     default boolean selectsFullPartition()
     {
-        if (metadata().isCompactTable())
-        {
-            if (((TableMetadata.CompactTableMetadata) metadata()).isStaticCompactTable())
-                return true;
-        }
+        if (metadata().isStaticCompactTable())
+            return true;
+
         return dataRange().selectsAllPartition() && !rowFilter().hasExpressionOnClusteringOrRegularColumns();
     }
 }

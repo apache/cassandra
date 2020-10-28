@@ -808,11 +808,8 @@ public class SelectStatement implements CQLStatement
     // result set row with null for all other regular columns.)
     private boolean returnStaticContentOnPartitionWithNoRows()
     {
-        if (table.isCompactTable())
-        {
-            if (((TableMetadata.CompactTableMetadata) table).isStaticCompactTable())
-                return true;
-        }
+        if (table.isStaticCompactTable())
+            return true;
 
         // The general rational is that if some rows are specifically selected by the query (have clustering or
         // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
@@ -1047,7 +1044,7 @@ public class SelectStatement implements CQLStatement
          */
         private boolean selectOnlyStaticColumns(TableMetadata table, List<Selectable> selectables)
         {
-            if (table.isCompactTable() && ((TableMetadata.CompactTableMetadata) table).isStaticCompactTable())
+            if (table.isStaticCompactTable())
                 return false;
 
             if (!table.hasStaticColumns() || selectables.isEmpty())

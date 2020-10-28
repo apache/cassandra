@@ -751,12 +751,8 @@ public final class StatementRestrictions
         // If this is a names command and the table is a static compact one, then as far as CQL is concerned we have
         // only a single row which internally correspond to the static parts. In which case we want to return an empty
         // set (since that's what ClusteringIndexNamesFilter expects).
-        if (table.isCompactTable())
-        {
-            TableMetadata.CompactTableMetadata ctMetadata = (TableMetadata.CompactTableMetadata) table;
-            if (ctMetadata.isStaticCompactTable())
-                return BTreeSet.empty(table.comparator);
-        }
+        if (table.isStaticCompactTable())
+            return BTreeSet.empty(table.comparator);
 
         return clusteringColumnsRestrictions.valuesAsClustering(options);
     }
@@ -781,7 +777,7 @@ public final class StatementRestrictions
     public boolean isColumnRange()
     {
         int numberOfClusteringColumns = table.clusteringColumns().size();
-        if (table.isCompactTable() && ((TableMetadata.CompactTableMetadata) table).isStaticCompactTable())
+        if (table.isStaticCompactTable())
         {
             // For static compact tables we want to ignore the fake clustering column (note that if we weren't special casing,
             // this would mean a 'SELECT *' on a static compact table would query whole partitions, even though we'll only return
