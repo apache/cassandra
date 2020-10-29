@@ -122,8 +122,7 @@ public class NodetoolNetStatsTest extends CQLTester
         
         ToolResult tool = ToolRunner.invokeNodetool("netstats");
         assertThat(tool.getStdout(), CoreMatchers.containsString("Gossip messages                 n/a         0              2         0"));
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
+        tool.assertOnCleanExit();
     }
 
     @Test
