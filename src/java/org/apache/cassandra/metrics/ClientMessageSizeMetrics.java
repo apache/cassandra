@@ -26,11 +26,11 @@ import com.codahale.metrics.Histogram;
 /**
  * Metrics to track the size of incoming and outgoing bytes at Cassandra server.
  */
-public class ClientRequestSizeMetrics
+public class ClientMessageSizeMetrics
 {
-    private static final String TYPE = "ClientRequestSize";
-    public static final Counter totalBytesRead = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "IncomingBytes", null));
-    public static final Counter totalBytesWritten = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "OutgoingBytes", null));
-    public static final Histogram bytesReceivedPerFrame = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE, "BytesRecievedPerFrame", null), true);
-    public static final Histogram bytesTransmittedPerFrame = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE, "BytesTransmittedPerFrame", null), true);
+    private static final String TYPE = "ClientMessageSize";
+    public static final Counter bytesReceived = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "BytesReceived", null));
+    public static final Counter bytesSent = Metrics.counter(DefaultNameFactory.createMetricName(TYPE, "BytesSent", null));
+    public static final Histogram bytesReceivedPerRequest = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE, "BytesReceivedPerRequest", null), true);
+    public static final Histogram bytesSentPerResponse = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE, "BytesSentPerResponse", null), true);
 }

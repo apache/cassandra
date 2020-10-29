@@ -31,7 +31,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
-import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.metrics.ClientMessageSizeMetrics;
 import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
@@ -155,8 +155,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     {
         receivedCount++;
         receivedBytes += frameSize + Frame.Header.LENGTH;
-        ClientRequestSizeMetrics.totalBytesRead.inc(frameSize + Frame.Header.LENGTH);
-        ClientRequestSizeMetrics.bytesReceivedPerFrame.update(frameSize + Frame.Header.LENGTH);
+        ClientMessageSizeMetrics.bytesReceived.inc(frameSize + Frame.Header.LENGTH);
+        ClientMessageSizeMetrics.bytesReceivedPerRequest.update(frameSize + Frame.Header.LENGTH);
     }
 
     private void processFrame(int frameSize, Frame frame)
@@ -276,8 +276,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
         Frame responseFrame = response.encode(request.getSourceFrame().header.version);
         int responseSize = frameSize(responseFrame.header);
-        ClientRequestSizeMetrics.totalBytesWritten.inc(responseSize);
-        ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(responseSize);
+        ClientMessageSizeMetrics.bytesSent.inc(responseSize);
+        ClientMessageSizeMetrics.bytesSentPerResponse.update(responseSize);
 
         return new Framed(channel,
                           responseFrame,

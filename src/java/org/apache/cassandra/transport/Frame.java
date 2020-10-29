@@ -34,7 +34,7 @@ import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.metrics.ClientMessageSizeMetrics;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -284,8 +284,8 @@ public class Frame
             if (buffer.readableBytes() < frameLength)
                 return null;
 
-            ClientRequestSizeMetrics.totalBytesRead.inc(frameLength);
-            ClientRequestSizeMetrics.bytesReceivedPerFrame.update(frameLength);
+            ClientMessageSizeMetrics.bytesReceived.inc(frameLength);
+            ClientMessageSizeMetrics.bytesReceivedPerRequest.update(frameLength);
 
             // extract body
             ByteBuf body = buffer.slice(idx, (int) bodyLength);
@@ -348,8 +348,8 @@ public class Frame
         {
             ByteBuf serializedHeader = encodeHeader(frame);
             int messageSize = serializedHeader.readableBytes() + frame.body.readableBytes();
-            ClientRequestSizeMetrics.totalBytesWritten.inc(messageSize);
-            ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(messageSize);
+            ClientMessageSizeMetrics.bytesSent.inc(messageSize);
+            ClientMessageSizeMetrics.bytesSentPerResponse.update(messageSize);
 
             results.add(serializedHeader);
             results.add(frame.body);
