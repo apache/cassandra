@@ -1,4 +1,5 @@
 3.0.24:
+ * Improved check of num_tokens against the length of initial_token (CASSANDRA-14477)
  * Fix a race condition on ColumnFamilyStore and TableMetrics (CASSANDRA-16228)
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
