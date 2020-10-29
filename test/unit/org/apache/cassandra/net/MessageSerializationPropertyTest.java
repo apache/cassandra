@@ -101,6 +101,9 @@ public class MessageSerializationPropertyTest implements Serializable
                         first.clear();
                         second.clear();
 
+                        // sync the clock with the generated createdAtNanos
+                        FixedMonotonicClock.setNowInNanos(message.createdAtNanos());
+
                         serializer.serialize(message, first, version.value);
                         Message<Object> read = serializer.deserialize(new DataInputBuffer(first.buffer(), true), FBUtilities.getBroadcastAddressAndPort(), version.value);
                         serializer.serialize(read, second, version.value);

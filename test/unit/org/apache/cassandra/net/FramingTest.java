@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -38,9 +40,12 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -211,6 +216,37 @@ public class FramingTest
     public void burnRandomLegacy()
     {
         burnRandomLegacy(1000);
+    }
+
+    @Test
+    public void testSerializeSizeMatchesEdgeCases() // See CASSANDRA-16103
+    {
+        int v40 = MessagingService.Version.VERSION_40.value;
+        Consumer<Long> subTest = timeGapInMillis ->
+        {
+            long createdAt = 0;
+            long expiresAt = createdAt + TimeUnit.MILLISECONDS.toNanos(timeGapInMillis);
+            Message<NoPayload> message = Message.builder(Verb.READ_REPAIR_RSP, NoPayload.noPayload)
+                                                .from(FBUtilities.getBroadcastAddressAndPort())
+                                                .withCreatedAt(createdAt)
+                                                .withExpiresAt(expiresAt)
+                                                .build();
+
+            try (DataOutputBuffer out = new DataOutputBuffer(20))
+            {
+                Message.serializer.serialize(message, out, v40);
+                Assert.assertEquals(message.serializedSize(v40), out.getLength());
+            }
+            catch (IOException ioe)
+            {
+                Assert.fail("Unexpected IOEception during test. " + ioe.getMessage());
+            }
+        };
+
+        // test cases
+        subTest.accept(-1L);
+        subTest.accept(1L << 7 - 1);
+        subTest.accept(1L << 14 - 1);
     }
 
     private void burnRandomLegacy(int count)
