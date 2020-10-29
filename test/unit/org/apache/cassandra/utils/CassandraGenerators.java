@@ -79,11 +79,12 @@ public final class CassandraGenerators
 
     // utility generators for creating more complex types
     private static final Gen<Integer> SMALL_POSITIVE_SIZE_GEN = SourceDSL.integers().between(1, 30);
+    private static final Gen<Integer> NETWORK_PORT_GEN = SourceDSL.integers().between(0, 0xFFFF);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
     public static final Gen<InetAddressAndPort> INET_ADDRESS_AND_PORT_GEN = rnd -> {
         InetAddress address = Generators.INET_ADDRESS_GEN.generate(rnd);
-        return InetAddressAndPort.getByAddressOverrideDefaults(address, SMALL_POSITIVE_SIZE_GEN.generate(rnd));
+        return InetAddressAndPort.getByAddressOverrideDefaults(address, NETWORK_PORT_GEN.generate(rnd));
     };
 
     private static final Gen<IPartitioner> PARTITIONER_GEN = SourceDSL.arbitrary().pick(Murmur3Partitioner.instance,
