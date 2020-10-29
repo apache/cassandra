@@ -144,6 +144,7 @@ public class NodetoolTableStatsTest extends CQLTester
                         "\n" + 
                         "\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        tool.assertOnCleanExit();
     }
 
     @Test
