@@ -19,11 +19,16 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
+
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -306,6 +311,133 @@ public class DatabaseDescriptorTest
         finally
         {
             DatabaseDescriptor.setRepairSessionMaxTreeDepth(previousDepth);
+        }
+    }
+
+    @Test
+    public void testApplyInitialTokensInitialTokensSetNumTokensSetAndDoesMatch() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "0,256,1024";
+        config.num_tokens = 3;
+
+        unregisterSnitchesForTokenConfigTest();
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+
+            Assert.assertEquals(Integer.valueOf(3), config.num_tokens);
+            Assert.assertEquals(3, DatabaseDescriptor.tokensFromString(config.initial_token).size());
+        }
+        finally
+        {
+            unregisterSnitchesForTokenConfigTest();
+        }
+    }
+
+    @Test
+    public void testApplyInitialTokensInitialTokensSetNumTokensSetAndDoesntMatch() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "0,256,1024";
+        config.num_tokens = 10;
+
+        unregisterSnitchesForTokenConfigTest();
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+
+            Assert.fail("initial_token = 0,256,1024 and num_tokens = 10 but applyInitialTokens() did not fail!");
+        }
+        catch (ConfigurationException ex)
+        {
+            Assert.assertEquals("The number of initial tokens (by initial_token) specified (3) is different from num_tokens value (10)",
+                                ex.getMessage());
+        }
+        finally
+        {
+            unregisterSnitchesForTokenConfigTest();
+        }
+    }
+
+    @Test
+    public void testApplyInitialTokensInitialTokensSetNumTokensNotSet() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+
+        unregisterSnitchesForTokenConfigTest();
+
+        try
+        {
+            config.initial_token = "0,256,1024";
+            config.num_tokens = null;
+            DatabaseDescriptor.applyTokensConfig(config);
+            Assert.fail("setting initial_token and not setting num_tokens is invalid");
+        }
+        catch (ConfigurationException ex)
+        {
+            Assert.assertEquals("initial_token was set but num_tokens is not!", ex.getMessage());
+        }
+        finally
+        {
+            unregisterSnitchesForTokenConfigTest();
+        }
+    }
+
+    @Test
+    public void testApplyInitialTokensInitialTokensNotSetNumTokensSet() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.num_tokens = 3;
+
+        unregisterSnitchesForTokenConfigTest();
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+        }
+        finally
+        {
+            unregisterSnitchesForTokenConfigTest();
+        }
+
+        Assert.assertEquals(Integer.valueOf(3), config.num_tokens);
+        Assert.assertTrue(DatabaseDescriptor.tokensFromString(config.initial_token).isEmpty());
+    }
+
+    @Test
+    public void testApplyInitialTokensInitialTokensNotSetNumTokensNotSet() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+
+        unregisterSnitchesForTokenConfigTest();
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+        }
+        finally
+        {
+            unregisterSnitchesForTokenConfigTest();
+        }
+
+        Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
+        Assert.assertTrue(DatabaseDescriptor.tokensFromString(config.initial_token).isEmpty());
+    }
+
+    private void unregisterSnitchesForTokenConfigTest() throws Exception
+    {
+        try
+        {
+            MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+            mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=DynamicEndpointSnitch"));
+            mbs.unregisterMBean(new ObjectName("org.apache.cassandra.db:type=EndpointSnitchInfo"));
+        }
+        catch (InstanceNotFoundException ex)
+        {
+            // ok
         }
     }
 }
