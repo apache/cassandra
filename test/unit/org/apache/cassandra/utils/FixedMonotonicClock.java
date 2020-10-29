@@ -21,9 +21,15 @@ import java.util.concurrent.TimeUnit;
 
 public final class FixedMonotonicClock implements MonotonicClock
 {
+    private static volatile long nowInNanos = 42;
+
+    public static void setNowInNanos(long nowInNanos) {
+        FixedMonotonicClock.nowInNanos = nowInNanos;
+    }
+
     public long now()
     {
-        return 42;
+        return nowInNanos;
     }
 
     public long error()
