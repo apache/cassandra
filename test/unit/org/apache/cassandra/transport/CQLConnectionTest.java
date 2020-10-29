@@ -780,6 +780,7 @@ public class CQLConnectionTest
                                                                        .decode(ctx.channel(), msg);
 
                                 msg.release();
+                                logger.info("ERROR");
                                 stop();
                                 ready.countDown();
                                 return;
@@ -841,6 +842,9 @@ public class CQLConnectionTest
                             });
                             codec.decoder.activate(processor);
                             connected = true;
+                            // Schedule the proto-flusher to collate any messages that have been
+                            // written, via send(Frame frame), and flush them to the outbound pipeline
+                            outboundFrames.schedule(channel.pipeline().lastContext());
                             ready.countDown();
                         }
                     });
@@ -868,10 +872,6 @@ public class CQLConnectionTest
 
             if (!ready.await(10, TimeUnit.SECONDS))
                 throw new RuntimeException("Failed to establish client connection in 10s");
-
-            // Schedule the proto-flusher to collate any messages that have been
-            // written, via send(Frame frame), and flush them to the outbound pipeline
-            outboundFrames.schedule(channel.pipeline().lastContext());
         }
 
         void send(Frame frame)
@@ -908,7 +908,7 @@ public class CQLConnectionTest
         private void stop()
         {
             if (channel != null && channel.isOpen())
-                channel.close();
+                channel.close().awaitUninterruptibly();
 
             outboundFrames.releaseAll();
 
