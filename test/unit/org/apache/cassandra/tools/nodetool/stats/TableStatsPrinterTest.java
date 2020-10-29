@@ -21,13 +21,11 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 public class TableStatsPrinterTest extends TableStatsTestBase
 {
@@ -313,7 +311,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     public void testDefaultPrinter() throws Exception
     {
         StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "", 0);
-        StatsPrinter printer = TableStatsPrinter.from("", false);
+        StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("", false);
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         printer.print(holder, new PrintStream(byteStream));
         assertEquals("StatsTablePrinter.DefaultPrinter does not print test vector as expected", expectedDefaultPrinterOutput, byteStream.toString());
@@ -324,7 +322,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     {
         // test sorting
         StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "reads", 0);
-        StatsPrinter printer = TableStatsPrinter.from("reads", true);
+        StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("reads", true);
         ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
         printer.print(holder, new PrintStream(byteStream));
         assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print sorted tables as expected",

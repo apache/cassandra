@@ -18,13 +18,12 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class StatsTableComparatorTest extends TableStatsTestBase
 {

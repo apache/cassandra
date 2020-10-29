@@ -151,14 +151,14 @@ public class NodetoolTableStatsTest extends CQLTester
     {
         ToolResult tool = ToolRunner.invokeNodetool("tablestats");
 
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Keyspace : system_schema"));
+        assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_schema"));
         assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
 
         tool = ToolRunner.invokeNodetool("tablestats", "system_distributed");
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Keyspace : system_distributed"));
-        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsStringIgnoringCase("Keyspace : system_schema")));
+        assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_distributed"));
+        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsString("Keyspace : system_schema")));
         assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
@@ -169,8 +169,8 @@ public class NodetoolTableStatsTest extends CQLTester
     {
         ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-i", "system_schema.aggregates");
 
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Keyspace : system_schema"));
-        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsStringIgnoringCase("Table: system_schema.aggregates")));
+        assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_schema"));
+        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsString("Table: system_schema.aggregates")));
         assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
@@ -181,7 +181,7 @@ public class NodetoolTableStatsTest extends CQLTester
     {
         Arrays.asList("-H", "--human-readable").forEach(arg -> {
             ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
-            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase(" KiB"));
+            assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsString(" KiB"));
             assertTrue("Arg: [" + arg + "]", tool.getCleanedStderr().isEmpty());
             assertEquals("Arg: [" + arg + "]", 0, tool.getExitCode());
         });
@@ -214,7 +214,7 @@ public class NodetoolTableStatsTest extends CQLTester
         });
 
         ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "wrongSort");
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("argument for sort must be one of"));
+        assertThat(tool.getStdout(), CoreMatchers.containsString("argument for sort must be one of"));
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(1, tool.getExitCode());
     }
@@ -224,13 +224,13 @@ public class NodetoolTableStatsTest extends CQLTester
     {
         Arrays.asList("-t", "--top").forEach(arg -> {
             ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", arg, "1");
-            assertTrue("Arg: [" + arg + "]", StringUtils.countMatches(tool.getStdout(), "Table:") == 1);
+            assertEquals("Arg: [" + arg + "]", StringUtils.countMatches(tool.getStdout(), "Table:"), 1);
             assertTrue("Arg: [" + arg + "]", tool.getCleanedStderr().isEmpty());
             assertEquals("Arg: [" + arg + "]", 0, tool.getExitCode());
         });
 
         ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", "-t", "-1");
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("argument for top must be a positive integer"));
+        assertThat(tool.getStdout(), CoreMatchers.containsString("argument for top must be a positive integer"));
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(1, tool.getExitCode());
     }

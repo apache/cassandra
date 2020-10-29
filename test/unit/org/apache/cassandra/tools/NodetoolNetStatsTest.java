@@ -18,7 +18,12 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -27,11 +32,17 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.SessionInfo;
+import org.apache.cassandra.streaming.StreamSession.State;
+import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.tools.nodetool.NetStats;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
@@ -103,14 +114,57 @@ public class NodetoolNetStatsTest extends CQLTester
     }
 
     @Test
-    public void testNetStats() throws Throwable
+    public void testNetStats()
     {
         Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
         MessagingService.instance().send(echoMessageOut, FBUtilities.getBroadcastAddressAndPort());
         
         ToolResult tool = ToolRunner.invokeNodetool("netstats");
-        assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Gossip messages                 n/a         0              2         0"));
+        assertThat(tool.getStdout(), CoreMatchers.containsString("Gossip messages                 n/a         0              2         0"));
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
+    }
+
+    @Test
+    public void testHumanReadable() throws IOException
+    {
+        List<StreamSummary> streamSummaries = Arrays.asList(new StreamSummary(TableId.generate(), 1, 1024));
+        SessionInfo info = new SessionInfo(InetAddressAndPort.getLocalHost(),
+                                           1,
+                                           InetAddressAndPort.getLocalHost(),
+                                           streamSummaries,
+                                           streamSummaries,
+                                           State.COMPLETE);
+
+        try(ByteArrayOutputStream baos = new ByteArrayOutputStream(); PrintStream out = new PrintStream(baos);)
+        {
+            NetStats nstats = new NetStats();
+
+            nstats.printReceivingSummaries(out, info, false);
+            String stdout = getSummariesStdout(baos, out);
+            Assertions.assertThat(stdout).doesNotContain("Kib");
+
+            baos.reset();
+            nstats.printSendingSummaries(out, info, false);
+            stdout = getSummariesStdout(baos, out);
+            Assertions.assertThat(stdout).doesNotContain("KiB");
+
+            baos.reset();
+            nstats.printReceivingSummaries(out, info, true);
+            stdout = getSummariesStdout(baos, out);
+            Assertions.assertThat(stdout).contains("KiB");
+
+            baos.reset();
+            nstats.printSendingSummaries(out, info, true);
+            stdout = getSummariesStdout(baos, out);
+            Assertions.assertThat(stdout).contains("KiB");            
+        }
+    }
+
+    private String getSummariesStdout(ByteArrayOutputStream baos, PrintStream ps) throws IOException
+    {
+        baos.flush();
+        ps.flush();
+        return baos.toString(StandardCharsets.UTF_8.toString());
     }
 }

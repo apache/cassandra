@@ -21,9 +21,7 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 /**
  * Create a test vector for unit testing of TableStats features.
