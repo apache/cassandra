@@ -48,9 +48,7 @@ import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class NodetoolNetStatsTest extends CQLTester
