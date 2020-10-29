@@ -217,7 +217,7 @@ public class NodetoolTableStatsTest extends CQLTester
 
         ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "wrongSort");
         assertThat(tool.getStdout(), CoreMatchers.containsString("argument for sort must be one of"));
-        assertTrue(tool.getCleanedStderr().isEmpty());
+        tool.assertCleanStdErr();
         assertEquals(1, tool.getExitCode());
     }
 
