@@ -233,7 +233,7 @@ public class NodetoolTableStatsTest extends CQLTester
 
         ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", "-t", "-1");
         assertThat(tool.getStdout(), CoreMatchers.containsString("argument for top must be a positive integer"));
-        assertTrue(tool.getCleanedStderr().isEmpty());
+        tool.assertCleanStdErr();
         assertEquals(1, tool.getExitCode());
     }
 }
