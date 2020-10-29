@@ -182,8 +182,13 @@ public class NodetoolTableStatsTest extends CQLTester
         Arrays.asList("-H", "--human-readable").forEach(arg -> {
             ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
             assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsString(" KiB"));
-            assertTrue("Arg: [" + arg + "]", tool.getCleanedStderr().isEmpty());
-            assertEquals("Arg: [" + arg + "]", 0, tool.getExitCode());
+            assertTrue(String.format("Expected empty stderr for option [%s] but found: %s",
+                                     arg,
+                                     tool.getCleanedStderr()),
+                       tool.getCleanedStderr().isEmpty());
+            assertEquals(String.format("Expected exit code 0 for option [%s] but found: %s", arg, tool.getExitCode()),
+                         0,
+                         tool.getExitCode());
         });
     }
 
