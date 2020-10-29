@@ -136,7 +136,7 @@ public class NodetoolNetStatsTest extends CQLTester
                                            streamSummaries,
                                            State.COMPLETE);
 
-        try(ByteArrayOutputStream baos = new ByteArrayOutputStream(); PrintStream out = new PrintStream(baos);)
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); PrintStream out = new PrintStream(baos))
         {
             NetStats nstats = new NetStats();
 
