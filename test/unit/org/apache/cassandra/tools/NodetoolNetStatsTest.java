@@ -128,7 +128,7 @@ public class NodetoolNetStatsTest extends CQLTester
     @Test
     public void testHumanReadable() throws IOException
     {
-        List<StreamSummary> streamSummaries = Arrays.asList(new StreamSummary(TableId.generate(), 1, 1024));
+        List<StreamSummary> streamSummaries = Collections.singletonList(new StreamSummary(TableId.generate(), 1, 1024));
         SessionInfo info = new SessionInfo(InetAddressAndPort.getLocalHost(),
                                            1,
                                            InetAddressAndPort.getLocalHost(),
