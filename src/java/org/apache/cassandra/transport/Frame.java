@@ -199,11 +199,7 @@ public class Frame
             ProtocolVersion version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
 
             int flags = buffer.get(idx++);
-            EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
-
-            if (version.isBeta() && !decodedFlags.contains(Header.Flag.USE_BETA))
-                throw new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
-                                            version);
+            EnumSet<Header.Flag> decodedFlags = decodeFlags(version, flags);
 
             int streamId = buffer.getShort(idx);
             idx += 2;
@@ -253,11 +249,7 @@ public class Frame
                 return null;
 
             int flags = buffer.getByte(idx++);
-            EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
-
-            if (version.isBeta() && !decodedFlags.contains(Header.Flag.USE_BETA))
-                throw new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
-                                            version);
+            EnumSet<Header.Flag> decodedFlags = decodeFlags(version, flags);
 
             int streamId = buffer.getShort(idx);
             idx += 2;
@@ -303,6 +295,16 @@ public class Frame
             buffer.readerIndex(idx);
 
             return new Frame(new Header(version, decodedFlags, streamId, type, bodyLength), body);
+        }
+
+        private EnumSet<Header.Flag> decodeFlags(ProtocolVersion version, int flags)
+        {
+            EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
+
+            if (version.isBeta() && !decodedFlags.contains(Header.Flag.USE_BETA))
+                throw new ProtocolException(String.format("Beta version of the protocol used (%s), but USE_BETA flag is unset", version),
+                                            version);
+            return decodedFlags;
         }
 
         @Override
