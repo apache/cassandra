@@ -31,6 +31,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
+import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoder.IntactFrame;
@@ -130,10 +131,8 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
                 // Don't stop processing incoming frames, rely on the client to apply
                 // backpressure when it receives OverloadedException
-                receivedCount++;
-                receivedBytes += frameSize + Frame.Header.LENGTH;
-
-                //discard this message as we're responding with the overloaded error
+                // but discard this message as we're responding with the overloaded error
+                incrementReceivedMessageMetrics(frameSize);
                 ByteBuffer buf = bytes.get();
                 buf.position(buf.position() + Frame.Header.LENGTH + frameSize);
                 return true;
@@ -147,10 +146,17 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
 
         channelPayloadBytesInFlight += frameSize;
-        receivedCount++;
-        receivedBytes += frameSize + Frame.Header.LENGTH;
+        incrementReceivedMessageMetrics(frameSize);
         processFrame(frameSize, composeCqlFrame(header, bytes));
         return true;
+    }
+
+    private void incrementReceivedMessageMetrics(int frameSize)
+    {
+        receivedCount++;
+        receivedBytes += frameSize + Frame.Header.LENGTH;
+        ClientRequestSizeMetrics.totalBytesRead.inc(frameSize + Frame.Header.LENGTH);
+        ClientRequestSizeMetrics.bytesReceivedPerFrame.update(frameSize + Frame.Header.LENGTH);
     }
 
     private void processFrame(int frameSize, Frame frame)
@@ -267,8 +273,14 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         // the work of returning the capacity allocated for processing the request.
         // The Dispatcher will call this to obtain the FlushItem to enqueue with its Flusher once
         // a dispatched request has been processed.
+
+        Frame responseFrame = response.encode(request.getSourceFrame().header.version);
+        int responseSize = frameSize(responseFrame.header);
+        ClientRequestSizeMetrics.totalBytesWritten.inc(responseSize);
+        ClientRequestSizeMetrics.bytesTransmittedPerFrame.update(responseSize);
+
         return new Framed(channel,
-                          response.encode(request.getSourceFrame().header.version),
+                          responseFrame,
                           request.getSourceFrame(),
                           payloadAllocator,
                           this::release);

@@ -18,8 +18,14 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.stream.Collectors;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
@@ -30,6 +36,7 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.Range;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -37,8 +44,21 @@ import static org.junit.Assert.assertEquals;
 /**
  * Ensures we properly account for metrics tracked in the native protocol
  */
+@RunWith(Parameterized.class)
 public class ClientRequestSizeMetricsTest extends CQLTester
 {
+
+    @Parameterized.Parameter
+    public ProtocolVersion version;
+
+    @Parameterized.Parameters()
+    public static Collection<Object[]> versions()
+    {
+        return ProtocolVersion.SUPPORTED.stream()
+                                        .map(v -> new Object[]{v})
+                                        .collect(Collectors.toList());
+    }
+
     @BeforeClass
     public static void setUp()
     {
@@ -52,7 +72,7 @@ public class ClientRequestSizeMetricsTest extends CQLTester
         // the event sent upon schema updates
         clearMetrics();
 
-        executeNet("SELECT * from system.peers");
+        executeNet(version, "SELECT * from system.peers");
 
         long requestLength = ClientRequestSizeMetrics.totalBytesRead.getCount();
         long responseLength = ClientRequestSizeMetrics.totalBytesWritten.getCount();
@@ -63,7 +83,7 @@ public class ClientRequestSizeMetricsTest extends CQLTester
         checkMetrics(1, requestLength, responseLength);
 
         // Let's fire the same request again and test that the changes are the same that previously
-        executeNet("SELECT * from system.peers");
+        executeNet(version, "SELECT * from system.peers");
 
         checkMetrics(2, requestLength, responseLength);
     }
