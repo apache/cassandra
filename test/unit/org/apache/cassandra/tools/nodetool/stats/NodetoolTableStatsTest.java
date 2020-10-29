@@ -170,8 +170,7 @@ public class NodetoolTableStatsTest extends CQLTester
         assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_schema"));
         assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsString("Table: system_schema.aggregates")));
         assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
+        tool.assertOnCleanExit();
     }
 
     @Test
