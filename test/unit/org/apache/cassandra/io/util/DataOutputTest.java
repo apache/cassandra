@@ -181,7 +181,7 @@ public class DataOutputTest
                 while (true)
                     write.publicFlush();
             }
-            catch (RuntimeException e)
+            catch (BufferOverflowException e)
             {
                 if (e.getClass() == BufferOverflowException.class)
                     threw = true;
@@ -291,11 +291,6 @@ public class DataOutputTest
     private static void checkThrowsIAE(Callable<Object> c)
     {
         checkThrowsException(c, IllegalArgumentException.class);
-    }
-
-    private static void checkThrowsRuntimeException(Callable<Object> c)
-    {
-        checkThrowsException(c, RuntimeException.class);
     }
 
     private static void checkThrowsException(Callable<Object> c, Class<?> exceptionClass)

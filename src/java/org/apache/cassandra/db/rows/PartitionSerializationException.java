@@ -22,15 +22,15 @@ import org.apache.cassandra.schema.TableMetadata;
 
 public class PartitionSerializationException extends RuntimeException
 {
-    public PartitionSerializationException(UnfilteredRowIterator partition, Throwable cause)
+    public PartitionSerializationException(BaseRowIterator<Unfiltered> partition, Throwable cause)
     {
         super(buildMessage(partition), cause);
     }
 
-    private static String buildMessage(UnfilteredRowIterator partition)
+    private static String buildMessage(BaseRowIterator<Unfiltered> partition)
     {
         TableMetadata table = partition.metadata();
-        Object readablePartitionkey = table.partitionKeyType.compose(partition.partitionKey().getKey());
+        Object readablePartitionkey = table.partitionKeyType.getString(partition.partitionKey().getKey());
         return String.format("Failed to serialize partition key '%s' on table '%s' in keyspace '%s'.",
                              readablePartitionkey, table.name, table.keyspace);
     }
