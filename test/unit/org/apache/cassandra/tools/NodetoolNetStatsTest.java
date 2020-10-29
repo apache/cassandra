@@ -111,6 +111,7 @@ public class NodetoolNetStatsTest extends CQLTester
                         "\n" + 
                         "\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        tool.assertOnCleanExit();
     }
 
     @Test
