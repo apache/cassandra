@@ -324,6 +324,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (gossipActive)
         {
+            if (!isNormal())
+                throw new IllegalStateException("Unable to stop gossip because the node is not in the normal state. Try to stop the node instead.");
+
             logger.warn("Stopping gossip by operator request");
 
             if (isNativeTransportRunning())
@@ -1454,6 +1457,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setIncrementalBackupsEnabled(boolean value)
     {
         DatabaseDescriptor.setIncrementalBackupsEnabled(value);
+    }
+
+    @VisibleForTesting // only used by test
+    public void setMovingModeUnsafe() {
+        setMode(Mode.MOVING, true);
     }
 
     private void setMode(Mode m, boolean log)
@@ -4630,6 +4638,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return operationMode == Mode.DRAINING;
     }
 
+    public boolean isNormal()
+    {
+        return operationMode == Mode.NORMAL;
+    }
+
     public String getDrainProgress()
     {
         return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);
@@ -4849,6 +4862,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (isShutdown()) // do not rely on operationMode in case it gets changed to decomissioned or other
             throw new IllegalStateException(String.format("Unable to start %s because the node was drained.", service));
+
+        if (!isNormal())
+            throw new IllegalStateException(String.format("Unable to start %s because the node is not in the normal state.", service));
     }
 
     // Never ever do this at home. Used by tests.
