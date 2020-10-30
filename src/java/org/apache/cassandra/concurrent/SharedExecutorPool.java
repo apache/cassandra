@@ -108,9 +108,9 @@ public class SharedExecutorPool
             schedule(Work.SPINNING);
     }
 
-    public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
+    public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, String jmxPath, String name)
     {
-        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maxQueuedTasks, jmxPath, name);
+        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, jmxPath, name);
         executors.add(executor);
         return executor;
     }
