@@ -41,8 +41,11 @@ public abstract class AbstractArrayClusteringPrefix extends AbstractOnHeapCluste
     public ByteBuffer[] getBufferArray()
     {
         ByteBuffer[] out = new ByteBuffer[values.length];
-        for (int i=0; i<values.length; i++)
-            out[i] = ByteBuffer.wrap(values[i]);
+        for (int i = 0; i < values.length; i++)
+        {
+            // Compact tables allowed null clustering elements, so take those into account: 
+            out[i] = values[i] == null ? null : ByteBuffer.wrap(values[i]);
+        }
         return out;
     }
 
