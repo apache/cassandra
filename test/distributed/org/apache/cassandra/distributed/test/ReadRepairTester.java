@@ -41,9 +41,6 @@ import static org.apache.cassandra.distributed.test.TestBaseImpl.KEYSPACE;
  */
 public abstract class ReadRepairTester<T extends ReadRepairTester<T>>
 {
-    static final Object[][] EMPTY_ROWS = new Object[0][];
-    static final boolean[] BOOLEANS = new boolean[]{ false, true };
-
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
     private final String tableName = "t_" + seqNumber.getAndIncrement();
