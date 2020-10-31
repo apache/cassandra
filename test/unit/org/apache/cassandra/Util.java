@@ -130,6 +130,11 @@ public class Util
         return comparator.make(o);
     }
 
+    public static Token token(int key)
+    {
+        return testPartitioner().getToken(ByteBufferUtil.bytes(key));
+    }
+
     public static Token token(String key)
     {
         return testPartitioner().getToken(ByteBufferUtil.bytes(key));

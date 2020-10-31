@@ -20,47 +20,32 @@ package org.apache.cassandra.db;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
-import com.google.common.collect.Iterators;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import org.apache.cassandra.*;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.assertEquals;
 
 public class PartitionRangeReadTest
 {
-    public static final String KEYSPACE1 = "PartitionRangeReadTest1";
-    public static final String KEYSPACE2 = "PartitionRangeReadTest2";
-    public static final String CF_STANDARD1 = "Standard1";
-    public static final String CF_STANDARDINT = "StandardInteger1";
-    public static final String CF_COMPACT1 = "Compact1";
+    private static final String KEYSPACE1 = "PartitionRangeReadTest1";
+    private static final String KEYSPACE2 = "PartitionRangeReadTest2";
+    private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_STANDARDINT = "StandardInteger1";
+    private static final String CF_COMPACT1 = "Compact1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -99,11 +84,10 @@ public class PartitionRangeReadTest
     }
 
     @Test
-    public void testCassandra6778() throws CharacterCodingException
+    public void testCassandra6778()
     {
-        String cfname = CF_STANDARDINT;
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARDINT);
         cfs.truncateBlocking();
 
         ByteBuffer col = ByteBufferUtil.bytes("val");
@@ -127,11 +111,11 @@ public class PartitionRangeReadTest
 
         // fetch by the first column name; we should get the second version of the column value
         Row row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{1})).build());
-        assertTrue(row.getCell(cDef).buffer().equals(ByteBufferUtil.bytes("val2")));
+        assertEquals(ByteBufferUtil.bytes("val2"), row.getCell(cDef).buffer());
 
         // fetch by the second column name; we should get the second version of the column value
         row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{0, 0, 1})).build());
-        assertTrue(row.getCell(cDef).buffer().equals(ByteBufferUtil.bytes("val2")));
+        assertEquals(ByteBufferUtil.bytes("val2"), row.getCell(cDef).buffer());
     }
 
     @Test
@@ -159,12 +143,10 @@ public class PartitionRangeReadTest
     }
 
     @Test
-    public void testRangeSliceInclusionExclusion() throws Throwable
+    public void testRangeSliceInclusionExclusion()
     {
-        String keyspaceName = KEYSPACE1;
-        String cfName = CF_STANDARD1;
-        Keyspace keyspace = Keyspace.open(keyspaceName);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         cfs.clearUnsafe();
 
         for (int i = 0; i < 10; ++i)
@@ -184,152 +166,26 @@ public class PartitionRangeReadTest
         // Start and end inclusive
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyIncl("7").build());
         assertEquals(6, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("2")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("7")));
+        assertEquals(ByteBufferUtil.bytes("2"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("7"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
 
         // Start and end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyExcl("7").build());
         assertEquals(4, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("3")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("6")));
+        assertEquals(ByteBufferUtil.bytes("3"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("6"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
 
         // Start excluded, end included
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyIncl("7").build());
         assertEquals(5, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("3")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("7")));
+        assertEquals(ByteBufferUtil.bytes("3"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("7"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
 
         // Start included, end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyExcl("7").build());
         assertEquals(5, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("2")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer().equals(ByteBufferUtil.bytes("6")));
-    }
-
-    @Test
-    public void testComputeConcurrencyFactor()
-    {
-        int maxConcurrentRangeRequest = 32;
-
-        // no live row returned, fetch all remaining ranges but hit the max instead
-        int cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 30, maxConcurrentRangeRequest, 500, 0);
-        assertEquals(maxConcurrentRangeRequest, cf); // because 100 - 30 = 70 > maxConccurrentRangeRequest
-
-        // no live row returned, fetch all remaining ranges
-        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 80, maxConcurrentRangeRequest, 500, 0);
-        assertEquals(20, cf); // because 100-80 = 20 < maxConccurrentRangeRequest
-
-        // returned half rows, fetch rangesQueried again but hit the max instead
-        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 60, maxConcurrentRangeRequest, 480, 240);
-        assertEquals(maxConcurrentRangeRequest, cf); // because 60 > maxConccurrentRangeRequest
-
-        // returned half rows, fetch rangesQueried again
-        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 30, maxConcurrentRangeRequest, 480, 240);
-        assertEquals(30, cf); // because 30 < maxConccurrentRangeRequest
-
-        // returned most of rows, 1 more range to fetch
-        cf = StorageProxy.RangeCommandIterator.computeConcurrencyFactor(100, 1, maxConcurrentRangeRequest, 480, 479);
-        assertEquals(1, cf); // because 1 < maxConccurrentRangeRequest
-    }
-
-    @Test
-    public void testRangeCountWithRangeMerge()
-    {
-        List<Token> tokens = setTokens(Arrays.asList(100, 200, 300, 400));
-        int vnodeCount = 0;
-
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        List<ReplicaPlan.ForRangeRead> ranges = new ArrayList<>();
-        for (int i = 0; i + 1 < tokens.size(); i++)
-        {
-            Range<PartitionPosition> range = Range.makeRowRange(tokens.get(i), tokens.get(i + 1));
-            ranges.add(ReplicaPlans.forRangeRead(keyspace, ConsistencyLevel.ONE, range, 1));
-            vnodeCount++;
-        }
-
-        StorageProxy.RangeMerger merge = new StorageProxy.RangeMerger(ranges.iterator(), keyspace, ConsistencyLevel.ONE);
-        ReplicaPlan.ForRangeRead mergedRange = Iterators.getOnlyElement(merge);
-        // all ranges are merged as test has only one node.
-        assertEquals(vnodeCount, mergedRange.vnodeCount());
-    }
-
-    @Test
-    public void testRangeQueried()
-    {
-        List<Token> tokens = setTokens(Arrays.asList(100, 200, 300, 400));
-        int vnodeCount = tokens.size() + 1; // n tokens divide token ring into n+1 ranges
-
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
-        cfs.clearUnsafe();
-
-        int rows = 100;
-        for (int i = 0; i < rows; ++i)
-        {
-            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 10, String.valueOf(i));
-            builder.clustering("c");
-            builder.add("val", String.valueOf(i));
-            builder.build().applyUnsafe();
-        }
-        cfs.forceBlockingFlush();
-
-        PartitionRangeReadCommand command = (PartitionRangeReadCommand) Util.cmd(cfs).build();
-
-        // without range merger, there will be 2 batches requested: 1st batch with 1 range and 2nd batch with remaining ranges
-        Iterator<ReplicaPlan.ForRangeRead> ranges = rangeIterator(command, keyspace, false);
-        StorageProxy.RangeCommandIterator data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1000, vnodeCount, System.nanoTime());
-        verifyRangeCommandIterator(data, rows, 2, vnodeCount);
-
-        // without range merger and initial cf=5, there will be 1 batches requested: 5 vnode ranges for 1st batch
-        ranges = rangeIterator(command, keyspace, false);
-        data = new StorageProxy.RangeCommandIterator(ranges, command, vnodeCount, 1000, vnodeCount, System.nanoTime());
-        verifyRangeCommandIterator(data, rows, 1, vnodeCount);
-
-        // without range merger and max cf=1, there will be 5 batches requested: 1 vnode range per batch
-        ranges = rangeIterator(command, keyspace, false);
-        data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1, vnodeCount, System.nanoTime());
-        verifyRangeCommandIterator(data, rows, vnodeCount, vnodeCount);
-
-        // with range merger, there will be only 1 batch requested, as all ranges share the same replica - localhost
-        ranges = rangeIterator(command, keyspace, true);
-        data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1000, vnodeCount, System.nanoTime());
-        verifyRangeCommandIterator(data, rows, 1, vnodeCount);
-
-        // with range merger and max cf=1, there will be only 1 batch requested, as all ranges share the same replica - localhost
-        ranges = rangeIterator(command, keyspace, true);
-        data = new StorageProxy.RangeCommandIterator(ranges, command, 1, 1, vnodeCount, System.nanoTime());
-        verifyRangeCommandIterator(data, rows, 1, vnodeCount);
-    }
-
-    private Iterator<ReplicaPlan.ForRangeRead> rangeIterator(PartitionRangeReadCommand command, Keyspace keyspace, boolean withRangeMerger)
-    {
-        Iterator<ReplicaPlan.ForRangeRead> ranges = new StorageProxy.RangeIterator(command, keyspace, ConsistencyLevel.ONE);
-        if (withRangeMerger)
-            ranges = new StorageProxy.RangeMerger(ranges, keyspace, ConsistencyLevel.ONE);
-
-        return  ranges;
-    }
-
-    private void verifyRangeCommandIterator(StorageProxy.RangeCommandIterator data, int rows, int batches, int vnodeCount)
-    {
-        int num = Util.size(data);
-        assertEquals(rows, num);
-        assertEquals(batches, data.batchesRequested());
-        assertEquals(vnodeCount, data.rangesQueried());
-    }
-
-    private List<Token> setTokens(List<Integer> values)
-    {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        List<Token> tokens = new ArrayList<>(values.size());
-        for (Integer val : values)
-            tokens.add(partitioner.getToken(ByteBufferUtil.bytes(val)));
-
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.clearUnsafe();
-        tmd.updateNormalTokens(tokens, FBUtilities.getBroadcastAddressAndPort());
-
-        return tokens;
+        assertEquals(ByteBufferUtil.bytes("2"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("6"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
     }
 }
 

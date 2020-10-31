@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -475,6 +474,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public ICoordinator coordinator(int node)
     {
         return instances.get(node - 1).coordinator();
+    }
+
+    public Stream<ICoordinator> coordinators()
+    {
+        return stream().map(IInstance::coordinator);
     }
 
     /**

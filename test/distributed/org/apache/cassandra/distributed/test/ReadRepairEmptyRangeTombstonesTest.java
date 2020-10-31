@@ -35,7 +35,6 @@ import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.distributed.test.ReadRepairTester.BOOLEANS;
 
 
 /**

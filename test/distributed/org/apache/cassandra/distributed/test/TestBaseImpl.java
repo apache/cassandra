@@ -42,6 +42,9 @@ import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
 public class TestBaseImpl extends DistributedTestBase
 {
+    public static final Object[][] EMPTY_ROWS = new Object[0][];
+    public static final boolean[] BOOLEANS = new boolean[]{ false, true };
+
     @After
     public void afterEach() {
         super.afterEach();
@@ -58,6 +61,13 @@ public class TestBaseImpl extends DistributedTestBase
         // This is definitely not the smartest solution, but given the complexity of the alternatives and low risk, we can just rely on the
         // fact that this code is going to work accross _all_ versions.
         return Cluster.build();
+    }
+
+    public static Object[][] rows(Object[]...rows)
+    {
+        Object[][] r = new Object[rows.length][];
+        System.arraycopy(rows, 0, r, 0, rows.length);
+        return r;
     }
 
     public static Object list(Object...values)
