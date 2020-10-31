@@ -21,11 +21,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,12 +40,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.PeekingIterator;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
@@ -58,14 +53,12 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -73,7 +66,6 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -82,9 +74,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.ViewUtils;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
@@ -102,19 +91,15 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.CASClientWriteRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
@@ -136,12 +121,11 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.PrepareCallback;
 import org.apache.cassandra.service.paxos.ProposeCallback;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
-import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
-import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -183,24 +167,12 @@ public class StorageProxy implements StorageProxyMBean
         }
     };
     private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
-    private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
     private static final ClientWriteRequestMetrics writeMetrics = new ClientWriteRequestMetrics("Write");
     private static final CASClientWriteRequestMetrics casWriteMetrics = new CASClientWriteRequestMetrics("CASWrite");
     private static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
     private static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
     private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
     private static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
-
-    private static final double CONCURRENT_SUBREQUESTS_MARGIN = 0.10;
-
-    /**
-     * Introduce a maximum number of sub-ranges that the coordinator can request in parallel for range queries. Previously
-     * we would request up to the maximum number of ranges but this causes problems if the number of vnodes is large.
-     * By default we pick 10 requests per core, assuming all replicas have the same number of cores. The idea is that we
-     * don't want a burst of range requests that will back up, hurting all other queries. At the same time,
-     * we want to give range queries a chance to run if resources are available.
-     */
-    private static final int MAX_CONCURRENT_RANGE_REQUESTS = Math.max(1, Integer.getInteger("cassandra.max_concurrent_range_requests", FBUtilities.getAvailableProcessors() * 10));
 
     private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
     private static final boolean disableSerialReadLinearizability =
@@ -1105,7 +1077,7 @@ public class StorageProxy implements StorageProxyMBean
         Tracing.trace("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
 
-        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
+        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
 
         if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas()))
             throw new AssertionError("Logged batches are unsupported with transient replication");
@@ -1887,7 +1859,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair> repairs)
+    public static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair<?, ?>> repairs)
     {
         PartitionIterator concatenated = PartitionIterators.concat(iterators);
 
@@ -1977,7 +1949,7 @@ public class StorageProxy implements StorageProxyMBean
         // if we didn't do a read repair, return the contents of the data response, if we did do a read
         // repair, merge the full data reads
         List<PartitionIterator> results = new ArrayList<>(cmdCount);
-        List<ReadRepair> repairs = new ArrayList<>(cmdCount);
+        List<ReadRepair<?, ?>> repairs = new ArrayList<>(cmdCount);
         for (int i=0; i<cmdCount; i++)
         {
             results.add(reads[i].getResult());
@@ -2041,390 +2013,11 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    /**
-     * Estimate the number of result rows per range in the ring based on our local data.
-     * <p>
-     * This assumes that ranges are uniformly distributed across the cluster and
-     * that the queried data is also uniformly distributed.
-     */
-    private static float estimateResultsPerRange(PartitionRangeReadCommand command, Keyspace keyspace)
+    public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command,
+                                                  ConsistencyLevel consistencyLevel,
+                                                  long queryStartNanoTime)
     {
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
-        Index index = command.getIndex(cfs);
-        float maxExpectedResults = index == null
-                                 ? command.limits().estimateTotalResults(cfs)
-                                 : index.getEstimatedResultRows();
-
-        // adjust maxExpectedResults by the number of tokens this node has and the replication factor for this ks
-        return (maxExpectedResults / DatabaseDescriptor.getNumTokens()) / keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
-    }
-
-    @VisibleForTesting
-    public static class RangeIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
-    {
-        private final Keyspace keyspace;
-        private final ConsistencyLevel consistency;
-        private final Iterator<? extends AbstractBounds<PartitionPosition>> ranges;
-        private final int rangeCount;
-
-        public RangeIterator(PartitionRangeReadCommand command, Keyspace keyspace, ConsistencyLevel consistency)
-        {
-            this.keyspace = keyspace;
-            this.consistency = consistency;
-
-            List<? extends AbstractBounds<PartitionPosition>> l = keyspace.getReplicationStrategy() instanceof LocalStrategy
-                                                          ? command.dataRange().keyRange().unwrap()
-                                                          : getRestrictedRanges(command.dataRange().keyRange());
-            this.ranges = l.iterator();
-            this.rangeCount = l.size();
-        }
-
-        public int rangeCount()
-        {
-            return rangeCount;
-        }
-
-        protected ReplicaPlan.ForRangeRead computeNext()
-        {
-            if (!ranges.hasNext())
-                return endOfData();
-
-            return ReplicaPlans.forRangeRead(keyspace, consistency, ranges.next(), 1);
-        }
-    }
-
-    public static class RangeMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
-    {
-        private final Keyspace keyspace;
-        private final ConsistencyLevel consistency;
-        private final PeekingIterator<ReplicaPlan.ForRangeRead> ranges;
-
-        public RangeMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, ConsistencyLevel consistency)
-        {
-            this.keyspace = keyspace;
-            this.consistency = consistency;
-            this.ranges = Iterators.peekingIterator(iterator);
-        }
-
-        protected ReplicaPlan.ForRangeRead computeNext()
-        {
-            if (!ranges.hasNext())
-                return endOfData();
-
-            ReplicaPlan.ForRangeRead current = ranges.next();
-
-            // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
-            // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
-            // still meets the CL requirements, then we can merge both ranges into the same RangeSliceCommand.
-            while (ranges.hasNext())
-            {
-                // If the current range right is the min token, we should stop merging because CFS.getRangeSlice
-                // don't know how to deal with a wrapping range.
-                // Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
-                // the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
-                // wire compatibility, so It's likely easier not to bother;
-                if (current.range().right.isMinimum())
-                    break;
-
-                ReplicaPlan.ForRangeRead next = ranges.peek();
-                ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(keyspace, consistency, current, next);
-                if (merged == null)
-                    break;
-
-                current = merged;
-                ranges.next(); // consume the range we just merged since we've only peeked so far
-            }
-            return current;
-        }
-    }
-
-    private static class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
-    {
-        private final DataResolver resolver;
-        private final ReadCallback handler;
-        private final ReadRepair readRepair;
-        private PartitionIterator result;
-
-        private SingleRangeResponse(DataResolver resolver, ReadCallback handler, ReadRepair readRepair)
-        {
-            this.resolver = resolver;
-            this.handler = handler;
-            this.readRepair = readRepair;
-        }
-
-        private void waitForResponse() throws ReadTimeoutException
-        {
-            if (result != null)
-                return;
-
-            handler.awaitResults();
-            result = resolver.resolve();
-        }
-
-        protected RowIterator computeNext()
-        {
-            waitForResponse();
-            return result.hasNext() ? result.next() : endOfData();
-        }
-
-        public void close()
-        {
-            if (result != null)
-                result.close();
-        }
-    }
-
-    public static class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
-    {
-        private final Iterator<ReplicaPlan.ForRangeRead> ranges;
-        private final int totalRangeCount;
-        private final PartitionRangeReadCommand command;
-        private final boolean enforceStrictLiveness;
-
-        private final long startTime;
-        private final long queryStartNanoTime;
-        private DataLimits.Counter counter;
-        private PartitionIterator sentQueryIterator;
-
-        private final int maxConcurrencyFactor;
-        private int concurrencyFactor;
-        // The two following "metric" are maintained to improve the concurrencyFactor
-        // when it was not good enough initially.
-        private int liveReturned;
-        private int rangesQueried;
-        private int batchesRequested = 0;
-
-        public RangeCommandIterator(Iterator<ReplicaPlan.ForRangeRead> ranges,
-                                    PartitionRangeReadCommand command,
-                                    int concurrencyFactor,
-                                    int maxConcurrencyFactor,
-                                    int totalRangeCount,
-                                    long queryStartNanoTime)
-        {
-            this.command = command;
-            this.concurrencyFactor = concurrencyFactor;
-            this.maxConcurrencyFactor = maxConcurrencyFactor;
-            this.startTime = System.nanoTime();
-            this.ranges = ranges;
-            this.totalRangeCount = totalRangeCount;
-            this.queryStartNanoTime = queryStartNanoTime;
-            this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
-        }
-
-        public RowIterator computeNext()
-        {
-            try
-            {
-                while (sentQueryIterator == null || !sentQueryIterator.hasNext())
-                {
-                    // If we don't have more range to handle, we're done
-                    if (!ranges.hasNext())
-                        return endOfData();
-
-                    // else, sends the next batch of concurrent queries (after having close the previous iterator)
-                    if (sentQueryIterator != null)
-                    {
-                        liveReturned += counter.counted();
-                        sentQueryIterator.close();
-
-                        // It's not the first batch of queries and we're not done, so we we can use what has been
-                        // returned so far to improve our rows-per-range estimate and update the concurrency accordingly
-                        updateConcurrencyFactor();
-                    }
-                    sentQueryIterator = sendNextRequests();
-                }
-
-                return sentQueryIterator.next();
-            }
-            catch (UnavailableException e)
-            {
-                rangeMetrics.unavailables.mark();
-                throw e;
-            }
-            catch (ReadTimeoutException e)
-            {
-                rangeMetrics.timeouts.mark();
-                throw e;
-            }
-            catch (ReadFailureException e)
-            {
-                rangeMetrics.failures.mark();
-                throw e;
-            }
-        }
-
-        private void updateConcurrencyFactor()
-        {
-            liveReturned += counter.counted();
-
-            concurrencyFactor = computeConcurrencyFactor(totalRangeCount, rangesQueried, maxConcurrencyFactor, command.limits().count(), liveReturned);
-        }
-
-        @VisibleForTesting
-        public static int computeConcurrencyFactor(int totalRangeCount, int rangesQueried, int maxConcurrencyFactor, int limit, int liveReturned)
-        {
-            maxConcurrencyFactor = Math.max(1, Math.min(maxConcurrencyFactor, totalRangeCount - rangesQueried));
-            if (liveReturned == 0)
-            {
-                // we haven't actually gotten any results, so query up to the limit if not results so far
-                Tracing.trace("Didn't get any response rows; new concurrent requests: {}", maxConcurrencyFactor);
-                return maxConcurrencyFactor;
-            }
-
-            // Otherwise, compute how many rows per range we got on average and pick a concurrency factor
-            // that should allow us to fetch all remaining rows with the next batch of (concurrent) queries.
-            int remainingRows = limit - liveReturned;
-            float rowsPerRange = (float)liveReturned / (float)rangesQueried;
-            int concurrencyFactor = Math.max(1, Math.min(maxConcurrencyFactor, Math.round(remainingRows / rowsPerRange)));
-            logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
-                         rowsPerRange, remainingRows, concurrencyFactor);
-            return concurrencyFactor;
-        }
-
-        /**
-         * Queries the provided sub-range.
-         *
-         * @param replicaPlan the subRange to query.
-         * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
-         * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
-         * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
-         * that it's the query that "continues" whatever we're previously queried).
-         */
-        private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
-        {
-            PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-            // If enabled, request repaired data tracking info from full replicas but
-            // only if there are multiple full replicas to compare results from
-            if (DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
-            {
-                command.trackRepairedStatus();
-                rangeCommand.trackRepairedStatus();
-            }
-
-            ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-            ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair
-                    = ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
-            DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver
-                    = new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime);
-            ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler
-                    = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
-
-
-            if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
-            {
-                Stage.READ.execute(new LocalReadRunnable(rangeCommand, handler));
-            }
-            else
-            {
-                for (Replica replica : replicaPlan.contacts())
-                {
-                    Tracing.trace("Enqueuing request to {}", replica);
-                    ReadCommand command = replica.isFull() ? rangeCommand : rangeCommand.copyAsTransientQuery(replica);
-                    Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && replica.isFull());
-                    MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
-                }
-            }
-
-            return new SingleRangeResponse(resolver, handler, readRepair);
-        }
-
-        private PartitionIterator sendNextRequests()
-        {
-            List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
-            List<ReadRepair> readRepairs = new ArrayList<>(concurrencyFactor);
-
-            try
-            {
-                for (int i = 0; i < concurrencyFactor && ranges.hasNext();)
-                {
-                    ReplicaPlan.ForRangeRead range = ranges.next();
-
-                    @SuppressWarnings("resource") // response will be closed by concatAndBlockOnRepair, or in the catch block below
-                    SingleRangeResponse response = query(range, i == 0);
-                    concurrentQueries.add(response);
-                    readRepairs.add(response.readRepair);
-                    // due to RangeMerger, coordinator may fetch more ranges than required by concurrency factor.
-                    rangesQueried += range.vnodeCount();
-                    i += range.vnodeCount();
-                }
-                batchesRequested++;
-            }
-            catch (Throwable t)
-            {
-                for (PartitionIterator response: concurrentQueries)
-                    response.close();
-                throw t;
-            }
-
-            Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
-            // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor) but we don't want to
-            // enforce any particular limit at this point (this could break code than rely on postReconciliationProcessing), hence the DataLimits.NONE.
-            counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
-            return counter.applyTo(concatAndBlockOnRepair(concurrentQueries, readRepairs));
-        }
-
-        public void close()
-        {
-            try
-            {
-                if (sentQueryIterator != null)
-                    sentQueryIterator.close();
-            }
-            finally
-            {
-                long latency = System.nanoTime() - startTime;
-                rangeMetrics.addNano(latency);
-                Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
-            }
-        }
-
-        @VisibleForTesting
-        public int rangesQueried()
-        {
-            return rangesQueried;
-        }
-
-        @VisibleForTesting
-        public int batchesRequested()
-        {
-            return batchesRequested;
-        }
-    }
-
-    @SuppressWarnings("resource")
-    public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
-    {
-        Tracing.trace("Computing ranges to query");
-
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        RangeIterator ranges = new RangeIterator(command, keyspace, consistencyLevel);
-
-        // our estimate of how many result rows there will be per-range
-        float resultsPerRange = estimateResultsPerRange(command, keyspace);
-        // underestimate how many rows we will get per-range in order to increase the likelihood that we'll
-        // fetch enough rows in the first round
-        resultsPerRange -= resultsPerRange * CONCURRENT_SUBREQUESTS_MARGIN;
-        int maxConcurrencyFactor = Math.min(ranges.rangeCount(), MAX_CONCURRENT_RANGE_REQUESTS);
-        int concurrencyFactor = resultsPerRange == 0.0
-                                ? 1
-                                : Math.max(1, Math.min(maxConcurrencyFactor, (int) Math.ceil(command.limits().count() / resultsPerRange)));
-        logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
-                     resultsPerRange, command.limits().count(), ranges.rangeCount(), concurrencyFactor);
-        Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)", ranges.rangeCount(), concurrencyFactor, resultsPerRange);
-
-        // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
-        RangeMerger mergedRanges = new RangeMerger(ranges, keyspace, consistencyLevel);
-        RangeCommandIterator rangeCommandIterator = new RangeCommandIterator(mergedRanges,
-                                                                             command,
-                                                                             concurrencyFactor,
-                                                                             maxConcurrencyFactor,
-                                                                             ranges.rangeCount(),
-                                                                             queryStartNanoTime);
-        return command.limits().filter(command.postReconciliationProcessing(rangeCommandIterator),
-                                       command.nowInSec(),
-                                       command.selectsFullPartition(),
-                                       command.metadata().enforceStrictLiveness());
+        return RangeCommands.partitions(command, consistencyLevel, queryStartNanoTime);
     }
 
     public Map<String, List<String>> getSchemaVersions()
@@ -2501,53 +2094,6 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug("Schemas are in agreement.");
 
         return results;
-    }
-
-    /**
-     * Compute all ranges we're going to query, in sorted order. Nodes can be replica destinations for many ranges,
-     * so we need to restrict each scan to the specific range we want, or else we'd get duplicate results.
-     */
-    static <T extends RingPosition<T>> List<AbstractBounds<T>> getRestrictedRanges(final AbstractBounds<T> queryRange)
-    {
-        // special case for bounds containing exactly 1 (non-minimum) token
-        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.isMinimum())
-        {
-            return Collections.singletonList(queryRange);
-        }
-
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-
-        List<AbstractBounds<T>> ranges = new ArrayList<AbstractBounds<T>>();
-        // divide the queryRange into pieces delimited by the ring and minimum tokens
-        Iterator<Token> ringIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left.getToken(), true);
-        AbstractBounds<T> remainder = queryRange;
-        while (ringIter.hasNext())
-        {
-            /*
-             * remainder can be a range/bounds of token _or_ keys and we want to split it with a token:
-             *   - if remainder is tokens, then we'll just split using the provided token.
-             *   - if remainder is keys, we want to split using token.upperBoundKey. For instance, if remainder
-             *     is [DK(10, 'foo'), DK(20, 'bar')], and we have 3 nodes with tokens 0, 15, 30. We want to
-             *     split remainder to A=[DK(10, 'foo'), 15] and B=(15, DK(20, 'bar')]. But since we can't mix
-             *     tokens and keys at the same time in a range, we uses 15.upperBoundKey() to have A include all
-             *     keys having 15 as token and B include none of those (since that is what our node owns).
-             * asSplitValue() abstracts that choice.
-             */
-            Token upperBoundToken = ringIter.next();
-            T upperBound = (T)upperBoundToken.upperBound(queryRange.left.getClass());
-            if (!remainder.left.equals(upperBound) && !remainder.contains(upperBound))
-                // no more splits
-                break;
-            Pair<AbstractBounds<T>,AbstractBounds<T>> splits = remainder.split(upperBound);
-            if (splits == null)
-                continue;
-
-            ranges.add(splits.left);
-            remainder = splits.right;
-        }
-        ranges.add(remainder);
-
-        return ranges;
     }
 
     public boolean getHintedHandoffEnabled()
