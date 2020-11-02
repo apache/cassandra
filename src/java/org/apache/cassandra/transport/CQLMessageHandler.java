@@ -147,7 +147,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
         channelPayloadBytesInFlight += frameSize;
         incrementReceivedMessageMetrics(frameSize);
-        processFrame(frameSize, composeCqlFrame(header, bytes));
+        processCqlFrame(composeCqlFrame(header, bytes));
         return true;
     }
 
@@ -157,20 +157,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         receivedBytes += frameSize + Frame.Header.LENGTH;
         ClientMessageSizeMetrics.bytesReceived.inc(frameSize + Frame.Header.LENGTH);
         ClientMessageSizeMetrics.bytesReceivedPerRequest.update(frameSize + Frame.Header.LENGTH);
-    }
-
-    private void processFrame(int frameSize, Frame frame)
-    {
-        if (frameSize <= FrameEncoder.Payload.MAX_SIZE)
-            processCqlFrame(frame);
-        else
-            processLargeMessage(frame);
-    }
-
-    // for various reasons, it's possible for a large message to be contained in a single frame
-    private void processLargeMessage(Frame frame)
-    {
-        new LargeMessage(frame.header, ShareableBytes.wrap(frame.body.nioBuffer())).onComplete();
     }
 
     private Frame.Header extractHeader(ShareableBytes bytes)
