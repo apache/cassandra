@@ -445,7 +445,7 @@ public class CQLConnectionTest
                                           message.getStreamId(),
                                           ProtocolVersion.V5,
                                           responseTemplate.header.flags,
-                                          responseTemplate.body.duplicate());
+                                          responseTemplate.body.copy());
             item.release();
             accumulator.accumulate(response);
 

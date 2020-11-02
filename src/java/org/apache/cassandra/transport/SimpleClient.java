@@ -48,16 +48,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.net.AbstractMessageHandler;
-import org.apache.cassandra.net.BufferPoolAllocator;
-import org.apache.cassandra.net.FrameDecoder;
-import org.apache.cassandra.net.FrameDecoderCrc;
-import org.apache.cassandra.net.FrameDecoderLZ4;
-import org.apache.cassandra.net.FrameEncoder;
-import org.apache.cassandra.net.FrameEncoderCrc;
-import org.apache.cassandra.net.FrameEncoderLZ4;
-import org.apache.cassandra.net.GlobalBufferPoolAllocator;
-import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.net.*;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -727,7 +718,12 @@ public class SimpleClient implements Closeable
                 f.encodeInto(payload.buffer);
 
             payload.finish();
-            return ctx.writeAndFlush(payload, ctx.newPromise());
+            ChannelPromise release = AsyncChannelPromise.withListener(ctx, future -> {
+                for (Frame f : frames)
+                    f.release();
+            });
+            ChannelFuture future = ctx.writeAndFlush(payload, release);
+            return future;
         }
 
         private FrameEncoder.Payload allocate(int size, boolean selfContained)
