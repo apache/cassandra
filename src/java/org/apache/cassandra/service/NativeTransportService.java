@@ -82,22 +82,30 @@ public class NativeTransportService
                                                                 .withHost(nativeAddr);
 
         EncryptionOptions.TlsEncryptionPolicy encryptionPolicy = DatabaseDescriptor.getNativeProtocolEncryptionOptions().tlsEncryptionPolicy();
-        Server regularPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePort).build();
-
+        Server regularPortServer;
         Server tlsPortServer = null;
+
+        // If an SSL port is separately supplied for the native transport, listen for unencrypted connections on the
+        // regular port, and encryption / optionally encrypted connections on the ssl port.
         if (nativePort != nativePortSSL)
         {
+            regularPortServer = builder.withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED).withPort(nativePort).build();
             switch(encryptionPolicy)
             {
                 case OPTIONAL: // FALLTHRU - encryption is optional on the regular port, but encrypted on the tls port.
                 case ENCRYPTED:
-                    tlsPortServer = builder.withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED).withPort(nativePortSSL).build();
+                    tlsPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePortSSL).build();
                     break;
                 case UNENCRYPTED: // Should have been caught by DatabaseDescriptor.applySimpleConfig
                     throw new IllegalStateException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl");
                 default:
                     throw new IllegalStateException("Unrecognized TLS encryption policy: " + encryptionPolicy);
             }
+        }
+        // Otherwise, if only the regular port is supplied, listen as the encryption policy specifies
+        else
+        {
+            regularPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePort).build();
         }
 
         if (tlsPortServer == null)
