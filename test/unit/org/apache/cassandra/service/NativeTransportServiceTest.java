@@ -179,9 +179,9 @@ public class NativeTransportServiceTest
                         assertEquals(2, service.getServers().size());
                         assertEquals(
                                     Sets.newHashSet(Arrays.asList(
-                                                                 Pair.create(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED,
-                                                                             DatabaseDescriptor.getNativeTransportPortSSL()),
                                                                  Pair.create(EncryptionOptions.TlsEncryptionPolicy.OPTIONAL,
+                                                                             DatabaseDescriptor.getNativeTransportPortSSL()),
+                                                                 Pair.create(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED,
                                                                              DatabaseDescriptor.getNativeTransportPort())
                                                     )
                                     ),
@@ -237,7 +237,7 @@ public class NativeTransportServiceTest
                         Sets.newHashSet(Arrays.asList(
                         Pair.create(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED,
                                     DatabaseDescriptor.getNativeTransportPortSSL()),
-                        Pair.create(EncryptionOptions.TlsEncryptionPolicy.ENCRYPTED,
+                        Pair.create(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED,
                                     DatabaseDescriptor.getNativeTransportPort())
                                         )
                         ),
