@@ -6,6 +6,8 @@
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
 Merged from 3.0:
+3.0.23:
+ * Fix invalid cell value skipping when reading from disk (CASSANDRA-16223)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
  * Fix OOM when terminating repair session (CASSANDRA-15902)
  * Avoid marking shutting down nodes as up after receiving gossip shutdown message (CASSANDRA-16094)
