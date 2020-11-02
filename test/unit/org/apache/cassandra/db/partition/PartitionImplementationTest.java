@@ -50,7 +50,6 @@ import org.apache.cassandra.db.rows.Row.Deletion;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.SearchIterator;
 
 public class PartitionImplementationTest
 {
@@ -331,11 +330,11 @@ public class PartitionImplementationTest
         assertIteratorsEqual(streamOf(invert(slice(sortedContent, multiSlices))).map(colFilter).iterator(),
                              partition.unfilteredIterator(cf, multiSlices, true));
 
-        // search iterator
-        testSearchIterator(sortedContent, partition, ColumnFilter.all(metadata), false);
-        testSearchIterator(sortedContent, partition, cf, false);
-        testSearchIterator(sortedContent, partition, ColumnFilter.all(metadata), true);
-        testSearchIterator(sortedContent, partition, cf, true);
+        // clustering iterator
+        testClusteringsIterator(sortedContent, partition, ColumnFilter.all(metadata), false);
+        testClusteringsIterator(sortedContent, partition, cf, false);
+        testClusteringsIterator(sortedContent, partition, ColumnFilter.all(metadata), true);
+        testClusteringsIterator(sortedContent, partition, cf, true);
 
         // sliceable iter
         testSlicingOfIterators(sortedContent, partition, ColumnFilter.all(metadata), false);
@@ -344,30 +343,34 @@ public class PartitionImplementationTest
         testSlicingOfIterators(sortedContent, partition, cf, true);
     }
 
-    void testSearchIterator(NavigableSet<Clusterable> sortedContent, Partition partition, ColumnFilter cf, boolean reversed)
+    private void testClusteringsIterator(NavigableSet<Clusterable> sortedContent, Partition partition, ColumnFilter cf, boolean reversed)
     {
-        SearchIterator<Clustering<?>, Row> searchIter = partition.searchIterator(cf, reversed);
-        int pos = reversed ? KEY_RANGE : 0;
-        int mul = reversed ? -1 : 1;
-        boolean started = false;
-        while (pos < KEY_RANGE)
+        Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, metadata) : x;
+        NavigableSet<Clustering<?>> clusteringsInQueryOrder = makeClusterings(reversed);
+
+        // fetch each clustering in turn
+        for (Clustering clustering : clusteringsInQueryOrder)
         {
-            int skip = rand.nextInt(KEY_RANGE / 10);
-            pos += skip * mul;
-            Clustering<?> cl = clustering(pos);
-            Row row = searchIter.next(cl);  // returns row with deletion, incl. empty row with deletion
-            if (row == null && skip == 0 && started)    // allowed to return null if already reported row
-                continue;
-            started = true;
-            Row expected = getRow(sortedContent, cl);
-            assertEquals(expected == null, row == null);
-            if (row == null)
-                continue;
-            assertRowsEqual(expected.filter(cf, metadata), row);
+            NavigableSet<Clustering<?>> single = new TreeSet<>(metadata.comparator);
+            single.add(clustering);
+            try (UnfilteredRowIterator slicedIter = partition.unfilteredIterator(cf, single, reversed))
+            {
+                assertIteratorsEqual(streamOf(directed(slice(sortedContent, Slice.make(clustering)), reversed)).map(colFilter).iterator(),
+                                     slicedIter);
+            }
+        }
+
+        // Fetch all slices at once
+        try (UnfilteredRowIterator slicedIter = partition.unfilteredIterator(cf, clusteringsInQueryOrder, reversed))
+        {
+            List<Iterator<? extends Clusterable>> clusterableIterators = new ArrayList<>();
+            clusteringsInQueryOrder.forEach(clustering -> clusterableIterators.add(directed(slice(sortedContent, Slice.make(clustering)), reversed)));
+
+            assertIteratorsEqual(Iterators.concat(clusterableIterators.toArray(new Iterator[0])), slicedIter);
         }
     }
 
-    Slices makeSlices()
+    private Slices makeSlices()
     {
         int pos = 0;
         Slices.Builder builder = new Slices.Builder(metadata.comparator);
@@ -385,7 +388,20 @@ public class PartitionImplementationTest
         return builder.build();
     }
 
-    void testSlicingOfIterators(NavigableSet<Clusterable> sortedContent, AbstractBTreePartition partition, ColumnFilter cf, boolean reversed)
+    private NavigableSet<Clustering<?>> makeClusterings(boolean reversed)
+    {
+        int pos = 0;
+        NavigableSet<Clustering<?>> clusterings = new TreeSet<>(reversed ? metadata.comparator.reversed() : metadata.comparator);
+        while (pos <= KEY_RANGE)
+        {
+            int skip = rand.nextInt(KEY_RANGE / 10) * (rand.nextInt(3) + 2 / 3); // increased chance of getting 0
+            pos += skip;
+            clusterings.add(clustering(pos));
+        }
+        return clusterings;
+    }
+
+    private void testSlicingOfIterators(NavigableSet<Clusterable> sortedContent, AbstractBTreePartition partition, ColumnFilter cf, boolean reversed)
     {
         Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, metadata) : x;
         Slices slices = makeSlices();

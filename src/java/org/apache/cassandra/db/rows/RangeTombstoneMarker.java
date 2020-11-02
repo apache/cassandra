@@ -158,8 +158,8 @@ public interface RangeTombstoneMarker extends Unfiltered
                 return DeletionTime.LIVE;
 
             DeletionTime biggestDeletionTime = openMarkers[biggestOpenMarker];
-            // it's only open in the merged iterator if it's not shadowed by the partition level deletion
-            return partitionDeletion.supersedes(biggestDeletionTime) ? DeletionTime.LIVE : biggestDeletionTime;
+            // it's only open in the merged iterator if it doesn't supersedes the partition level deletion
+            return !biggestDeletionTime.supersedes(partitionDeletion) ? DeletionTime.LIVE : biggestDeletionTime;
         }
 
         private void updateOpenMarkers()
