@@ -23,6 +23,8 @@ import io.airlift.airline.Option;
 import java.io.PrintStream;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.streaming.ProgressInfo;
@@ -61,63 +63,11 @@ public class NetStats extends NodeToolCmd
                 out.printf("%n");
                 if (!info.receivingSummaries.isEmpty())
                 {
-                    long totalFilesToReceive = info.getTotalFilesToReceive();
-                    long totalBytesToReceive = info.getTotalSizeToReceive();
-                    long totalFilesReceived = info.getTotalFilesReceived();
-                    long totalSizeReceived = info.getTotalSizeReceived();
-                    double percentageFilesReceived = ((double) totalFilesReceived / totalFilesToReceive) * 100;
-                    double percentageSizesReceived = ((double) totalSizeReceived / totalBytesToReceive) * 100;
-
-                    if (humanReadable)
-                        out.printf("        Receiving %d files, %s total. Already received %d files (%.2f%%), %s total (%.2f%%)%n",
-                                   totalFilesToReceive,
-                                   FileUtils.stringifyFileSize(totalBytesToReceive),
-                                   totalFilesReceived,
-                                   percentageFilesReceived,
-                                   FileUtils.stringifyFileSize(totalSizeReceived),
-                                   percentageSizesReceived);
-                    else
-                        out.printf("        Receiving %d files, %d bytes total. Already received %d files (%.2f%%), %d bytes total (%.2f%%)%n",
-                                   totalFilesToReceive,
-                                   totalBytesToReceive,
-                                   totalFilesReceived,
-                                   percentageFilesReceived,
-                                   totalSizeReceived,
-                                   percentageSizesReceived);
-                    for (ProgressInfo progress : info.getReceivingFiles())
-                    {
-                        out.printf("            %s%n", progress.toString(printPort));
-                    }
+                    printReceivingSummaries(out, info, humanReadable);
                 }
                 if (!info.sendingSummaries.isEmpty())
                 {
-                    long totalFilesToSend = info.getTotalFilesToSend();
-                    long totalSizeToSend = info.getTotalSizeToSend();
-                    long totalFilesSent = info.getTotalFilesSent();
-                    long totalSizeSent = info.getTotalSizeSent();
-                    double percentageFilesSent = ((double) totalFilesSent / totalFilesToSend) * 100;
-                    double percentageSizeSent = ((double) totalSizeSent / totalSizeToSend) * 100;
-
-                    if (humanReadable)
-                        out.printf("        Sending %d files, %s total. Already sent %d files (%.2f%%), %s total (%.2f%%)%n",
-                                   totalFilesToSend,
-                                   FileUtils.stringifyFileSize(totalSizeToSend),
-                                   totalFilesSent,
-                                   percentageFilesSent,
-                                   FileUtils.stringifyFileSize(totalSizeSent),
-                                   percentageSizeSent);
-                    else
-                        out.printf("        Sending %d files, %d bytes total. Already sent %d files (%.2f%%), %d bytes total (%.2f%%) %n",
-                                   totalFilesToSend,
-                                   totalSizeToSend,
-                                   totalFilesSent,
-                                   percentageFilesSent,
-                                   totalSizeSent,
-                                   percentageSizeSent);
-                    for (ProgressInfo progress : info.getSendingFiles())
-                    {
-                        out.printf("            %s%n", progress.toString(printPort));
-                    }
+                    printSendingSummaries(out, info, humanReadable);
                 }
             }
         }
@@ -169,6 +119,54 @@ public class NetStats extends NodeToolCmd
             for (long n : ms.getGossipMessageDroppedTasksWithPort().values())
                 dropped += n;
             out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
+        }
+    }
+
+    @VisibleForTesting
+    public void printReceivingSummaries(PrintStream out, SessionInfo info, boolean printHumanReadable)
+    {
+        long totalFilesToReceive = info.getTotalFilesToReceive();
+        long totalBytesToReceive = info.getTotalSizeToReceive();
+        long totalFilesReceived = info.getTotalFilesReceived();
+        long totalSizeReceived = info.getTotalSizeReceived();
+        double percentageFilesReceived = ((double) totalFilesReceived / totalFilesToReceive) * 100;
+        double percentageSizesReceived = ((double) totalSizeReceived / totalBytesToReceive) * 100;
+
+        out.printf("        Receiving %d files, %s total. Already received %d files (%.2f%%), %s total (%.2f%%)%n",
+                   totalFilesToReceive,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalBytesToReceive) : Long.toString(totalBytesToReceive) + " bytes",
+                   totalFilesReceived,
+                   percentageFilesReceived,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalSizeReceived) : Long.toString(totalSizeReceived) + " bytes",
+                   percentageSizesReceived);
+
+        for (ProgressInfo progress : info.getReceivingFiles())
+        {
+            out.printf("            %s%n", progress.toString(printPort));
+        }
+    }
+
+    @VisibleForTesting
+    public void printSendingSummaries(PrintStream out, SessionInfo info, boolean printHumanReadable)
+    {
+        long totalFilesToSend = info.getTotalFilesToSend();
+        long totalSizeToSend = info.getTotalSizeToSend();
+        long totalFilesSent = info.getTotalFilesSent();
+        long totalSizeSent = info.getTotalSizeSent();
+        double percentageFilesSent = ((double) totalFilesSent / totalFilesToSend) * 100;
+        double percentageSizeSent = ((double) totalSizeSent / totalSizeToSend) * 100;
+
+        out.printf("        Sending %d files, %s total. Already sent %d files (%.2f%%), %s total (%.2f%%)%n",
+                   totalFilesToSend,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalSizeToSend) : Long.toString(totalSizeToSend) + " bytes",
+                   totalFilesSent,
+                   percentageFilesSent,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalSizeSent) : Long.toString(totalSizeSent) + " bytes",
+                   percentageSizeSent);
+
+        for (ProgressInfo progress : info.getSendingFiles())
+        {
+            out.printf("            %s%n", progress.toString(printPort));
         }
     }
 }
