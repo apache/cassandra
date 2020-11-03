@@ -24,12 +24,17 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -211,6 +216,31 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     public static InetAddressAndPort getByName(String name) throws UnknownHostException
     {
         return getByNameOverrideDefaults(name, null);
+    }
+
+
+    public static List<InetAddressAndPort> getAllByName(String name) throws UnknownHostException
+    {
+        return getAllByNameOverrideDefaults(name, null);
+    }
+
+    /**
+     *
+     * @param name Hostname + optional ports string
+     * @param port Port to connect on, overridden by values in hostname string, defaults to DatabaseDescriptor default if not specified anywhere.
+     */
+    public static List<InetAddressAndPort> getAllByNameOverrideDefaults(String name, Integer port) throws UnknownHostException
+    {
+        HostAndPort hap = HostAndPort.fromString(name);
+        if (hap.hasPort())
+        {
+            port = hap.getPort();
+        }
+        Integer finalPort = port;
+
+        return Stream.of(InetAddress.getAllByName(hap.getHost()))
+                     .map((address) -> getByAddressOverrideDefaults(address, finalPort))
+                     .collect(Collectors.toList());
     }
 
     /**

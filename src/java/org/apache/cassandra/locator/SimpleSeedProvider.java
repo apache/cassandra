@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 public class SimpleSeedProvider implements SeedProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(SimpleSeedProvider.class);
+    private static final int seedCountWarnThreshold = Integer.valueOf(System.getProperty("cassandra.seed_count_warn_threshold", "20"));
 
     public SimpleSeedProvider(Map<String, String> args) {}
 
@@ -53,8 +55,18 @@ public class SimpleSeedProvider implements SeedProvider
             try
             {
                 if(!host.trim().isEmpty()) {
-                    seeds.add(InetAddressAndPort.getByName(host.trim()));
+                    if (DatabaseDescriptor.useMultiIPsPerDNSRecord()) {
+                        List<InetAddressAndPort> resolvedSeeds = InetAddressAndPort.getAllByName(host.trim());
+                        seeds.addAll(resolvedSeeds);
+                        logger.debug("{} resolves to {}", host, resolvedSeeds);
+
+                    } else {
+                        InetAddressAndPort addressAndPort = InetAddressAndPort.getByName(host.trim());
+                        seeds.add(addressAndPort);
+                        logger.debug("Only resolving one IP per DNS record - {} resolves to {}", host, addressAndPort);
+                    }
                 }
+
             }
             catch (UnknownHostException ex)
             {
@@ -62,6 +74,11 @@ public class SimpleSeedProvider implements SeedProvider
                 logger.warn("Seed provider couldn't lookup host {}", host);
             }
         }
+
+
+        if (seeds.size() >= seedCountWarnThreshold)
+            logger.warn("Seed provider returned more than {} seeds. A large seed list may impact effectiveness of the third gossip round", seedCountWarnThreshold);
+
         return Collections.unmodifiableList(seeds);
     }
 }

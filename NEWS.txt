@@ -112,6 +112,7 @@ New features
       Added --python option to cqlsh so users can specify the path to their chosen Python interpreter.
       See CASSANDRA-10190 for details.
     - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
+    - SimpleSeedProvider now can resolve multiple IP addresses per DNS record. See CASSANDRA-14361
 
 Upgrading
 ---------
