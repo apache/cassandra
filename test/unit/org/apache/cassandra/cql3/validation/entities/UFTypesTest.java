@@ -34,7 +34,8 @@ import org.junit.Test;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Event.SchemaChange.Change;
+import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -463,10 +464,10 @@ public class UFTypesTest extends CQLTester
                                        "LANGUAGE java\n" +
                                        "AS 'return values;';");
         // Same as above, dropping a function with explicity frozen tuple should be allowed.
-        schemaChange("DROP FUNCTION " + toDrop + "(frozen<tuple<int, int>>);");
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, shortFunctionName(toDrop),
-                               "frozen<tuple<int, int>>");
+        assertSchemaChange("DROP FUNCTION " + toDrop + "(frozen<tuple<int, int>>);",
+                           Change.DROPPED, Target.FUNCTION,
+                           KEYSPACE, shortFunctionName(toDrop),
+                           "frozen<tuple<int, int>>");
 
         String functionName = createFunction(KEYSPACE,
                                              "tuple<int, int>",
@@ -492,10 +493,11 @@ public class UFTypesTest extends CQLTester
         assertRows(execute("SELECT a FROM %s WHERE b = " + functionName + "(?)", tuple(1, 2)),
                    row(1));
 
-        schemaChange("DROP FUNCTION " + functionName + "(frozen<tuple<int, int>>);");
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, shortFunctionName(functionName),
-                               "frozen<tuple<int, int>>");
+        assertSchemaChange("DROP FUNCTION " + functionName + "(frozen<tuple<int, int>>);",
+                           Change.DROPPED,
+                           Target.FUNCTION,
+                           KEYSPACE, shortFunctionName(functionName),
+                           "frozen<tuple<int, int>>");
     }
 
     @Test
