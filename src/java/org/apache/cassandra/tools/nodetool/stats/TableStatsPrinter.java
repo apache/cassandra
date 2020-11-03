@@ -21,21 +21,21 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.List;
 
-public class TableStatsPrinter
+public class TableStatsPrinter<T extends StatsHolder>
 {
-    public static StatsPrinter from(String format, boolean sorted)
+    public static <T extends StatsHolder> StatsPrinter<T> from(String format, boolean sorted)
     {
         switch (format)
         {
             case "json":
-                return new StatsPrinter.JsonPrinter();
+                return new StatsPrinter.JsonPrinter<T>();
             case "yaml":
-                return new StatsPrinter.YamlPrinter();
+                return new StatsPrinter.YamlPrinter<T>();
             default:
                 if (sorted)
-                    return new SortedDefaultPrinter();
+                    return (StatsPrinter<T>) new SortedDefaultPrinter();
                 else
-                    return new DefaultPrinter();
+                    return (StatsPrinter<T>) new DefaultPrinter();
         }
     }
 
