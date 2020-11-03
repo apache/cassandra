@@ -38,7 +38,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Event.SchemaChange.Change;
+import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.junit.Assert.assertEquals;
@@ -409,42 +410,40 @@ public class AggregationTest extends CQLTester
                                "LANGUAGE javascript " +
                                "AS '\"string\";';");
 
-        String a = createAggregate(KEYSPACE,
-                                   "double",
-                                   "CREATE OR REPLACE AGGREGATE %s(double) " +
-                                   "SFUNC " + shortFunctionName(f) + " " +
-                                   "STYPE double " +
-                                   "INITCOND 0");
+        String a = createAggregateName(KEYSPACE);
+        String aggregateName = shortFunctionName(a);
+        registerAggregate(a, "double");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "double");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
+                           "SFUNC " + shortFunctionName(f) + " " +
+                           "STYPE double " +
+                           "INITCOND 0",
+                           Change.CREATED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "double");
 
-        schemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
-                     "SFUNC " + shortFunctionName(f) + " " +
-                     "STYPE double " +
-                     "INITCOND 0");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a + "(double) " +
+                           "SFUNC " + shortFunctionName(f) + " " +
+                           "STYPE double " +
+                           "INITCOND 1",
+                           Change.UPDATED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "double");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "double");
+        registerAggregate(a, "int");
 
-        createAggregateOverload(a,
-                                "int",
-                                "CREATE OR REPLACE AGGREGATE %s(int) " +
-                                "SFUNC " + shortFunctionName(f) + " " +
-                                "STYPE int " +
-                                "INITCOND 0");
+        assertSchemaChange("CREATE OR REPLACE AGGREGATE " + a + "(int) " +
+                           "SFUNC " + shortFunctionName(f) + " " +
+                           "STYPE int " +
+                           "INITCOND 0",
+                           Change.CREATED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "int");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "int");
-
-        schemaChange("DROP AGGREGATE " + a + "(double)");
-
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.AGGREGATE,
-                               KEYSPACE, parseFunctionName(a).name,
-                               "double");
+        assertSchemaChange("DROP AGGREGATE " + a + "(double)",
+                           Change.DROPPED, Target.AGGREGATE,
+                           KEYSPACE, aggregateName,
+                           "double");
     }
 
     @Test
