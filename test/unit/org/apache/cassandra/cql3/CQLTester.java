@@ -133,8 +133,6 @@ public abstract class CQLTester
         }
     }
 
-    public static ResultMessage lastSchemaChangeResult;
-
     private List<String> keyspaces = new ArrayList<>();
     private List<String> tables = new ArrayList<>();
     private List<String> types = new ArrayList<>();
@@ -584,24 +582,46 @@ public abstract class CQLTester
         return typeName;
     }
 
+    protected String createFunctionName(String keyspace)
+    {
+        return String.format("%s.function_%02d", keyspace, seqNumber.getAndIncrement());
+    }
+
+    protected void registerFunction(String functionName, String argTypes)
+    {
+        functions.add(functionName + '(' + argTypes + ')');
+    }
+
     protected String createFunction(String keyspace, String argTypes, String query) throws Throwable
     {
-        String functionName = keyspace + ".function_" + seqNumber.getAndIncrement();
+        String functionName = createFunctionName(keyspace);
+
         createFunctionOverload(functionName, argTypes, query);
         return functionName;
     }
 
     protected void createFunctionOverload(String functionName, String argTypes, String query) throws Throwable
     {
+        registerFunction(functionName, argTypes);
         String fullQuery = String.format(query, functionName);
-        functions.add(functionName + '(' + argTypes + ')');
         logger.info(fullQuery);
         schemaChange(fullQuery);
     }
 
+    protected String createAggregateName(String keyspace)
+    {
+        return String.format("%s.aggregate_%02d", keyspace, seqNumber.getAndIncrement());
+    }
+
+    protected void registerAggregate(String aggregateName, String argTypes)
+    {
+        aggregates.add(aggregateName + '(' + argTypes + ')');
+    }
+
     protected String createAggregate(String keyspace, String argTypes, String query) throws Throwable
     {
-        String aggregateName = keyspace + "." + "aggregate_" + seqNumber.getAndIncrement();
+        String aggregateName = createAggregateName(keyspace);
+
         createAggregateOverload(aggregateName, argTypes, query);
         return aggregateName;
     }
@@ -609,7 +629,7 @@ public abstract class CQLTester
     protected void createAggregateOverload(String aggregateName, String argTypes, String query) throws Throwable
     {
         String fullQuery = String.format(query, aggregateName);
-        aggregates.add(aggregateName + '(' + argTypes + ')');
+        registerAggregate(aggregateName, argTypes);
         logger.info(fullQuery);
         schemaChange(fullQuery);
     }
@@ -739,20 +759,24 @@ public abstract class CQLTester
         schemaChange(fullQuery);
     }
 
-    protected void assertLastSchemaChange(Event.SchemaChange.Change change, Event.SchemaChange.Target target,
-                                          String keyspace, String name,
-                                          String... argTypes)
+    protected static void assertSchemaChange(String query,
+                                             Event.SchemaChange.Change expectedChange,
+                                             Event.SchemaChange.Target expectedTarget,
+                                             String expectedKeyspace,
+                                             String expectedName,
+                                             String... expectedArgTypes)
     {
-        Assert.assertTrue(lastSchemaChangeResult instanceof ResultMessage.SchemaChange);
-        ResultMessage.SchemaChange schemaChange = (ResultMessage.SchemaChange) lastSchemaChangeResult;
-        Assert.assertSame(change, schemaChange.change.change);
-        Assert.assertSame(target, schemaChange.change.target);
-        Assert.assertEquals(keyspace, schemaChange.change.keyspace);
-        Assert.assertEquals(name, schemaChange.change.name);
-        Assert.assertEquals(argTypes != null ? Arrays.asList(argTypes) : null, schemaChange.change.argTypes);
+        ResultMessage actual = schemaChange(query);
+        Assert.assertTrue(actual instanceof ResultMessage.SchemaChange);
+        Event.SchemaChange schemaChange = ((ResultMessage.SchemaChange) actual).change;
+        Assert.assertSame(expectedChange, schemaChange.change);
+        Assert.assertSame(expectedTarget, schemaChange.target);
+        Assert.assertEquals(expectedKeyspace, schemaChange.keyspace);
+        Assert.assertEquals(expectedName, schemaChange.name);
+        Assert.assertEquals(expectedArgTypes != null ? Arrays.asList(expectedArgTypes) : null, schemaChange.argTypes);
     }
 
-    protected static void schemaChange(String query)
+    protected static ResultMessage schemaChange(String query)
     {
         try
         {
@@ -765,7 +789,7 @@ public abstract class CQLTester
 
             QueryOptions options = QueryOptions.forInternalCalls(Collections.<ByteBuffer>emptyList());
 
-            lastSchemaChangeResult = prepared.statement.executeInternal(queryState, options);
+            return prepared.statement.executeInternal(queryState, options);
         }
         catch (Exception e)
         {
