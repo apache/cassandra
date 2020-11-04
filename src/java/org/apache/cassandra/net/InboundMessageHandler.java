@@ -287,6 +287,34 @@ public class InboundMessageHandler extends AbstractMessageHandler
         return true;
     }
 
+    protected void processCorruptFrame(CorruptFrame frame) throws Crc.InvalidCrc
+    {
+        if (!frame.isRecoverable())
+        {
+            corruptFramesUnrecovered++;
+            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+        }
+        else if (frame.isSelfContained)
+        {
+            receivedBytes += frame.frameSize;
+            corruptFramesRecovered++;
+            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading messages (corrupted self-contained frame)", id());
+        }
+        else if (null == largeMessage) // first frame of a large message
+        {
+            receivedBytes += frame.frameSize;
+            corruptFramesUnrecovered++;
+            noSpamLogger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages (corrupted first frame of a large message)", id());
+            throw new Crc.InvalidCrc(frame.readCRC, frame.computedCRC);
+        }
+        else // subsequent frame of a large message
+        {
+            processSubsequentFrameOfLargeMessage(frame);
+            corruptFramesRecovered++;
+            noSpamLogger.warn("{} invalid, recoverable CRC mismatch detected while reading a large message", id());
+        }
+    }
+
     String id(boolean includeReal)
     {
         if (!includeReal)
