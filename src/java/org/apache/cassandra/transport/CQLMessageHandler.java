@@ -416,11 +416,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             super(frameSize(header), header, EXPIRES_AT, false);
         }
 
-        private LargeMessage(Frame.Header header, ShareableBytes bytes)
-        {
-            super(frameSize(header), header, EXPIRES_AT, bytes);
-        }
-
         private Frame assembleFrame()
         {
             ByteBuf body = Unpooled.wrappedBuffer(buffers.stream()
@@ -448,21 +443,11 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         protected void onComplete()
         {
             if (overloaded)
-            {
                 handleErrorAndRelease(new OverloadedException("Server is in overloaded state. " +
                                                               "Cannot accept more requests at this point"), header);
-            }
             else if (!isCorrupt)
-            {
-                try
-                {
-                    processCqlFrame(assembleFrame());
-                }
-                catch (Exception e)
-                {
-                    handleErrorAndRelease(e, header);
-                }
-            }
+                processCqlFrame(assembleFrame());
+
         }
 
         protected void abort()
