@@ -1429,11 +1429,18 @@ public class CompactionManager implements CompactionManagerMBean
             // Create Merkle trees suitable to hold estimated partitions for the given ranges.
             // We blindly assume that a partition is evenly distributed on all sstables for now.
             MerkleTrees tree = createMerkleTrees(sstables, validator.desc.ranges, cfs);
+            RateLimiter limiter = getRateLimiter();
             long start = System.nanoTime();
             try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables, validator.desc.ranges);
                  ValidationCompactionController controller = new ValidationCompactionController(cfs, gcBefore);
                  CompactionIterator ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec, metrics))
             {
+                double compressionRatio = scanners.getCompressionRatio();
+                if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
+                    compressionRatio = 1.0;
+
+                long lastBytesScanned = 0;
+
                 // validate the CF as we iterate over it
                 validator.prepare(cfs, tree);
                 while (ci.hasNext())
@@ -1444,6 +1451,11 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         validator.add(partition);
                     }
+
+                    long bytesScanned = scanners.getTotalBytesScanned();
+                    compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
+                    lastBytesScanned = bytesScanned;
+
                 }
                 validator.complete();
             }
