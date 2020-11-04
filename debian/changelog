@@ -1,3 +1,9 @@
+cassandra (2.2.20) UNRELEASED; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Thu, 29 Oct 2020 11:34:29 +0100
+
 cassandra (2.2.19) unstable; urgency=medium
 
   * New release

@@ -1,3 +1,6 @@
+2.2.20
+
+
 2.2.19
  * Package tools/bin scripts as executable (CASSANDRA-16151)
  * Fix ExceptionInInitializerError when data_file_directories is not set (CASSANDRA-16008)
