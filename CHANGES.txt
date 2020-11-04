@@ -1,4 +1,5 @@
 3.11.10
+ * Rate limit validation compactions using compaction_throughput_mb_per_sec (CASSANDRA-16161)
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
  * Improved check of num_tokens against the length of initial_token (CASSANDRA-14477)
