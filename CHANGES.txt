@@ -3,6 +3,10 @@
  * Fix SSTableloader issue when restoring a table named backups (CASSANDRA-16235)
  * Invalid serialized size for responses caused by increasing message time by 1ms which caused extra bytes in size calculation (CASSANDRA-16103)
  * Throw BufferOverflowException from DataOutputBuffer for better visibility (CASSANDRA-16214)
+Merged from 3.11:
+Merged from 3.0:
+ * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
+
 4.0-beta3
  * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)
  * Fail truncation requests when they fail on a replica (CASSANDRA-16208)
@@ -36,7 +40,6 @@ Merged from 3.11:
  * Use IF NOT EXISTS for index and UDT create statements in snapshot schema files (CASSANDRA-13935)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
 Merged from 3.0:
- * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
  * Avoid marking shutting down nodes as up after receiving gossip shutdown message (CASSANDRA-16094)
  * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
