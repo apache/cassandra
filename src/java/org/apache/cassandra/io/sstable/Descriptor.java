@@ -20,13 +20,22 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -48,6 +57,8 @@ public class Descriptor
 {
     private final static String LEGACY_TMP_REGEX_STR = "^((.*)\\-(.*)\\-)?tmp(link)?\\-((?:l|k).)\\-(\\d)*\\-(.*)$";
     private final static Pattern LEGACY_TMP_REGEX = Pattern.compile(LEGACY_TMP_REGEX_STR);
+    private static final Pattern FORWARD_SLASH_PATTERN = Pattern.compile("/");
+    private static final Pattern INDEX_DIR_PATTERN = Pattern.compile("\\.");
 
     public static String TMP_EXT = ".tmp";
 
@@ -287,27 +298,123 @@ public class Descriptor
         if (!version.isCompatible())
             throw invalidSSTable(name, "incompatible sstable version (%s); you should have run upgradesstables before upgrading", versionString);
 
-        File directory = parentOf(name, file);
-        File tableDir = directory;
+        final File directory = parentOf(name, file);
 
-        // Check if it's a 2ndary index directory (not that it doesn't exclude it to be also a backup or snapshot)
-        String indexName = "";
-        if (Directories.isSecondaryIndexFolder(tableDir))
+        final Pair<String, String> keyspaceAndTable = parseKeyspaceAndTable(file);
+
+        return Pair.create(new Descriptor(version, directory, keyspaceAndTable.left, keyspaceAndTable.right, generation, format), component);
+    }
+
+    public static Pair<String, String> parseKeyspaceAndTable(final File file)
+    {
+        return parseKeyspaceAndTable(DatabaseDescriptor.getAllDataFileLocations(), file);
+    }
+
+    public static Pair<String, String> parseKeyspaceAndTable(final String[] dataLocations, final File file)
+    {
+        final String filePath = file.getAbsolutePath();
+
+        final Optional<String> dataDir = Stream.of(dataLocations)
+                                               .sorted(Comparator.comparingInt(String::length).reversed())
+                                               .filter(path -> {
+                                                   String dataLocation = path.endsWith(File.separator) ?  path : path + File.separator;
+                                                   return filePath.startsWith(dataLocation);
+                                               }).findFirst();
+
+        final Function<String, String> enrichWithSeparator = (pattern) ->
         {
-            indexName = tableDir.getName();
-            tableDir = parentOf(name, tableDir);
+            assert pattern != null;
+
+            if (File.separator.equals("\\"))
+            {
+                return FORWARD_SLASH_PATTERN.matcher(pattern).replaceAll("\\\\");
+            }
+
+            return pattern;
+        };
+
+        final Function<String, String> parseTableName = (tableDir) ->
+        {
+            assert tableDir != null;
+
+            if (!tableDir.contains("-"))
+            {
+                return tableDir;
+            }
+            else
+            {
+                return tableDir.split("-")[0];
+            }
+        };
+
+        final Supplier<Pattern[]> patternsFunction = () ->
+        {
+            final String prefix = dataDir.orElse("(.*)");
+
+            return new Pattern[] {
+
+                // /some/path/ks/tab/snapshots/snapshot-name/.index/na-1-big-Index.db
+                Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/snapshots/(.*)/(\\..*)/(.*)")),
+                // /some/path/ks/tab/snapshots/snapshot-name/na-1-big-Index.db
+                Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/snapshots/(.*)/(.*)")),
+
+                // /some/path/ks/tab/backups/.index/na-1-big-Index.db
+                Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/backups/(\\..*)/(.*)")),
+                // /some/path/ks/tab/backups/na-1-big-Index.db
+                Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/backups/(.*)")),
+
+                // /some/path/ks/tab/.index/na-1-big-Index.db
+                Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/(\\..*)/(.*)")),
+                // /some/path/ks/tab/na-1-big-Index.db
+                Pattern.compile(enrichWithSeparator.apply(prefix + "/(.*)/(.*)/(.*)"))
+            };
+        };
+
+        final Pattern[] patterns = patternsFunction.get();
+
+        int keyspaceGroup = dataDir.isPresent() ? 1 : 2;
+        int tableGroup = dataDir.isPresent() ? 2 : 3;
+        int indexGroup = dataDir.isPresent() ? 3 : 4;
+        int indexGroupInSnapshots = dataDir.isPresent() ? 4 : 5;
+        int indexGroupInBackups = dataDir.isPresent() ? 3 : 4;
+
+        final Matcher indexFileInSnapshotMacher = patterns[0].matcher(filePath);
+        if (indexFileInSnapshotMacher.matches()) {
+            return Pair.create(indexFileInSnapshotMacher.group(keyspaceGroup),
+                               parseTableName.apply(indexFileInSnapshotMacher.group(tableGroup)) + indexFileInSnapshotMacher.group(indexGroupInSnapshots));
         }
 
-        // Then it can be a backup or a snapshot
-        if (tableDir.getName().equals(Directories.BACKUPS_SUBDIR))
-            tableDir = tableDir.getParentFile();
-        else if (parentOf(name, tableDir).getName().equals(Directories.SNAPSHOT_SUBDIR))
-            tableDir = parentOf(name, parentOf(name, tableDir));
+        final Matcher snapshotFileMatcher = patterns[1].matcher(filePath);
+        if (snapshotFileMatcher.matches()) {
+            return Pair.create(snapshotFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(snapshotFileMatcher.group(tableGroup)));
+        }
 
-        String table = tableDir.getName().split("-")[0] + indexName;
-        String keyspace = parentOf(name, tableDir).getName();
+        final Matcher indexFileInBackupMatcher = patterns[2].matcher(filePath);
+        if (indexFileInBackupMatcher.matches()) {
+            return Pair.create(indexFileInBackupMatcher.group(keyspaceGroup),
+                               parseTableName.apply(indexFileInBackupMatcher.group(tableGroup)) + indexFileInBackupMatcher.group(indexGroupInBackups));
+        }
 
-        return Pair.create(new Descriptor(version, directory, keyspace, table, generation, format), component);
+        final Matcher backupFileMatcher = patterns[3].matcher(filePath);
+        if (backupFileMatcher.matches()) {
+            return Pair.create(backupFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(backupFileMatcher.group(tableGroup)));
+        }
+
+        final Matcher indexFileMatcher = patterns[4].matcher(filePath);
+        if (indexFileMatcher.matches()) {
+            return Pair.create(indexFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(indexFileMatcher.group(tableGroup)) + indexFileMatcher.group(indexGroup));
+        }
+
+        final Matcher normalFileMatcher = patterns[5].matcher(filePath);
+        if (normalFileMatcher.matches()) {
+            return Pair.create(normalFileMatcher.group(keyspaceGroup),
+                               parseTableName.apply(normalFileMatcher.group(tableGroup)));
+        }
+
+        throw new IllegalStateException("Unable to parse keyspace and table from " + filePath);
     }
 
     private static File parentOf(String name, File file)
