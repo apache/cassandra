@@ -1077,6 +1077,16 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getCompactionThroughputMbPerSec();
     }
 
+    public void setValidationThroughput(int value)
+    {
+        ssProxy.setValidationThroughputMbPerSec(value);
+    }
+
+    public int getValidationThroughtput()
+    {
+        return ssProxy.getValidationThroughputMbPerSec();
+    }
+
     public void setConcurrentCompactors(int value)
     {
         ssProxy.setConcurrentCompactors(value);

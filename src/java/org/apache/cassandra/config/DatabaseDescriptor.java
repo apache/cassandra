@@ -1590,6 +1590,16 @@ public class DatabaseDescriptor
         conf.compaction_throughput_mb_per_sec = value;
     }
 
+    public static int getValidationThroughtputMbPerSec()
+    {
+        return conf.validation_throughput_mb_per_sec;
+    }
+
+    public static void setValidationThroughputMbPerSec(int value)
+    {
+        conf.validation_throughput_mb_per_sec = value;
+    }
+
     public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024L * 1024L; }
 
     public static long getMinFreeSpacePerDriveInBytes()
