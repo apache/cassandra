@@ -54,6 +54,8 @@ public class SettingsTableTest extends CQLTester
     public void config()
     {
         config = new Config();
+        config.client_encryption_options.applyConfig();
+        config.server_encryption_options.applyConfig();
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
     }
@@ -151,9 +153,9 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv5");
         check(pre + "protocol", "TLSv5");
 
-        check(pre + "optional", "true");
-        config.server_encryption_options = config.server_encryption_options.withOptional(false);
         check(pre + "optional", "false");
+        config.server_encryption_options = config.server_encryption_options.withOptional(true);
+        check(pre + "optional", "true");
 
         check(pre + "client_auth", "false");
         config.server_encryption_options = config.server_encryption_options.withRequireClientAuth(true);

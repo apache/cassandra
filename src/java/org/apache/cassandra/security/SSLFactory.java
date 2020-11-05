@@ -229,7 +229,7 @@ public final class SSLFactory
         }
         catch (Exception e)
         {
-            throw new IOException("failed to build trust manager store for secure connections", e);
+            throw new IOException("failed to build key manager store for secure connections", e);
         }
     }
 
@@ -370,13 +370,13 @@ public final class SSLFactory
 
         List<HotReloadableFile> fileList = new ArrayList<>();
 
-        if (serverOpts != null && serverOpts.isEnabled())
+        if (serverOpts != null && serverOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
         {
             fileList.add(new HotReloadableFile(serverOpts.keystore));
             fileList.add(new HotReloadableFile(serverOpts.truststore));
         }
 
-        if (clientOpts != null && clientOpts.isEnabled())
+        if (clientOpts != null && clientOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
         {
             fileList.add(new HotReloadableFile(clientOpts.keystore));
             fileList.add(new HotReloadableFile(clientOpts.truststore));
@@ -405,8 +405,8 @@ public final class SSLFactory
     {
         try
         {
-            // Ensure we're able to create both server & client SslContexts
-            if (serverOpts != null && serverOpts.isEnabled())
+            // Ensure we're able to create both server & client SslContexts if they might ever be needed
+            if (serverOpts != null && serverOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
             {
                 createNettySslContext(serverOpts, true, SocketType.SERVER, openSslIsAvailable());
                 createNettySslContext(serverOpts, true, SocketType.CLIENT, openSslIsAvailable());
@@ -419,8 +419,8 @@ public final class SSLFactory
 
         try
         {
-            // Ensure we're able to create both server & client SslContexts
-            if (clientOpts != null && clientOpts.isEnabled())
+            // Ensure we're able to create both server & client SslContexts if they might ever be needed
+            if (clientOpts != null && clientOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
             {
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.SERVER, openSslIsAvailable());
                 createNettySslContext(clientOpts, clientOpts.require_client_auth, SocketType.CLIENT, openSslIsAvailable());

@@ -50,7 +50,7 @@ public class Client extends SimpleClient
 
     public Client(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
-        super(host, port, version, version.isBeta(), encryptionOptions);
+        super(host, port, version, version.isBeta(), new EncryptionOptions(encryptionOptions).applyConfig());
         setEventHandler(eventHandler);
     }
 
@@ -294,7 +294,7 @@ public class Client extends SimpleClient
         int port = Integer.parseInt(args[1]);
         ProtocolVersion version = args.length == 3 ? ProtocolVersion.decode(Integer.parseInt(args[2]), DatabaseDescriptor.getNativeTransportAllowOlderProtocols()) : ProtocolVersion.CURRENT;
 
-        EncryptionOptions encryptionOptions = new EncryptionOptions();
+        EncryptionOptions encryptionOptions = new EncryptionOptions().applyConfig();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
         new Client(host, port, version, encryptionOptions).run();

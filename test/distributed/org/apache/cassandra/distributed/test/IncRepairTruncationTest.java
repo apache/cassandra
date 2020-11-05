@@ -49,8 +49,7 @@ public class IncRepairTruncationTest extends TestBaseImpl
     {
         ExecutorService es = Executors.newFixedThreadPool(3);
         try(Cluster cluster = init(Cluster.build(2)
-                                          .withConfig(config -> config.set("disable_incremental_repair", false)
-                                                                      .with(GOSSIP)
+                                          .withConfig(config -> config.with(GOSSIP)
                                                                       .with(NETWORK))
                                           .start()))
         {

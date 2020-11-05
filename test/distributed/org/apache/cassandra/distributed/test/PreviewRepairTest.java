@@ -179,8 +179,7 @@ public class PreviewRepairTest extends TestBaseImpl
     public void testConcurrentIncRepairDuringPreview() throws IOException, InterruptedException, ExecutionException
     {
         try (Cluster cluster = init(Cluster.build(2).withConfig(config ->
-                                                                config.set("disable_incremental_repair", false)
-                                                                      .with(GOSSIP)
+                                                                config.with(GOSSIP)
                                                                       .with(NETWORK)).start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");

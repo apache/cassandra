@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -1152,7 +1151,7 @@ public class OutboundConnection
                                     id(true),
                                     success.messagingVersion,
                                     settings.framing,
-                                    encryptionLogStatement(channel, settings.encryption));
+                                    encryptionConnectionSummary(channel));
                         break;
 
                     case RETRY:

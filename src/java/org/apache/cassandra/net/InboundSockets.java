@@ -200,7 +200,7 @@ class InboundSockets
     private static void addBindings(InboundConnectionSettings template, ImmutableList.Builder<InboundSocket> out)
     {
         InboundConnectionSettings       settings = template.withDefaults();
-        InboundConnectionSettings legacySettings = template.withLegacyDefaults();
+        InboundConnectionSettings legacySettings = template.withLegacySslStoragePortDefaults();
 
         if (settings.encryption.enable_legacy_ssl_storage_port)
         {

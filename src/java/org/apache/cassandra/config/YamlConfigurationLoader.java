@@ -153,7 +153,9 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 return node;
             }
         });
-        return (T) constructor.getSingleData(klass);
+        T value = (T) constructor.getSingleData(klass);
+        propertiesChecker.check();
+        return value;
     }
 
     static class CustomConstructor extends CustomClassLoaderConstructor

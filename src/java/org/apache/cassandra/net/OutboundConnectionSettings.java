@@ -35,7 +35,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.instance;
-import static org.apache.cassandra.net.SocketFactory.encryptionLogStatement;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
@@ -171,7 +170,7 @@ public class OutboundConnectionSettings
     public String toString()
     {
         return String.format("peer: (%s, %s), framing: %s, encryption: %s",
-                             to, connectTo, framing, encryptionLogStatement(encryption));
+                             to, connectTo, framing, SocketFactory.encryptionOptionsSummary(encryption));
     }
 
     public OutboundConnectionSettings withAuthenticator(IInternodeAuthenticator authenticator)
