@@ -20,11 +20,15 @@ package org.apache.cassandra.transport;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
 import org.junit.*;
 
 import com.codahale.metrics.Gauge;
@@ -34,11 +38,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.virtual.AbstractVirtualTable;
-import org.apache.cassandra.db.virtual.SimpleDataSet;
-import org.apache.cassandra.db.virtual.VirtualKeyspace;
-import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.db.virtual.VirtualTable;
+import org.apache.cassandra.db.virtual.*;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.TableMetadata;
@@ -104,43 +104,55 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @SuppressWarnings("resource")
-    private SimpleClient client(boolean throwOnOverload) throws IOException
+    private SimpleClient client(boolean throwOnOverload)
     {
-        return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
-                           .protocolVersion(ProtocolVersion.V5)
-                           .useBeta()
-                           .build()
-                           .connect(false, throwOnOverload);
+        try
+        {
+            return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
+                               .protocolVersion(ProtocolVersion.V5)
+                               .useBeta()
+                               .build()
+                               .connect(false, throwOnOverload);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error initializing client", e);
+        }
     }
 
     @SuppressWarnings("resource")
-    private SimpleClient client(boolean throwOnOverload, int largeMessageThreshold) throws IOException
+    private SimpleClient client(boolean throwOnOverload, int largeMessageThreshold)
     {
-        return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
-                           .protocolVersion(ProtocolVersion.V5)
-                           .useBeta()
-                           .largeMessageThreshold(largeMessageThreshold)
-                           .build()
-                           .connect(false, throwOnOverload);
+        try
+        {
+            return SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
+                               .protocolVersion(ProtocolVersion.V5)
+                               .useBeta()
+                               .largeMessageThreshold(largeMessageThreshold)
+                               .build()
+                               .connect(false, throwOnOverload);
+        }
+        catch (IOException e)
+        {
+           throw new RuntimeException("Error initializing client", e);
+        }
     }
 
     @Test
     public void testQueryExecutionWithThrowOnOverload() throws Throwable
     {
-        try (SimpleClient client = client(true))
-        {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk1 int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-            queryMessage = new QueryMessage("SELECT * FROM atable", V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-        }
+        testQueryExecution(true);
     }
 
     @Test
     public void testQueryExecutionWithoutThrowOnOverload() throws Throwable
     {
-        try (SimpleClient client = client(false))
+        testQueryExecution(false);
+    }
+
+    private void testQueryExecution(boolean throwOnOverload) throws Throwable
+    {
+        try (SimpleClient client = client(throwOnOverload))
         {
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
                                                          V5_DEFAULT_OPTIONS);
@@ -231,23 +243,7 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
-        try (SimpleClient client = client(true))
-        {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-
-            queryMessage = queryMessage();
-            try
-            {
-                client.execute(queryMessage);
-                fail();
-            }
-            catch (RuntimeException e)
-            {
-                assertTrue(e.getCause() instanceof OverloadedException);
-            }
-        }
+        testOverloadedException(() -> client(true));
     }
 
     @Test
@@ -255,23 +251,7 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
-        try (SimpleClient client = client(true))
-        {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-
-            queryMessage = queryMessage();
-            try
-            {
-                client.execute(queryMessage);
-                fail();
-            }
-            catch (RuntimeException e)
-            {
-                assertTrue(e.getCause() instanceof OverloadedException);
-            }
-        }
+        testOverloadedException(() -> client(true));
     }
 
     @Test
@@ -279,23 +259,7 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
-        try (SimpleClient client = client(true, 100))
-        {
-            QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
-                                                         V5_DEFAULT_OPTIONS);
-            client.execute(queryMessage);
-
-            queryMessage = queryMessage();
-            try
-            {
-                client.execute(queryMessage);
-                fail();
-            }
-            catch (RuntimeException e)
-            {
-                assertTrue(e.getCause() instanceof OverloadedException);
-            }
-        }
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)));
     }
 
     @Test
@@ -303,7 +267,12 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
-        try (SimpleClient client = client(true, 100))
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)));
+    }
+
+    private void testOverloadedException(Supplier<SimpleClient> clientSupplier)
+    {
+        try (SimpleClient client = clientSupplier.get())
         {
             QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",
                                                          V5_DEFAULT_OPTIONS);
