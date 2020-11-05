@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +44,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     private final MaximumPoolSizeListener maximumPoolSizeListener;
     public final String name;
     private final String mbeanName;
+    @VisibleForTesting
     public final ThreadPoolMetrics metrics;
 
     // stores both a set of work permits and task permits:

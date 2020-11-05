@@ -21,12 +21,13 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.*;
 
-import static org.apache.cassandra.Util.spinAssertEquals;
 import static org.junit.Assert.*;
 
 public class ThreadPoolMetricsTest
@@ -65,9 +66,15 @@ public class ThreadPoolMetricsTest
         testMetricsWithNoBlockedThreads(executor, executor.metrics);
     }
 
-    public void testMetricsWithBlockedThreads(LocalAwareExecutorService threadPool, ThreadPoolMetrics metrics)
+    private static void testMetricsWithBlockedThreads(LocalAwareExecutorService threadPool, ThreadPoolMetrics metrics)
     {
         assertEquals(2, metrics.maxPoolSize.getValue().intValue());
+
+        spinAssertEquals(0, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         BlockingTask task1 = new BlockingTask();
         BlockingTask task2 = new BlockingTask();
@@ -78,17 +85,21 @@ public class ThreadPoolMetricsTest
         threadPool.execute(task1);
         threadPool.execute(task2);
 
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // There are no threads available any more the 2 next tasks should go into the queue
         threadPool.execute(task3);
         threadPool.execute(task4);
 
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(2, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(2, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // The queue is full the 2 next task should go into blocked and block the thread
         BlockingTask task5 = new BlockingTask();
@@ -102,12 +113,12 @@ public class ThreadPoolMetricsTest
             blockedThreads.decrementAndGet();
         }).start();
 
-        spinAssertEquals(1, () -> blockedThreads.get(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(2, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(1L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(1L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(1, blockedThreads::get);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(2, metrics.pendingTasks::getValue);
+        spinAssertEquals(1L, metrics.currentBlocked::getCount);
+        spinAssertEquals(1L, metrics.totalBlocked::getCount);
 
         new Thread(() ->
         {
@@ -116,68 +127,74 @@ public class ThreadPoolMetricsTest
             blockedThreads.decrementAndGet();
         }).start();
 
-        spinAssertEquals(2, () -> blockedThreads.get(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(2, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(2L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(2L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(2, blockedThreads::get);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(2, metrics.pendingTasks::getValue);
+        spinAssertEquals(2L, metrics.currentBlocked::getCount);
+        spinAssertEquals(2L, metrics.totalBlocked::getCount);
 
         // Allowing first task to complete
         task1.allowToComplete();
 
-        spinAssertEquals(true, () -> task3.isStarted(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(1L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(2, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(1L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(2L, () -> metrics.totalBlocked.getCount(), 1);
-        spinAssertEquals(1, () -> blockedThreads.get(), 1);
+        spinAssertEquals(true, task3::isStarted);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(1L, metrics.completedTasks::getValue);
+        spinAssertEquals(2, metrics.pendingTasks::getValue);
+        spinAssertEquals(1L, metrics.currentBlocked::getCount);
+        spinAssertEquals(2L, metrics.totalBlocked::getCount);
+        spinAssertEquals(1, blockedThreads::get);
 
         // Allowing second task to complete
         task2.allowToComplete();
 
-        spinAssertEquals(true, () -> task4.isStarted(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(2L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(2, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(2L, () -> metrics.totalBlocked.getCount(), 1);
-        spinAssertEquals(0, () -> blockedThreads.get(), 1);
+        spinAssertEquals(true, task4::isStarted);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(2L, metrics.completedTasks::getValue);
+        spinAssertEquals(2, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(2L, metrics.totalBlocked::getCount);
+        spinAssertEquals(0, blockedThreads::get);
 
         // Allowing third task to complete
         task3.allowToComplete();
 
-        spinAssertEquals(true, () -> task5.isStarted(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(3L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(1, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(2L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(true, task5::isStarted);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(3L, metrics.completedTasks::getValue);
+        spinAssertEquals(1, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(2L, metrics.totalBlocked::getCount);
 
         // Allowing fourth task to complete
         task4.allowToComplete();
 
-        spinAssertEquals(true, () -> task6.isStarted(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(4L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(2L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(true, task6::isStarted);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(4L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(2L, metrics.totalBlocked::getCount);
 
         // Allowing last tasks to complete
         task5.allowToComplete();
         task6.allowToComplete();
 
-        spinAssertEquals(0, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(6L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(2L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(0, metrics.activeTasks::getValue);
+        spinAssertEquals(6L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(2L, metrics.totalBlocked::getCount);
     }
 
-    public void testMetricsWithNoBlockedThreads(LocalAwareExecutorService threadPool, ThreadPoolMetrics metrics)
+    private static void testMetricsWithNoBlockedThreads(LocalAwareExecutorService threadPool, ThreadPoolMetrics metrics)
     {
+        spinAssertEquals(0, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
+
         BlockingTask task1 = new BlockingTask();
         BlockingTask task2 = new BlockingTask();
         BlockingTask task3 = new BlockingTask();
@@ -186,77 +203,82 @@ public class ThreadPoolMetricsTest
         // The ThreadPool has a size of 2 so the 2 first tasks should go into active straight away
         threadPool.execute(task1);
 
-        spinAssertEquals(1, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(1, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         threadPool.execute(task2);
 
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // There are no threads available any more the 2 next tasks should go into the queue
         threadPool.execute(task3);
 
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(1, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(1, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         threadPool.execute(task4);
 
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(2, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(0L, metrics.completedTasks::getValue);
+        spinAssertEquals(2, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // Allowing first task to complete
         task1.allowToComplete();
 
-        spinAssertEquals(true, () -> task3.isStarted(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(1L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(1, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(true, task3::isStarted);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(1L, metrics.completedTasks::getValue);
+        spinAssertEquals(1, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // Allowing second task to complete
         task2.allowToComplete();
 
-        spinAssertEquals(true, () -> task4.isStarted(), 1);
-        spinAssertEquals(2, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(2L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(true, task4::isStarted);
+        spinAssertEquals(2, metrics.activeTasks::getValue);
+        spinAssertEquals(2L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // Allowing third task to complete
         task3.allowToComplete();
 
-        spinAssertEquals(1, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(3L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(1, metrics.activeTasks::getValue);
+        spinAssertEquals(3L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
 
         // Allowing fourth task to complete
         task4.allowToComplete();
 
-        spinAssertEquals(0, () -> metrics.activeTasks.getValue().intValue(), 1);
-        spinAssertEquals(4L, () -> metrics.completedTasks.getValue().longValue(), 1);
-        spinAssertEquals(0, () -> metrics.pendingTasks.getValue().intValue(), 1);
-        spinAssertEquals(0L, () -> metrics.currentBlocked.getCount(), 1);
-        spinAssertEquals(0L, () -> metrics.totalBlocked.getCount(), 1);
+        spinAssertEquals(0, metrics.activeTasks::getValue);
+        spinAssertEquals(4L, metrics.completedTasks::getValue);
+        spinAssertEquals(0, metrics.pendingTasks::getValue);
+        spinAssertEquals(0L, metrics.currentBlocked::getCount);
+        spinAssertEquals(0L, metrics.totalBlocked::getCount);
     }
 
-    private class BlockingTask implements Runnable
+    private static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier)
+    {
+        Util.spinAssertEquals(expected, actualSupplier, 1);
+    }
+
+    private static final class BlockingTask implements Runnable
     {
         private final CountDownLatch latch = new CountDownLatch(1);
 
