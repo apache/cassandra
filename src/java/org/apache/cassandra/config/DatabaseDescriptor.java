@@ -760,11 +760,16 @@ public class DatabaseDescriptor
             throw new ConfigurationException("commitlog_segment_size_in_mb must be at least twice the size of max_mutation_size_in_kb / 1024", false);
 
         // native transport encryption options
-        if (conf.native_transport_port_ssl != null
-            && conf.native_transport_port_ssl != conf.native_transport_port
-            && !conf.client_encryption_options.isEnabled())
+        if (conf.client_encryption_options != null)
         {
-            throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+            conf.client_encryption_options.applyConfig();
+
+            if (conf.native_transport_port_ssl != null
+                && conf.native_transport_port_ssl != conf.native_transport_port
+                && conf.client_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+            {
+                throw new ConfigurationException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl", false);
+            }
         }
 
         if (conf.max_value_size_in_mb <= 0)
@@ -789,6 +794,16 @@ public class DatabaseDescriptor
         if (conf.otc_coalescing_enough_coalesced_messages <= 0)
             throw new ConfigurationException("otc_coalescing_enough_coalesced_messages must be positive", false);
 
+        if (conf.server_encryption_options != null)
+        {
+            conf.server_encryption_options.applyConfig();
+
+            if (conf.server_encryption_options.enable_legacy_ssl_storage_port &&
+                conf.server_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+            {
+                throw new ConfigurationException("enable_legacy_ssl_storage_port is true (enabled) with internode encryption disabled (none). Enable encryption or disable the legacy ssl storage port.");
+            }
+        }
         Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
         if (maxMessageSize != null)
         {

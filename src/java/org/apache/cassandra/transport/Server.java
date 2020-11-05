@@ -48,7 +48,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
-import io.netty.util.Version;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -88,7 +87,7 @@ public class Server implements CassandraDaemon.Server
     };
 
     public final InetSocketAddress socket;
-    public boolean useSSL = false;
+    public final EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     private EventLoopGroup workerGroup;
@@ -96,7 +95,7 @@ public class Server implements CassandraDaemon.Server
     private Server (Builder builder)
     {
         this.socket = builder.getSocket();
-        this.useSSL = builder.useSSL;
+        this.tlsEncryptionPolicy = builder.tlsEncryptionPolicy;
         if (builder.workerGroup != null)
         {
             workerGroup = builder.workerGroup;
@@ -141,29 +140,27 @@ public class Server implements CassandraDaemon.Server
         if (workerGroup != null)
             bootstrap = bootstrap.group(workerGroup);
 
-        if (this.useSSL)
-        {
-            final EncryptionOptions clientEnc = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
+        final EncryptionOptions clientEnc = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
 
-            if (clientEnc.optional)
-            {
-                logger.info("Enabling optionally encrypted CQL connections between client and server");
-                bootstrap.childHandler(new OptionalSecureInitializer(this, clientEnc));
-            }
-            else
-            {
-                logger.info("Enabling encrypted CQL connections between client and server");
-                bootstrap.childHandler(new SecureInitializer(this, clientEnc));
-            }
-        }
-        else
+        switch (this.tlsEncryptionPolicy)
         {
-            bootstrap.childHandler(new Initializer(this));
+            case UNENCRYPTED:
+                bootstrap.childHandler(new Initializer(this));
+                break;
+            case OPTIONAL:
+                logger.debug("Enabling optionally encrypted CQL connections between client and server");
+                bootstrap.childHandler(new OptionalSecureInitializer(this, clientEnc));
+                break;
+            case ENCRYPTED:
+                logger.debug("Enabling encrypted CQL connections between client and server");
+                bootstrap.childHandler(new SecureInitializer(this, clientEnc));
+                break;
+            default:
+                throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);
         }
 
         // Bind and start to accept incoming connections.
-        logger.info("Using Netty Version: {}", Version.identify().entrySet());
-        logger.info("Starting listening for CQL clients on {} ({})...", socket, this.useSSL ? "encrypted" : "unencrypted");
+        logger.info("Starting listening for CQL clients on {} ({})...", socket, clientEnc.tlsEncryptionPolicy().description());
 
         ChannelFuture bindFuture = bootstrap.bind(socket);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
@@ -219,14 +216,14 @@ public class Server implements CassandraDaemon.Server
     {
         private EventLoopGroup workerGroup;
         private EventExecutor eventExecutorGroup;
-        private boolean useSSL = false;
+        private EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy = EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
         private InetAddress hostAddr;
         private int port = -1;
         private InetSocketAddress socket;
 
-        public Builder withSSL(boolean useSSL)
+        public Builder withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy)
         {
-            this.useSSL = useSSL;
+            this.tlsEncryptionPolicy = tlsEncryptionPolicy;
             return this;
         }
 
