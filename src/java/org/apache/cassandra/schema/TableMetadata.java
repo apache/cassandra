@@ -1341,17 +1341,47 @@ public class TableMetadata implements SchemaElement
          */
         public final ColumnMetadata compactValueColumn;
 
+        private final Set<ColumnMetadata> hiddenColumns;
         protected CompactTableMetadata(Builder builder)
         {
             super(builder);
 
             compactValueColumn = getCompactValueColumn(regularAndStaticColumns);
+
+            if (isCompactTable() && Flag.isDense(this.flags) && hasEmptyCompactValue())
+            {
+                hiddenColumns = Collections.singleton(compactValueColumn);
+            }
+            else if (isCompactTable() && !Flag.isDense(this.flags))
+            {
+                hiddenColumns = Sets.newHashSetWithExpectedSize(clusteringColumns.size() + 1);
+                hiddenColumns.add(compactValueColumn);
+                hiddenColumns.addAll(clusteringColumns);
+
+            }
+            else
+            {
+                hiddenColumns = Collections.emptySet();
+            }
         }
 
         @Override
         public boolean isCompactTable()
         {
             return true;
+        }
+
+        public ColumnMetadata getExistingColumn(ColumnIdentifier name)
+        {
+            ColumnMetadata def = getColumn(name);
+            if (def == null || isHiddenColumn(def))
+                throw new InvalidRequestException(format("Undefined column name %s in table %s", name.toCQLString(), this));
+            return def;
+        }
+
+        public boolean isHiddenColumn(ColumnMetadata def)
+        {
+            return hiddenColumns.contains(def);
         }
 
         @Override

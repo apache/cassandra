@@ -321,7 +321,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                                   TableMetadata.Builder tableBuilder,
                                   Views.Builder viewsBuilder)
         {
-            ColumnMetadata column = table.getColumn(oldName);
+            ColumnMetadata column = table.getExistingColumn(oldName);
             if (null == column)
                 throw ire("Column %s was not found in table %s", oldName, table);
 
