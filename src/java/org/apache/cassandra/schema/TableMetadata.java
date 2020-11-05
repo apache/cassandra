@@ -1211,7 +1211,6 @@ public class TableMetadata implements SchemaElement
         while (iter.hasNext())
         {
             ColumnMetadata column = iter.next();
-
             // If the column has been re-added after a drop, we don't include it right away. Instead, we'll add the
             // dropped one first below, then we'll issue the DROP and then the actual ADD for this column, thus
             // simulating the proper sequence of events.
@@ -1249,6 +1248,9 @@ public class TableMetadata implements SchemaElement
     {
         List<ColumnMetadata> partitionKeyColumns = partitionKeyColumns();
         List<ColumnMetadata> clusteringColumns = clusteringColumns();
+
+        if (isStaticCompactTable())
+            clusteringColumns = Collections.emptyList();
 
         builder.append("PRIMARY KEY (");
         if (partitionKeyColumns.size() > 1)
@@ -1381,12 +1383,34 @@ public class TableMetadata implements SchemaElement
             boolean noNonPkColumns = !Flag.isCQLTable(flags) && hasEmptyCompactValue();
 
             Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
-            Iterator<ColumnMetadata> clusteringIter = createStatementClusteringColumns().iterator();
-            Iterator<ColumnMetadata> otherColumns =
-            noNonPkColumns
-            ? Collections.emptyIterator()
-            : (isStaticCompactTable ? staticColumns().iterator()
-                                    : regularAndStaticColumns.iterator());
+            Iterator<ColumnMetadata> clusteringIter;
+
+            System.out.println("isStaticCompactTable = " + isStaticCompactTable);
+            if (isStaticCompactTable())
+                clusteringIter = Collections.EMPTY_LIST.iterator();
+            else
+                clusteringIter = createStatementClusteringColumns().iterator();
+
+            Iterator<ColumnMetadata> otherColumns;
+
+            if (noNonPkColumns)
+            {
+                otherColumns = Collections.emptyIterator();
+            }
+            else if (isStaticCompactTable)
+            {
+                List<ColumnMetadata> columns = new ArrayList<>();
+                for (ColumnMetadata c : regularAndStaticColumns)
+                {
+                    if (c.isStatic())
+                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR));
+                }
+                otherColumns = columns.iterator();
+            }
+            else
+            {
+                otherColumns = regularAndStaticColumns.iterator();
+            }
 
             return columnsIterator(partitionKeyIter, clusteringIter, otherColumns);
         }
