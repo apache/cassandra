@@ -334,6 +334,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
             flags.add(TableMetadata.Flag.DENSE);
         if (isCompound)
             flags.add(TableMetadata.Flag.COMPOUND);
+        if (hasCounters)
+            flags.add(TableMetadata.Flag.COUNTER);
 
         boolean isStaticCompact = !isDense && !isCompound;
 
