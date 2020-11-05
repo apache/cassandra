@@ -305,10 +305,15 @@ public class Descriptor
         }
 
         // Then it can be a backup or a snapshot
-        if (tableDir.getName().equals(Directories.BACKUPS_SUBDIR))
+        if (tableDir.getName().equals(Directories.BACKUPS_SUBDIR) && tableDir.getParentFile().getName().contains("-"))
             tableDir = tableDir.getParentFile();
-        else if (parentOf(name, tableDir).getName().equals(Directories.SNAPSHOT_SUBDIR))
-            tableDir = parentOf(name, parentOf(name, tableDir));
+        else
+        {
+            File keyspaceOrSnapshotDir = parentOf(name, tableDir);
+            if (keyspaceOrSnapshotDir.getName().equals(Directories.SNAPSHOT_SUBDIR)
+                && parentOf(name, keyspaceOrSnapshotDir).getName().contains("-"))
+                tableDir = parentOf(name, keyspaceOrSnapshotDir);
+        }
 
         String table = tableDir.getName().split("-")[0] + indexName;
         String keyspace = parentOf(name, tableDir).getName();
