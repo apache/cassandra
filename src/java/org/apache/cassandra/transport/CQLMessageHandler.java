@@ -193,13 +193,16 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     protected void processCqlFrame(Frame frame)
     {
+        M message = null;
         try
         {
-            M message = messageDecoder.decode(channel, frame);
+            message = messageDecoder.decode(channel, frame);
             dispatcher.accept(channel, message, this::toFlushItem);
         }
         catch (Exception e)
         {
+            if (message != null)
+                frame.release();
             handleErrorAndRelease(e, frame.header);
         }
     }

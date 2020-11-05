@@ -39,7 +39,6 @@ import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
-import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
@@ -56,7 +55,6 @@ public class SimpleClientBurnTest
 
     private static final Logger logger = LoggerFactory.getLogger(CQLConnectionTest.class);
 
-    private Random random;
     private InetAddress address;
     private int port;
 
@@ -69,7 +67,6 @@ public class SimpleClientBurnTest
         DatabaseDescriptor.setNetworkAuthorizer(new AllowAllNetworkAuthorizer());
         long seed = new SecureRandom().nextLong();
         logger.info("seed: {}", seed);
-        random = new Random(seed);
         address = InetAddress.getLoopbackAddress();
         try
         {
