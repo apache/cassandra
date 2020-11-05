@@ -21,9 +21,7 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 /**
  * Create a test vector for unit testing of TableStats features.
@@ -52,7 +50,7 @@ public class TableStatsTestBase
     protected static List<StatsTable> testTables;
 
     /**
-     * @returns StatsKeyspace an instance of StatsKeyspace preset with values for use in a test vector
+     * @return StatsKeyspace an instance of StatsKeyspace preset with values for use in a test vector
      */
     private static StatsKeyspace createStatsKeyspaceTemplate(String keyspaceName)
     {
@@ -60,14 +58,14 @@ public class TableStatsTestBase
     }
 
     /**
-     * @returns StatsTable an instance of StatsTable preset with values for use in a test vector
+     * @return StatsTable an instance of StatsTable preset with values for use in a test vector
      */
     private static StatsTable createStatsTableTemplate(String keyspaceName, String tableName)
     {
         StatsTable template = new StatsTable();
         template.fullName = keyspaceName + "." + tableName;
-        template.keyspaceName = new String(keyspaceName);
-        template.tableName = new String(tableName);
+        template.keyspaceName = keyspaceName;
+        template.tableName = tableName;
         template.isIndex = false;
         template.sstableCount = 0L;
         template.oldSSTableCount = 0L;
@@ -96,9 +94,6 @@ public class TableStatsTestBase
         template.compactedPartitionMinimumBytes = 0L;
         template.compactedPartitionMaximumBytes = 0L;
         template.compactedPartitionMeanBytes = 0L;
-        template.bytesRepaired = 0L;
-        template.bytesUnrepaired = 0L;
-        template.bytesPendingRepair = 0L;
         template.averageLiveCellsPerSliceLastFiveMinutes = Double.NaN;
         template.maximumLiveCellsPerSliceLastFiveMinutes = 0L;
         template.averageTombstonesPerSliceLastFiveMinutes = Double.NaN;
@@ -132,19 +127,19 @@ public class TableStatsTestBase
         table5.averageTombstonesPerSliceLastFiveMinutes = 4.01D;
         table6.averageTombstonesPerSliceLastFiveMinutes = 6D;
         // bloom filter false positives: 2 > 4 > 6 > 1 > 3 > 5
-        table1.bloomFilterFalsePositives = (Object) 30L;
-        table2.bloomFilterFalsePositives = (Object) 600L;
-        table3.bloomFilterFalsePositives = (Object) 20L;
-        table4.bloomFilterFalsePositives = (Object) 500L;
-        table5.bloomFilterFalsePositives = (Object) 10L;
-        table6.bloomFilterFalsePositives = (Object) 400L;
+        table1.bloomFilterFalsePositives = 30L;
+        table2.bloomFilterFalsePositives = 600L;
+        table3.bloomFilterFalsePositives = 20L;
+        table4.bloomFilterFalsePositives = 500L;
+        table5.bloomFilterFalsePositives = 10L;
+        table6.bloomFilterFalsePositives = 400L;
         // bloom filter false positive ratio: 5 > 3 > 1 > 6 > 4 > 2
-        table1.bloomFilterFalseRatio = (Object) 0.40D;
-        table2.bloomFilterFalseRatio = (Object) 0.01D;
-        table3.bloomFilterFalseRatio = (Object) 0.50D;
-        table4.bloomFilterFalseRatio = (Object) 0.02D;
-        table5.bloomFilterFalseRatio = (Object) 0.60D;
-        table6.bloomFilterFalseRatio = (Object) 0.03D;
+        table1.bloomFilterFalseRatio = 0.40D;
+        table2.bloomFilterFalseRatio = 0.01D;
+        table3.bloomFilterFalseRatio = 0.50D;
+        table4.bloomFilterFalseRatio = 0.02D;
+        table5.bloomFilterFalseRatio = 0.60D;
+        table6.bloomFilterFalseRatio = 0.03D;
         // bloom filter space used: 2 > 4 > 6 > 1 > 3 > 5
         table1.bloomFilterSpaceUsed = "789";
         table2.bloomFilterSpaceUsed = "161718";
@@ -223,12 +218,12 @@ public class TableStatsTestBase
         table5.maximumTombstonesPerSliceLastFiveMinutes = 5L;
         table6.maximumTombstonesPerSliceLastFiveMinutes = 6L;
         // memtable cell count: 3 > 5 > 6 > 1 > 2 > 4
-        table1.memtableCellCount = (Object) 111L;
-        table2.memtableCellCount = (Object) 22L;
-        table3.memtableCellCount = (Object) 333333L;
-        table4.memtableCellCount = (Object) 4L;
-        table5.memtableCellCount = (Object) 55555L;
-        table6.memtableCellCount = (Object) 6666L;
+        table1.memtableCellCount = 111L;
+        table2.memtableCellCount = 22L;
+        table3.memtableCellCount = 333333L;
+        table4.memtableCellCount = 4L;
+        table5.memtableCellCount = 55555L;
+        table6.memtableCellCount = 6666L;
         // memtable data size: 6 > 5 > 4 > 3 > 2 > 1
         table1.memtableDataSize = "0";
         table2.memtableDataSize = "900";
@@ -237,26 +232,26 @@ public class TableStatsTestBase
         table5.memtableDataSize = "20000";
         table6.memtableDataSize = "1000000";
         // memtable switch count: 4 > 2 > 3 > 6 > 5 > 1
-        table1.memtableSwitchCount = (Object) 1L;
-        table2.memtableSwitchCount = (Object) 22222L;
-        table3.memtableSwitchCount = (Object) 3333L;
-        table4.memtableSwitchCount = (Object) 444444L;
-        table5.memtableSwitchCount = (Object) 5L;
-        table6.memtableSwitchCount = (Object) 6L;
+        table1.memtableSwitchCount = 1L;
+        table2.memtableSwitchCount = 22222L;
+        table3.memtableSwitchCount = 3333L;
+        table4.memtableSwitchCount = 444444L;
+        table5.memtableSwitchCount = 5L;
+        table6.memtableSwitchCount = 6L;
         // number of partitions estimate: 1 > 2 > 3 > 4 > 5 > 6
-        table1.numberOfPartitionsEstimate = (Object) 111111L;
-        table2.numberOfPartitionsEstimate = (Object) 22222L;
-        table3.numberOfPartitionsEstimate = (Object) 3333L;
-        table4.numberOfPartitionsEstimate = (Object) 444L;
-        table5.numberOfPartitionsEstimate = (Object) 55L;
-        table6.numberOfPartitionsEstimate = (Object) 6L;
+        table1.numberOfPartitionsEstimate = 111111L;
+        table2.numberOfPartitionsEstimate = 22222L;
+        table3.numberOfPartitionsEstimate = 3333L;
+        table4.numberOfPartitionsEstimate = 444L;
+        table5.numberOfPartitionsEstimate = 55L;
+        table6.numberOfPartitionsEstimate = 6L;
         // pending flushes: 2 > 1 > 4 > 3 > 6 > 5
-        table1.pendingFlushes = (Object) 11111L;
-        table2.pendingFlushes = (Object) 222222L;
-        table3.pendingFlushes = (Object) 333L;
-        table4.pendingFlushes = (Object) 4444L;
-        table5.pendingFlushes = (Object) 5L;
-        table6.pendingFlushes = (Object) 66L;
+        table1.pendingFlushes = 11111L;
+        table2.pendingFlushes = 222222L;
+        table3.pendingFlushes = 333L;
+        table4.pendingFlushes = 4444L;
+        table5.pendingFlushes = 5L;
+        table6.pendingFlushes = 66L;
         // percent repaired: 1 > 2 > 3 > 5 > 4 > 6
         table1.percentRepaired = 100.0D;
         table2.percentRepaired = 99.9D;
@@ -286,19 +281,19 @@ public class TableStatsTestBase
         table5.spaceUsedTotal = "64";
         table6.spaceUsedTotal = "0";
         // sstable compression ratio: 5 > 4 > 1 = 2 = 6 > 3
-        table1.sstableCompressionRatio = (Object) 0.68D;
-        table2.sstableCompressionRatio = (Object) 0.68D;
-        table3.sstableCompressionRatio = (Object) 0.32D;
-        table4.sstableCompressionRatio = (Object) 0.95D;
-        table5.sstableCompressionRatio = (Object) 0.99D;
-        table6.sstableCompressionRatio = (Object) 0.68D;
+        table1.sstableCompressionRatio = 0.68D;
+        table2.sstableCompressionRatio = 0.68D;
+        table3.sstableCompressionRatio = 0.32D;
+        table4.sstableCompressionRatio = 0.95D;
+        table5.sstableCompressionRatio = 0.99D;
+        table6.sstableCompressionRatio = 0.68D;
         // sstable count: 1 > 3 > 5 > 2 > 4 > 6
-        table1.sstableCount = (Object) 60000;
-        table2.sstableCount = (Object) 3000;
-        table3.sstableCount = (Object) 50000;
-        table4.sstableCount = (Object) 2000;
-        table5.sstableCount = (Object) 40000;
-        table6.sstableCount = (Object) 1000;
+        table1.sstableCount = 60000;
+        table2.sstableCount = 3000;
+        table3.sstableCount = 50000;
+        table4.sstableCount = 2000;
+        table5.sstableCount = 40000;
+        table6.sstableCount = 1000;
         // set even numbered tables to have some offheap usage
         table2.offHeapUsed = true;
         table4.offHeapUsed = true;
@@ -336,7 +331,7 @@ public class TableStatsTestBase
         table4.memtableOffHeapMemoryUsed = "141421356";
         table6.memtableOffHeapMemoryUsed = "161803398";
         // create test keyspaces from templates
-        testKeyspaces = new ArrayList<StatsKeyspace>();
+        testKeyspaces = new ArrayList<>();
         StatsKeyspace keyspace1 = createStatsKeyspaceTemplate("keyspace1");
         StatsKeyspace keyspace2 = createStatsKeyspaceTemplate("keyspace2");
         StatsKeyspace keyspace3 = createStatsKeyspaceTemplate("keyspace3");
@@ -364,7 +359,7 @@ public class TableStatsTestBase
             testKeyspaces.set(i, ks);
         }
         // populate testTables test vector
-        testTables = new ArrayList<StatsTable>();
+        testTables = new ArrayList<>();
         testTables.add(table1);
         testTables.add(table2);
         testTables.add(table3);
@@ -394,7 +389,7 @@ public class TableStatsTestBase
         humanReadableTable5.memtableDataSize = "3.14 MiB";
         humanReadableTable6.memtableDataSize = "0 bytes";
         // create human readable keyspaces from template
-        humanReadableKeyspaces = new ArrayList<StatsKeyspace>();
+        humanReadableKeyspaces = new ArrayList<>();
         StatsKeyspace humanReadableKeyspace1 = createStatsKeyspaceTemplate("keyspace1");
         StatsKeyspace humanReadableKeyspace2 = createStatsKeyspaceTemplate("keyspace2");
         StatsKeyspace humanReadableKeyspace3 = createStatsKeyspaceTemplate("keyspace3");
@@ -422,7 +417,7 @@ public class TableStatsTestBase
             humanReadableKeyspaces.set(i, ks);
         }
         // populate human readable tables test vector
-        humanReadableTables = new ArrayList<StatsTable>();
+        humanReadableTables = new ArrayList<>();
         humanReadableTables.add(humanReadableTable1);
         humanReadableTables.add(humanReadableTable2);
         humanReadableTables.add(humanReadableTable3);

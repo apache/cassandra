@@ -21,13 +21,12 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.regex.Pattern;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 public class TableStatsPrinterTest extends TableStatsTestBase
 {
@@ -247,9 +246,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 12\n" +
         "\tWrite Latency: 0.0 ms\n" +
         "\tPending Flushes: 233666\n" +
-        String.format(expectedDefaultTable1Output, "table1").replace("\t", "\t\t") +
-        String.format(expectedDefaultTable2Output, "table2").replace("\t", "\t\t") +
-        String.format(expectedDefaultTable3Output, "table3").replace("\t", "\t\t") +
+        String.format(duplicateTabs(expectedDefaultTable1Output), "table1") +
+        String.format(duplicateTabs(expectedDefaultTable2Output), "table2") +
+        String.format(duplicateTabs(expectedDefaultTable3Output), "table3") +
         "----------------\n" +
         "Keyspace : keyspace2\n" +
         "\tRead Count: 7\n" +
@@ -257,8 +256,8 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 3\n" +
         "\tWrite Latency: 0.0 ms\n" +
         "\tPending Flushes: 4449\n" +
-        String.format(expectedDefaultTable4Output, "table4").replace("\t", "\t\t") +
-        String.format(expectedDefaultTable5Output, "table5").replace("\t", "\t\t") +
+        String.format(duplicateTabs(expectedDefaultTable4Output), "table4") +
+        String.format(duplicateTabs(expectedDefaultTable5Output), "table5") +
         "----------------\n" +
         "Keyspace : keyspace3\n" +
         "\tRead Count: 5\n" +
@@ -266,7 +265,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tWrite Count: 0\n" +
         "\tWrite Latency: NaN ms\n" +
         "\tPending Flushes: 66\n" +
-        String.format(expectedDefaultTable6Output, "table6").replace("\t", "\t\t") +
+        String.format(duplicateTabs(expectedDefaultTable6Output), "table6") +
         "----------------\n";
 
     /**
@@ -309,14 +308,21 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         String.format(expectedDefaultTable1Output, "keyspace1.table1") +
         "----------------\n";
 
+    private static String duplicateTabs(String s)
+    {
+        return Pattern.compile("\t").matcher(s).replaceAll("\t\t");
+    }
+
     @Test
     public void testDefaultPrinter() throws Exception
     {
         StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "", 0);
-        StatsPrinter printer = TableStatsPrinter.from("", false);
-        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        printer.print(holder, new PrintStream(byteStream));
-        assertEquals("StatsTablePrinter.DefaultPrinter does not print test vector as expected", expectedDefaultPrinterOutput, byteStream.toString());
+        StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("", false);
+        try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream())
+        {
+            printer.print(holder, new PrintStream(byteStream));
+            assertEquals("StatsTablePrinter.DefaultPrinter does not print test vector as expected", expectedDefaultPrinterOutput, byteStream.toString());
+        }
     }
 
     @Test
@@ -324,29 +330,31 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     {
         // test sorting
         StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "reads", 0);
-        StatsPrinter printer = TableStatsPrinter.from("reads", true);
-        ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
-        printer.print(holder, new PrintStream(byteStream));
-        assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print sorted tables as expected",
-                     expectedSortedDefaultPrinterOutput, byteStream.toString());
-        byteStream.reset();
-        // test sorting and filtering top k, where k < total number of tables
-        String sortKey = "reads";
-        int top = 4;
-        holder = new TestTableStatsHolder(testKeyspaces, sortKey, top);
-        printer = TableStatsPrinter.from(sortKey, true);
-        printer.print(holder, new PrintStream(byteStream));
-        assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print top K sorted tables as expected",
-                     String.format(expectedSortedDefaultPrinterTopOutput, sortKey), byteStream.toString());
-        byteStream.reset();
-        // test sorting and filtering top k, where k >= total number of tables
-        sortKey = "reads";
-        top = 10;
-        holder = new TestTableStatsHolder(testKeyspaces, sortKey, top);
-        printer = TableStatsPrinter.from(sortKey, true);
-        printer.print(holder, new PrintStream(byteStream));
-        assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print top K sorted tables as expected for large values of K",
-                     String.format(expectedSortedDefaultPrinterLargeTopOutput, sortKey), byteStream.toString());
+        StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("reads", true);
+        try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream())
+        {
+            printer.print(holder, new PrintStream(byteStream));
+            assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print sorted tables as expected",
+                         expectedSortedDefaultPrinterOutput, byteStream.toString());
+            byteStream.reset();
+            // test sorting and filtering top k, where k < total number of tables
+            String sortKey = "reads";
+            int top = 4;
+            holder = new TestTableStatsHolder(testKeyspaces, sortKey, top);
+            printer = TableStatsPrinter.from(sortKey, true);
+            printer.print(holder, new PrintStream(byteStream));
+            assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print top K sorted tables as expected",
+                         String.format(expectedSortedDefaultPrinterTopOutput, sortKey), byteStream.toString());
+            byteStream.reset();
+            // test sorting and filtering top k, where k >= total number of tables
+            sortKey = "reads";
+            top = 10;
+            holder = new TestTableStatsHolder(testKeyspaces, sortKey, top);
+            printer = TableStatsPrinter.from(sortKey, true);
+            printer.print(holder, new PrintStream(byteStream));
+            assertEquals("StatsTablePrinter.SortedDefaultPrinter does not print top K sorted tables as expected for large values of K",
+                         String.format(expectedSortedDefaultPrinterLargeTopOutput, sortKey), byteStream.toString());
+        }
     }
 
     /**

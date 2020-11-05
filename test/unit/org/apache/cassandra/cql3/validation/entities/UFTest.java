@@ -39,7 +39,8 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.Event.SchemaChange.Change;
+import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -83,58 +84,59 @@ public class UFTest extends CQLTester
     @Test
     public void testSchemaChange() throws Throwable
     {
-        String f = createFunction(KEYSPACE,
-                                  "double, double",
-                                  "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
-                                  "RETURNS NULL ON NULL INPUT " +
-                                  "RETURNS double " +
-                                  "LANGUAGE javascript " +
-                                  "AS '\"string\";';");
+        String f = createFunctionName(KEYSPACE);
+        String functionName = shortFunctionName(f);
+        registerFunction(f, "double, double");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, parseFunctionName(f).name,
-                               "double", "double");
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state double, val double) " +
+                           "RETURNS NULL ON NULL INPUT " +
+                           "RETURNS double " +
+                           "LANGUAGE javascript " +
+                           "AS '\"string\";';",
+                           Change.CREATED,
+                           Target.FUNCTION,
+                           KEYSPACE, functionName,
+                           "double", "double");
 
-        createFunctionOverload(f,
-                               "double, double",
-                               "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
-                               "RETURNS NULL ON NULL INPUT " +
-                               "RETURNS int " +
-                               "LANGUAGE javascript " +
-                               "AS '\"string\";';");
+        registerFunction(f, "int, int");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, parseFunctionName(f).name,
-                               "int", "int");
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
+                           "RETURNS NULL ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE javascript " +
+                           "AS '\"string\";';",
+                           Change.CREATED,
+                           Target.FUNCTION,
+                           KEYSPACE, functionName,
+                           "int", "int");
 
-        schemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
-                     "RETURNS NULL ON NULL INPUT " +
-                     "RETURNS int " +
-                     "LANGUAGE javascript " +
-                     "AS '\"string1\";';");
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
+                           "RETURNS NULL ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE javascript " +
+                           "AS '\"string1\";';",
+                           Change.UPDATED,
+                           Target.FUNCTION,
+                           KEYSPACE, functionName,
+                           "int", "int");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, parseFunctionName(f).name,
-                               "int", "int");
-
-        schemaChange("DROP FUNCTION " + f + "(double, double)");
-
-        assertLastSchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, parseFunctionName(f).name,
-                               "double", "double");
+        assertSchemaChange("DROP FUNCTION " + f + "(double, double)",
+                           Change.DROPPED, Target.FUNCTION,
+                           KEYSPACE, functionName,
+                           "double", "double");
 
         // The function with nested tuple should be created without throwing InvalidRequestException. See CASSANDRA-15857
-        String f1 = createFunction(KEYSPACE,
-                                   "list<tuple<int, int>>, double",
-                                   "CREATE OR REPLACE FUNCTION %s(state list<tuple<int, int>>, val double) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS double " +
-                                   "LANGUAGE javascript " +
-                                   "AS '\"string\";';");
+        String fl = createFunctionName(KEYSPACE);
+        registerFunction(fl, "list<tuple<int, int>>, double");
 
-        assertLastSchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.FUNCTION,
-                               KEYSPACE, parseFunctionName(f1).name,
-                               "list<tuple<int, int>>", "double");
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + fl + "(state list<tuple<int, int>>, val double) " +
+                           "RETURNS NULL ON NULL INPUT " +
+                           "RETURNS double " +
+                           "LANGUAGE javascript " +
+                           "AS '\"string\";';",
+                           Change.CREATED, Target.FUNCTION,
+                           KEYSPACE, shortFunctionName(fl),
+                           "list<tuple<int, int>>", "double");
     }
 
     @Test
