@@ -113,8 +113,8 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
 
             Assert.assertEquals("TLS native connection should be possible to native_transport_port_ssl",
                                 ConnectResult.NEGOTIATED, connectionToEncryptedPort.connect());
-            Assert.assertEquals("TLS native connection should be possible with valid keystore by default",
-                                ConnectResult.NEGOTIATED, connectionToUnencryptedPort.connect());
+            Assert.assertEquals("TLS native connection should not be possible on the regular port if an SSL port is specified",
+                                ConnectResult.FAILED_TO_NEGOTIATE, connectionToUnencryptedPort.connect()); // but did connect
         }
     }
 
