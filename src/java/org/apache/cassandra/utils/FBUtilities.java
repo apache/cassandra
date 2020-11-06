@@ -938,6 +938,18 @@ public class FBUtilities
         }
     }
 
+    public static void sleepQuietly(long millis)
+    {
+        try
+        {
+            Thread.sleep(millis);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
     @VisibleForTesting
     protected static void reset()
     {

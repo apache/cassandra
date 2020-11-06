@@ -339,7 +339,7 @@ public class Memtable implements Comparable<Memtable>
     @VisibleForTesting
     public void makeUnflushable()
     {
-        liveDataSize.addAndGet(1L * 1024 * 1024 * 1024 * 1024 * 1024);
+        liveDataSize.addAndGet((long) 1024 * 1024 * 1024 * 1024 * 1024);
     }
 
     private long estimatedSize()
@@ -433,7 +433,7 @@ public class Memtable implements Comparable<Memtable>
 
             return new SSTableTxnWriter(txn,
                                         cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
-                                                                     (long) partitions.size(),
+                                                                     partitions.size(),
                                                                      ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                      sstableMetadataCollector,
                                                                      new SerializationHeader(true, cfs.metadata, columns, stats),
