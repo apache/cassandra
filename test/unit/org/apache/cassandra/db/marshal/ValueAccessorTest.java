@@ -39,6 +39,28 @@ import static org.quicktheories.QuickTheory.qt;
 
 public class ValueAccessorTest
 {
+    /**
+     * This method should be used to test values to be processed by {@link ValueAccessor}
+     * in order to make sure we do not assume position == 0 in the underlying {@link ByteBuffer}
+     */
+    public static <V> V maybeCopyWithPadding(V value)
+    {
+        if (value instanceof ByteBuffer)
+        {
+            int padL = (int) (System.nanoTime() % 19);
+            int padR = (int) (System.nanoTime() % 19);
+            ByteBuffer buf = ByteBuffer.allocate(((ByteBuffer) value).remaining() + padL + padR);
+            buf.position(padL);
+            buf.duplicate().put((ByteBuffer) value);
+            buf.limit(buf.limit() - padR);
+            return (V) buf;
+        }
+        else
+        {
+            return value;
+        }
+    }
+
     private static byte[] randomBytes(int minSize, int maxSize, Random random)
     {
         int size = random.nextInt(maxSize - minSize + 1) + minSize;
@@ -57,8 +79,8 @@ public class ValueAccessorTest
         byte[] rawBytes = randomBytes(2, 200, random);
         int sliceOffset = random.nextInt(rawBytes.length);
         int sliceSize = random.nextInt(rawBytes.length - sliceOffset);
-        V1 value1 = accessor1.slice(accessor1.valueOf(rawBytes), sliceOffset, sliceSize);
-        V2 value2 = accessor2.slice(accessor2.valueOf(rawBytes), sliceOffset, sliceSize);
+        V1 value1 = accessor1.slice(maybeCopyWithPadding(accessor1.valueOf(rawBytes)), sliceOffset, sliceSize);
+        V2 value2 = accessor2.slice(maybeCopyWithPadding(accessor2.valueOf(rawBytes)), sliceOffset, sliceSize);
 
         Assert.assertTrue(ValueAccessor.equals(value1, accessor1, value2, accessor2));
 
@@ -106,23 +128,23 @@ public class ValueAccessorTest
         String msg = accessor.getClass().getSimpleName() + " seed: " + seed;
         byte[] b = new byte[2];
         random.nextBytes(b);
-        Assert.assertEquals(msg, b[0], accessor.toByte(accessor.valueOf(b[0])));
-        Assert.assertArrayEquals(msg, b, accessor.toArray(accessor.valueOf(b)));
+        Assert.assertEquals(msg, b[0], accessor.toByte(maybeCopyWithPadding(accessor.valueOf(b[0]))));
+        Assert.assertArrayEquals(msg, b, accessor.toArray(maybeCopyWithPadding(accessor.valueOf(b))));
 
         short s = Shorts.fromBytes(b[0], b[1]);
-        Assert.assertEquals(msg, s, accessor.toShort(accessor.valueOf(s)));
+        Assert.assertEquals(msg, s, accessor.toShort(maybeCopyWithPadding(accessor.valueOf(s))));
 
         int i = random.nextInt();
-        Assert.assertEquals(msg, i, accessor.toInt(accessor.valueOf(i)));
+        Assert.assertEquals(msg, i, accessor.toInt(maybeCopyWithPadding(accessor.valueOf(i))));
 
         long l = random.nextLong();
-        Assert.assertEquals(msg, l, accessor.toLong(accessor.valueOf(l)));
+        Assert.assertEquals(msg, l, accessor.toLong(maybeCopyWithPadding(accessor.valueOf(l))));
 
         float f = random.nextFloat();
-        Assert.assertEquals(msg, f, accessor.toFloat(accessor.valueOf(f)), 0.000002);
+        Assert.assertEquals(msg, f, accessor.toFloat(maybeCopyWithPadding(accessor.valueOf(f))), 0.000002);
 
         double d = random.nextDouble();
-        Assert.assertEquals(msg, d, accessor.toDouble(accessor.valueOf(d)), 0.0000002);
+        Assert.assertEquals(msg, d, accessor.toDouble(maybeCopyWithPadding(accessor.valueOf(d))), 0.0000002);
     }
 
     @Test
@@ -141,12 +163,12 @@ public class ValueAccessorTest
         Random random = new Random(size);
         byte[] bytes = new byte[size];
         random.nextBytes(bytes);
-        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        ByteBuffer buffer = maybeCopyWithPadding(ByteBuffer.wrap(bytes));
 
         try (DataOutputBuffer out = new DataOutputBuffer(size + 2))
         {
             ByteBufferUtil.writeWithShortLength(buffer, out);
-            V flushed = accessor.valueOf(out.toByteArray());
+            V flushed = maybeCopyWithPadding(accessor.valueOf(out.toByteArray()));
             V value = accessor.sliceWithShortLength(flushed, 0);
             Assert.assertArrayEquals(bytes, accessor.toArray(value));
         }
@@ -172,7 +194,7 @@ public class ValueAccessorTest
             int size = jint;
             for (ValueAccessor<Object> accessor: ACCESSORS)
             {
-                Object value = accessor.allocate(5);
+                Object value = maybeCopyWithPadding(accessor.allocate(5));
                 for (int offset : Arrays.asList(0, 3))
                 {
                     accessor.putShort(value, offset, (short) size); // testing signed
