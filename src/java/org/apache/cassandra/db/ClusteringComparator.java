@@ -31,6 +31,8 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.serializers.MarshalException;
 
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 /**
  * A comparator of clustering prefixes (or more generally of {@link Clusterable}}.
@@ -229,6 +231,89 @@ public class ClusteringComparator implements Comparator<Clusterable>
             T value = clustering.get(i);
             if (value != null)
                 subtype(i).validate(value, accessor);
+        }
+    }
+
+    /**
+     * Produce a prefix-free byte-comparable representation of the given value, i.e. such a sequence of bytes that any
+     * pair x, y of valid values of this type
+     *   compare(x, y) == compareLexicographicallyUnsigned(asByteComparable(x), asByteComparable(y))
+     * and
+     *   asByteComparable(x) is not a prefix of asByteComparable(y)
+     */
+    public ByteComparable asByteComparable(ClusteringPrefix clustering)
+    {
+        return new ByteComparableClustering(clustering);
+    }
+
+    /**
+     * A prefix-free byte-comparable representation for a clustering or prefix.
+     *
+     * Adds a NEXT_COMPONENT byte before each component (allowing inclusive/exclusive bounds over incomplete prefixes
+     * of that length) and finishes with a suitable byte for the clustering kind. Also deals with null entries.
+     *
+     * Since all types' encodings are weakly prefix-free, this is guaranteed to be prefix-free as long as the
+     * bound/ClusteringPrefix terminators are different from the separator byte. It is okay for the terminator for
+     * Clustering to be the same as the separator, as all Clusterings must be completely specified.
+     *
+     * See also {@link AbstractType#asComparableBytes}.
+     *
+     * Some examples:
+     *    "A", 0005, Clustering     -> 40 4100 40 0005 40
+     *    "B", 0006, InclusiveEnd   -> 40 4200 40 0006 60
+     *    "A", ExclusiveStart       -> 40 4100 60
+     *    "", null, Clustering      -> 40 00 3F 40
+     *    "", 0000, Clustering      -> 40 00 40 0000 40
+     *    BOTTOM                    -> 20
+     */
+    private class ByteComparableClustering<V> implements ByteComparable
+    {
+        private final ClusteringPrefix<V> src;
+
+        ByteComparableClustering(ClusteringPrefix<V> src)
+        {
+            this.src = src;
+        }
+
+        @Override
+        public ByteSource asComparableBytes(Version version)
+        {
+            return new ByteSource()
+            {
+                private ByteSource current = null;
+                private int srcnum = -1;
+
+                @Override
+                public int next()
+                {
+                    if (current != null)
+                    {
+                        int b = current.next();
+                        if (b > END_OF_STREAM)
+                            return b;
+                        current = null;
+                    }
+
+                    int sz = src.size();
+                    if (srcnum == sz)
+                        return END_OF_STREAM;
+
+                    ++srcnum;
+                    if (srcnum == sz)
+                        return src.kind().asByteComparableValue(version);
+
+                    current = subtype(srcnum).asComparableBytes(src.accessor().toBuffer(src.get(srcnum)), version);
+                    if (current == null)
+                        return subtype(srcnum).isReversed() ? NEXT_COMPONENT_NULL_REVERSED : NEXT_COMPONENT_NULL;
+
+                    return NEXT_COMPONENT;
+                }
+            };
+        }
+
+        public String toString()
+        {
+            return src.clusteringString(subtypes());
         }
     }
 
