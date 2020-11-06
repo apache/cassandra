@@ -39,8 +39,11 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 import org.github.jamm.Unmetered;
 
+import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.BYTE_ORDER;
 import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM;
 
 /**
@@ -575,6 +578,37 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
             return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
 
         return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+    }
+
+    /**
+     * Produce a byte-comparable representation of the given value, i.e. a sequence of bytes that compares the same way
+     * using lexicographical unsigned byte comparison as the original value using the type's comparator.
+     *
+     * We use a slightly stronger requirement to be able to use the types in tuples. Precisely, for any pair x, y of
+     * non-equal valid values of this type and any bytes b1, b2 between 0x10 and 0xEF,
+     * (+ stands for concatenation)
+     *   compare(x, y) == compareLexicographicallyUnsigned(asByteComparable(x)+b1, asByteComparable(y)+b2)
+     * (i.e. the values compare like the original type, and an added 0x10-0xEF byte at the end does not change that) and:
+     *   asByteComparable(x)+b1 is not a prefix of asByteComparable(y)      (weakly prefix free)
+     * (i.e. a valid representation of a value may be a prefix of another valid representation of a value only if the
+     * following byte in the latter is smaller than 0x10 or larger than 0xEF). These properties are trivially true if
+     * the encoding compares correctly and is prefix free, but also permits a little more freedom that enables somewhat
+     * more efficient encoding of arbitrary-length byte-comparable blobs.
+     *
+     * Depending on the type, this method can be called for null or empty input, in which case the output is allowed to
+     * be null (the clustering/tuple encoding will accept and handle it).
+     */
+    public ByteSource asComparableBytes(ByteBuffer byteBuffer, ByteComparable.Version version)
+    {
+        if (comparisonType == BYTE_ORDER)
+        {
+            // When a type is byte-ordered on its own, we only need to escape it, so that we can include it in
+            // multi-component types and make the encoding weakly-prefix-free.
+            return ByteSource.of(byteBuffer, version);
+        }
+        else
+            // default is only good for byte-comparables
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement asComparableBytes");
     }
 
     /**

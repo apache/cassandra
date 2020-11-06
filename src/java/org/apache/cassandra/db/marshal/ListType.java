@@ -18,7 +18,11 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.Json;
@@ -32,6 +36,8 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteComparable.Version;
+import org.apache.cassandra.utils.ByteSource;
 
 public class ListType<T> extends CollectionType<List<T>>
 {
@@ -193,6 +199,31 @@ public class ListType<T> extends CollectionType<List<T>>
         }
 
         return sizeL == sizeR ? 0 : (sizeL < sizeR ? -1 : 1);
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer b, Version version)
+    {
+        return asComparableBytesListOrSet(getElementsType(), b, version);
+    }
+
+    static ByteSource asComparableBytesListOrSet(AbstractType<?> elementsComparator, ByteBuffer b, Version version)
+    {
+        if (!b.hasRemaining())
+            return null;
+
+        b = b.duplicate();
+        int offset = 0;
+        int size = CollectionSerializer.readCollectionSize(b, ByteBufferAccessor.instance, ProtocolVersion.V3);
+        offset += CollectionSerializer.sizeOfCollectionSize(size, ProtocolVersion.V3);
+        ByteSource[] srcs = new ByteSource[size];
+        for (int i = 0; i < size; ++i)
+        {
+            ByteBuffer v = CollectionSerializer.readValue(b, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
+            offset += CollectionSerializer.sizeOfValue(v, ByteBufferAccessor.instance, ProtocolVersion.V3);
+            srcs[i] = elementsComparator.asComparableBytes(v, version);
+        }
+        return ByteSource.withTerminator(version == Version.LEGACY ? 0x00 : ByteSource.TERMINATOR, srcs);
     }
 
     @Override

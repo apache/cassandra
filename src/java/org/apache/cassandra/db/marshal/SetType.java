@@ -30,6 +30,8 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 public class SetType<T> extends CollectionType<Set<T>>
 {
@@ -155,6 +157,12 @@ public class SetType<T> extends CollectionType<Set<T>>
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return ListType.compareListOrSet(elements, left, accessorL, right, accessorR);
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer b, ByteComparable.Version version)
+    {
+        return ListType.asComparableBytesListOrSet(getElementsType(), b, version);
     }
 
     public SetSerializer<T> getSerializer()

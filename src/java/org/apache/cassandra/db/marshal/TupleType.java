@@ -35,6 +35,8 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
@@ -194,10 +196,23 @@ public class TupleType extends AbstractType<ByteBuffer>
         {
             int size = accessor.getInt(v, offset);
             offset += TypeSizes.INT_SIZE;
-            if (size >= 0)
+            if (size > 0)
                 return false;
         }
         return true;
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer byteBuffer, ByteComparable.Version version)
+    {
+        ByteBuffer[] bufs = split(byteBuffer);  // this may be shorter than types.size -- other srcs remain null in that case
+        ByteSource[] srcs = new ByteSource[types.size()];
+        for (int i = 0; i < bufs.length; ++i)
+            srcs[i] = types.get(i).asComparableBytes(bufs[i], version);
+        // We always have a fixed number of sources, with the trailing ones possibly being nulls.
+        // This can only result in a prefix if the last type in the tuple allows prefixes. Since that type is required
+        // to be weakly prefix-free, so is the tuple.
+        return ByteSource.withTerminator(ByteSource.END_OF_STREAM, srcs);
     }
 
     /**
