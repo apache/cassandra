@@ -27,6 +27,8 @@ import org.apache.cassandra.serializers.FloatSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 
 public class FloatType extends NumberType<Float>
@@ -49,6 +51,12 @@ public class FloatType extends NumberType<Float>
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return compareComposed(left, accessorL, right, accessorR, this);
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer buf, ByteComparable.Version version)
+    {
+        return ByteSource.optionalSignedFixedLengthFloat(buf);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
