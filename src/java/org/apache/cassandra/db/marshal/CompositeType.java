@@ -177,7 +177,7 @@ public class CompositeType extends AbstractCompositeType
         return types.get(i);
     }
 
-    protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset)
+    protected <V> int getComparatorSize(V value, ValueAccessor<V> accessor, int offset)
     {
         return 0;
     }
