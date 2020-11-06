@@ -19,6 +19,8 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -127,20 +129,22 @@ public final class JVMStabilityInspector
      * Intentionally produce a heap space OOM upon seeing a Direct buffer memory OOM.
      * Direct buffer OOM cannot trigger JVM OOM error related options,
      * e.g. OnOutOfMemoryError, HeapDumpOnOutOfMemoryError, etc.
+     * See CASSANDRA-15214 for more details
      */
     private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
     {
         // See the oom thrown from java.nio.Bits.reserveMemory.
-        if (oom.getMessage() != null && !oom.getMessage().equals("Direct buffer memory"))
+        if (!"Direct buffer memory".equals(oom.getMessage()))
         {
             return;
         }
-        logger.warn("Force heap space OutOfMemoryError in the presence of", oom);
+        logger.error("Force heap space OutOfMemoryError in the presence of", oom);
+        List<long[]> ignored = new ArrayList<>();
         while (true)
         {
             // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
             // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
-            long[] ignored = new long[Integer.MAX_VALUE / 2];
+            ignored.add(new long[Integer.MAX_VALUE / 2]);
         }
     }
 
