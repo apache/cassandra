@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOError;
+import java.math.BigInteger;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -42,7 +43,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import afu.org.checkerframework.checker.oigj.qual.O;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -87,7 +87,6 @@ import org.apache.cassandra.utils.FilterFactory;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class Util
@@ -781,6 +780,199 @@ public class Util
             }
         }
         assertEquals(expectedSSTableCount, fileCount);
+    }
+
+    public static ByteBuffer generateMurmurCollision(ByteBuffer original, byte... bytesToAdd)
+    {
+        // Round size up to 16, and add another 16 bytes
+        ByteBuffer collision = ByteBuffer.allocate((original.remaining() + bytesToAdd.length + 31) & -16);
+        collision.put(original);    // we can use this as a copy of original with 0s appended at the end
+
+        original.flip();
+
+        long c1 = 0x87c37b91114253d5L;
+        long c2 = 0x4cf5ad432745937fL;
+
+        long h1 = 0;
+        long h2 = 0;
+
+        // Get hash of original
+        int index = 0;
+        final int length = original.limit();
+        while (index <= length - 16)
+        {
+            long k1 = Long.reverseBytes(collision.getLong(index + 0));
+            long k2 = Long.reverseBytes(collision.getLong(index + 8));
+
+            // 16 bytes
+            k1 *= c1;
+            k1 = rotl64(k1, 31);
+            k1 *= c2;
+            h1 ^= k1;
+            h1 = rotl64(h1, 27);
+            h1 += h2;
+            h1 = h1 * 5 + 0x52dce729;
+            k2 *= c2;
+            k2 = rotl64(k2, 33);
+            k2 *= c1;
+            h2 ^= k2;
+            h2 = rotl64(h2, 31);
+            h2 += h1;
+            h2 = h2 * 5 + 0x38495ab5;
+
+            index += 16;
+        }
+
+        long oh1 = h1;
+        long oh2 = h2;
+
+        // Process final unfilled chunk, but only adjust the original hash value
+        if (index < length)
+        {
+            long k1 = Long.reverseBytes(collision.getLong(index + 0));
+            long k2 = Long.reverseBytes(collision.getLong(index + 8));
+
+            // 16 bytes
+            k1 *= c1;
+            k1 = rotl64(k1, 31);
+            k1 *= c2;
+            oh1 ^= k1;
+
+            k2 *= c2;
+            k2 = rotl64(k2, 33);
+            k2 *= c1;
+            oh2 ^= k2;
+        }
+
+        // These are the hashes the original would provide, before final mixing
+        oh1 ^= original.capacity();
+        oh2 ^= original.capacity();
+
+        // Fill in the remaining bytes before the last 16 and get their hash
+        collision.put(bytesToAdd);
+        while ((collision.position() & 0x0f) != 0)
+            collision.put((byte) 0);
+
+        while (index < collision.position())
+        {
+            long k1 = Long.reverseBytes(collision.getLong(index + 0));
+            long k2 = Long.reverseBytes(collision.getLong(index + 8));
+
+            // 16 bytes
+            k1 *= c1;
+            k1 = rotl64(k1, 31);
+            k1 *= c2;
+            h1 ^= k1;
+            h1 = rotl64(h1, 27);
+            h1 += h2;
+            h1 = h1 * 5 + 0x52dce729;
+            k2 *= c2;
+            k2 = rotl64(k2, 33);
+            k2 *= c1;
+            h2 ^= k2;
+            h2 = rotl64(h2, 31);
+            h2 += h1;
+            h2 = h2 * 5 + 0x38495ab5;
+
+            index += 16;
+        }
+
+        // Working backwards, we must get this hash pair
+        long th1 = h1;
+        long th2 = h2;
+
+        // adjust ohx with length
+        h1 = oh1 ^ collision.capacity();
+        h2 = oh2 ^ collision.capacity();
+
+        // Get modulo-long inverses of the multipliers used in the computation
+        long i5i = inverse(5L);
+        long c1i = inverse(c1);
+        long c2i = inverse(c2);
+
+        // revert one step
+        h2 -= 0x38495ab5;
+        h2 *= i5i;
+        h2 -= h1;
+        h2 = rotl64(h2, 33);
+
+        h1 -= 0x52dce729;
+        h1 *= i5i;
+        h1 -= th2;  // use h2 before it's adjusted with k2
+        h1 = rotl64(h1, 37);
+
+        // extract the required modifiers and applies the inverse of their transformation
+        long k1 = h1 ^ th1;
+        k1 = c2i * k1;
+        k1 = rotl64(k1, 33);
+        k1 = c1i * k1;
+
+        long k2 = h2 ^ th2;
+        k2 = c1i * k2;
+        k2 = rotl64(k2, 31);
+        k2 = c2i * k2;
+
+        collision.putLong(Long.reverseBytes(k1));
+        collision.putLong(Long.reverseBytes(k2));
+        collision.flip();
+
+        return collision;
+    }
+
+    // Assumes a and b are positive
+    private static BigInteger[] xgcd(BigInteger a, BigInteger b) {
+        BigInteger x = a, y = b;
+        BigInteger[] qrem;
+        BigInteger[] result = new BigInteger[3];
+        BigInteger x0 = BigInteger.ONE, x1 = BigInteger.ZERO;
+        BigInteger y0 = BigInteger.ZERO, y1 = BigInteger.ONE;
+        while (true)
+        {
+            qrem = x.divideAndRemainder(y);
+            x = qrem[1];
+            x0 = x0.subtract(y0.multiply(qrem[0]));
+            x1 = x1.subtract(y1.multiply(qrem[0]));
+            if (x.equals(BigInteger.ZERO))
+            {
+                result[0] = y;
+                result[1] = y0;
+                result[2] = y1;
+                return result;
+            }
+
+            qrem = y.divideAndRemainder(x);
+            y = qrem[1];
+            y0 = y0.subtract(x0.multiply(qrem[0]));
+            y1 = y1.subtract(x1.multiply(qrem[0]));
+            if (y.equals(BigInteger.ZERO))
+            {
+                result[0] = x;
+                result[1] = x0;
+                result[2] = x1;
+                return result;
+            }
+        }
+    }
+
+    /**
+     * Find a mupltiplicative inverse for the given multiplier for long, i.e.
+     * such that x * inverse(x) = 1 where * is long multiplication.
+     * In other words, such an integer that x * inverse(x) == 1 (mod 2^64).
+     */
+    public static long inverse(long multiplier)
+    {
+        final BigInteger modulus = BigInteger.ONE.shiftLeft(64);
+        // Add the modulus to the multiplier to avoid problems with negatives (a + m == a (mod m))
+        BigInteger[] gcds = xgcd(BigInteger.valueOf(multiplier).add(modulus), modulus);
+        // xgcd gives g, a and b, such that ax + bm = g
+        // ie, ax = g (mod m). Return a
+        assert gcds[0].equals(BigInteger.ONE) : "Even number " + multiplier + " has no long inverse";
+        return gcds[1].longValueExact();
+    }
+
+    public static long rotl64(long v, int n)
+    {
+        return ((v << n) | (v >>> (64 - n)));
     }
 
     /**
