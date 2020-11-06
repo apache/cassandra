@@ -258,7 +258,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        ByteBuffer[] buffers = split(buffer);
+        ByteBuffer[] buffers = split(ByteBufferAccessor.instance, buffer);
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < types.size(); i++)
         {

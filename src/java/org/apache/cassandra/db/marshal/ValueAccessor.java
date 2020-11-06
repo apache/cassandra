@@ -68,6 +68,7 @@ public interface ValueAccessor<V>
         Cell<V> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, V value, CellPath path);
         Clustering<V> clustering(V... values);
         Clustering<V> clustering();
+        Clustering<V> staticClustering();
         ClusteringBound<V> bound(ClusteringPrefix.Kind kind, V... values);
         ClusteringBound<V> bound(ClusteringPrefix.Kind kind);
         ClusteringBoundary<V> boundary(ClusteringPrefix.Kind kind, V... values);
@@ -105,7 +106,6 @@ public interface ValueAccessor<V>
         {
             return boundary(reversed ? INCL_END_EXCL_START_BOUNDARY : EXCL_END_INCL_START_BOUNDARY, boundValues);
         }
-
     }
     /**
      * @return the size of the given value
@@ -329,6 +329,12 @@ public interface ValueAccessor<V>
 
     /** returns a TimeUUID from offset 0 */
     Ballot toBallot(V value);
+
+    /**
+     * writes the byte value {@param value} to {@param dst} at offset {@param offset}
+     * @return the number of bytes written to {@param value}
+     */
+    int putByte(V dst, int offset, byte value);
 
     /**
      * writes the short value {@param value} to {@param dst} at offset {@param offset}

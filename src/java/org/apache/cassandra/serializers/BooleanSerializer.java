@@ -24,8 +24,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class BooleanSerializer extends TypeSerializer<Boolean>
 {
-    private static final ByteBuffer TRUE = ByteBuffer.wrap(new byte[] {1});
-    private static final ByteBuffer FALSE = ByteBuffer.wrap(new byte[] {0});
+    public static final ByteBuffer TRUE = ByteBuffer.wrap(new byte[] {1});
+    public static final ByteBuffer FALSE = ByteBuffer.wrap(new byte[] {0});
 
     public static final BooleanSerializer instance = new BooleanSerializer();
 
