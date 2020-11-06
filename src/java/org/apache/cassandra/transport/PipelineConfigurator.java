@@ -74,17 +74,17 @@ public class PipelineConfigurator
     private static final String SSL_HANDLER                 = "ssl";
 
     // Names of handlers used in pre-V5 pipelines only
-    private static final String CQL_FRAME_DECODER           = "cqlFrameDecoder";
-    private static final String CQL_FRAME_ENCODER           = "cqlFrameEncoder";
-    private static final String CQL_FRAME_DECOMPRESSOR      = "cqlFrameDecompressor";
-    private static final String CQL_FRAME_COMPRESSOR        = "cqlFrameCompressor";
-    private static final String CQL_MESSAGE_DECODER         = "cqlMessageDecoder";
-    private static final String CQL_MESSAGE_ENCODER         = "cqlMessageEncoder";
+    private static final String ENVELOPE_DECODER            = "envelopeDecoder";
+    private static final String ENVELOPE_ENCODER            = "envelopeEncoder";
+    private static final String MESSAGE_DECOMPRESSOR        = "decompressor";
+    private static final String MESSAGE_COMPRESSOR          = "compressor";
+    private static final String MESSAGE_DECODER             = "messageDecoder";
+    private static final String MESSAGE_ENCODER             = "messageEncoder";
     private static final String LEGACY_MESSAGE_PROCESSOR    = "legacyCqlProcessor";
 
     // Names of handlers used in V5 and later pipelines
-    private static final String MESSAGE_FRAME_DECODER       = "messageFrameDecoder";
-    private static final String MESSAGE_FRAME_ENCODER       = "messageFrameEncoder";
+    private static final String FRAME_DECODER               = "frameDecoder";
+    private static final String FRAME_ENCODER               = "frameEncoder";
     private static final String MESSAGE_PROCESSOR           = "cqlProcessor";
 
     private final boolean epoll;
@@ -235,8 +235,8 @@ public class PipelineConfigurator
         if (DEBUG)
             pipeline.addLast(DEBUG_HANDLER, new LoggingHandler(LogLevel.INFO));
 
-        pipeline.addLast(CQL_FRAME_ENCODER, Frame.Encoder.instance);
-        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(new Frame.Decoder(), connectionFactory, this));
+        pipeline.addLast(ENVELOPE_ENCODER, Envelope.Encoder.instance);
+        pipeline.addLast(INITIAL_HANDLER, new InitialConnectionHandler(new Envelope.Decoder(), connectionFactory, this));
         // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
         // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
         // eventExecutorGroup may not enforce strict ordering for channel events.
@@ -257,14 +257,14 @@ public class PipelineConfigurator
 
         // Transport level encoders/decoders
         String compression = options.get(StartupMessage.COMPRESSION);
-        FrameDecoder messageFrameDecoder = frameDecoder(compression, allocator);
-        FrameEncoder messageFrameEncoder = frameEncoder(compression);
-        FrameEncoder.PayloadAllocator payloadAllocator = messageFrameEncoder.allocator();
+        FrameDecoder frameDecoder = frameDecoder(compression, allocator);
+        FrameEncoder frameEncoder = frameEncoder(compression);
+        FrameEncoder.PayloadAllocator payloadAllocator = frameEncoder.allocator();
         ChannelInboundHandlerAdapter exceptionHandler = ExceptionHandlers.postV5Handler(payloadAllocator, version);
 
         // CQL level encoders/decoders
         Message.Decoder<Message.Request> messageDecoder = messageDecoder();
-        Frame.Decoder frameDecoder = new Frame.Decoder();
+        Envelope.Decoder envelopeDecoder = new Envelope.Decoder();
 
         // Any non-fatal errors caught in CQLMessageHandler propagate back to the client
         // via the pipeline. Firing the exceptionCaught event on an inbound handler context
@@ -284,8 +284,8 @@ public class PipelineConfigurator
         CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer = messageConsumer();
         CQLMessageHandler<Message.Request> processor =
             new CQLMessageHandler<>(ctx.channel(),
-                                    messageFrameDecoder,
                                     frameDecoder,
+                                    envelopeDecoder,
                                     messageDecoder,
                                     messageConsumer,
                                     payloadAllocator,
@@ -295,9 +295,9 @@ public class PipelineConfigurator
                                     errorHandler,
                                     throwOnOverload);
 
-        pipeline.remove(CQL_FRAME_ENCODER);    // remove old outbound cql frame encoder
-        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_FRAME_DECODER, messageFrameDecoder);
-        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_FRAME_ENCODER, messageFrameEncoder);
+        pipeline.remove(ENVELOPE_ENCODER);    // remove old outbound cql envelope encoder
+        pipeline.addBefore(INITIAL_HANDLER, FRAME_DECODER, frameDecoder);
+        pipeline.addBefore(INITIAL_HANDLER, FRAME_ENCODER, frameEncoder);
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_PROCESSOR, processor);
         pipeline.replace(EXCEPTION_HANDLER, EXCEPTION_HANDLER, exceptionHandler);
         pipeline.remove(INITIAL_HANDLER);
@@ -348,11 +348,11 @@ public class PipelineConfigurator
     public void configureLegacyPipeline(ChannelHandlerContext ctx, ClientResourceLimits.Allocator limits)
     {
         ChannelPipeline pipeline = ctx.channel().pipeline();
-        pipeline.addBefore(CQL_FRAME_ENCODER, CQL_FRAME_DECODER, new Frame.Decoder());
-        pipeline.addBefore(INITIAL_HANDLER, CQL_FRAME_DECOMPRESSOR, Frame.Decompressor.instance);
-        pipeline.addBefore(INITIAL_HANDLER, CQL_FRAME_COMPRESSOR, Frame.Compressor.instance);
-        pipeline.addBefore(INITIAL_HANDLER, CQL_MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
-        pipeline.addBefore(INITIAL_HANDLER, CQL_MESSAGE_ENCODER, PreV5Handlers.ProtocolEncoder.instance);
+        pipeline.addBefore(ENVELOPE_ENCODER, ENVELOPE_DECODER, new Envelope.Decoder());
+        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECOMPRESSOR, Envelope.Decompressor.instance);
+        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_COMPRESSOR, Envelope.Compressor.instance);
+        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_DECODER, PreV5Handlers.ProtocolDecoder.instance);
+        pipeline.addBefore(INITIAL_HANDLER, MESSAGE_ENCODER, PreV5Handlers.ProtocolEncoder.instance);
         pipeline.addBefore(INITIAL_HANDLER, LEGACY_MESSAGE_PROCESSOR, new PreV5Handlers.LegacyDispatchHandler(dispatcher, limits));
         pipeline.remove(INITIAL_HANDLER);
         onNegotiationComplete(pipeline);

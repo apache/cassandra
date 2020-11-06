@@ -53,7 +53,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     public static final int LARGE_MESSAGE_THRESHOLD = FrameEncoder.Payload.MAX_SIZE - 1;
 
-    private final org.apache.cassandra.transport.Frame.Decoder cqlFrameDecoder;
+    private final Envelope.Decoder envelopeDecoder;
     private final Message.Decoder<M> messageDecoder;
     private final FrameEncoder.PayloadAllocator payloadAllocator;
     private final MessageConsumer<M> dispatcher;
@@ -74,7 +74,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     CQLMessageHandler(Channel channel,
                       FrameDecoder decoder,
-                      Frame.Decoder cqlFrameDecoder,
+                      Envelope.Decoder envelopeDecoder,
                       Message.Decoder<M> messageDecoder,
                       MessageConsumer<M> dispatcher,
                       FrameEncoder.PayloadAllocator payloadAllocator,
@@ -93,7 +93,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
               resources.endpointWaitQueue(),
               resources.globalWaitQueue(),
               onClosed);
-        this.cqlFrameDecoder    = cqlFrameDecoder;
+        this.envelopeDecoder    = envelopeDecoder;
         this.messageDecoder     = messageDecoder;
         this.payloadAllocator   = payloadAllocator;
         this.dispatcher         = dispatcher;
@@ -103,14 +103,14 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve)
     {
-        Frame.Header header = extractHeader(bytes);
+        Envelope.Header header = extractHeader(bytes);
         // null indicates a failure to extract the CQL message header.
         // This will trigger a protocol exception and closing of the connection.
         if (null == header)
             return false;
 
-        // max (CQL) frame size defaults to 256mb, so should be safe to downcast
-        int frameSize = Ints.checkedCast(header.bodySizeInBytes);
+        // max CQL message size defaults to 256mb, so should be safe to downcast
+        int messageSize = Ints.checkedCast(header.bodySizeInBytes);
 
         if (throwOnOverload)
         {
@@ -120,7 +120,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 ClientMetrics.instance.markRequestDiscarded();
                 logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, " +
                              "InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
-                             frameSize,
+                             messageSize,
                              channelPayloadBytesInFlight,
                              endpointReserve.using(),
                              globalReserve.using(),
@@ -129,12 +129,12 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 handleError(new OverloadedException("Server is in overloaded state. " +
                                                     "Cannot accept more requests at this point"), header);
 
-                // Don't stop processing incoming frames, rely on the client to apply
+                // Don't stop processing incoming messages, rely on the client to apply
                 // backpressure when it receives OverloadedException
                 // but discard this message as we're responding with the overloaded error
-                incrementReceivedMessageMetrics(frameSize);
+                incrementReceivedMessageMetrics(messageSize);
                 ByteBuffer buf = bytes.get();
-                buf.position(buf.position() + Frame.Header.LENGTH + frameSize);
+                buf.position(buf.position() + Envelope.Header.LENGTH + messageSize);
                 return true;
             }
         }
@@ -145,31 +145,31 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             return false;
         }
 
-        channelPayloadBytesInFlight += frameSize;
-        incrementReceivedMessageMetrics(frameSize);
-        processCqlFrame(composeCqlFrame(header, bytes));
+        channelPayloadBytesInFlight += messageSize;
+        incrementReceivedMessageMetrics(messageSize);
+        processRequest(composeRequest(header, bytes));
         return true;
     }
 
-    private void incrementReceivedMessageMetrics(int frameSize)
+    private void incrementReceivedMessageMetrics(int messageSize)
     {
         receivedCount++;
-        receivedBytes += frameSize + Frame.Header.LENGTH;
-        ClientMessageSizeMetrics.bytesReceived.inc(frameSize + Frame.Header.LENGTH);
-        ClientMessageSizeMetrics.bytesReceivedPerRequest.update(frameSize + Frame.Header.LENGTH);
+        receivedBytes += messageSize + Envelope.Header.LENGTH;
+        ClientMessageSizeMetrics.bytesReceived.inc(messageSize + Envelope.Header.LENGTH);
+        ClientMessageSizeMetrics.bytesReceivedPerRequest.update(messageSize + Envelope.Header.LENGTH);
     }
 
-    private Frame.Header extractHeader(ShareableBytes bytes)
+    private Envelope.Header extractHeader(ShareableBytes bytes)
     {
         try
         {
-            return cqlFrameDecoder.extractHeader(bytes.get());
+            return envelopeDecoder.extractHeader(bytes.get());
         }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t, false);
             logger.error("{} unexpected exception caught while deserializing a message header", id(), t);
-            // Ideally we would recover from this as we could simply drop the messaging frame.
+            // Ideally we would recover from this as we could simply drop the entire frame.
             // However, we have no good way to communicate this back to the client as we don't
             // yet know the stream id. So this will trigger an Error response and the connection
             // to be closed.
@@ -178,32 +178,32 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
     }
 
-    private Frame composeCqlFrame(Frame.Header header, ShareableBytes bytes)
+    private Envelope composeRequest(Envelope.Header header, ShareableBytes bytes)
     {
         // extract body
         ByteBuffer buf = bytes.get();
-        int idx = buf.position() + Frame.Header.LENGTH;
+        int idx = buf.position() + Envelope.Header.LENGTH;
         final int end = idx + Ints.checkedCast(header.bodySizeInBytes);
         ByteBuf body = Unpooled.wrappedBuffer(buf.slice());
-        body.readerIndex(Frame.Header.LENGTH);
+        body.readerIndex(Envelope.Header.LENGTH);
         body.retain();
         buf.position(end);
-        return new Frame(header, body);
+        return new Envelope(header, body);
     }
 
-    protected void processCqlFrame(Frame frame)
+    protected void processRequest(Envelope request)
     {
         M message = null;
         try
         {
-            message = messageDecoder.decode(channel, frame);
+            message = messageDecoder.decode(channel, request);
             dispatcher.accept(channel, message, this::toFlushItem);
         }
         catch (Exception e)
         {
             if (message != null)
-                frame.release();
-            handleErrorAndRelease(e, frame.header);
+                request.release();
+            handleErrorAndRelease(e, request.header);
         }
     }
 
@@ -217,7 +217,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
      * @param t
      * @param header
      */
-    private void handleErrorAndRelease(Throwable t, Frame.Header header)
+    private void handleErrorAndRelease(Throwable t, Envelope.Header header)
     {
         release(header);
         handleError(t, header);
@@ -235,18 +235,17 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
      * @param t
      * @param header
      */
-    private void handleError(Throwable t, Frame.Header header)
+    private void handleError(Throwable t, Envelope.Header header)
     {
         errorHandler.accept(ErrorMessage.wrap(t, header.streamId));
     }
 
     /**
      * For use in the case where the error can't be mapped to a specific stream id,
-     * such as a corrupted messaging frame, or when extracing a CQL frame from the
-     * messaging frame's payload fails. This does not attempt to release any
-     * resources, as these errors should only occur before any capacity acquisition
-     * is attempted (e.g. on receipt of a corrupt messaging frame, or failure to
-     * extract a CQL frame from the message body).
+     * such as a corrupted frame, or when extracing a CQL message from the frame's
+     * payload fails. This does not attempt to release any resources, as these errors
+     * should only occur before any capacity acquisition is attempted (e.g. on receipt
+     * of a corrupt frame, or failure to extract a CQL message from the envelope).
      *
      * @param t
      */
@@ -263,26 +262,26 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         // The Dispatcher will call this to obtain the FlushItem to enqueue with its Flusher once
         // a dispatched request has been processed.
 
-        Frame responseFrame = response.encode(request.getSourceFrame().header.version);
-        int responseSize = frameSize(responseFrame.header);
+        Envelope responseFrame = response.encode(request.getSource().header.version);
+        int responseSize = envelopeSize(responseFrame.header);
         ClientMessageSizeMetrics.bytesSent.inc(responseSize);
         ClientMessageSizeMetrics.bytesSentPerResponse.update(responseSize);
 
         return new Framed(channel,
                           responseFrame,
-                          request.getSourceFrame(),
+                          request.getSource(),
                           payloadAllocator,
                           this::release);
     }
 
-    private void release(Flusher.FlushItem<Frame> flushItem)
+    private void release(Flusher.FlushItem<Envelope> flushItem)
     {
-        release(flushItem.sourceFrame.header);
-        flushItem.sourceFrame.release();
+        release(flushItem.request.header);
+        flushItem.request.release();
         flushItem.response.release();
     }
 
-    private void release(Frame.Header header)
+    private void release(Envelope.Header header)
     {
         releaseCapacity(Ints.checkedCast(header.bodySizeInBytes));
         channelPayloadBytesInFlight -= header.bodySizeInBytes;
@@ -297,9 +296,9 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ByteBuffer buf = bytes.get();
         try
         {
-            Frame.Header header = cqlFrameDecoder.extractHeader(buf);
-            // max (CQL) frame size defaults to 256mb, so should be safe to downcast
-            int frameSize = Ints.checkedCast(header.bodySizeInBytes);
+            Envelope.Header header = envelopeDecoder.extractHeader(buf);
+            // max CQL message size defaults to 256mb, so should be safe to downcast
+            int messageSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedBytes += buf.remaining();
 
             if (throwOnOverload)
@@ -311,7 +310,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                     ClientMetrics.instance.markRequestDiscarded();
                     logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, " +
                                  "InflightEndpointRequestPayload: {}, InflightOverallRequestPayload: {}, Header: {}",
-                                 frameSize,
+                                 messageSize,
                                  channelPayloadBytesInFlight,
                                  endpointReserve.using(),
                                  globalReserve.using(),
@@ -342,7 +341,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
         catch (Exception e)
         {
-            throw new IOException("Error decoding CQL frame", e);
+            throw new IOException("Error decoding CQL Message", e);
         }
     }
 
@@ -352,18 +351,18 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean acquireCapacityAndQueueOnFailure(Frame.Header header, Limit endpointReserve, Limit globalReserve)
+    private boolean acquireCapacityAndQueueOnFailure(Envelope.Header header, Limit endpointReserve, Limit globalReserve)
     {
-        int frameSize = Ints.checkedCast(header.bodySizeInBytes);
+        int bytesRequired = Ints.checkedCast(header.bodySizeInBytes);
         long currentTimeNanos = approxTime.now();
-        return acquireCapacity(endpointReserve, globalReserve, frameSize, currentTimeNanos, Long.MAX_VALUE);
+        return acquireCapacity(endpointReserve, globalReserve, bytesRequired, currentTimeNanos, Long.MAX_VALUE);
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean acquireCapacity(Frame.Header header, Limit endpointReserve, Limit globalReserve)
+    private boolean acquireCapacity(Envelope.Header header, Limit endpointReserve, Limit globalReserve)
     {
-        int frameSize = Ints.checkedCast(header.bodySizeInBytes);
-        return acquireCapacity(endpointReserve, globalReserve, frameSize) == ResourceLimits.Outcome.SUCCESS;
+        int bytesRequired = Ints.checkedCast(header.bodySizeInBytes);
+        return acquireCapacity(endpointReserve, globalReserve, bytesRequired) == ResourceLimits.Outcome.SUCCESS;
     }
 
     /*
@@ -403,31 +402,31 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         channel.close();
     }
 
-    static int frameSize(Frame.Header header)
+    static int envelopeSize(Envelope.Header header)
     {
-        return Frame.Header.LENGTH + Ints.checkedCast(header.bodySizeInBytes);
+        return Envelope.Header.LENGTH + Ints.checkedCast(header.bodySizeInBytes);
     }
 
-    private class LargeMessage extends AbstractMessageHandler.LargeMessage<Frame.Header>
+    private class LargeMessage extends AbstractMessageHandler.LargeMessage<Envelope.Header>
     {
         private static final long EXPIRES_AT = Long.MAX_VALUE;
 
         private boolean overloaded = false;
 
-        private LargeMessage(Frame.Header header)
+        private LargeMessage(Envelope.Header header)
         {
-            super(frameSize(header), header, EXPIRES_AT, false);
+            super(envelopeSize(header), header, EXPIRES_AT, false);
         }
 
-        private Frame assembleFrame()
+        private Envelope assembleFrame()
         {
             ByteBuf body = Unpooled.wrappedBuffer(buffers.stream()
                                                           .map(ShareableBytes::get)
                                                           .toArray(ByteBuffer[]::new));
 
-            body.readerIndex(Frame.Header.LENGTH);
+            body.readerIndex(Envelope.Header.LENGTH);
             body.retain();
-            return new Frame(header, body);
+            return new Envelope(header, body);
         }
 
         /**
@@ -449,7 +448,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 handleErrorAndRelease(new OverloadedException("Server is in overloaded state. " +
                                                               "Cannot accept more requests at this point"), header);
             else if (!isCorrupt)
-                processCqlFrame(assembleFrame());
+                processRequest(assembleFrame());
 
         }
 

@@ -51,11 +51,11 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 {
     private static final Logger logger = LoggerFactory.getLogger(InitialConnectionHandler.class);
 
-    final Frame.Decoder decoder;
+    final Envelope.Decoder decoder;
     final Connection.Factory factory;
     final PipelineConfigurator configurator;
 
-    InitialConnectionHandler(Frame.Decoder decoder, Connection.Factory factory, PipelineConfigurator configurator)
+    InitialConnectionHandler(Envelope.Decoder decoder, Connection.Factory factory, PipelineConfigurator configurator)
     {
         this.decoder = decoder;
         this.factory = factory;
@@ -64,13 +64,13 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
 
     protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> list) throws Exception
     {
-        Frame inbound = decoder.decodeFrame(buffer);
+        Envelope inbound = decoder.decode(buffer);
         if (inbound == null)
             return;
 
         try
         {
-            Frame outbound;
+            Envelope outbound;
             switch (inbound.header.type)
             {
                 case OPTIONS:
@@ -79,7 +79,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
                     List<String> compressions = new ArrayList<>();
-                    if (FrameCompressor.SnappyCompressor.instance != null)
+                    if (Compressor.SnappyCompressor.instance != null)
                         compressions.add("snappy");
                     // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
                     compressions.add("lz4");
@@ -128,9 +128,9 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                                     cause = new ServerError("Unexpected error establishing connection");
                                 logger.warn("Writing response to STARTUP failed, unable to configure pipeline", cause);
                                 ErrorMessage error = ErrorMessage.fromException(cause);
-                                Frame errorFrame = error.encode(inbound.header.version);
+                                Envelope response = error.encode(inbound.header.version);
                                 ChannelPromise closeChannel = AsyncChannelPromise.withListener(ctx, f -> ctx.close());
-                                ctx.writeAndFlush(errorFrame, closeChannel);
+                                ctx.writeAndFlush(response, closeChannel);
                                 if (ctx.channel().isOpen())
                                     ctx.channel().close();
                             }

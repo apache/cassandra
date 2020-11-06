@@ -77,17 +77,17 @@ public class PreV5Handlers
         // Acts as a Dispatcher.FlushItemConverter
         private Flusher.FlushItem.Unframed toFlushItem(Channel channel, Message.Request request, Message.Response response)
         {
-            return new Flusher.FlushItem.Unframed(channel, response, request.getSourceFrame(), this::releaseItem);
+            return new Flusher.FlushItem.Unframed(channel, response, request.getSource(), this::releaseItem);
         }
 
         private void releaseItem(Flusher.FlushItem<Message.Response> item)
         {
             // Note: in contrast to the equivalent for V5 protocol, CQLMessageHandler::release(FlushItem item),
             // this does not release the FlushItem's Message.Response. In V4, the buffers for the response's body
-            // and serialised header are emitted directly down the Netty pipeline from Frame.FrameEncoder, so
+            // and serialised header are emitted directly down the Netty pipeline from Envelope.Encoderr, so
             // releasing them is handled by the pipeline itself.
-            long itemSize = item.sourceFrame.header.bodySizeInBytes;
-            item.sourceFrame.release();
+            long itemSize = item.request.header.bodySizeInBytes;
+            item.request.release();
 
             // since the request has been processed, decrement inflight payload at channel, endpoint and global levels
             channelPayloadBytesInFlight -= itemSize;
@@ -113,43 +113,43 @@ public class PreV5Handlers
 
         /**
          * This check for inflight payload to potentially discard the request should have been ideally in one of the
-         * first handlers in the pipeline (Frame::decode()). However, incase of any exception thrown between that
+         * first handlers in the pipeline (Envelope.Decoder::decode()). However, incase of any exception thrown between that
          * handler (where inflight payload is incremented) and this handler (Dispatcher::channelRead0) (where inflight
          * payload in decremented), inflight payload becomes erroneous. ExceptionHandler is not sufficient for this
-         * purpose since it does not have the frame associated with the exception.
+         * purpose since it does not have the message envelope associated with the exception.
          * <p>
          * Note: this method should execute on the netty event loop.
          */
         private boolean shouldHandleRequest(ChannelHandlerContext ctx, Message.Request request)
         {
-            long frameSize = request.getSourceFrame().header.bodySizeInBytes;
+            long requestSize = request.getSource().header.bodySizeInBytes;
 
-            // check for overloaded state by trying to allocate framesize to inflight payload trackers
-            if (endpointPayloadTracker.tryAllocate(frameSize) != ResourceLimits.Outcome.SUCCESS)
+            // check for overloaded state by trying to allocate the message size from inflight payload trackers
+            if (endpointPayloadTracker.tryAllocate(requestSize) != ResourceLimits.Outcome.SUCCESS)
             {
                 if (request.connection.isThrowOnOverload())
                 {
                     // discard the request and throw an exception
                     ClientMetrics.instance.markRequestDiscarded();
                     logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, {}, Request: {}",
-                                 frameSize,
+                                 requestSize,
                                  channelPayloadBytesInFlight,
                                  endpointPayloadTracker.toString(),
                                  request);
                     throw ErrorMessage.wrap(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
-                                            request.getSourceFrame().header.streamId);
+                                            request.getSource().header.streamId);
                 }
                 else
                 {
                     // set backpressure on the channel, and handle the request
-                    endpointPayloadTracker.allocate(frameSize);
+                    endpointPayloadTracker.allocate(requestSize);
                     ctx.channel().config().setAutoRead(false);
                     ClientMetrics.instance.pauseConnection();
                     paused = true;
                 }
             }
 
-            channelPayloadBytesInFlight += frameSize;
+            channelPayloadBytesInFlight += requestSize;
             return true;
         }
 
@@ -171,22 +171,22 @@ public class PreV5Handlers
      *
      */
     @ChannelHandler.Sharable
-    public static class ProtocolDecoder extends MessageToMessageDecoder<Frame>
+    public static class ProtocolDecoder extends MessageToMessageDecoder<Envelope>
     {
         public static final ProtocolDecoder instance = new ProtocolDecoder();
         private ProtocolDecoder(){}
 
-        public void decode(ChannelHandlerContext ctx, Frame frame, List results)
+        public void decode(ChannelHandlerContext ctx, Envelope source, List results)
         {
             try
             {
-                results.add(Message.Decoder.decodeMessage(ctx.channel(), frame));
+                results.add(Message.Decoder.decodeMessage(ctx.channel(), source));
             }
             catch (Throwable ex)
             {
-                frame.release();
+                source.release();
                 // Remember the streamId
-                throw ErrorMessage.wrap(ex, frame.header.streamId);
+                throw ErrorMessage.wrap(ex, source.header.streamId);
             }
         }
     }
@@ -200,12 +200,12 @@ public class PreV5Handlers
         public static final ProtocolEncoder instance = new ProtocolEncoder();
         private ProtocolEncoder(){}
 
-        public void encode(ChannelHandlerContext ctx, Message message, List results)
+        public void encode(ChannelHandlerContext ctx, Message source, List results)
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
             // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
             ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
-            results.add(message.encode(version));
+            results.add(source.encode(version));
         }
     }
 
@@ -229,15 +229,7 @@ public class PreV5Handlers
                 ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(ProtocolVersion.CURRENT));
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (cause instanceof ProtocolException)
-                {
-                    future.addListener(new ChannelFutureListener()
-                    {
-                        public void operationComplete(ChannelFuture future)
-                        {
-                            ctx.close();
-                        }
-                    });
-                }
+                    future.addListener((ChannelFutureListener) f -> ctx.close());
             }
         }
     }

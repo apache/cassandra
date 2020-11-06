@@ -89,17 +89,17 @@ public class StartupMessage extends Message.Request
             String compression = options.get(COMPRESSION).toLowerCase();
             if (compression.equals("snappy"))
             {
-                if (FrameCompressor.SnappyCompressor.instance == null)
+                if (Compressor.SnappyCompressor.instance == null)
                     throw new ProtocolException("This instance does not support Snappy compression");
 
-                if (getSourceFrame().header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                if (getSource().header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
                     throw new ProtocolException("Snappy compression is not supported in protocol V5");
 
-                connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
+                connection.setCompressor(Compressor.SnappyCompressor.instance);
             }
             else if (compression.equals("lz4"))
             {
-                connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
+                connection.setCompressor(Compressor.LZ4Compressor.instance);
             }
             else
             {

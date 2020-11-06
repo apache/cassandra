@@ -38,7 +38,7 @@ import org.apache.cassandra.metrics.ClientMessageSizeMetrics;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class Frame
+public class Envelope
 {
     public static final byte PROTOCOL_VERSION_MASK = 0x7f;
 
@@ -46,7 +46,7 @@ public class Frame
     public final ByteBuf body;
 
     /**
-     * An on-wire frame consists of a header and a body.
+     * An on-wire message envelope consists of a header and a body.
      *
      * The header is defined the following way in native protocol version 3 and later:
      *
@@ -57,7 +57,7 @@ public class Frame
      *   |                length                 |
      *   +---------+---------+---------+---------+
      */
-    public Frame(Header header, ByteBuf body)
+    public Envelope(Header header, ByteBuf body)
     {
         this.header = header;
         this.body = body;
@@ -74,21 +74,21 @@ public class Frame
     }
 
     @VisibleForTesting
-    public Frame clone()
+    public Envelope clone()
     {
-        return new Frame(header, Unpooled.wrappedBuffer(ByteBufferUtil.clone(body.nioBuffer())));
+        return new Envelope(header, Unpooled.wrappedBuffer(ByteBufferUtil.clone(body.nioBuffer())));
     }
 
-    public static Frame create(Message.Type type, int streamId, ProtocolVersion version, EnumSet<Header.Flag> flags, ByteBuf body)
+    public static Envelope create(Message.Type type, int streamId, ProtocolVersion version, EnumSet<Header.Flag> flags, ByteBuf body)
     {
         Header header = new Header(version, flags, streamId, type, body.readableBytes());
-        return new Frame(header, body);
+        return new Envelope(header, body);
     }
 
     public void encodeHeaderInto(ByteBuffer buf)
     {
         buf.put((byte) header.type.direction.addToVersion(header.version.asInt()));
-        buf.put((byte) org.apache.cassandra.transport.Frame.Header.Flag.serialize(header.flags));
+        buf.put((byte) Envelope.Header.Flag.serialize(header.flags));
 
         if (header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
             buf.putShort((short) header.streamId);
@@ -159,33 +159,33 @@ public class Frame
         }
     }
 
-    public Frame with(ByteBuf newBody)
+    public Envelope with(ByteBuf newBody)
     {
-        return new Frame(header, newBody);
+        return new Envelope(header, newBody);
     }
 
     public static class Decoder extends ByteToMessageDecoder
     {
-        private static final int MAX_FRAME_LENGTH = DatabaseDescriptor.getNativeTransportMaxFrameSize();
+        private static final int MAX_TOTAL_LENGTH = DatabaseDescriptor.getNativeTransportMaxFrameSize();
 
-        private boolean discardingTooLongFrame;
-        private long tooLongFrameLength;
+        private boolean discardingTooLongMessage;
+        private long tooLongTotalLength;
         private long bytesToDiscard;
         private int tooLongStreamId;
 
         /**
          * Used by protocol V5 and later to extract a CQL message header from the buffer containing
          * it, without modifying the position of the underlying buffer. This essentially mirrors the
-         * pre-V5 code in decodeFrame, with two differences:
+         * pre-V5 code in {@link org.apache.cassandra.transport.Envelope.Decoder#decode(ByteBuf)},
+         * with two differences:
          *  The input is a ByteBuffer rather than a ByteBuf
          *  This cannot return null, as V5 always deals with entire CQL messages. Coalescing of bytes
          *  off the wire happens at the layer below, in {@link org.apache.cassandra.net.FrameDecoder}
          *
-         * @param buffer ByteBuffer containing the frame header
+         * @param buffer ByteBuffer containing the message envelope
          * @return CQL Message header
-         * @throws Exception
          */
-        Frame.Header extractHeader(ByteBuffer buffer)
+        Envelope.Header extractHeader(ByteBuffer buffer)
         {
             Preconditions.checkArgument(buffer.remaining() >= Header.LENGTH,
                                         "Undersized buffer supplied. Expected %s, actual %s",
@@ -220,9 +220,9 @@ public class Frame
         }
 
         @VisibleForTesting
-        Frame decodeFrame(ByteBuf buffer)
+        Envelope decode(ByteBuf buffer)
         {
-            if (discardingTooLongFrame)
+            if (discardingTooLongMessage)
             {
                 bytesToDiscard = discard(buffer, bytesToDiscard);
                 // If we have discarded everything, throw the exception
@@ -268,24 +268,24 @@ public class Frame
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
 
-            long frameLength = bodyLength + Header.LENGTH;
-            if (frameLength > MAX_FRAME_LENGTH)
+            long totalLength = bodyLength + Header.LENGTH;
+            if (totalLength > MAX_TOTAL_LENGTH)
             {
                 // Enter the discard mode and discard everything received so far.
-                discardingTooLongFrame = true;
+                discardingTooLongMessage = true;
                 tooLongStreamId = streamId;
-                tooLongFrameLength = frameLength;
-                bytesToDiscard = discard(buffer, frameLength);
+                tooLongTotalLength = totalLength;
+                bytesToDiscard = discard(buffer, totalLength);
                 if (bytesToDiscard <= 0)
                     fail();
                 return null;
             }
 
-            if (buffer.readableBytes() < frameLength)
+            if (buffer.readableBytes() < totalLength)
                 return null;
 
-            ClientMessageSizeMetrics.bytesReceived.inc(frameLength);
-            ClientMessageSizeMetrics.bytesReceivedPerRequest.update(frameLength);
+            ClientMessageSizeMetrics.bytesReceived.inc(totalLength);
+            ClientMessageSizeMetrics.bytesReceivedPerRequest.update(totalLength);
 
             // extract body
             ByteBuf body = buffer.slice(idx, (int) bodyLength);
@@ -294,7 +294,7 @@ public class Frame
             idx += bodyLength;
             buffer.readerIndex(idx);
 
-            return new Frame(new Header(version, decodedFlags, streamId, type, bodyLength), body);
+            return new Envelope(new Header(version, decodedFlags, streamId, type, bodyLength), body);
         }
 
         private EnumSet<Header.Flag> decodeFlags(ProtocolVersion version, int flags)
@@ -309,22 +309,21 @@ public class Frame
 
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf buffer, List<Object> results)
-        throws Exception
         {
-            Frame frame = decodeFrame(buffer);
-            if (frame == null)
+            Envelope envelope = decode(buffer);
+            if (envelope == null)
                 return;
 
-            results.add(frame);
+            results.add(envelope);
         }
 
         private void fail()
         {
             // Reset to the initial state and throw the exception
-            long tooLongFrameLength = this.tooLongFrameLength;
-            this.tooLongFrameLength = 0;
-            discardingTooLongFrame = false;
-            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongFrameLength,  MAX_FRAME_LENGTH);
+            long tooLongTotalLength = this.tooLongTotalLength;
+            this.tooLongTotalLength = 0;
+            discardingTooLongMessage = false;
+            String msg = String.format("Request is too big: length %d exceeds maximum allowed length %d.", tooLongTotalLength, MAX_TOTAL_LENGTH);
             throw ErrorMessage.wrap(new InvalidRequestException(msg), tooLongStreamId);
         }
     }
@@ -338,98 +337,97 @@ public class Frame
     }
 
     @ChannelHandler.Sharable
-    public static class Encoder extends MessageToMessageEncoder<Frame>
+    public static class Encoder extends MessageToMessageEncoder<Envelope>
     {
-        public static final Encoder instance = new Frame.Encoder();
+        public static final Encoder instance = new Envelope.Encoder();
         private Encoder(){}
 
-        public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
-        throws IOException
+        public void encode(ChannelHandlerContext ctx, Envelope source, List<Object> results)
         {
-            ByteBuf serializedHeader = encodeHeader(frame);
-            int messageSize = serializedHeader.readableBytes() + frame.body.readableBytes();
+            ByteBuf serializedHeader = encodeHeader(source);
+            int messageSize = serializedHeader.readableBytes() + source.body.readableBytes();
             ClientMessageSizeMetrics.bytesSent.inc(messageSize);
             ClientMessageSizeMetrics.bytesSentPerResponse.update(messageSize);
 
             results.add(serializedHeader);
-            results.add(frame.body);
+            results.add(source.body);
         }
 
-        public ByteBuf encodeHeader(Frame frame)
+        public ByteBuf encodeHeader(Envelope source)
         {
             ByteBuf buf = CBUtil.allocator.buffer(Header.LENGTH);
 
-            Message.Type type = frame.header.type;
-            buf.writeByte(type.direction.addToVersion(frame.header.version.asInt()));
-            buf.writeByte(Header.Flag.serialize(frame.header.flags));
+            Message.Type type = source.header.type;
+            buf.writeByte(type.direction.addToVersion(source.header.version.asInt()));
+            buf.writeByte(Header.Flag.serialize(source.header.flags));
 
             // Continue to support writing pre-v3 headers so that we can give proper error messages to drivers that
             // connect with the v1/v2 protocol. See CASSANDRA-11464.
-            if (frame.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
-                buf.writeShort(frame.header.streamId);
+            if (source.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
+                buf.writeShort(source.header.streamId);
             else
-                buf.writeByte(frame.header.streamId);
+                buf.writeByte(source.header.streamId);
 
             buf.writeByte(type.opcode);
-            buf.writeInt(frame.body.readableBytes());
+            buf.writeInt(source.body.readableBytes());
             return buf;
         }
     }
 
     @ChannelHandler.Sharable
-    public static class Decompressor extends MessageToMessageDecoder<Frame>
+    public static class Decompressor extends MessageToMessageDecoder<Envelope>
     {
-        public static Decompressor instance = new Frame.Decompressor();
+        public static Decompressor instance = new Envelope.Decompressor();
         private Decompressor(){}
 
-        public void decode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
+        public void decode(ChannelHandlerContext ctx, Envelope source, List<Object> results)
         throws IOException
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
-            if (!frame.header.flags.contains(Header.Flag.COMPRESSED) || connection == null)
+            if (!source.header.flags.contains(Header.Flag.COMPRESSED) || connection == null)
             {
-                results.add(frame);
+                results.add(source);
                 return;
             }
 
-            FrameCompressor compressor = connection.getCompressor();
+            org.apache.cassandra.transport.Compressor compressor = connection.getCompressor();
             if (compressor == null)
             {
-                results.add(frame);
+                results.add(source);
                 return;
             }
 
-            results.add(compressor.decompress(frame));
+            results.add(compressor.decompress(source));
         }
     }
 
     @ChannelHandler.Sharable
-    public static class Compressor extends MessageToMessageEncoder<Frame>
+    public static class Compressor extends MessageToMessageEncoder<Envelope>
     {
-        public static Compressor instance = new Frame.Compressor();
+        public static Compressor instance = new Compressor();
         private Compressor(){}
 
-        public void encode(ChannelHandlerContext ctx, Frame frame, List<Object> results)
+        public void encode(ChannelHandlerContext ctx, Envelope source, List<Object> results)
         throws IOException
         {
             Connection connection = ctx.channel().attr(Connection.attributeKey).get();
 
             // Never compress STARTUP messages
-            if (frame.header.type == Message.Type.STARTUP || connection == null)
+            if (source.header.type == Message.Type.STARTUP || connection == null)
             {
-                results.add(frame);
+                results.add(source);
                 return;
             }
 
-            FrameCompressor compressor = connection.getCompressor();
+            org.apache.cassandra.transport.Compressor compressor = connection.getCompressor();
             if (compressor == null)
             {
-                results.add(frame);
+                results.add(source);
                 return;
             }
-            frame.header.flags.add(Header.Flag.COMPRESSED);
-            results.add(compressor.compress(frame));
+            source.header.flags.add(Header.Flag.COMPRESSED);
+            results.add(compressor.compress(source));
         }
     }
 }

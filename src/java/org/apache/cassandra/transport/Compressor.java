@@ -27,16 +27,16 @@ import net.jpountz.lz4.LZ4Factory;
 
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-public interface FrameCompressor
+public interface Compressor
 {
-    public Frame compress(Frame frame) throws IOException;
-    public Frame decompress(Frame frame) throws IOException;
+    public Envelope compress(Envelope uncompressed) throws IOException;
+    public Envelope decompress(Envelope compressed) throws IOException;
 
     /*
      * TODO: We can probably do more efficient, like by avoiding copy.
      * Also, we don't reuse ICompressor because the API doesn't expose enough.
      */
-    public static class SnappyCompressor implements FrameCompressor
+    public static class SnappyCompressor implements Compressor
     {
         public static final SnappyCompressor instance;
         static
@@ -65,9 +65,9 @@ public interface FrameCompressor
             Snappy.getNativeLibraryVersion();
         }
 
-        public Frame compress(Frame frame) throws IOException
+        public Envelope compress(Envelope uncompressed) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = CBUtil.readRawBytes(uncompressed.body);
             ByteBuf output = CBUtil.allocator.heapBuffer(Snappy.maxCompressedLength(input.length));
 
             try
@@ -82,16 +82,15 @@ public interface FrameCompressor
             }
             finally
             {
-                //release the old frame
-                frame.release();
+                uncompressed.release();
             }
 
-            return frame.with(output);
+            return uncompressed.with(output);
         }
 
-        public Frame decompress(Frame frame) throws IOException
+        public Envelope decompress(Envelope compressed) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = CBUtil.readRawBytes(compressed.body);
 
             if (!Snappy.isValidCompressedBuffer(input, 0, input.length))
                 throw new ProtocolException("Provided frame does not appear to be Snappy compressed");
@@ -110,11 +109,10 @@ public interface FrameCompressor
             }
             finally
             {
-                //release the old frame
-                frame.release();
+                compressed.release();
             }
 
-            return frame.with(output);
+            return compressed.with(output);
         }
     }
 
@@ -126,7 +124,7 @@ public interface FrameCompressor
      * it feels like putting little-endian here would be a annoying trap for
      * client writer.
      */
-    public static class LZ4Compressor implements FrameCompressor
+    public static class LZ4Compressor implements Compressor
     {
         public static final LZ4Compressor instance = new LZ4Compressor();
 
@@ -141,9 +139,9 @@ public interface FrameCompressor
             decompressor = lz4Factory.decompressor();
         }
 
-        public Frame compress(Frame frame)
+        public Envelope compress(Envelope uncompressed)
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = CBUtil.readRawBytes(uncompressed.body);
 
             int maxCompressedLength = compressor.maxCompressedLength(input.length);
             ByteBuf outputBuf = CBUtil.allocator.heapBuffer(INTEGER_BYTES + maxCompressedLength);
@@ -161,7 +159,7 @@ public interface FrameCompressor
                 int written = compressor.compress(input, 0, input.length, output, outputOffset + INTEGER_BYTES, maxCompressedLength);
                 outputBuf.writerIndex(INTEGER_BYTES + written);
 
-                return frame.with(outputBuf);
+                return uncompressed.with(outputBuf);
             }
             catch (final Throwable e)
             {
@@ -170,14 +168,13 @@ public interface FrameCompressor
             }
             finally
             {
-                //release the old frame
-                frame.release();
+                uncompressed.release();
             }
         }
 
-        public Frame decompress(Frame frame) throws IOException
+        public Envelope decompress(Envelope compressed) throws IOException
         {
-            byte[] input = CBUtil.readRawBytes(frame.body);
+            byte[] input = CBUtil.readRawBytes(compressed.body);
 
             int uncompressedLength = ((input[0] & 0xFF) << 24)
                                    | ((input[1] & 0xFF) << 16)
@@ -194,7 +191,7 @@ public interface FrameCompressor
 
                 output.writerIndex(uncompressedLength);
 
-                return frame.with(output);
+                return compressed.with(output);
             }
             catch (final Throwable e)
             {
@@ -203,8 +200,8 @@ public interface FrameCompressor
             }
             finally
             {
-                //release the old frame
-                frame.release();
+                //release the old message
+                compressed.release();
             }
         }
     }

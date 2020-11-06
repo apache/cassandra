@@ -39,7 +39,7 @@ import org.apache.cassandra.transport.Message.Response;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPool;
 
-import static org.apache.cassandra.transport.CQLMessageHandler.frameSize;
+import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 
 abstract class Flusher implements Runnable
 {
@@ -56,14 +56,14 @@ abstract class Flusher implements Runnable
         final Kind kind;
         final Channel channel;
         final T response;
-        final Frame sourceFrame;
+        final Envelope request;
         final Consumer<FlushItem<T>> tidy;
 
-        FlushItem(Kind kind, Channel channel, T response, Frame sourceFrame, Consumer<FlushItem<T>> tidy)
+        FlushItem(Kind kind, Channel channel, T response, Envelope request, Consumer<FlushItem<T>> tidy)
         {
             this.kind = kind;
             this.channel = channel;
-            this.sourceFrame = sourceFrame;
+            this.request = request;
             this.response = response;
             this.tidy = tidy;
         }
@@ -73,25 +73,25 @@ abstract class Flusher implements Runnable
             tidy.accept(this);
         }
 
-        static class Framed extends FlushItem<Frame>
+        static class Framed extends FlushItem<Envelope>
         {
             final FrameEncoder.PayloadAllocator allocator;
             Framed(Channel channel,
-                   Frame responseFrame,
-                   Frame sourceFrame,
+                   Envelope response,
+                   Envelope request,
                    FrameEncoder.PayloadAllocator allocator,
-                   Consumer<FlushItem<Frame>> tidy)
+                   Consumer<FlushItem<Envelope>> tidy)
             {
-                super(Kind.FRAMED, channel, responseFrame, sourceFrame, tidy);
+                super(Kind.FRAMED, channel, response, request, tidy);
                 this.allocator = allocator;
             }
         }
 
         static class Unframed extends FlushItem<Response>
         {
-            Unframed(Channel channel, Response response, Frame sourceFrame, Consumer<FlushItem<Response>> tidy)
+            Unframed(Channel channel, Response response, Envelope request, Consumer<FlushItem<Response>> tidy)
             {
-                super(Kind.UNFRAMED, channel, response, sourceFrame, tidy);
+                super(Kind.UNFRAMED, channel, response, request, tidy);
             }
         }
     }
@@ -111,7 +111,7 @@ abstract class Flusher implements Runnable
     protected final AtomicBoolean scheduled = new AtomicBoolean(false);
     protected final List<FlushItem<?>> processed = new ArrayList<>();
     private final HashSet<Channel> channels = new HashSet<>();
-    private final Map<Channel, FrameSet> payloads = new HashMap<>();
+    private final Map<Channel, FlushBuffer> payloads = new HashMap<>();
 
     void start()
     {
@@ -149,25 +149,25 @@ abstract class Flusher implements Runnable
 
     private void processFramedResponse(FlushItem.Framed flush)
     {
-        Frame outbound = flush.response;
-        if (frameSize(outbound.header) >= MAX_FRAMED_PAYLOAD_SIZE)
+        Envelope outbound = flush.response;
+        if (envelopeSize(outbound.header) >= MAX_FRAMED_PAYLOAD_SIZE)
         {
             flushLargeMessage(flush.channel, outbound, flush.allocator);
         }
         else
         {
-            payloads.computeIfAbsent(flush.channel, channel -> new FrameSet(channel, flush.allocator, 5))
+            payloads.computeIfAbsent(flush.channel, channel -> new FlushBuffer(channel, flush.allocator, 5))
                     .add(flush.response);
         }
     }
 
-    private void flushLargeMessage(Channel channel, Frame outbound, FrameEncoder.PayloadAllocator allocator)
+    private void flushLargeMessage(Channel channel, Envelope outbound, FrameEncoder.PayloadAllocator allocator)
     {
         FrameEncoder.Payload payload;
         ByteBuffer buf;
         ByteBuf body = outbound.body;
         boolean firstFrame = true;
-        // Highly unlikely that the frame body of a large message would be empty, but the check is cheap
+        // Highly unlikely that the body of a large message would be empty, but the check is cheap
         while (body.readableBytes() > 0 || firstFrame)
         {
             int payloadSize = Math.min(body.readableBytes(), MAX_FRAMED_PAYLOAD_SIZE);
@@ -230,8 +230,8 @@ abstract class Flusher implements Runnable
             channel.flush();
 
         // Framed messages (V5) are grouped by channel, now encode them into payloads, write and flush
-        for (FrameSet frameset : payloads.values())
-            frameset.finish();
+        for (FlushBuffer buffer : payloads.values())
+            buffer.finish();
 
         // Ultimately, this passes the flush item to the Consumer<FlushItem> configured in
         // whichever Dispatcher.FlushItemConverter implementation created it. Due to the quite
@@ -239,13 +239,13 @@ abstract class Flusher implements Runnable
         // there are distinct implementations for V5 and pre-V5 connections:
         //   * o.a.c.t.CQLMessageHandler::toFlushItem for V5, which relates to FlushItem.Framed.
         //   * o.a.c.t.PreV5Handlers.LegacyDispatchHandler::toFlushItem, relating to FlushItem.Unframed
-        // In both cases, the Consumer releases the buffers for the source frame and returns the
+        // In both cases, the Consumer releases the buffers for the source envelope and returns the
         // capacity claimed for message processing back to the global and per-endpoint reserves.
         // Those reserves are used to determine if capacity is available for any inbound message
         // or whether we should attempt to shed load or apply backpressure.
-        // The response buffers are handled differently though. In V5, CQL frames are collated into
-        // outer frames, and so their buffers can be released immediately after flushing. In V4 however,
-        // the buffers containing each CQL frame header and body are emitted from Frame.FrameEncoder
+        // The response buffers are handled differently though. In V5, CQL message envelopes are
+        // collated into frames, and so their buffers can be released immediately after flushing.
+        // In V4 however, the buffers containing each CQL envelope are emitted from Envelope.Encoder
         // and so releasing them is handled by Netty internally.
         for (FlushItem<?> item : processed)
             item.release();
@@ -255,23 +255,23 @@ abstract class Flusher implements Runnable
         processed.clear();
     }
 
-    private class FrameSet extends ArrayList<Frame>
+    private class FlushBuffer extends ArrayList<Envelope>
     {
         private final Channel channel;
         private final FrameEncoder.PayloadAllocator allocator;
         private int sizeInBytes = 0;
 
-        FrameSet(Channel channel, FrameEncoder.PayloadAllocator allocator, int initialCapacity)
+        FlushBuffer(Channel channel, FrameEncoder.PayloadAllocator allocator, int initialCapacity)
         {
             super(initialCapacity);
             this.channel = channel;
             this.allocator = allocator;
         }
 
-        public boolean add(Frame frame)
+        public boolean add(Envelope toFlush)
         {
-            sizeInBytes += frameSize(frame.header);
-            return super.add(frame);
+            sizeInBytes += envelopeSize(toFlush.header);
+            return super.add(toFlush);
         }
 
         private FrameEncoder.Payload allocate(int requiredBytes, int maxItems)
@@ -294,22 +294,22 @@ abstract class Flusher implements Runnable
 
         public void finish()
         {
-            int frameSize = 0;
+            int messageSize;
             int writtenBytes = 0;
-            int framesToWrite = this.size();
-            FrameEncoder.Payload sending = allocate(sizeInBytes, framesToWrite);
-            for (Frame f : this)
+            int messagesToWrite = this.size();
+            FrameEncoder.Payload sending = allocate(sizeInBytes, messagesToWrite);
+            for (Envelope f : this)
             {
-                frameSize = frameSize(f.header);
-                if (sending.remaining() < frameSize)
+                messageSize = envelopeSize(f.header);
+                if (sending.remaining() < messageSize)
                 {
                     writeAndFlush(channel, sending);
-                    sending = allocate(sizeInBytes - writtenBytes, framesToWrite);
+                    sending = allocate(sizeInBytes - writtenBytes, messagesToWrite);
                 }
 
                 f.encodeInto(sending.buffer);
-                writtenBytes += frameSize;
-                framesToWrite--;
+                writtenBytes += messageSize;
+                messagesToWrite--;
             }
             writeAndFlush(channel, sending);
         }

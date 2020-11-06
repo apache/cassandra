@@ -27,7 +27,6 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -117,7 +116,7 @@ public class CQLConnectionTest
         // Force protocol version to an unsupported version
         controller.withPayloadTransform(msg -> {
             ByteBuf bb = (ByteBuf)msg;
-            bb.setByte(0, 99 & Frame.PROTOCOL_VERSION_MASK);
+            bb.setByte(0, 99 & Envelope.PROTOCOL_VERSION_MASK);
             return msg;
         });
 
@@ -174,13 +173,13 @@ public class CQLConnectionTest
         });
 
         for (int i=0; i < messageCount; i++)
-            client.send(randomFrame(i, Message.Type.OPTIONS));
+            client.send(randomEnvelope(i, Message.Type.OPTIONS));
 
         client.awaitResponses();
         // Client has disconnected
         assertFalse(client.isConnected());
         // But before it did, it sent an error response
-        Frame receieved = client.inboundFrames.poll();
+        Envelope receieved = client.inboundMessages.poll();
         assertNotNull(receieved);
         Message.Response response = Message.responseDecoder().decode(client.channel, receieved);
         assertEquals(Message.Type.ERROR, response.type);
@@ -250,14 +249,14 @@ public class CQLConnectionTest
         });
 
         int totalBytes = MAX_FRAMED_PAYLOAD_SIZE * 2;
-        client.send(randomFrame(0, Message.Type.OPTIONS, totalBytes, totalBytes));
+        client.send(randomEnvelope(0, Message.Type.OPTIONS, totalBytes, totalBytes));
         client.awaitResponses();
         // Client has disconnected
         assertFalse(client.isConnected());
         // But before it did, it received an error response
-        Frame receieved = client.inboundFrames.poll();
-        assertNotNull(receieved);
-        Message.Response response = Message.responseDecoder().decode(client.channel, receieved);
+        Envelope received = client.inboundMessages.poll();
+        assertNotNull(received);
+        Message.Response response = Message.responseDecoder().decode(client.channel, received);
         assertEquals(Message.Type.ERROR, response.type);
         assertTrue(((ErrorMessage)response).error.getMessage().contains("unrecoverable CRC mismatch detected in frame"));
         // total capacity is aquired when the first frame is read
@@ -285,7 +284,7 @@ public class CQLConnectionTest
         TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
         AllocationObserver observer = new AllocationObserver();
         Message.Decoder<Message.Request> decoder = new FixedDecoder();
-        Predicate<Frame.Header> responseMatcher = h -> h.type == Message.Type.RESULT;
+        Predicate<Envelope.Header> responseMatcher = h -> h.type == Message.Type.RESULT;
         ServerConfigurator configurator = ServerConfigurator.builder()
                                                             .withConsumer(consumer)
                                                             .withAllocationObserver(observer)
@@ -315,18 +314,18 @@ public class CQLConnectionTest
         AllocationObserver observer = new AllocationObserver();
         Message.Decoder<Message.Request> decoder = new FixedDecoder()
         {
-            Message.Request decode(Channel channel, Frame frame)
+            Message.Request decode(Channel channel, Envelope source)
             {
-                if (frame.header.streamId != streamWithError)
-                    return super.decode(channel, frame);
+                if (source.header.streamId != streamWithError)
+                    return super.decode(channel, source);
 
                 throw new RequestExecutionException(ExceptionCode.SYNTAX_ERROR,
-                                                    "Error decoding message " + frame.header.streamId)
+                                                    "Error decoding message " + source.header.streamId)
                 {/*test exception*/};
             }
         };
 
-        Predicate<Frame.Header> responseMatcher =
+        Predicate<Envelope.Header> responseMatcher =
             h -> (h.streamId == streamWithError && h.type == Message.Type.ERROR) || h.type == Message.Type.RESULT;
 
         ServerConfigurator configurator = ServerConfigurator.builder()
@@ -341,7 +340,7 @@ public class CQLConnectionTest
     private void runTest(ServerConfigurator configurator,
                          Codec codec,
                          int messageCount,
-                         Predicate<Frame.Header> responseMatcher,
+                         Predicate<Envelope.Header> responseMatcher,
                          LongConsumer allocationVerifier)
     {
         Server server = server(configurator);
@@ -353,13 +352,13 @@ public class CQLConnectionTest
             assertTrue(configurator.waitUntilReady());
 
             for (int i = 0; i < messageCount; i++)
-                client.send(randomFrame(i, Message.Type.OPTIONS));
+                client.send(randomEnvelope(i, Message.Type.OPTIONS));
 
             long totalBytes = client.sendSize;
 
             // verify that all messages went through the pipeline & our test message consumer
             client.awaitResponses();
-            Frame response;
+            Envelope response;
             while ((response = client.pollResponses()) != null)
             {
                 response.release();
@@ -389,44 +388,43 @@ public class CQLConnectionTest
                                    .build();
     }
 
-    private Frame randomFrame(int streamId, Message.Type type)
+    private Envelope randomEnvelope(int streamId, Message.Type type)
     {
-        return randomFrame(streamId, type, 100, 1024);
+        return randomEnvelope(streamId, type, 100, 1024);
     }
 
-    private Frame randomFrame(int streamId, Message.Type type, int minSize, int maxSize)
+    private Envelope randomEnvelope(int streamId, Message.Type type, int minSize, int maxSize)
     {
         byte[] bytes = randomishBytes(random, minSize, maxSize);
-        return Frame.create(type,
-                            streamId,
-                            ProtocolVersion.V5,
-                            EnumSet.of(Frame.Header.Flag.USE_BETA),
-                            Unpooled.wrappedBuffer(bytes));
+        return Envelope.create(type,
+                               streamId,
+                               ProtocolVersion.V5,
+                               EnumSet.of(Envelope.Header.Flag.USE_BETA),
+                               Unpooled.wrappedBuffer(bytes));
     }
 
-    // Every CQL Frame received will be parsed as an OptionsMessage, which is trivial to execute
-    // on the server. This means we can randomise the actual content of the CQL frames to test
-    // resource allocation/release (which is based on frame size, not message), without having to
+    // Every CQL Envelope received will be parsed as an OptionsMessage, which is trivial to execute
+    // on the server. This means we can randomise the actual content of the CQL messages to test
+    // resource allocation/release (which is based purely on request size), without having to
     // worry about processing of the actual messages.
     static class FixedDecoder extends Message.Decoder<Message.Request>
     {
-        Message.Request decode(Channel channel, Frame frame)
+        Message.Request decode(Channel channel, Envelope source)
         {
             Message.Request request = new OptionsMessage();
-            request.setSourceFrame(frame);
-            request.setStreamId(frame.header.streamId);
+            request.setSource(source);
+            request.setStreamId(source.header.streamId);
             return request;
         }
     }
 
-    // A simple consumer which "serves" a static response and implements a naive flusher
+    // A simple consumer which "serves" a static response and employs a naive flusher
     static class TestConsumer implements MessageConsumer<Message.Request>
     {
-        final EnumSet<Frame.Header.Flag> flags = EnumSet.of(Frame.Header.Flag.USE_BETA);
         final Message.Response fixedResponse;
-        final Frame responseTemplate;
+        final Envelope responseTemplate;
         final FrameEncoder frameEncoder;
-        SimpleClient.FrameAccumulator accumulator;
+        SimpleClient.SimpleFlusher flusher;
 
         TestConsumer(Message.Response fixedResponse, FrameEncoder frameEncoder)
         {
@@ -437,21 +435,21 @@ public class CQLConnectionTest
 
         public void accept(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem)
         {
-            if (accumulator == null)
-                accumulator = new SimpleClient.FrameAccumulator(frameEncoder);
+            if (flusher == null)
+                flusher = new SimpleClient.SimpleFlusher(frameEncoder);
 
             Flusher.FlushItem.Framed item = (Flusher.FlushItem.Framed)toFlushItem.toFlushItem(channel, message, fixedResponse);
-            Frame response = Frame.create(responseTemplate.header.type,
-                                          message.getStreamId(),
-                                          ProtocolVersion.V5,
-                                          responseTemplate.header.flags,
-                                          responseTemplate.body.copy());
+            Envelope response = Envelope.create(responseTemplate.header.type,
+                                                message.getStreamId(),
+                                                ProtocolVersion.V5,
+                                                responseTemplate.header.flags,
+                                                responseTemplate.body.copy());
             item.release();
-            accumulator.accumulate(response);
+            flusher.enqueue(response);
 
             // Schedule the proto-flusher to collate any messages to be served
             // and flush them to the outbound pipeline
-            accumulator.schedule(channel.pipeline().lastContext());
+            flusher.schedule(channel.pipeline().lastContext());
         }
     }
 
@@ -735,9 +733,9 @@ public class CQLConnectionTest
         final CountDownLatch responsesReceived;
         private volatile boolean connected = false;
 
-        final Queue<Frame> inboundFrames = new LinkedBlockingQueue<>();
+        final Queue<Envelope> inboundMessages = new LinkedBlockingQueue<>();
         long sendSize = 0;
-        SimpleClient.FrameAccumulator outboundFrames ;
+        SimpleClient.SimpleFlusher flusher;
         ErrorMessage connectionError;
         Throwable disconnectionError;
 
@@ -746,7 +744,7 @@ public class CQLConnectionTest
             this.codec = codec;
             this.expectedResponses = expectedResponses;
             this.responsesReceived = new CountDownLatch(expectedResponses);
-            outboundFrames = new SimpleClient.FrameAccumulator(codec.encoder);
+            flusher = new SimpleClient.SimpleFlusher(codec.encoder);
         }
 
         private void connect(InetAddress address, int port) throws IOException, InterruptedException
@@ -764,14 +762,14 @@ public class CQLConnectionTest
                     channel.config().setOption(ChannelOption.ALLOCATOR, allocator);
                     ChannelPipeline pipeline = channel.pipeline();
                     // Outbound handlers to enable us to send the initial STARTUP
-                    pipeline.addLast("cqlFrameEncoder", Frame.Encoder.instance);
-                    pipeline.addLast("cqlMessageEncoder", PreV5Handlers.ProtocolEncoder.instance);
-                    pipeline.addLast("cqlFrameDecoder", new Frame.Decoder());
+                    pipeline.addLast("envelopeEncoder", Envelope.Encoder.instance);
+                    pipeline.addLast("messageEncoder", PreV5Handlers.ProtocolEncoder.instance);
+                    pipeline.addLast("envelopeDecoder", new Envelope.Decoder());
                     // Inbound handler to perform the handshake & modify the pipeline on receipt of a READY
-                    pipeline.addLast("handshake", new MessageToMessageDecoder<Frame>()
+                    pipeline.addLast("handshake", new MessageToMessageDecoder<Envelope>()
                     {
-                        final Frame.Decoder cqlFrameDecoder = new Frame.Decoder();
-                        protected void decode(ChannelHandlerContext ctx, Frame msg, List<Object> out) throws Exception
+                        final Envelope.Decoder decoder = new Envelope.Decoder();
+                        protected void decode(ChannelHandlerContext ctx, Envelope msg, List<Object> out) throws Exception
                         {
                             // Handle ERROR responses during initial connection and protocol negotiation
                             if ( msg.header.type == Message.Type.ERROR)
@@ -790,7 +788,7 @@ public class CQLConnectionTest
                             assert msg.header.type == Message.Type.READY;
                             msg.release();
 
-                            // just split the messaging frame into cql frames and stash them for verification
+                            // just split the messaging into cql messages and stash them for verification
                             FrameDecoder.FrameProcessor processor =  frame -> {
                                 if (frame instanceof FrameDecoder.IntactFrame)
                                 {
@@ -800,7 +798,7 @@ public class CQLConnectionTest
                                         ByteBuf buffer = Unpooled.wrappedBuffer(bytes);
                                         try
                                         {
-                                            inboundFrames.add(cqlFrameDecoder.decodeFrame(buffer));
+                                            inboundMessages.add(decoder.decode(buffer));
                                             responsesReceived.countDown();
                                         }
                                         catch (Exception e)
@@ -813,16 +811,16 @@ public class CQLConnectionTest
                                 return true;
                             };
 
-                            // for testing purposes, don't actually encode CQL messages and Frames,
-                            // we supply message frames directly to this client
-                            channel.pipeline().remove("cqlFrameEncoder");
-                            channel.pipeline().remove("cqlMessageEncoder");
-                            channel.pipeline().remove("cqlFrameDecoder");
+                            // for testing purposes, don't actually encode CQL messages,
+                            // we supply messaging frames directly to this client
+                            channel.pipeline().remove("envelopeEncoder");
+                            channel.pipeline().remove("messageEncoder");
+                            channel.pipeline().remove("envelopeDecoder");
 
                             // replace this handshake handler with an inbound message frame decoder
-                            channel.pipeline().replace(this, "messageFrameDecoder", codec.decoder);
+                            channel.pipeline().replace(this, "frameDecoder", codec.decoder);
                             // add an outbound message frame encoder
-                            channel.pipeline().addLast("messageFrameEncoder", codec.encoder);
+                            channel.pipeline().addLast("frameEncoder", codec.encoder);
                             channel.pipeline().addLast("errorHandler", new ChannelInboundHandlerAdapter()
                             {
                                 @Override
@@ -843,8 +841,8 @@ public class CQLConnectionTest
                             codec.decoder.activate(processor);
                             connected = true;
                             // Schedule the proto-flusher to collate any messages that have been
-                            // written, via send(Frame frame), and flush them to the outbound pipeline
-                            outboundFrames.schedule(channel.pipeline().lastContext());
+                            // written, via enqueue(Envelope message), and flush them to the outbound pipeline
+                            flusher.schedule(channel.pipeline().lastContext());
                             ready.countDown();
                         }
                     });
@@ -874,10 +872,10 @@ public class CQLConnectionTest
                 throw new RuntimeException("Failed to establish client connection in 10s");
         }
 
-        void send(Frame frame)
+        void send(Envelope request)
         {
-            outboundFrames.accumulate(frame);
-            sendSize += frame.header.bodySizeInBytes;
+            flusher.enqueue(request);
+            sendSize += request.header.bodySizeInBytes;
         }
 
         private void awaitResponses() throws InterruptedException
@@ -886,7 +884,7 @@ public class CQLConnectionTest
             {
                 fail(String.format("Didn't receive all responses, expected %d, actual %d",
                                    expectedResponses,
-                                   inboundFrames.size()));
+                                   inboundMessages.size()));
             }
         }
 
@@ -900,9 +898,9 @@ public class CQLConnectionTest
             return connectionError;
         }
 
-        private Frame pollResponses()
+        private Envelope pollResponses()
         {
-            return inboundFrames.poll();
+            return inboundMessages.poll();
         }
 
         private void stop()
@@ -910,10 +908,10 @@ public class CQLConnectionTest
             if (channel != null && channel.isOpen())
                 channel.close().awaitUninterruptibly();
 
-            outboundFrames.releaseAll();
+            flusher.releaseAll();
 
-            Frame f;
-            while ((f = inboundFrames.poll()) != null)
+            Envelope f;
+            while ((f = inboundMessages.poll()) != null)
                 f.release();
         }
     }

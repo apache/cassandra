@@ -30,7 +30,7 @@ import org.apache.commons.lang3.ArrayUtils;
  * The native (CQL binary) protocol version.
  *
  * Some versions may be in beta, which means that the client must
- * specify the beta flag in the frame for the version to be considered valid.
+ * specify the beta flag in the envelope's header for the version to be considered valid.
  * Beta versions must have the word "beta" in their description, this is mandated
  * by the specs.
  *

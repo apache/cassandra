@@ -24,7 +24,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -34,8 +33,6 @@ import io.netty.channel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
@@ -145,7 +142,7 @@ public abstract class Message
     public final Type type;
     protected Connection connection;
     private int streamId;
-    private Frame sourceFrame;
+    private Envelope source;
     private Map<String, ByteBuffer> customPayload;
     protected ProtocolVersion forcedProtocolVersion = null;
 
@@ -175,14 +172,14 @@ public abstract class Message
         return streamId;
     }
 
-    public void setSourceFrame(Frame sourceFrame)
+    public void setSource(Envelope source)
     {
-        this.sourceFrame = sourceFrame;
+        this.source = source;
     }
 
-    public Frame getSourceFrame()
+    public Envelope getSource()
     {
-        return sourceFrame;
+        return source;
     }
 
     public Map<String, ByteBuffer> getCustomPayload()
@@ -303,9 +300,9 @@ public abstract class Message
         }
     }
 
-    public Frame encode(ProtocolVersion version)
+    public Envelope encode(ProtocolVersion version)
     {
-        EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
+        EnumSet<Envelope.Header.Flag> flags = EnumSet.noneOf(Envelope.Header.Flag.class);
         @SuppressWarnings("unchecked")
         Codec<Message> codec = (Codec<Message>)this.type.codec;
         try
@@ -336,24 +333,24 @@ public abstract class Message
                 if (tracingId != null)
                 {
                     CBUtil.writeUUID(tracingId, body);
-                    flags.add(Frame.Header.Flag.TRACING);
+                    flags.add(Envelope.Header.Flag.TRACING);
                 }
                 if (warnings != null)
                 {
                     CBUtil.writeStringList(warnings, body);
-                    flags.add(Frame.Header.Flag.WARNING);
+                    flags.add(Envelope.Header.Flag.WARNING);
                 }
                 if (customPayload != null)
                 {
                     CBUtil.writeBytesMap(customPayload, body);
-                    flags.add(Frame.Header.Flag.CUSTOM_PAYLOAD);
+                    flags.add(Envelope.Header.Flag.CUSTOM_PAYLOAD);
                 }
             }
             else
             {
                 assert this instanceof Request;
                 if (((Request)this).isTracingRequested())
-                    flags.add(Frame.Header.Flag.TRACING);
+                    flags.add(Envelope.Header.Flag.TRACING);
                 Map<String, ByteBuffer> payload = getCustomPayload();
                 if (payload != null)
                     messageSize += CBUtil.sizeOfBytesMap(payload);
@@ -361,7 +358,7 @@ public abstract class Message
                 if (payload != null)
                 {
                     CBUtil.writeBytesMap(payload, body);
-                    flags.add(Frame.Header.Flag.CUSTOM_PAYLOAD);
+                    flags.add(Envelope.Header.Flag.CUSTOM_PAYLOAD);
                 }
             }
 
@@ -376,15 +373,15 @@ public abstract class Message
             }
 
             // if the driver attempted to connect with a protocol version lower than the minimum supported
-            // version, respond with a protocol error message with the correct frame header for that version
+            // version, respond with a protocol error message with the correct message header for that version
             ProtocolVersion responseVersion = forcedProtocolVersion == null
                                               ? version
                                               : forcedProtocolVersion;
 
             if (responseVersion.isBeta())
-                flags.add(Frame.Header.Flag.USE_BETA);
+                flags.add(Envelope.Header.Flag.USE_BETA);
 
-            return Frame.create(type, getStreamId(), responseVersion, flags, body);
+            return Envelope.create(type, getStreamId(), responseVersion, flags, body);
         }
         catch (Throwable e)
         {
@@ -394,23 +391,23 @@ public abstract class Message
 
     abstract static class Decoder<M extends Message>
     {
-        static Message decodeMessage(Channel channel, Frame frame)
+        static Message decodeMessage(Channel channel, Envelope inbound)
         {
-            boolean isRequest = frame.header.type.direction == Direction.REQUEST;
-            boolean isTracing = frame.header.flags.contains(Frame.Header.Flag.TRACING);
-            boolean isCustomPayload = frame.header.flags.contains(Frame.Header.Flag.CUSTOM_PAYLOAD);
-            boolean hasWarning = frame.header.flags.contains(Frame.Header.Flag.WARNING);
+            boolean isRequest = inbound.header.type.direction == Direction.REQUEST;
+            boolean isTracing = inbound.header.flags.contains(Envelope.Header.Flag.TRACING);
+            boolean isCustomPayload = inbound.header.flags.contains(Envelope.Header.Flag.CUSTOM_PAYLOAD);
+            boolean hasWarning = inbound.header.flags.contains(Envelope.Header.Flag.WARNING);
 
-            UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUUID(frame.body);
-            List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(frame.body);
-            Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(frame.body);
+            UUID tracingId = isRequest || !isTracing ? null : CBUtil.readUUID(inbound.body);
+            List<String> warnings = isRequest || !hasWarning ? null : CBUtil.readStringList(inbound.body);
+            Map<String, ByteBuffer> customPayload = !isCustomPayload ? null : CBUtil.readBytesMap(inbound.body);
 
-            if (isCustomPayload && frame.header.version.isSmallerThan(ProtocolVersion.V4))
+            if (isCustomPayload && inbound.header.version.isSmallerThan(ProtocolVersion.V4))
                 throw new ProtocolException("Received frame with CUSTOM_PAYLOAD flag for native protocol version < 4");
 
-            Message message = frame.header.type.codec.decode(frame.body, frame.header.version);
-            message.setStreamId(frame.header.streamId);
-            message.setSourceFrame(frame);
+            Message message = inbound.header.type.codec.decode(inbound.body, inbound.header.version);
+            message.setStreamId(inbound.header.streamId);
+            message.setSource(inbound);
             message.setCustomPayload(customPayload);
 
             if (isRequest)
@@ -433,29 +430,29 @@ public abstract class Message
             return message;
         }
 
-        abstract M decode(Channel channel, Frame frame);
+        abstract M decode(Channel channel, Envelope inbound);
 
         private static class RequestDecoder extends Decoder<Request>
         {
-            Request decode(Channel channel, Frame frame)
+            Request decode(Channel channel, Envelope request)
             {
-                if (frame.header.type.direction != Direction.REQUEST)
+                if (request.header.type.direction != Direction.REQUEST)
                     throw new ProtocolException(String.format("Unexpected RESPONSE message %s, expecting REQUEST",
-                                                              frame.header.type));
+                                                              request.header.type));
 
-                return (Request) decodeMessage(channel, frame);
+                return (Request) decodeMessage(channel, request);
             }
         }
 
         private static class ResponseDecoder extends Decoder<Response>
         {
-            Response decode(Channel channel, Frame frame)
+            Response decode(Channel channel, Envelope response)
             {
-                if (frame.header.type.direction != Direction.RESPONSE)
+                if (response.header.type.direction != Direction.RESPONSE)
                     throw new ProtocolException(String.format("Unexpected REQUEST message %s, expecting RESPONSE",
-                                                              frame.header.type));
+                                                              response.header.type));
 
-                return (Response) decodeMessage(channel, frame);
+                return (Response) decodeMessage(channel, response);
             }
         }
     }

@@ -56,7 +56,6 @@ public class SimpleClientPerfTest
 
     private static final Logger logger = LoggerFactory.getLogger(CQLConnectionTest.class);
 
-    private Random random;
     private InetAddress address;
     private int port;
 
@@ -67,9 +66,6 @@ public class SimpleClientPerfTest
         DatabaseDescriptor.setAuthenticator(new AllowAllAuthenticator());
         DatabaseDescriptor.setAuthorizer(new AllowAllAuthorizer());
         DatabaseDescriptor.setNetworkAuthorizer(new AllowAllNetworkAuthorizer());
-        long seed = new SecureRandom().nextLong();
-        logger.info("seed: {}", seed);
-        random = new Random(seed);
         address = InetAddress.getLoopbackAddress();
         try
         {
@@ -178,12 +174,12 @@ public class SimpleClientPerfTest
     {
         ResultMessage.Rows response = generateRows(0, responseCaps);
         QueryMessage requestMessage = generateQueryMessage(0, requestCaps);
-        Frame frame = requestMessage.encode(ProtocolVersion.V4);
-        int requestSize = frame.body.readableBytes();
-        frame.release();
-        frame = response.encode(ProtocolVersion.V4);
-        int responseSize = frame.body.readableBytes();
-        frame.release();
+        Envelope message = requestMessage.encode(ProtocolVersion.V4);
+        int requestSize = message.body.readableBytes();
+        message.release();
+        message = response.encode(ProtocolVersion.V4);
+        int responseSize = message.body.readableBytes();
+        message.release();
 
         Server server = new Server.Builder().withHost(address)
                                             .withPort(port)

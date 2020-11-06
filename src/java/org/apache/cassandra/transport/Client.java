@@ -111,12 +111,12 @@ public class Client extends SimpleClient
                if (next.toLowerCase().equals("snappy"))
                {
                    options.put(StartupMessage.COMPRESSION, "snappy");
-                   connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
+                   connection.setCompressor(Compressor.SnappyCompressor.instance);
                }
                if (next.toLowerCase().equals("lz4"))
                {
                    options.put(StartupMessage.COMPRESSION, "lz4");
-                   connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
+                   connection.setCompressor(Compressor.LZ4Compressor.instance);
                }
                if (next.toLowerCase().equals("throw_on_overload"))
                {
@@ -208,17 +208,6 @@ public class Client extends SimpleClient
                 System.err.println("[ERROR] Unknown event type: " + type);
                 return null;
             }
-        }
-        else if (msgType.equals("LI"))
-        {
-            // Hack to test large messages (need to create the table first)
-            final int FRAME_SIZE_THRESHOLD = 1024 * 128; // kb
-            StringBuilder builder = new StringBuilder();
-            for (int i = 0; i < (FRAME_SIZE_THRESHOLD * 2) + 1024 ; i++)
-                builder.append('a');
-            String s = builder.toString();
-            String query = String.format("INSERT INTO test_ks.large_test(k, c, v) VALUES (0, 0, '%s')", s);
-            return new QueryMessage(query, QueryOptions.DEFAULT);
         }
         return null;
     }

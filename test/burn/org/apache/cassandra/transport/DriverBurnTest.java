@@ -35,8 +35,6 @@ import com.datastax.driver.core.*;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.net.AbstractMessageHandler;
-import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.QueryMessage;
@@ -274,12 +272,12 @@ public class DriverBurnTest extends CQLTester
         SimpleStatement request = generateQueryStatement(0, requestCaps);
         ResultMessage.Rows response = generateRows(0, responseCaps);
         QueryMessage requestMessage = generateQueryMessage(0, requestCaps);
-        Frame frame = requestMessage.encode(ProtocolVersion.V4);
-        int requestSize = frame.body.readableBytes();
-        frame.release();
-        frame = response.encode(ProtocolVersion.V4);
-        int responseSize = frame.body.readableBytes();
-        frame.release();
+        Envelope message = requestMessage.encode(ProtocolVersion.V4);
+        int requestSize = message.body.readableBytes();
+        message.release();
+        message = response.encode(ProtocolVersion.V4);
+        int responseSize = message.body.readableBytes();
+        message.release();
         Message.Type.QUERY.unsafeSetCodec(new Message.Codec<QueryMessage>() {
             public QueryMessage decode(ByteBuf body, ProtocolVersion version)
             {

@@ -56,19 +56,19 @@ public class ExceptionHandlers
         }
 
         @Override
-        public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause) throws Exception
+        public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
         {
             // Provide error message to client in case channel is still open
             UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
             if (ctx.channel().isOpen())
             {
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
-                Frame frame = errorMessage.encode(version);
-                FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.frameSize(frame.header));
+                Envelope response = errorMessage.encode(version);
+                FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.envelopeSize(response.header));
                 try
                 {
-                    frame.encodeInto(payload.buffer);
-                    frame.release();
+                    response.encodeInto(payload.buffer);
+                    response.release();
                     payload.finish();
                     ChannelPromise promise = ctx.newPromise();
                     // On protocol exception, close the channel as soon as the message has been sent
