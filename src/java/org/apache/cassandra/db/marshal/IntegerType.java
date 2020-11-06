@@ -30,10 +30,18 @@ import org.apache.cassandra.serializers.IntegerSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 public final class IntegerType extends NumberType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
+
+    // Constants or escaping values needed to encode/decode variable-length integers in our custom byte-ordered
+    // encoding scheme.
+    private static final int POSITIVE_VARINT_HEADER = 0x80;
+    private static final int NEGATIVE_VARINT_LENGTH_HEADER = 0x00;
+    private static final int POSITIVE_VARINT_LENGTH_HEADER = 0xFF;
 
     private static <V> int findMostSignificantByte(V value, ValueAccessor<V> accessor)
     {
@@ -129,6 +137,71 @@ public final class IntegerType extends NumberType<BigInteger>
         }
 
         return 0;
+    }
+
+    /**
+     * Constructs a byte-comparable representation of the number.
+     * We represent it as
+     *    <zero or more length_bytes where length = 128> <length_byte> <first_significant_byte> <zero or more bytes>
+     * where a length_byte is:
+     *    - 0x80 + (length - 1) for positive numbers (so that longer length sorts bigger)
+     *    - 0x7F - (length - 1) for negative numbers (so that longer length sorts smaller)
+     * we don't need to sign-invert the first significant byte as the order there is already determined by the length
+     * byte.
+     *
+     * The representations are prefix-free, because representations of different length always have length bytes that
+     * differ.
+     *
+     * Examples:
+     *    0             as 8000
+     *    1             as 8001
+     *    127           as 807F
+     *    255           as 80FF
+     *    2^32-1        as 837FFFFFFF
+     *    2^32          as 8380000000
+     *    2^33          as 840100000000
+     */
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer buf, ByteComparable.Version version)
+    {
+        int p = buf.position();
+        final int limit = buf.limit();
+        if (p == limit)
+            return null;
+
+        // skip padding
+        final byte signbyte = buf.get(p);
+        if (signbyte == (byte) POSITIVE_VARINT_LENGTH_HEADER || signbyte == (byte) NEGATIVE_VARINT_LENGTH_HEADER)
+            while (p + 1 < limit && buf.get(++p) == signbyte) {}
+        final int startpos = p;
+
+        return new ByteSource()
+        {
+            int pos = startpos;
+            int sizeToReport = limit - startpos;
+            boolean sizeReported = false;
+
+            public int next()
+            {
+                if (!sizeReported)
+                {
+                    int v = sizeToReport;
+                    if (v >= 128)
+                        v = 128;
+                    else
+                        sizeReported = true;
+
+                    sizeToReport -= v;
+                    return signbyte >= 0
+                           ? POSITIVE_VARINT_HEADER + (v - 1)
+                           : POSITIVE_VARINT_HEADER - v;
+                }
+                if (pos == limit)
+                    return END_OF_STREAM;
+
+                return buf.get(pos++) & 0xFF;
+            }
+        };
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
