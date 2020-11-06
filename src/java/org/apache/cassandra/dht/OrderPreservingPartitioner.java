@@ -33,6 +33,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
@@ -193,6 +195,12 @@ public class OrderPreservingPartitioner implements IPartitioner
         public long getHeapSize()
         {
             return EMPTY_SIZE + ObjectSizes.sizeOf(token);
+        }
+
+        @Override
+        public ByteSource asComparableBytes(ByteComparable.Version version)
+        {
+            return ByteSource.of((String) token, version);
         }
     }
 
