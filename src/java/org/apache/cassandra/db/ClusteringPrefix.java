@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.ToIntFunction;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.*;
@@ -34,6 +35,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable.Version;
+import org.apache.cassandra.utils.ByteSource;
 
 /**
  * A clustering prefix is the unit of what a {@link ClusteringComparator} can compare.
@@ -62,14 +65,19 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
     {
         // WARNING: the ordering of that enum matters because we use ordinal() in the serialization
 
-        EXCL_END_BOUND              (0, -1),
-        INCL_START_BOUND            (0, -1),
-        EXCL_END_INCL_START_BOUNDARY(0, -1),
-        STATIC_CLUSTERING           (1, -1),
-        CLUSTERING                  (2,  0),
-        INCL_END_EXCL_START_BOUNDARY(3,  1),
-        INCL_END_BOUND              (3,  1),
-        EXCL_START_BOUND            (3,  1);
+        EXCL_END_BOUND              (0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
+        INCL_START_BOUND            (0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
+        EXCL_END_INCL_START_BOUNDARY(0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
+        STATIC_CLUSTERING           (1, -1, v -> v == Version.LEGACY
+                                                 ? ByteSource.LT_NEXT_COMPONENT + 1
+                                                 : ByteSource.TERMINATOR - 1),
+        CLUSTERING                  (2,  0, v -> v == Version.LEGACY
+                                                 ? ByteSource.NEXT_COMPONENT
+                                                 : ByteSource.TERMINATOR),
+        INCL_END_EXCL_START_BOUNDARY(3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
+        INCL_END_BOUND              (3,  1, v -> ByteSource.GT_NEXT_COMPONENT),
+        EXCL_START_BOUND            (3,  1, v -> ByteSource.GT_NEXT_COMPONENT);
+
 
         private final int comparison;
 
@@ -79,10 +87,13 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
          */
         public final int comparedToClustering;
 
-        Kind(int comparison, int comparedToClustering)
+        public final ToIntFunction<Version> asByteComparable;
+
+        Kind(int comparison, int comparedToClustering, ToIntFunction<Version> asByteComparable)
         {
             this.comparison = comparison;
             this.comparedToClustering = comparedToClustering;
+            this.asByteComparable = asByteComparable;
         }
 
         /**
@@ -197,6 +208,16 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
                  ? (this == INCL_END_EXCL_START_BOUNDARY ? INCL_END_BOUND : EXCL_END_BOUND)
                  : (this == INCL_END_EXCL_START_BOUNDARY ? EXCL_START_BOUND : INCL_START_BOUND);
         }
+
+        /*
+         * Returns a terminator value for this clustering type that is suitable for byte comparison.
+         * Inclusive starts / exclusive ends need a lower value than ByteSource.NEXT_COMPONENT and the clustering byte,
+         * exclusive starts / inclusive ends -- a higher.
+         */
+        public int asByteComparableValue(Version version)
+        {
+            return asByteComparable.applyAsInt(version);
+        }
     }
 
     default boolean isBottom()
@@ -308,6 +329,24 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
             values[i] = accessor().toBuffer(get(i));
         return CompositeType.build(ByteBufferAccessor.instance, values);
     }
+
+    /**
+     * Produce a human-readable representation of the clustering given the list of types.
+     * Easier to access than metadata for debugging.
+     */
+    public default String clusteringString(List<AbstractType<?>> types)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(kind()).append('(');
+        for (int i = 0; i < size(); i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+            sb.append(types.get(i).getString(get(i), accessor()));
+        }
+        return sb.append(')').toString();
+    }
+
     /**
      * The values of this prefix as an array.
      * <p>
