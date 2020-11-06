@@ -488,6 +488,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                             GossipHelper.unsafeStatusToNormal(this, (IInstance) peer);
                     });
 
+                    StorageService.instance.setNormalModeUnsafe();
                 }
 
                 StorageService.instance.ensureTraceKeyspace();
