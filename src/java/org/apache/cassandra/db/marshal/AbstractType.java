@@ -54,6 +54,8 @@ import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM
 @Unmetered
 public abstract class AbstractType<T> implements Comparator<ByteBuffer>, AssignmentTestable
 {
+    private final static int VARIABLE_LENGTH = -1;
+
     public final Comparator<ByteBuffer> reverseComparator;
 
     public enum ComparisonType
@@ -419,11 +421,28 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
-     * The length of values for this type if all values are of fixed length, -1 otherwise.
+     * The length of values for this type if all values are of fixed length, -1 otherwise. This has an impact on
+     * serialization.
+     * <lu>
+     *  <li> see {@link #writeValue} </li>
+     *  <li> see {@link #read} </li>
+     *  <li> see {@link #writtenLength} </li>
+     *  <li> see {@link #skipValue} </li>
+     * </lu>
      */
     public int valueLengthIfFixed()
     {
-        return -1;
+        return VARIABLE_LENGTH;
+    }
+
+    /**
+     * Checks if all values are of fixed length.
+     *
+     * @return {@code true} if all values are of fixed length, {@code false} otherwise.
+     */
+    public final boolean isValueLengthFixed()
+    {
+        return valueLengthIfFixed() != VARIABLE_LENGTH;
     }
 
     // This assumes that no empty values are passed
