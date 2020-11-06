@@ -28,6 +28,8 @@ import org.apache.cassandra.serializers.ShortSerializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 public class ShortType extends NumberType<Short>
 {
@@ -44,6 +46,14 @@ public class ShortType extends NumberType<Short>
         if (diff != 0)
             return diff;
         return ValueAccessor.compare(left, accessorL, right, accessorR);
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer buf, ByteComparable.Version version)
+    {
+        return version == ByteComparable.Version.LEGACY
+               ? ByteSource.signedFixedLengthNumber(buf)
+               : ByteSource.optionalSignedFixedLengthNumber(buf);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
