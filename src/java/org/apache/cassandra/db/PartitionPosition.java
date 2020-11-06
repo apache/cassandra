@@ -24,8 +24,10 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
-public interface PartitionPosition extends RingPosition<PartitionPosition>
+public interface PartitionPosition extends RingPosition<PartitionPosition>, ByteComparable
 {
     public static enum Kind
     {
@@ -53,6 +55,20 @@ public interface PartitionPosition extends RingPosition<PartitionPosition>
 
     public Kind kind();
     public boolean isMinimum();
+
+    /**
+     * Produce a prefix-free byte-comparable representation of the key, i.e. such a sequence of bytes that any pair x, y
+     * of valid positions (with the same key column types and partitioner),
+     *   x.compareTo(y) == compareLexicographicallyUnsigned(x.asComparableBytes(), y.asComparableBytes())
+     * and
+     *   x.asComparableBytes() is not a prefix of y.asComparableBytes()
+     *
+     * We use a two-component tuple for decorated keys, and a one-component tuple for key bounds, where the terminator
+     * byte is chosen to yield the correct comparison result. No decorated key can be a prefix of another (per the tuple
+     * encoding), and no key bound can be a prefix of one because it uses a terminator byte that is different from the
+     * tuple separator.
+     */
+    public abstract ByteSource asComparableBytes(Version version);
 
     public static class RowPositionSerializer implements IPartitionerDependentSerializer<PartitionPosition>
     {
