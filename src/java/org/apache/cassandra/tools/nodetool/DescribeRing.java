@@ -22,6 +22,7 @@ import io.airlift.command.Arguments;
 import io.airlift.command.Command;
 
 import java.io.IOException;
+import java.io.PrintStream;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -35,13 +36,14 @@ public class DescribeRing extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Schema Version:" + probe.getSchemaVersion());
-        System.out.println("TokenRange: ");
+        PrintStream out = probe.output().out;
+        out.println("Schema Version:" + probe.getSchemaVersion());
+        out.println("TokenRange: ");
         try
         {
             for (String tokenRangeString : probe.describeRing(keyspace))
             {
-                System.out.println("\t" + tokenRangeString);
+                out.println("\t" + tokenRangeString);
             }
         } catch (IOException e)
         {

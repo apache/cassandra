@@ -15,26 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Command;
+package org.apache.cassandra.distributed.shared;
 
-import java.util.List;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-
-@Command(name = "rangekeysample", description = "Shows the sampled keys held across all keyspaces")
-public class RangeKeySample extends NodeToolCmd
+/**
+ * Tells jvm-dtest that a class should be shared accross all {@link ClassLoader}s.
+ *
+ * Jvm-dtest relies on classloader isolation to run multiple cassandra instances in the same JVM, this makes it
+ * so some classes do not get shared (outside a blesssed set of classes/packages). When the default behavior
+ * is not desirable, this annotation will tell jvm-dtest to share the class accross all class loaders.
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ ElementType.TYPE })
+public @interface Shared
 {
-    @Override
-    public void execute(NodeProbe probe)
-    {
-        probe.output().out.println("RangeKeySample: ");
-        List<String> tokenStrings = probe.sampleKeyRange();
-        for (String tokenString : tokenStrings)
-        {
-            probe.output().out.println("\t" + tokenString);
-        }
-    }
 }

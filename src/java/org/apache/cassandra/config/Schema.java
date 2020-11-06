@@ -205,10 +205,8 @@ public class Schema
      */
     public void storeKeyspaceInstance(Keyspace keyspace)
     {
-        if (keyspaceInstances.containsKey(keyspace.getName()))
+        if (keyspaceInstances.putIfAbsent(keyspace.getName(), keyspace) != null)
             throw new IllegalArgumentException(String.format("Keyspace %s was already initialized.", keyspace.getName()));
-
-        keyspaceInstances.put(keyspace.getName(), keyspace);
     }
 
     /**
@@ -653,9 +651,11 @@ public class Schema
             droppedCfs.add(cfm.cfId);
         }
 
-        // remove the keyspace from the static instances.
-        Keyspace.clear(ksm.name);
-        clearKeyspaceMetadata(ksm);
+        synchronized (Keyspace.class) {
+            // Remove the keyspace from the static instances.
+            Keyspace.clear(ksm.name);
+            clearKeyspaceMetadata(ksm);
+        }
 
         Keyspace.writeOrder.awaitNewBarrier();
 

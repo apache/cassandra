@@ -27,7 +27,7 @@ public class GetConcurrentCompactors extends NodeToolCmd
 {
     protected void execute(NodeProbe probe)
     {
-        System.out.println("Current concurrent compactors in the system is: \n" +
+        probe.output().out.println("Current concurrent compactors in the system is: \n" +
                            probe.getConcurrentCompactors());
     }
 }

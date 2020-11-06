@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -65,12 +66,14 @@ import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.reflections.Reflections;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -98,13 +101,21 @@ import org.apache.cassandra.utils.concurrent.SimpleCondition;
  */
 public abstract class AbstractCluster<I extends IInstance> implements ICluster<I>, AutoCloseable
 {
-    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());;
+    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());
+
 
     // WARNING: we have this logger not (necessarily) for logging, but
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
     // before we instantiate any for a new instance
     private static final Logger logger = LoggerFactory.getLogger(AbstractCluster.class);
     private static final AtomicInteger GENERATION = new AtomicInteger();
+
+    // include byteman so tests can use
+    private static final Set<String> SHARED_CLASSES = findClassesMarkedForSharedClassLoader();
+    private static final Predicate<String> SHARED_PREDICATE = s ->
+                                                              SHARED_CLASSES.contains(s) ||
+                                                              InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
+                                                              s.startsWith("org.jboss.byteman");
 
     private final UUID clusterId = UUID.randomUUID();
     private final File root;
@@ -163,7 +174,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         private IInvokableInstance newInstance(int generation)
         {
-            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader);
+            ClassLoader classLoader = new InstanceClassLoader(generation, config.num(), version.classpath, sharedClassLoader, SHARED_PREDICATE);
             if (instanceInitializer != null)
                 instanceInitializer.accept(classLoader, config.num());
             return Instance.transferAdhoc((SerializableBiFunction<IInstanceConfig, ClassLoader, IInvokableInstance>)Instance::new, classLoader)
@@ -320,7 +331,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         NetworkTopology topology = NetworkTopology.build(ipPrefix, broadcastPort, nodeIdTopology);
 
         InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp, datadirCount);
-        config.set("dtest.api.cluster_id", clusterId);
+        config.set("dtest.api.cluster_id", clusterId.toString());
         if (configUpdater != null)
             configUpdater.accept(config);
 
@@ -375,6 +386,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public I get(InetSocketAddress addr)
     {
         return instanceMap.get(addr);
+    }
+
+    public I getFirstRunningInstance()
+    {
+        return stream().filter(i -> !i.isShutdown()).findFirst().orElseThrow(
+            () -> new IllegalStateException("All instances are shutdown"));
     }
 
     public int size()
@@ -449,11 +466,31 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void schemaChange(String query)
     {
-        get(1).sync(() -> {
+        schemaChange(query, false);
+    }
+
+    /**
+     * Change the schema of the cluster, tolerating stopped nodes.  N.B. the schema
+     * will not automatically be updated when stopped nodes are restarted, individual tests need to
+     * re-synchronize somehow (by gossip or some other mechanism).
+     * @param query Schema altering statement
+     */
+    public void schemaChangeIgnoringStoppedInstances(String query)
+    {
+        schemaChange(query, true);
+    }
+
+    private void schemaChange(String query, boolean ignoreStoppedInstances)
+    {
+        I instance = ignoreStoppedInstances ? getFirstRunningInstance() : get(1);
+
+        instance.sync(() -> {
             try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
             {
                 // execute the schema change
-                coordinator(1).execute(query, ConsistencyLevel.ALL);
+                instance.coordinator().execute(query, ConsistencyLevel.ALL);
+                if (ignoreStoppedInstances)
+                    monitor.ignoreStoppedInstances();
                 monitor.waitForCompletion();
             }
         }).run();
@@ -488,14 +525,21 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         final SimpleCondition completed;
         private final long timeOut;
         private final TimeUnit timeoutUnit;
+        protected Predicate<IInstance> instanceFilter;
         volatile boolean changed;
 
         public ChangeMonitor(long timeOut, TimeUnit timeoutUnit)
         {
             this.timeOut = timeOut;
             this.timeoutUnit = timeoutUnit;
+            this.instanceFilter = i -> true;
             this.cleanup = new ArrayList<>(instances.size());
             this.completed = new SimpleCondition();
+        }
+
+        public void ignoreStoppedInstances()
+        {
+            instanceFilter = instanceFilter.and(i -> !i.isShutdown());
         }
 
         protected void signal()
@@ -529,8 +573,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         private void startPolling()
         {
-            for (IInstance instance : instances)
-                cleanup.add(startPolling(instance));
+            instances.stream().filter(instanceFilter).forEach(instance -> cleanup.add(startPolling(instance)));
         }
 
         protected abstract IListen.Cancel startPolling(IInstance instance);
@@ -565,7 +608,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         protected boolean isCompleted()
         {
-            return 1 == instances.stream().map(IInstance::schemaVersion).distinct().count();
+            return 1 == instances.stream().filter(instanceFilter).map(IInstance::schemaVersion).distinct().count();
         }
 
         protected String getMonitorTimeoutMessage()
@@ -718,5 +761,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                .collect(Collectors.toList());
     }
 
+    private static Set<String> findClassesMarkedForSharedClassLoader()
+    {
+        return new Reflections("org.apache.cassandra").getTypesAnnotatedWith(Shared.class).stream()
+                                                      .map(Class::getName)
+                                                      .collect(Collectors.toSet());
+    }
 }
 

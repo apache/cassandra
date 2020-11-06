@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,7 @@ public class ViewBuildStatus extends NodeTool.NodeToolCmd
             checkArgument(false, "viewbuildstatus requires keyspace and view name arguments");
         }
 
+        PrintStream out = probe.output().out;
         Map<String, String> buildStatus = probe.getViewBuildStatuses(keyspace, view);
         boolean failed = false;
         TableBuilder builder = new TableBuilder();
@@ -72,12 +74,12 @@ public class ViewBuildStatus extends NodeTool.NodeToolCmd
         }
 
         if (failed) {
-            System.out.println(String.format("%s.%s has not finished building; node status is below.", keyspace, view));
-            System.out.println();
-            builder.printTo(System.out);
+            out.println(String.format("%s.%s has not finished building; node status is below.", keyspace, view));
+            out.println();
+            builder.printTo(out);
             System.exit(1);
         } else {
-            System.out.println(String.format("%s.%s has finished building", keyspace, view));
+            out.println(String.format("%s.%s has finished building", keyspace, view));
             System.exit(0);
         }
     }

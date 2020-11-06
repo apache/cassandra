@@ -1,11 +1,19 @@
 3.11.9
+ * Synchronize Keyspace instance store/clear (CASSANDRA-16210)
+ * Fix ColumnFilter to avoid querying cells of unselected complex columns (CASSANDRA-15977)
  * Fix memory leak in CompressedChunkReader (CASSANDRA-15880)
  * Don't attempt value skipping with mixed version cluster (CASSANDRA-15833)
  * Avoid failing compactions with very large partitions (CASSANDRA-15164)
  * Make sure LCS handles duplicate sstable added/removed notifications correctly (CASSANDRA-14103)
 Merged from 3.0:
+ * Fix OOM when terminating repair session (CASSANDRA-15902)
+ * Avoid marking shutting down nodes as up after receiving gossip shutdown message (CASSANDRA-16094)
+ * Check SSTables for latest version before dropping compact storage (CASSANDRA-16063)
  * Handle unexpected columns due to schema races (CASSANDRA-15899)
  * Add flag to ignore unreplicated keyspaces during repair (CASSANDRA-15160)
+Merged from 2.2:
+ * Package tools/bin scripts as executable (CASSANDRA-16151)
+ * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
 
 3.11.8
  * Correctly interpret SASI's `max_compaction_flush_memory_in_mb` setting in megabytes not bytes (CASSANDRA-16071)

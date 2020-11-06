@@ -56,7 +56,7 @@ public class TableStats extends NodeToolCmd
         StatsHolder holder = new TableStatsHolder(probe, humanReadable, ignore, tableNames);
         // print out the keyspace and table statistics
         StatsPrinter printer = TableStatsPrinter.from(outputFormat);
-        printer.print(holder, System.out);
+        printer.print(holder, probe.output().out);
     }
 
 }
