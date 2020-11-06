@@ -149,7 +149,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         try
         {
             ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ProtocolVersion.V3);
+            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
             int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
             for (int i = 0; i < n; i++)
             {
@@ -185,7 +185,7 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
         try
         {
             ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ProtocolVersion.V3);
+            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
             input.position(input.position() + sizeOfCollectionSize(n, ProtocolVersion.V3));
             int startPos = input.position();
             int count = 0;
