@@ -19,9 +19,15 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.function.Function;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.db.marshal.ValueAccessorTest.accessors;
+import static org.quicktheories.QuickTheory.qt;
 
 public class ByteBufferAccessorTest
 {
@@ -33,18 +39,18 @@ public class ByteBufferAccessorTest
         assert Byte.MIN_VALUE <= start && start <= Byte.MAX_VALUE;
         assert (start + size) <= Byte.MAX_VALUE;
         byte[] a = new byte[size];
-        for (int i=0; i<size; i++)
+        for (int i = 0; i < size; i++)
             a[i] = (byte) (start + i);
         return a;
     }
 
-    private <V> void testCopyFromOffsets(ValueAccessor<V> dstAccessor)
+    private <V> void testCopyFromOffsets(ValueAccessor<V> dstAccessor, Function<ByteBuffer, ByteBuffer> padding1, Function<V, V> padding2)
     {
-        ByteBuffer src = ByteBuffer.wrap(array(0, 10));
-        src.position(5);
+        ByteBuffer src = padding1.apply(ByteBuffer.wrap(array(0, 10)));
+        src.position(src.position() + 5);
         Assert.assertEquals(5, src.remaining());
 
-        V dst = dstAccessor.allocate(5);
+        V dst = padding2.apply(dstAccessor.allocate(5));
         bbAccessor.copyTo(src, 0, dst, dstAccessor, 0, 5);
         Assert.assertArrayEquals(dstAccessor.getClass().getSimpleName(),
                                  array(5, 5), dstAccessor.toArray(dst));
@@ -56,30 +62,30 @@ public class ByteBufferAccessorTest
     @Test
     public void testCopyFromOffets()
     {
-        for (ValueAccessor<?> accessor : ValueAccessors.ACCESSORS)
-            testCopyFromOffsets(accessor);
+        qt().forAll(accessors.get(), ValueAccessorTest.paddings.get(), ValueAccessorTest.paddings.get())
+            .checkAssert(this::testCopyFromOffsets);
     }
 
-    private <V> void testCopyToOffsets(ValueAccessor<V> srcAccessor)
+    private <V> void testCopyToOffsets(ValueAccessor<V> srcAccessor, Function<V, V> padding1, Function<ByteBuffer, ByteBuffer> padding2)
     {
         byte[] value = array(5, 5);
-        V src = srcAccessor.allocate(5);
+        V src = padding1.apply(srcAccessor.allocate(5));
         baAccessor.copyTo(value, 0, src, srcAccessor, 0, value.length);
 
-        byte[] actual = new byte[10];
-        ByteBuffer bb = ByteBuffer.wrap(actual);
-        bb.position(5);
+        ByteBuffer bb = padding2.apply(ByteBuffer.wrap(new byte[10]));
+        ByteBuffer actual = bb.duplicate();
+        bb.position(bb.position() + 5);
         srcAccessor.copyTo(src, 0, bb, bbAccessor, 0, value.length);
 
         byte[] expected = new byte[10];
         System.arraycopy(value, 0, expected, 5, 5);
-        Assert.assertArrayEquals(srcAccessor.getClass().getSimpleName(), expected, actual);
+        Assert.assertArrayEquals(srcAccessor.getClass().getSimpleName(), expected, ByteBufferUtil.getArray(actual));
     }
 
     @Test
     public void testCopyToOffsets()
     {
-        for (ValueAccessor<?> accessor : ValueAccessors.ACCESSORS)
-            testCopyToOffsets(accessor);
+        qt().forAll(accessors.get(), ValueAccessorTest.paddings.get(), ValueAccessorTest.paddings.get())
+            .checkAssert(this::testCopyToOffsets);
     }
 }
