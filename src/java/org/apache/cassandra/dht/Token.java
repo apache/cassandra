@@ -26,6 +26,8 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteSource;
 
 public abstract class Token implements RingPosition<Token>, Serializable
 {
@@ -98,6 +100,20 @@ public abstract class Token implements RingPosition<Token>, Serializable
     abstract public IPartitioner getPartitioner();
     abstract public long getHeapSize();
     abstract public Object getTokenValue();
+
+    /**
+     * Produce a weakly prefix-free byte-comparable representation of the token, i.e. such a sequence of bytes that any
+     * pair x, y of valid tokens of this type and any bytes b1, b2 between 0x10 and 0xEF,
+     * (+ stands for concatenation)
+     *   compare(x, y) == compareLexicographicallyUnsigned(asByteComparable(x)+b1, asByteComparable(y)+b2)
+     * (i.e. the values compare like the original type, and an added 0x10-0xEF byte at the end does not change that) and:
+     *   asByteComparable(x)+b1 is not a prefix of asByteComparable(y)      (weakly prefix free)
+     * (i.e. a valid representation of a value may be a prefix of another valid representation of a value only if the
+     * following byte in the latter is smaller than 0x10 or larger than 0xEF). These properties are trivially true if
+     * the encoding compares correctly and is prefix free, but also permits a little more freedom that enables somewhat
+     * more efficient encoding of arbitrary-length byte-comparable blobs.
+     */
+    abstract public ByteSource asComparableBytes(ByteComparable.Version version);
 
     /**
      * Returns a measure for the token space covered between this token and next.
