@@ -94,7 +94,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         return 0;
     }
 
-    protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset)
+    protected <V> int getComparatorSize(V value, ValueAccessor<V> accessor, int offset)
     {
         int header = accessor.getShort(value, offset);
         if ((header & 0x8000) == 0)
@@ -114,7 +114,6 @@ public class DynamicCompositeType extends AbstractCompositeType
             int header = accessor.getShort(value, offset);
             if ((header & 0x8000) == 0)
             {
-
                 String name = accessor.toString(accessor.slice(value, offset + 2, header));
                 return TypeParser.parse(name);
             }
