@@ -646,6 +646,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // check that all nodes are in token metadata
             for (int i = 0; i < tokens.size(); ++i)
                 assert storageService.getTokenMetadata().isMember(hosts.get(i).getAddress());
+
+            storageService.setNormalModeUnsafe();
         }
         catch (Throwable e) // UnknownHostException
         {
