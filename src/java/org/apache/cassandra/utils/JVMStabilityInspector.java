@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -131,6 +132,7 @@ public final class JVMStabilityInspector
      * e.g. OnOutOfMemoryError, HeapDumpOnOutOfMemoryError, etc.
      * See CASSANDRA-15214 for more details
      */
+    @Exclude // Exclude from just in time compilation.
     private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
     {
         // See the oom thrown from java.nio.Bits.reserveMemory.
