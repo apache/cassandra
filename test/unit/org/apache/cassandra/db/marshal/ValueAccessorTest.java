@@ -21,74 +21,51 @@ package org.apache.cassandra.db.marshal;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Random;
 
-import com.google.common.primitives.Shorts;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
-import org.quicktheories.generators.SourceDSL;
 
-import static org.apache.cassandra.db.marshal.ValueAccessors.ACCESSORS;
+import static org.apache.cassandra.utils.ByteArrayUtil.bytesToHex;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;
 import static org.quicktheories.QuickTheory.qt;
+import static org.quicktheories.generators.Generate.constant;
+import static org.quicktheories.generators.Generate.intArrays;
+import static org.quicktheories.generators.SourceDSL.arbitrary;
+import static org.quicktheories.generators.SourceDSL.doubles;
+import static org.quicktheories.generators.SourceDSL.floats;
+import static org.quicktheories.generators.SourceDSL.integers;
+import static org.quicktheories.generators.SourceDSL.longs;
 
-public class ValueAccessorTest
+public class ValueAccessorTest extends ValueAccessorTester
 {
-    private static byte[] randomBytes(int minSize, int maxSize, Random random)
+    private static <V1, V2> void testHashCodeAndEquals(byte[] rawBytes,
+                                                       ValueAccessor<V1> accessor1,
+                                                       ValueAccessor<V2> accessor2,
+                                                       int[] paddings)
     {
-        int size = random.nextInt(maxSize - minSize + 1) + minSize;
-        byte[] bytes = new byte[size];
-        random.nextBytes(bytes);
-        return bytes;
-    }
-
-    private static ValueAccessor<?> nextAccessor(Random random)
-    {
-        return ACCESSORS[random.nextInt(ACCESSORS.length)];
-    }
-
-    private static <V1, V2> void testHashCodeAndEquals(int seed, ValueAccessor<V1> accessor1, ValueAccessor<V2> accessor2, Random random)
-    {
-        byte[] rawBytes = randomBytes(2, 200, random);
-        int sliceOffset = random.nextInt(rawBytes.length);
-        int sliceSize = random.nextInt(rawBytes.length - sliceOffset);
-        V1 value1 = accessor1.slice(accessor1.valueOf(rawBytes), sliceOffset, sliceSize);
-        V2 value2 = accessor2.slice(accessor2.valueOf(rawBytes), sliceOffset, sliceSize);
+        V1 value1 = leftPad(accessor1.valueOf(rawBytes), paddings[0]);
+        V2 value2 = leftPad(accessor2.valueOf(rawBytes), paddings[1]);
 
         Assert.assertTrue(ValueAccessor.equals(value1, accessor1, value2, accessor2));
 
-        int hash1 =  accessor1.hashCode(value1);
-        int hash2 =  accessor2.hashCode(value2);
-        if (hash1 != hash2)
-            throw new AssertionError(String.format("%s and %s produced inconsistency hash codes for seed %s (%s != %s)",
-                                                   accessor1.getClass().getSimpleName(), accessor2.getClass().getSimpleName(),
-                                                   seed, hash1, hash2));
+        int hash1 = accessor1.hashCode(value1);
+        int hash2 = accessor2.hashCode(value2);
+        Assert.assertEquals(String.format("Inconsistency hash codes (%s != %s)", hash1, hash2), hash1, hash2);
 
         byte[] array1 = accessor1.toArray(value1);
         byte[] array2 = accessor2.toArray(value2);
-        if (!Arrays.equals(array1, array2))
-            throw new AssertionError(String.format("%s and %s produced inconsistent byte arrays for seed %s (%s != %s)",
-                                                   accessor1.getClass().getSimpleName(), accessor2.getClass().getSimpleName(),
-                                                   seed, ByteArrayUtil.bytesToHex(array1), ByteArrayUtil.bytesToHex(array2)));
+        Assert.assertArrayEquals(String.format("Inconsistent byte arrays (%s != %s)", bytesToHex(array1), bytesToHex(array2)),
+                                 array1, array2);
 
         ByteBuffer buffer1 = accessor1.toBuffer(value1);
         ByteBuffer buffer2 = accessor2.toBuffer(value2);
-        if (!buffer1.equals(buffer2))
-            throw new AssertionError(String.format("%s and %s produced inconsistent byte buffers for seed %s (%s != %s)",
-                                                   accessor1.getClass().getSimpleName(), accessor2.getClass().getSimpleName(),
-                                                   seed, ByteBufferUtil.bytesToHex(buffer1), ByteBufferUtil.bytesToHex(buffer1)));
-
-    }
-
-    private static void testHashCodeAndEquals(int seed)
-    {
-        Random random = new Random(seed);
-        testHashCodeAndEquals(seed, nextAccessor(random), nextAccessor(random), random);
+        Assert.assertEquals(String.format("Inconsistent byte buffers (%s != %s)", bytesToHex(buffer1), bytesToHex(buffer1)),
+                            buffer1, buffer2);
     }
 
     /**
@@ -97,90 +74,184 @@ public class ValueAccessorTest
     @Test
     public void testHashCodeAndEquals()
     {
-        for (int i=0; i<10000; i++)
-            testHashCodeAndEquals(i);
+        qt().forAll(byteArrays(integers().between(2, 200)),
+                    accessors(),
+                    accessors(),
+                    intArrays(constant(2), bbPadding()))
+            .checkAssert(ValueAccessorTest::testHashCodeAndEquals);
     }
 
-    private static <V> void testTypeConversion(int seed, ValueAccessor<V> accessor, Random random)
+    private static <V> void testSlice(ValueAccessor<V> accessor, byte[] rawBytes, Slice slice, int padding)
     {
-        String msg = accessor.getClass().getSimpleName() + " seed: " + seed;
-        byte[] b = new byte[2];
-        random.nextBytes(b);
-        Assert.assertEquals(msg, b[0], accessor.toByte(accessor.valueOf(b[0])));
-        Assert.assertArrayEquals(msg, b, accessor.toArray(accessor.valueOf(b)));
+        V value = leftPad(accessor.valueOf(rawBytes), padding);
+        V s = accessor.slice(value, slice.offset, slice.length);
 
-        short s = Shorts.fromBytes(b[0], b[1]);
-        Assert.assertEquals(msg, s, accessor.toShort(accessor.valueOf(s)));
+        byte[] array = accessor.toArray(s);
+        byte[] expected = Arrays.copyOfRange(rawBytes, slice.offset, slice.offset + slice.length);
+        Assert.assertArrayEquals(expected, array);
+    }
 
-        int i = random.nextInt();
-        Assert.assertEquals(msg, i, accessor.toInt(accessor.valueOf(i)));
+    @Test
+    public void testSlice()
+    {
+        qt().forAll(accessors(),
+                    byteArrays(integers().between(2, 200)),
+                    slices(integers().between(2, 100), integers().between(1, 30)),
+                    bbPadding())
+            .assuming((a, r, s, p) -> s.isValidFor(r))
+            .checkAssert(ValueAccessorTest::testSlice);
+    }
 
-        long l = random.nextLong();
-        Assert.assertEquals(msg, l, accessor.toLong(accessor.valueOf(l)));
+    private static <V> void testByteArrayConversion(byte[] array, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf(array), padding);
+        Assert.assertArrayEquals(array, accessor.toArray(value));
+    }
 
-        float f = random.nextFloat();
-        Assert.assertEquals(msg, f, accessor.toFloat(accessor.valueOf(f)), 0.000002);
+    private static <V> void testByteConversion(int b, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf((byte) b), padding);
+        Assert.assertEquals(b, accessor.toByte(value));
+    }
 
-        double d = random.nextDouble();
-        Assert.assertEquals(msg, d, accessor.toDouble(accessor.valueOf(d)), 0.0000002);
+    private static <V> void testShortConversion(int s, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf((short) s), padding);
+        Assert.assertEquals(s, accessor.toShort(value));
+    }
+
+    private static <V> void testIntConversion(int i, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf(i), padding);
+        Assert.assertEquals(i, accessor.toInt(value));
+    }
+
+    private static <V> void testLongConversion(long l, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf(l), padding);
+        Assert.assertEquals(l, accessor.toLong(value));
+    }
+
+    private static <V> void testFloatConversion(float f, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf(f), padding);
+        Assert.assertEquals(f, accessor.toFloat(value), 0.000002);
+    }
+
+    private static <V> void testDoubleConversion(double d, ValueAccessor<V> accessor, int padding)
+    {
+        V value = leftPad(accessor.valueOf(d), padding);
+        Assert.assertEquals(d, accessor.toDouble(value), 0.000002);
     }
 
     @Test
     public void testTypeConversion()
     {
-        for (int i=0; i<10000; i++)
-        {
-            Random random = new Random(i);
-            for (ValueAccessor<?> accessor: ACCESSORS)
-                testTypeConversion(i, accessor, random);
-        }
+        qt().forAll(byteArrays(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testByteArrayConversion);
+
+        qt().forAll(integers().between(Byte.MIN_VALUE, Byte.MAX_VALUE),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testByteConversion);
+
+        qt().forAll(integers().between(Short.MIN_VALUE, Short.MAX_VALUE),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testShortConversion);
+
+        qt().forAll(integers().all(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testIntConversion);
+
+        qt().forAll(longs().all(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testLongConversion);
+
+        qt().forAll(floats().any(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testFloatConversion);
+
+        qt().forAll(doubles().any(),
+                    accessors(),
+                    bbPadding()).checkAssert(ValueAccessorTest::testDoubleConversion);
     }
 
-    private static <V> void testReadWriteWithShortLength(ValueAccessor<V> accessor, int size) throws IOException
+    private static <V> void testReadWriteWithShortLength(ValueAccessor<V> accessor, byte[] bytes, int padding)
     {
-        Random random = new Random(size);
-        byte[] bytes = new byte[size];
-        random.nextBytes(bytes);
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
-        try (DataOutputBuffer out = new DataOutputBuffer(size + 2))
+        try (DataOutputBuffer out = new DataOutputBuffer(bytes.length + 2))
         {
             ByteBufferUtil.writeWithShortLength(buffer, out);
-            V flushed = accessor.valueOf(out.toByteArray());
+            V flushed = leftPad(accessor.valueOf(out.toByteArray()), padding);
             V value = accessor.sliceWithShortLength(flushed, 0);
             Assert.assertArrayEquals(bytes, accessor.toArray(value));
+        }
+        catch (IOException e)
+        {
+            Assert.fail("Unexpected exception: " + e);
         }
     }
 
     @Test
-    public void testReadWriteWithShortLength() throws IOException
+    public void testReadWriteWithShortLength()
     {
-        int[] lengths = new int[]{0, 1, 2, 256, 0x8001, 0xFFFF};
-        for (int length : lengths)
-        {
-            for (ValueAccessor<?> accessor: ACCESSORS)
-                testReadWriteWithShortLength(accessor, length);
-        }
+         Gen<Integer> lengths = arbitrary().pick(0, 1, 2, 256, 0x8001, 0xFFFF);
+         qt().forAll(accessors(),
+                     byteArrays(lengths),
+                     bbPadding()).checkAssert(ValueAccessorTest::testReadWriteWithShortLength);
+    }
+
+    public static <V> void testUnsignedShort(int jint, ValueAccessor<V> accessor, int padding, int offset)
+    {
+        V value = leftPad(accessor.allocate(5), padding);
+        accessor.putShort(value, offset, (short) jint); // testing signed
+        Assertions.assertThat(accessor.getUnsignedShort(value, offset))
+                  .as("getUnsignedShort(putShort(unsigned_short)) != unsigned_short for %s", accessor.getClass())
+                  .isEqualTo(jint);
     }
 
     @Test
     public void testUnsignedShort()
     {
-        Gen<Integer> gen = SourceDSL.integers().between(0, Short.MAX_VALUE * 2 + 1);
+        qt().forAll(integers().between(0, Short.MAX_VALUE * 2 + 1),
+                    accessors(),
+                    bbPadding(),
+                    integers().between(0, 3)).checkAssert(ValueAccessorTest::testUnsignedShort);
+    }
 
-        qt().forAll(gen).checkAssert(jint -> {
-            int size = jint;
-            for (ValueAccessor<Object> accessor: ACCESSORS)
-            {
-                Object value = accessor.allocate(5);
-                for (int offset : Arrays.asList(0, 3))
-                {
-                    accessor.putShort(value, offset, (short) size); // testing signed
-                    Assertions.assertThat(accessor.getUnsignedShort(value, offset))
-                              .as("getUnsignedShort(putShort(unsigned_short)) != unsigned_short for %s", accessor.getClass())
-                              .isEqualTo(size);
-                }
-            }
-        });
+    public static Gen<Slice> slices(Gen<Integer> offsets, Gen<Integer> lengths)
+    {
+        return offsets.zip(lengths, (o, l) -> new Slice(o, l));
+    }
+
+    private static final class Slice
+    {
+        /**
+         * The slice offset;
+         */
+        final int offset;
+
+        /**
+         * The slice length
+         */
+        final int length;
+
+        public Slice(int offset, int length)
+        {
+            this.offset = offset;
+            this.length = length;
+        }
+
+        public boolean isValidFor(byte[] array)
+        {
+            return offset < array.length && offset + length < array.length;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Slice [offset=" + offset + ", length=" + length + "]";
+        }
     }
 }

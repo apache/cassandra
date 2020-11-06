@@ -590,7 +590,7 @@
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
           <dependency groupId="junit" artifactId="junit" version="4.12" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
-          <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
+          <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26" />
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7" />
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
