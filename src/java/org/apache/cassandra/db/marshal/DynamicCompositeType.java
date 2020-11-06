@@ -19,9 +19,16 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +41,9 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static com.google.common.collect.Iterables.any;
 
@@ -60,7 +70,11 @@ public class DynamicCompositeType extends AbstractCompositeType
 {
     private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
 
+    private static final ByteSource[] EMPTY_BYTE_SOURCE_ARRAY = new ByteSource[0];
+    private static final String REVERSED_TYPE = ReversedType.class.getSimpleName();
+
     private final Map<Byte, AbstractType<?>> aliases;
+    private final Map<AbstractType<?>, Byte> inverseMapping;
 
     // interning instances
     private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
@@ -81,6 +95,9 @@ public class DynamicCompositeType extends AbstractCompositeType
     private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
     {
         this.aliases = aliases;
+        this.inverseMapping = new HashMap<>();
+        for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
+            this.inverseMapping.put(en.getValue(), en.getKey());
     }
 
     protected <V> boolean readIsStatic(V value, ValueAccessor<V> accessor)
@@ -94,7 +111,7 @@ public class DynamicCompositeType extends AbstractCompositeType
         return 0;
     }
 
-    protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset)
+    protected <V> int getComparatorSize(V value, ValueAccessor<V> accessor, int offset)
     {
         int header = accessor.getShort(value, offset);
         if ((header & 0x8000) == 0)
@@ -114,7 +131,6 @@ public class DynamicCompositeType extends AbstractCompositeType
             int header = accessor.getShort(value, offset);
             if ((header & 0x8000) == 0)
             {
-
                 String name = accessor.toString(accessor.slice(value, offset + 2, header));
                 return TypeParser.parse(name);
             }
@@ -195,6 +211,194 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
+    {
+        List<ByteSource> srcs = new ArrayList<>();
+        int length = accessor.size(data);
+
+        // statics go first
+        boolean isStatic = readIsStatic(data, accessor);
+        int offset = startingOffset(isStatic);
+        srcs.add(isStatic ? null : ByteSource.EMPTY);
+
+        byte lastEoc = 0;
+        while (offset < length)
+        {
+            // Only the end-of-component byte of the last component of this composite can be non-zero, so the
+            // component before can't have a non-zero end-of-component byte.
+            assert lastEoc == 0 : lastEoc;
+
+            AbstractType<?> comp = getComparator(data, accessor, offset);
+            offset += getComparatorSize(data, accessor, offset);
+            // The comparable bytes for the component need to ensure comparisons consistent with
+            // AbstractCompositeType.compareCustom(ByteBuffer, ByteBuffer) and
+            // DynamicCompositeType.getComparator(int, ByteBuffer, ByteBuffer):
+            if (version == Version.LEGACY || !(comp instanceof ReversedType))
+            {
+                // ...most often that means just adding the short name of the type, followed by the full name of the type.
+                srcs.add(ByteSource.of(comp.getClass().getSimpleName(), version));
+                srcs.add(ByteSource.of(comp.getClass().getName(), version));
+            }
+            else
+            {
+                // ...however some times the component uses a complex type (currently the only supported complex type
+                // is ReversedType - we can't have elements that are of MapType, CompositeType, TupleType, etc.)...
+                ReversedType<?> reversedComp = (ReversedType<?>) comp;
+                // ...in this case, we need to add the short name of ReversedType before the short name of the base
+                // type, to ensure consistency with DynamicCompositeType.getComparator(int, ByteBuffer, ByteBuffer).
+                srcs.add(ByteSource.of(REVERSED_TYPE, version));
+                srcs.add(ByteSource.of(reversedComp.baseType.getClass().getSimpleName(), version));
+                srcs.add(ByteSource.of(reversedComp.baseType.getClass().getName(), version));
+            }
+            // Only then the payload of the component gets encoded.
+            int componentLength = accessor.getUnsignedShort(data, offset);
+            offset += 2;
+            srcs.add(comp.asComparableBytes(accessor, accessor.slice(data, offset, componentLength), version));
+            offset += componentLength;
+            // The end-of-component byte also takes part in the comparison, and therefore needs to be encoded.
+            lastEoc = accessor.getByte(data, offset);
+            offset += 1;
+            srcs.add(ByteSource.oneByte(version == Version.LEGACY ? lastEoc : lastEoc & 0xFF ^ 0x80));
+        }
+
+        return ByteSource.withTerminator(version == Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR,
+                                         srcs.toArray(EMPTY_BYTE_SOURCE_ARRAY));
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, Version version)
+    {
+        // For ByteComparable.Version.LEGACY the terminator byte is ByteSource.END_OF_STREAM. Just like with
+        // CompositeType, this means that in multi-component sequences the terminator may be transformed to a regular
+        // component separator, but unlike CompositeType (where we have the expected number of types/components),
+        // this can make the end of the whole dynamic composite type indistinguishable from the end of a component
+        // somewhere in the middle of the dynamic composite type. Because of that, DynamicCompositeType elements
+        // cannot always be safely decoded using that encoding version.
+        // Even more so than with CompositeType, we just take advantage of the fact that we don't need to decode from
+        // Version.LEGACY, assume that we never do that, and assert it here.
+        assert version != Version.LEGACY;
+
+        if (comparableBytes == null)
+            return accessor.empty();
+
+        // The first byte is the isStatic flag which we don't need but must consume to continue past it.
+        comparableBytes.next();
+
+        List<AbstractType<?>> types = new ArrayList<>();
+        List<V> values = new ArrayList<>();
+        byte lastEoc = 0;
+
+        for (int separator = comparableBytes.next(); separator != ByteSource.TERMINATOR; separator = comparableBytes.next())
+        {
+            // Solely the end-of-component byte of the last component of this composite can be non-zero.
+            assert lastEoc == 0 : lastEoc;
+
+            boolean isReversed = false;
+            // Decode the next type's simple class name that is encoded before its fully qualified class name (in order
+            // for comparisons to work correctly).
+            String simpleClassName = ByteSourceInverse.getString(ByteSourceInverse.nextComponentSource(comparableBytes, separator));
+            if (REVERSED_TYPE.equals(simpleClassName))
+            {
+                // Special-handle if the type is reversed (and decode the actual base type simple class name).
+                isReversed = true;
+                simpleClassName = ByteSourceInverse.getString(ByteSourceInverse.nextComponentSource(comparableBytes));
+            }
+
+            // Decode the type's fully qualified class name and parse the actual type from it.
+            String fullClassName = ByteSourceInverse.getString(ByteSourceInverse.nextComponentSource(comparableBytes));
+            assert fullClassName.endsWith(simpleClassName);
+            AbstractType<?> type = isReversed ? ReversedType.getInstance(TypeParser.parse(fullClassName))
+                                              : TypeParser.parse(fullClassName);
+            assert type != null;
+            types.add(type);
+
+            // Decode the payload from this type.
+            V value = type.fromComparableBytes(accessor, ByteSourceInverse.nextComponentSource(comparableBytes), version);
+            values.add(value);
+
+            // Also decode the corresponding end-of-component byte - the last one we decode will be taken into
+            // account when we deserialize the decoded data into an object.
+            lastEoc = ByteSourceInverse.getSignedByte(ByteSourceInverse.nextComponentSource(comparableBytes));
+        }
+        return build(accessor, types, inverseMapping, values, lastEoc);
+    }
+
+    public static ByteBuffer build(List<String> types, List<ByteBuffer> values)
+    {
+        return build(ByteBufferAccessor.instance,
+                     Lists.transform(types, TypeParser::parse),
+                     Collections.emptyMap(),
+                     values,
+                     (byte) 0);
+    }
+
+    @VisibleForTesting
+    public static <V> V build(ValueAccessor<V> accessor,
+                              List<AbstractType<?>> types,
+                              Map<AbstractType<?>, Byte> inverseMapping,
+                              List<V> values,
+                              byte lastEoc)
+    {
+        assert types.size() == values.size();
+
+        int numComponents = types.size();
+        // Compute the total number of bytes that we'll need to store the types and their payloads.
+        int totalLength = 0;
+        for (int i = 0; i < numComponents; ++i)
+        {
+            AbstractType<?> type = types.get(i);
+            Byte alias = inverseMapping.get(type);
+            int typeNameLength = alias == null ? type.toString().getBytes(StandardCharsets.UTF_8).length : 0;
+            // The type data will be stored by means of the type's fully qualified name, not by aliasing, so:
+            //   1. The type data header should be the fully qualified name length in bytes.
+            //   2. The length should be small enough so that it fits in 15 bits (2 bytes with the first bit zero).
+            assert typeNameLength <= 0x7FFF;
+            int valueLength = accessor.size(values.get(i));
+            // The value length should also expect its first bit to be 0, as the length should be stored as a signed
+            // 2-byte value (short).
+            assert valueLength <= 0x7FFF;
+            totalLength += 2 + typeNameLength + 2 + valueLength + 1;
+        }
+
+        V result = accessor.allocate(totalLength);
+        int offset = 0;
+        for (int i = 0; i < numComponents; ++i)
+        {
+            AbstractType<?> type = types.get(i);
+            Byte alias = inverseMapping.get(type);
+            if (alias == null)
+            {
+                // Write the type data (2-byte length header + the fully qualified type name in UTF-8).
+                byte[] typeNameBytes = type.toString().getBytes(StandardCharsets.UTF_8);
+                accessor.putShort(result,
+                                  offset,
+                                  (short) typeNameBytes.length); // this should work fine also if length >= 32768
+                offset += 2;
+                accessor.copyByteArrayTo(typeNameBytes, 0, result, offset, typeNameBytes.length);
+                offset += typeNameBytes.length;
+            }
+            else
+            {
+                accessor.putShort(result, offset, (short) (alias | 0x8000));
+                offset += 2;
+            }
+
+            // Write the type payload data (2-byte length header + the payload).
+            V value = values.get(i);
+            int bytesToCopy = accessor.size(value);
+            accessor.putShort(result, offset, (short) bytesToCopy);
+            offset += 2;
+            accessor.copyTo(value, 0, result, accessor, offset, bytesToCopy);
+            offset += bytesToCopy;
+
+            // Write the end-of-component byte.
+            accessor.putByte(result, offset, i != numComponents - 1 ? (byte) 0 : lastEoc);
+            offset += 1;
+        }
+        return result;
     }
 
     protected ParsedComparator parseComparator(int i, String part)

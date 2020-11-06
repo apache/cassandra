@@ -23,7 +23,6 @@ import java.util.Date;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.statements.RequestValidations;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +32,9 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -59,6 +61,18 @@ public class TimestampType extends TemporalType<Date>
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return LongType.compareLongs(left, accessorL, right, accessorR);
+    }
+
+    @Override
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
+    {
+        return ByteSource.optionalSignedFixedLengthNumber(accessor, data);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return ByteSourceInverse.getOptionalSignedFixedLength(accessor, comparableBytes, 8);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

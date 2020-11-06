@@ -274,7 +274,7 @@ public class SerDeserTest
 
         ByteBuffer serialized = t.bindAndGet(options);
 
-        ByteBuffer[] fields = udt.split(serialized);
+        ByteBuffer[] fields = udt.split(ByteBufferAccessor.instance, serialized);
 
         assertEquals(4, fields.length);
 

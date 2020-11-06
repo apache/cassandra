@@ -154,14 +154,14 @@ public class Tuples
 
         public static Value fromSerialized(ByteBuffer bytes, TupleType type)
         {
-            ByteBuffer[] values = type.split(bytes);
+            ByteBuffer[] values = type.split(ByteBufferAccessor.instance, bytes);
             if (values.length > type.size())
             {
                 throw new InvalidRequestException(String.format(
                         "Tuple value contained too many fields (expected %s, got %s)", type.size(), values.length));
             }
 
-            return new Value(type.split(bytes));
+            return new Value(type.split(ByteBufferAccessor.instance, bytes));
         }
 
         public ByteBuffer get(ProtocolVersion protocolVersion)
@@ -272,7 +272,8 @@ public class Tuples
                 // type.split(bytes)
                 List<List<ByteBuffer>> elements = new ArrayList<>(l.size());
                 for (Object element : l)
-                    elements.add(Arrays.asList(tupleType.split(type.getElementsType().decompose(element))));
+                    elements.add(Arrays.asList(tupleType.split(ByteBufferAccessor.instance,
+                                                               type.getElementsType().decompose(element))));
                 return new InValue(elements);
             }
             catch (MarshalException e)

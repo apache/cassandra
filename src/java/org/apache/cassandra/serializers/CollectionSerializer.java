@@ -91,11 +91,6 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
         output.putInt(elements);
     }
 
-    public static int readCollectionSize(ByteBuffer input, ProtocolVersion version)
-    {
-        return readCollectionSize(input, ByteBufferAccessor.instance, version);
-    }
-
     public static <V> int readCollectionSize(V value, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         return accessor.toInt(value);

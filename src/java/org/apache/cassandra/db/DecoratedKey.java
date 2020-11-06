@@ -19,13 +19,17 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.function.BiFunction;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.KeyBound;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.IFilter.FilterKey;
+import org.apache.cassandra.utils.MurmurHash;
 
 /**
  * Represents a decorated key, handy for certain operations
@@ -97,6 +101,22 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.getKey()) : cmp;
     }
 
+    @Override
+    public ByteSource asComparableBytes(Version version)
+    {
+        // Note: In the legacy version one encoding could be a prefix of another as the escaping is only weakly
+        // prefix-free (see ByteSourceTest.testDecoratedKeyPrefixes()).
+        // The OSS41 version avoids this by adding a terminator.
+        return ByteSource.withTerminator(version == Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR,
+                                         token.asComparableBytes(version),
+                                         keyComparableBytes(version));
+    }
+
+    protected ByteSource keyComparableBytes(Version version)
+    {
+        return ByteSource.of(getKey(), version);
+    }
+
     public IPartitioner getPartitioner()
     {
         return getToken().getPartitioner();
@@ -136,5 +156,34 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
     {
         ByteBuffer key = getKey();
         MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, dest);
+    }
+
+    /**
+     * A template factory method for creating decorated keys from their byte-comparable representation.
+     */
+    static <T extends DecoratedKey> T fromByteComparable(ByteComparable byteComparable,
+                                                         Version version,
+                                                         IPartitioner partitioner,
+                                                         BiFunction<Token, byte[], T> decoratedKeyFactory)
+    {
+        ByteSource.Peekable peekable = byteComparable.asPeekableBytes(version);
+        // Decode the token from the first component of the multi-component sequence representing the whole decorated key.
+        Token token = partitioner.getTokenFactory().fromComparableBytes(ByteSourceInverse.nextComponentSource(peekable), version);
+        // Decode the key bytes from the second component.
+        byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekable));
+        // Instantiate a decorated key from the decoded token and key bytes, using the provided factory method.
+        return decoratedKeyFactory.apply(token, keyBytes);
+    }
+
+    public static byte[] keyFromByteComparable(ByteComparable byteComparable,
+                                               Version version,
+                                               IPartitioner partitioner)
+    {
+        ByteSource.Peekable peekable = byteComparable.asPeekableBytes(version);
+        // Decode the token from the first component of the multi-component sequence representing the whole decorated key.
+        // We won't use it, but the decoding also positions the byte source after it.
+        partitioner.getTokenFactory().fromComparableBytes(ByteSourceInverse.nextComponentSource(peekable), version);
+        // Decode the key bytes from the second component.
+        return ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekable));
     }
 }

@@ -30,10 +30,20 @@ import org.apache.cassandra.serializers.IntegerSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public final class IntegerType extends NumberType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
+
+    // Constants or escaping values needed to encode/decode variable-length integers in our custom byte-ordered
+    // encoding scheme.
+    private static final int POSITIVE_VARINT_HEADER = 0x80;
+    private static final int NEGATIVE_VARINT_LENGTH_HEADER = 0x00;
+    private static final int POSITIVE_VARINT_LENGTH_HEADER = 0xFF;
+    private static final byte BIG_INTEGER_NEGATIVE_LEADING_ZERO = (byte) 0xFF;
+    private static final byte BIG_INTEGER_POSITIVE_LEADING_ZERO = (byte) 0x00;
 
     private static <V> int findMostSignificantByte(V value, ValueAccessor<V> accessor)
     {
@@ -129,6 +139,143 @@ public final class IntegerType extends NumberType<BigInteger>
         }
 
         return 0;
+    }
+
+    /**
+     * Constructs a byte-comparable representation of the number.
+     * We represent it as
+     *    <zero or more length_bytes where length = 128> <length_byte> <first_significant_byte> <zero or more bytes>
+     * where a length_byte is:
+     *    - 0x80 + (length - 1) for positive numbers (so that longer length sorts bigger)
+     *    - 0x7F - (length - 1) for negative numbers (so that longer length sorts smaller)
+     *
+     * Because we include the sign in the length byte:
+     * - unlike fixed-length ints, we don't need to sign-invert the first significant byte,
+     * - unlike BigInteger, we don't need to include 0x00 prefix for positive integers whose first byte is >= 0x80
+     *   or 0xFF prefix for negative integers whose first byte is < 0x80.
+     *
+     * The representations are prefix-free, because representations of different length always have length bytes that
+     * differ.
+     *
+     * Examples:
+     *    0             as 8000
+     *    1             as 8001
+     *    127           as 807F
+     *    255           as 80FF
+     *    2^32-1        as 837FFFFFFF
+     *    2^32          as 8380000000
+     *    2^33          as 840100000000
+     */
+    @Override
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
+    {
+        int p = 0;
+        final int limit = accessor.size(data);
+        if (p == limit)
+            return null;
+
+        // skip any leading sign-only byte(s)
+        final byte signbyte = accessor.getByte(data, p);
+        if (signbyte == BIG_INTEGER_NEGATIVE_LEADING_ZERO || signbyte == BIG_INTEGER_POSITIVE_LEADING_ZERO)
+        {
+            while (p + 1 < limit)
+            {
+                if (accessor.getByte(data, ++p) != signbyte)
+                    break;
+            }
+        }
+
+        final int startpos = p;
+
+        return new ByteSource()
+        {
+            int pos = startpos;
+            int sizeToReport = limit - startpos;
+            boolean sizeReported = false;
+
+            public int next()
+            {
+                if (!sizeReported)
+                {
+                    if (sizeToReport >= 128)
+                    {
+                        sizeToReport -= 128;
+                        return signbyte >= 0
+                               ? POSITIVE_VARINT_LENGTH_HEADER
+                               : NEGATIVE_VARINT_LENGTH_HEADER;
+                    }
+                    else
+                    {
+                        sizeReported = true;
+                        return signbyte >= 0
+                               ? POSITIVE_VARINT_HEADER + (sizeToReport - 1)
+                               : POSITIVE_VARINT_HEADER - sizeToReport;
+                    }
+                }
+
+                if (pos == limit)
+                    return END_OF_STREAM;
+
+                return accessor.getByte(data, pos++) & 0xFF;
+            }
+        };
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        if (comparableBytes == null)
+            return accessor.empty();
+
+        int valueBytes;
+        byte signedZero;
+        // Consume the first byte to determine whether the encoded number is positive and
+        // start iterating through the length header bytes and collecting the number of value bytes.
+        int curr = comparableBytes.next();
+        if (curr >= POSITIVE_VARINT_HEADER) // positive number
+        {
+            valueBytes = curr - POSITIVE_VARINT_HEADER + 1;
+            while (curr == POSITIVE_VARINT_LENGTH_HEADER)
+            {
+                curr = comparableBytes.next();
+                valueBytes += curr - POSITIVE_VARINT_HEADER + 1;
+            }
+            signedZero = 0;
+        }
+        else // negative number
+        {
+            valueBytes = POSITIVE_VARINT_HEADER - curr;
+            while (curr == NEGATIVE_VARINT_LENGTH_HEADER)
+            {
+                curr = comparableBytes.next();
+                valueBytes += POSITIVE_VARINT_HEADER - curr;
+            }
+            signedZero = -1;
+        }
+
+        int writtenBytes = 0;
+        V buf;
+        // Add "leading zero" if needed (i.e. in case the leading byte of a positive number corresponds to a negative
+        // value, or in case the leading byte of a negative number corresponds to a non-negative value).
+        // Size the array containing all the value bytes accordingly.
+        curr = comparableBytes.next();
+        if ((curr & 0x80) != (signedZero & 0x80))
+        {
+            ++valueBytes;
+            buf = accessor.allocate(valueBytes);
+            accessor.putByte(buf, writtenBytes++, signedZero);
+        }
+        else
+            buf = accessor.allocate(valueBytes);
+        // Don't forget to add the first consumed value byte after determining whether leading zero should be added
+        // and sizing the value bytes array.
+        accessor.putByte(buf, writtenBytes++, (byte) curr);
+
+        // Consume exactly the number of expected value bytes.
+        while (writtenBytes < valueBytes)
+            accessor.putByte(buf, writtenBytes++, (byte) comparableBytes.next());
+
+        return buf;
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

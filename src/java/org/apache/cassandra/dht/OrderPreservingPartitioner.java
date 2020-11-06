@@ -33,6 +33,9 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
@@ -128,6 +131,11 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
+        public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+        {
+            return new StringToken(ByteSourceInverse.getString(comparableBytes));
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             StringToken stringToken = (StringToken) token;
@@ -193,6 +201,12 @@ public class OrderPreservingPartitioner implements IPartitioner
         public long getHeapSize()
         {
             return EMPTY_SIZE + ObjectSizes.sizeOf(token);
+        }
+
+        @Override
+        public ByteSource asComparableBytes(ByteComparable.Version version)
+        {
+            return ByteSource.of((String) token, version);
         }
     }
 
