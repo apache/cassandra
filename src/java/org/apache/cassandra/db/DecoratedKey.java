@@ -24,8 +24,9 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.dht.Token.KeyBound;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.ByteSource;
 import org.apache.cassandra.utils.IFilter.FilterKey;
+import org.apache.cassandra.utils.MurmurHash;
 
 /**
  * Represents a decorated key, handy for certain operations
@@ -95,6 +96,22 @@ public abstract class DecoratedKey implements PartitionPosition, FilterKey
         DecoratedKey otherKey = (DecoratedKey) position;
         int cmp = partitioner.getToken(key).compareTo(otherKey.getToken());
         return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.getKey()) : cmp;
+    }
+
+    @Override
+    public ByteSource asComparableBytes(Version version)
+    {
+        // Note: In the legacy version one encoding could be a prefix of another as the escaping is only weakly
+        // prefix-free (see ByteSourceTest.testDecoratedKeyPrefixes()).
+        // The OSS41 version avoids this by adding a terminator.
+        return ByteSource.withTerminator(version == Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR,
+                                         token.asComparableBytes(version),
+                                         keyComparableBytes(version));
+    }
+
+    protected ByteSource keyComparableBytes(Version version)
+    {
+        return ByteSource.of(getKey(), version);
     }
 
     public IPartitioner getPartitioner()
