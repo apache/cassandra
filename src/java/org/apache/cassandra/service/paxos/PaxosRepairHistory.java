@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -181,7 +182,7 @@ public class PaxosRepairHistory
         Ballot[] ballotLowBounds = new Ballot[tuples.size()];
         for (int i = 0 ; i < tuples.size() ; ++i)
         {
-            ByteBuffer[] split = TYPE.split(tuples.get(i));
+            ByteBuffer[] split = TYPE.split(ByteBufferAccessor.instance, tuples.get(i));
             if (i < tokenInclusiveUpperBounds.length)
                 tokenInclusiveUpperBounds[i] = TOKEN_FACTORY.fromByteArray(split[0]);
             ballotLowBounds[i] = Ballot.deserialize(split[1]);
