@@ -1,4 +1,5 @@
 4.0-beta4
+ * Add saved Host IDs to TokenMetadata at startup (CASSANDRA-16246)
  * Ensure that CacheMetrics.requests is picked up by the metric reporter (CASSANDRA-16228)
  * Add a ratelimiter to snapshot creation and deletion (CASSANDRA-13019)
  * Produce consistent tombstone for reads to avoid digest mistmatch (CASSANDRA-15369)

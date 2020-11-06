@@ -420,6 +420,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 SystemKeyspace.persistLocalMetadata();
                 SystemKeyspaceMigrator40.migrate();
 
+                // Same order to populate tokenMetadata for the first time,
+                // see org.apache.cassandra.service.CassandraDaemon.setup
+                StorageService.instance.populateTokenMetadata();
+
                 try
                 {
                     // load schema from disk
@@ -485,6 +489,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
 
                 StorageService.instance.ensureTraceKeyspace();
+
+                // Populate tokenMetadata for the second time,
+                // see org.apache.cassandra.service.CassandraDaemon.setup
+                StorageService.instance.populateTokenMetadata();
+
                 SystemKeyspace.finishStartup();
 
                 CassandraDaemon.getInstanceForTesting().setupCompleted();
