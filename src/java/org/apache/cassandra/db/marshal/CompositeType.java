@@ -31,6 +31,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable.Version;
+import org.apache.cassandra.utils.ByteSource;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
@@ -163,6 +165,39 @@ public class CompositeType extends AbstractCompositeType
     protected <V> AbstractType<?> getAndAppendComparator(int i, V value, ValueAccessor<V> accessor, StringBuilder sb, int offset)
     {
         return types.get(i);
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer byteBuffer, Version version)
+    {
+        if (byteBuffer == null || byteBuffer.remaining() == 0)
+            return null;
+
+        ByteSource[] srcs = new ByteSource[types.size() * 2 + 1];
+        ByteBuffer bb = byteBuffer.duplicate();
+
+        // statics go first
+        boolean isStatic = readStatic(bb);
+        srcs[0] = isStatic ? null : ByteSource.EMPTY;
+
+        int i = 0;
+        byte lastEoc = 0;
+        while (bb.remaining() > 0)
+        {
+            // Only the end-of-component byte of the last component of this composite can be non-zero, so the
+            // component before can't have a non-zero end-of-component byte.
+            assert lastEoc == 0 : lastEoc;
+
+            srcs[i * 2 + 1] = types.get(i).asComparableBytes(ByteBufferUtil.readBytesWithShortLength(bb), version);
+            lastEoc = bb.get();
+            srcs[i * 2 + 2] = ByteSource.oneByte(lastEoc & 0xFF ^ 0x80); // end-of-component also takes part in comparison as signed byte
+            ++i;
+        }
+        if (i * 2 + 1 < srcs.length)
+            srcs = Arrays.copyOfRange(srcs, 0, i * 2 + 1);
+
+        return ByteSource.withTerminator(version == Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR,
+                                         srcs);
     }
 
     protected ParsedComparator parseComparator(int i, String part)
@@ -388,5 +423,29 @@ public class CompositeType extends AbstractCompositeType
         }
         out.flip();
         return accessor.valueOf(out);
+    }
+
+    public static ByteBuffer build(boolean isStatic, ByteBuffer[] buffers, byte lastEoc)
+    {
+        int totalLength = isStatic ? 2 : 0;
+        for (ByteBuffer bb : buffers)
+            totalLength += 2 + bb.remaining() + 1;
+
+        ByteBuffer out = ByteBuffer.allocate(totalLength);
+
+        if (isStatic)
+            out.putShort((short)STATIC_MARKER);
+
+        for (int i = 0; i < buffers.length; ++i)
+        {
+            ByteBuffer bb = buffers[i];
+            ByteBufferUtil.writeShortLength(out, bb.remaining());
+            int toCopy = bb.remaining();
+            ByteBufferUtil.arrayCopy(bb, bb.position(), out, out.position(), toCopy);
+            out.position(out.position() + toCopy);
+            out.put(i != buffers.length - 1 ? (byte) 0 : lastEoc);
+        }
+        out.flip();
+        return out;
     }
 }

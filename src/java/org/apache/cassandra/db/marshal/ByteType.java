@@ -27,6 +27,9 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ByteComparable;
+import org.apache.cassandra.utils.ByteComparable.Version;
+import org.apache.cassandra.utils.ByteSource;
 
 public class ByteType extends NumberType<Byte>
 {
@@ -40,6 +43,14 @@ public class ByteType extends NumberType<Byte>
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         return accessorL.getByte(left, 0) - accessorR.getByte(right, 0);
+    }
+
+    @Override
+    public ByteSource asComparableBytes(ByteBuffer buf, Version version)
+    {
+        return version == Version.LEGACY
+               ? ByteSource.signedFixedLengthNumber(buf)
+               : ByteSource.optionalSignedFixedLengthNumber(buf);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
