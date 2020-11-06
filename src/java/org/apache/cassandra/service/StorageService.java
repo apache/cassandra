@@ -618,21 +618,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().listen();
     }
 
-    public void populateTokenMetadata()
-    {
-        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
-        {
-            logger.info("Populating token metadata from system tables");
-            Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
-            if (!shouldBootstrap()) // if we have not completed bootstrapping, we should not add ourselves as a normal token
-                loadedTokens.putAll(FBUtilities.getBroadcastAddressAndPort(), SystemKeyspace.getSavedTokens());
-            for (InetAddressAndPort ep : loadedTokens.keySet())
-                tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
-
-            logger.info("Token metadata: {}", tokenMetadata);
-        }
-    }
-
     public synchronized void initServer() throws ConfigurationException
     {
         initServer(RING_DELAY);
@@ -679,7 +664,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             logger.info("Not starting gossip as requested.");
             // load ring state in preparation for starting gossip later
-            loadRingState();
+            loadRingState(false);
             initialized = true;
             return;
         }
@@ -721,27 +706,43 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initialized = true;
     }
 
-    private void loadRingState()
+    public void populateTokenMetadata()
+    {
+        loadRingState(true);
+    }
+
+    private void loadRingState(boolean populateTokenMetadataOnly)
     {
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
-            logger.info("Loading persisted ring state");
+            logger.info("Loading persisted ring state (populateTokenMetadataOnly: {})", populateTokenMetadataOnly);
             Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
             Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
+
+            // if we have not completed bootstrapping, we should not add ourselves as a normal token
+            if (populateTokenMetadataOnly && !shouldBootstrap())
+                loadedTokens.putAll(FBUtilities.getBroadcastAddressAndPort(), SystemKeyspace.getSavedTokens());
+
             for (InetAddressAndPort ep : loadedTokens.keySet())
             {
-                if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
+                if (!populateTokenMetadataOnly && ep.equals(FBUtilities.getBroadcastAddressAndPort()))
                 {
                     // entry has been mistakenly added, delete it
                     SystemKeyspace.removeEndpoint(ep);
                 }
                 else
                 {
+                    tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
                     if (loadedHostIds.containsKey(ep))
                         tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
-                    Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(ep));
+
+                    if (!populateTokenMetadataOnly)
+                        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(ep));
                 }
             }
+
+            if (populateTokenMetadataOnly)
+                logger.info("Token metadata: {}", tokenMetadata);
         }
     }
 
@@ -848,10 +849,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(FBUtilities.getJustBroadcastNativeAddress()));
             appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
-            // load the persisted ring state. This used to be done earlier in the init process,
-            // but now we always perform a shadow round when preparing to join and we have to
-            // clear endpoint states after doing that.
-            loadRingState();
+            loadRingState(false);
 
             logger.info("Starting up server gossip");
             Gossiper.instance.register(this);
