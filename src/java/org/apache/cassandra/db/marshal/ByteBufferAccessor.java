@@ -193,7 +193,7 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     @Override
     public int getUnsignedShort(ByteBuffer value, int offset)
     {
-        return ByteBufferUtil.getUnsignedShort(value, offset);
+        return ByteBufferUtil.getUnsignedShort(value, value.position() + offset);
     }
 
     @Override
