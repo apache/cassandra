@@ -530,7 +530,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private Config loadConfig(IInstanceConfig overrides)
     {
         Map<String,Object> params = ((InstanceConfig) overrides).getParams();
-        return YamlConfigurationLoader.fromMap(params, Config.class);
+        boolean check = true;
+        if (params.containsKey("dtest.api.config.check"))
+            check = (boolean) params.get("dtest.api.config.check");
+        return YamlConfigurationLoader.fromMap(params, check, Config.class);
     }
 
     public Future<Void> shutdown()

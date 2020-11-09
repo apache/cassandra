@@ -42,6 +42,7 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
 
     protected IUpgradeableInstance newInstanceWrapper(int generation, Versions.Version version, IInstanceConfig config)
     {
+        config.set("dtest.api.config.check", false);
         return new Wrapper(generation, version, config);
     }
 
