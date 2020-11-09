@@ -26,7 +26,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TruncateResponse;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TruncateException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
@@ -76,18 +78,25 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
         }
     }
 
+    @Override
     public void onResponse(Message<TruncateResponse> message)
     {
-        // If the truncation hasn't succeeded on some replica, abort and indicate this back to the client.
-        if (!message.payload.success)
-        {
-            truncateFailingReplica = message.from().address;
-            condition.signalAll();
-            return;
-        }
-
         responses.incrementAndGet();
         if (responses.get() >= responseCount)
             condition.signalAll();
+    }
+
+    @Override
+    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    {
+        // If the truncation hasn't succeeded on some replica, abort and indicate this back to the client.
+        truncateFailingReplica = from.address;
+        condition.signalAll();
+    }
+
+    @Override
+    public boolean invokeOnFailure()
+    {
+        return true;
     }
 }
