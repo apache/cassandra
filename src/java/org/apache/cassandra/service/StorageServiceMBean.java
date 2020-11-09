@@ -24,6 +24,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
@@ -34,6 +35,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -819,4 +821,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Returns the resize factor to use when growing/resizing a RangeTombstoneList */
     public double getRangeTombstoneResizeListGrowthFactor();
+
+    /** Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for */
+    @Deprecated
+    public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
+    public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort();
 }
