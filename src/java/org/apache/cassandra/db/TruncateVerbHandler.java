@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -36,29 +35,13 @@ public class TruncateVerbHandler implements IVerbHandler<TruncateRequest>
     {
         TruncateRequest truncation = message.payload;
         Tracing.trace("Applying truncation of {}.{}", truncation.keyspace, truncation.table);
-        try
-        {
-            ColumnFamilyStore cfs = Keyspace.open(truncation.keyspace).getColumnFamilyStore(truncation.table);
-            cfs.truncateBlocking();
-        }
-        catch (Throwable throwable)
-        {
-            logger.error("Error in truncation", throwable);
-            respondError(truncation, message);
 
-            if (FSError.findNested(throwable) != null)
-                throw FSError.findNested(throwable);
-        }
+        ColumnFamilyStore cfs = Keyspace.open(truncation.keyspace).getColumnFamilyStore(truncation.table);
+        cfs.truncateBlocking();
         Tracing.trace("Enqueuing response to truncate operation to {}", message.from());
 
         TruncateResponse response = new TruncateResponse(truncation.keyspace, truncation.table, true);
         logger.trace("{} applied.  Enqueuing response to {}@{} ", truncation, message.id(), message.from());
         MessagingService.instance().send(message.responseWith(response), message.from());
-    }
-
-    private static void respondError(TruncateRequest truncation, Message truncateRequestMessage)
-    {
-        TruncateResponse response = new TruncateResponse(truncation.keyspace, truncation.table, false);
-        MessagingService.instance().send(truncateRequestMessage.responseWith(response), truncateRequestMessage.from());
     }
 }
