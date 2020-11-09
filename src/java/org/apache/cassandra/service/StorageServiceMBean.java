@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
@@ -708,4 +709,7 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Returns the max version that this node will negotiate for native protocol connections */
     public int getMaxNativeProtocolVersion();
+
+    /** Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for */
+    public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
 }
