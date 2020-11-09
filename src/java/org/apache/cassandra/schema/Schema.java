@@ -572,7 +572,7 @@ public final class Schema implements SchemaProvider
      *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
-    synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
+    public synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
     {
         merge(mutations);
         updateVersionAndAnnounce();
