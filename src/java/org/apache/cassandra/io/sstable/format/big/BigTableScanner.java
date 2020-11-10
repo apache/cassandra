@@ -54,14 +54,14 @@ public class BigTableScanner implements ISSTableScanner
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
-    public final SSTableReader sstable;
+    public final BigTableReader sstable;
 
     private final Iterator<AbstractBounds<PartitionPosition>> rangeIterator;
     private AbstractBounds<PartitionPosition> currentRange;
 
     private final ColumnFilter columns;
     private final DataRange dataRange;
-    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
+    private final BigTableRowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
     private final SSTableReadsListener listener;
     private long startScan = -1;
     private long bytesScanned = 0;
@@ -69,12 +69,12 @@ public class BigTableScanner implements ISSTableScanner
     protected Iterator<UnfilteredRowIterator> iterator;
 
     // Full scan of the sstables
-    public static ISSTableScanner getScanner(SSTableReader sstable)
+    public static ISSTableScanner getScanner(BigTableReader sstable)
     {
         return getScanner(sstable, Iterators.singletonIterator(fullRange(sstable)));
     }
 
-    public static ISSTableScanner getScanner(SSTableReader sstable,
+    public static ISSTableScanner getScanner(BigTableReader sstable,
                                              ColumnFilter columns,
                                              DataRange dataRange,
                                              SSTableReadsListener listener)
@@ -82,7 +82,7 @@ public class BigTableScanner implements ISSTableScanner
         return new BigTableScanner(sstable, columns, dataRange, makeBounds(sstable, dataRange).iterator(), listener);
     }
 
-    public static ISSTableScanner getScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges)
+    public static ISSTableScanner getScanner(BigTableReader sstable, Collection<Range<Token>> tokenRanges)
     {
         // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
         List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(tokenRanges);
@@ -92,12 +92,12 @@ public class BigTableScanner implements ISSTableScanner
         return getScanner(sstable, makeBounds(sstable, tokenRanges).iterator());
     }
 
-    public static ISSTableScanner getScanner(SSTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
+    public static ISSTableScanner getScanner(BigTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
         return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata()), null, rangeIterator, SSTableReadsListener.NOOP_LISTENER);
     }
 
-    private BigTableScanner(SSTableReader sstable,
+    private BigTableScanner(BigTableReader sstable,
                             ColumnFilter columns,
                             DataRange dataRange,
                             Iterator<AbstractBounds<PartitionPosition>> rangeIterator,
@@ -110,9 +110,7 @@ public class BigTableScanner implements ISSTableScanner
         this.sstable = sstable;
         this.columns = columns;
         this.dataRange = dataRange;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata(),
-                                                                                                        sstable.descriptor.version,
-                                                                                                        sstable.header);
+        this.rowIndexEntrySerializer = new BigTableRowIndexEntry.Serializer(sstable.descriptor.version, sstable.header);
         this.rangeIterator = rangeIterator;
         this.listener = listener;
     }
@@ -191,14 +189,14 @@ public class BigTableScanner implements ISSTableScanner
                 if (indexDecoratedKey.compareTo(currentRange.left) > 0 || currentRange.contains(indexDecoratedKey))
                 {
                     // Found, just read the dataPosition and seek into index and data files
-                    long dataPosition = RowIndexEntry.Serializer.readPosition(ifile);
+                    long dataPosition = BigTableRowIndexEntry.Serializer.readPosition(ifile);
                     ifile.seek(indexPosition);
                     dfile.seek(dataPosition);
                     break;
                 }
                 else
                 {
-                    RowIndexEntry.Serializer.skip(ifile, sstable.descriptor.version);
+                    BigTableRowIndexEntry.Serializer.skip(ifile, sstable.descriptor.version);
                 }
             }
         }
@@ -282,9 +280,9 @@ public class BigTableScanner implements ISSTableScanner
     protected class KeyScanningIterator extends AbstractIterator<UnfilteredRowIterator>
     {
         private DecoratedKey nextKey;
-        private RowIndexEntry nextEntry;
+        private BigTableRowIndexEntry nextEntry;
         private DecoratedKey currentKey;
-        private RowIndexEntry currentEntry;
+        private BigTableRowIndexEntry currentEntry;
 
         protected UnfilteredRowIterator computeNext()
         {

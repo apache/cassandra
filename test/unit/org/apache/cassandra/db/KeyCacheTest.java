@@ -38,6 +38,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
@@ -109,15 +110,15 @@ public class KeyCacheTest
         assertKeyCacheSize(100, KEYSPACE1, cf);
 
         // really? our caches don't implement the map interface? (hence no .addAll)
-        Map<KeyCacheKey, RowIndexEntry> savedMap = new HashMap<>();
-        Map<KeyCacheKey, RowIndexEntry.IndexInfoRetriever> savedInfoMap = new HashMap<>();
+        Map<KeyCacheKey, BigTableRowIndexEntry> savedMap = new HashMap<>();
+        Map<KeyCacheKey, BigTableRowIndexEntry.IndexInfoRetriever> savedInfoMap = new HashMap<>();
         for (Iterator<KeyCacheKey> iter = CacheService.instance.keyCache.keyIterator();
              iter.hasNext();)
         {
             KeyCacheKey k = iter.next();
             if (k.desc.ksname.equals(KEYSPACE1) && k.desc.cfname.equals(cf))
             {
-                RowIndexEntry rie = CacheService.instance.keyCache.get(k);
+                BigTableRowIndexEntry rie = CacheService.instance.keyCache.get(k);
                 savedMap.put(k, rie);
                 SSTableReader sstr = readerForKey(k);
                 savedInfoMap.put(k, rie.openWithIndex(sstr.getIndexFile()));
@@ -134,18 +135,18 @@ public class KeyCacheTest
         assertKeyCacheSize(savedMap.size(), KEYSPACE1, cf);
 
         // probably it's better to add equals/hashCode to RowIndexEntry...
-        for (Map.Entry<KeyCacheKey, RowIndexEntry> entry : savedMap.entrySet())
+        for (Map.Entry<KeyCacheKey, BigTableRowIndexEntry> entry : savedMap.entrySet())
         {
-            RowIndexEntry expected = entry.getValue();
-            RowIndexEntry actual = CacheService.instance.keyCache.get(entry.getKey());
+            BigTableRowIndexEntry expected = entry.getValue();
+            BigTableRowIndexEntry actual = CacheService.instance.keyCache.get(entry.getKey());
             assertEquals(expected.position, actual.position);
             assertEquals(expected.columnsIndexCount(), actual.columnsIndexCount());
             for (int i = 0; i < expected.columnsIndexCount(); i++)
             {
                 SSTableReader actualSstr = readerForKey(entry.getKey());
-                try (RowIndexEntry.IndexInfoRetriever actualIir = actual.openWithIndex(actualSstr.getIndexFile()))
+                try (BigTableRowIndexEntry.IndexInfoRetriever actualIir = actual.openWithIndex(actualSstr.getIndexFile()))
                 {
-                    RowIndexEntry.IndexInfoRetriever expectedIir = savedInfoMap.get(entry.getKey());
+                    BigTableRowIndexEntry.IndexInfoRetriever expectedIir = savedInfoMap.get(entry.getKey());
                     assertEquals(expectedIir.columnsIndex(i), actualIir.columnsIndex(i));
                 }
             }

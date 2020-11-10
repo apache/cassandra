@@ -25,9 +25,9 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -60,18 +60,12 @@ public class Scrubber implements Closeable
 
     private final ReadWriteLock fileAccessLock;
     private final RandomAccessReader dataFile;
-    private final RandomAccessReader indexFile;
+    private final PartitionIndexIterator indexIterator;
     private final ScrubInfo scrubInfo;
-    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     private int goodPartitions;
     private int badPartitions;
     private int emptyPartitions;
-
-    private ByteBuffer currentIndexKey;
-    private ByteBuffer nextIndexKey;
-    private long currentPartitionPositionFromIndex;
-    private long nextPartitionPositionFromIndex;
 
     private NegativeLocalDeletionInfoMetrics negativeLocalDeletionInfoMetrics = new NegativeLocalDeletionInfoMetrics();
 
@@ -105,9 +99,6 @@ public class Scrubber implements Closeable
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
         this.reinsertOverflowedTTLRows = reinsertOverflowedTTLRows;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(cfs.metadata(),
-                                                                                                        sstable.descriptor.version,
-                                                                                                        sstable.header);
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
 
@@ -135,17 +126,27 @@ public class Scrubber implements Closeable
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
 
-        this.indexFile = hasIndexFile
-                ? RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)))
-                : null;
+        this.indexIterator = hasIndexFile
+                             ? openIndexIterator()
+                             : null;
 
         this.scrubInfo = new ScrubInfo(dataFile, sstable, fileAccessLock.readLock());
 
-        this.currentPartitionPositionFromIndex = 0;
-        this.nextPartitionPositionFromIndex = 0;
-
         if (reinsertOverflowedTTLRows)
             outputHandler.output("Starting scrub with reinsert overflowed TTL option");
+    }
+
+    private PartitionIndexIterator openIndexIterator()
+    {
+        try
+        {
+            return sstable.allKeysIterator();
+        }
+        catch (IOException e)
+        {
+            outputHandler.warn("Index is unreadable.");
+        }
+        return null;
     }
 
     private UnfilteredRowIterator withValidation(UnfilteredRowIterator iter, String filename)
@@ -175,24 +176,7 @@ public class Scrubber implements Closeable
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge);
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
         {
-            try
-            {
-                nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
-                if (indexAvailable())
-                {
-                    // throw away variable so we don't have a side effect in the assert
-                    long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                    assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
-                }
-            }
-            catch (Throwable ex)
-            {
-                throwIfFatal(ex);
-                nextIndexKey = null;
-                nextPartitionPositionFromIndex = dataFile.length();
-                if (indexFile != null)
-                    indexFile.seek(indexFile.length());
-            }
+            assert !indexAvailable() || indexIterator.dataPosition() == 0 : indexIterator.dataPosition();
 
             StatsMetadata metadata = sstable.getSSTableMetadata();
             writer.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, metadata.repairedAt, metadata.pendingRepair, metadata.isTransient, sstable, transaction));
@@ -218,21 +202,17 @@ public class Scrubber implements Closeable
                     // check for null key below
                 }
 
+                long dataStart = dataFile.getFilePointer();
+
                 long dataStartFromIndex = -1;
                 long dataSizeFromIndex = -1;
-
-                updateIndexKey();
-
-                if (indexAvailable())
+                ByteBuffer currentIndexKey = indexIterator != null ? indexIterator.key() : null;
+                if (currentIndexKey != null)
                 {
-                    if (currentIndexKey != null)
-                    {
-                        dataStartFromIndex = currentPartitionPositionFromIndex + 2 + currentIndexKey.remaining();
-                        dataSizeFromIndex = nextPartitionPositionFromIndex - dataStartFromIndex;
-                    }
+                    dataStartFromIndex = indexIterator.dataPosition() + TypeSizes.SHORT_SIZE + currentIndexKey.remaining();
+                    if (advanceIndexNoThrow())
+                        dataSizeFromIndex = indexIterator.dataPosition() - dataStartFromIndex;
                 }
-
-                long dataStart = dataFile.getFilePointer();
 
                 String keyName = key == null ? "(unreadable key)" : keyString(key);
                 outputHandler.debug(String.format("partition %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSizeFromIndex)));
@@ -250,10 +230,10 @@ public class Scrubber implements Closeable
                                 "_too big_", ByteBufferUtil.bytesToHex(currentIndexKey))));
                     }
 
-                    if (indexFile != null && dataSizeFromIndex > dataFile.length())
+                    if (indexIterator != null && dataSizeFromIndex > dataFile.length())
                         throw new IOError(new IOException("Impossible partition size (greater than file length): " + dataSizeFromIndex));
 
-                    if (indexFile != null && dataStart != dataStartFromIndex)
+                    if (indexIterator != null && dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file partition position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
                     if (tryAppend(prevKey, key, writer))
@@ -389,51 +369,41 @@ public class Scrubber implements Closeable
                                                                                     negativeLocalDeletionInfoMetrics) : rowMergingIterator;
     }
 
-    private void updateIndexKey()
+    private boolean advanceIndexNoThrow()
     {
-        currentIndexKey = nextIndexKey;
-        currentPartitionPositionFromIndex = nextPartitionPositionFromIndex;
         try
         {
-            nextIndexKey = !indexAvailable() ? null : ByteBufferUtil.readWithShortLength(indexFile);
-
-            nextPartitionPositionFromIndex = !indexAvailable()
-                                             ? dataFile.length()
-                                             : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
+            return indexAvailable() && indexIterator.advance();
         }
         catch (Throwable th)
         {
             JVMStabilityInspector.inspectThrowable(th);
             outputHandler.warn("Error reading index file", th);
-            nextIndexKey = null;
-            nextPartitionPositionFromIndex = dataFile.length();
-            if (indexFile != null)
-                indexFile.seek(indexFile.length());
+            indexIterator.close();
+            return false;
         }
     }
 
     private boolean indexAvailable()
     {
-        return indexFile != null && !indexFile.isEOF();
+        return indexIterator != null && !indexIterator.isExhausted();
     }
 
     private void seekToNextPartition()
     {
-        while(nextPartitionPositionFromIndex < dataFile.length())
-        {
-            try
-            {
-                dataFile.seek(nextPartitionPositionFromIndex);
-                return;
-            }
-            catch (Throwable th)
-            {
-                throwIfFatal(th);
-                outputHandler.warn(String.format("Failed to seek to next partition position %d", nextPartitionPositionFromIndex), th);
-                badPartitions++;
-            }
+        long nextRowPositionFromIndex = indexIterator.isExhausted()
+                                        ? dataFile.length()
+                                        : indexIterator.dataPosition();
 
-            updateIndexKey();
+        try
+        {
+            dataFile.seek(nextRowPositionFromIndex);
+        }
+        catch (Throwable th)
+        {
+            throwIfFatal(th);
+            outputHandler.warn(String.format("Failed to seek to next row position %d", nextRowPositionFromIndex), th);
+            badPartitions++;
         }
     }
 
@@ -478,7 +448,7 @@ public class Scrubber implements Closeable
         try
         {
             FileUtils.closeQuietly(dataFile);
-            FileUtils.closeQuietly(indexFile);
+        FileUtils.closeQuietly(indexIterator);
         }
         finally
         {
