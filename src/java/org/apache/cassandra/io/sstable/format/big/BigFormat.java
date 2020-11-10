@@ -47,6 +47,12 @@ public class BigFormat implements SSTableFormat
     }
 
     @Override
+    public Type getType()
+    {
+        return Type.BIG;
+    }
+
+    @Override
     public Version getLatestVersion()
     {
         return latestVersion;
