@@ -91,7 +91,7 @@ public class StageManager
 
     private static LocalAwareExecutorService multiThreadedLowSignalStage(Stage stage, int numThreads)
     {
-        return SharedExecutorPool.SHARED.newExecutor(numThreads, Integer.MAX_VALUE, stage.getJmxType(), stage.getJmxName());
+        return SharedExecutorPool.SHARED.newExecutor(numThreads, stage.getJmxType(), stage.getJmxName());
     }
 
     /**
