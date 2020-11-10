@@ -45,6 +45,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 
+import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
 import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
@@ -90,7 +91,7 @@ public class SimpleClientBurnTest
         int largeMessageFrequency = 1000;
 
         CQLConnectionTest.AllocationObserver allocationObserver = new CQLConnectionTest.AllocationObserver();
-        PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED)
+        PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, UNENCRYPTED)
         {
             protected ClientResourceLimits.ResourceProvider resourceProvider(ClientResourceLimits.Allocator allocator)
             {

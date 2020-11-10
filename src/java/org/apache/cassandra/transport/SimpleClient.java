@@ -132,7 +132,7 @@ public class SimpleClient implements Closeable
         this.host = builder.host;
         this.port = builder.port;
         this.version = builder.version;
-        this.encryptionOptions = builder.encryptionOptions;
+        this.encryptionOptions = builder.encryptionOptions.applyConfig();
         this.largeMessageThreshold = builder.largeMessageThreshold;
     }
 
@@ -159,7 +159,7 @@ public class SimpleClient implements Closeable
             throw new IllegalArgumentException(String.format("Beta version of server used (%s), but USE_BETA flag is not set", version));
 
         this.version = version;
-        this.encryptionOptions = encryptionOptions;
+        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
         this.largeMessageThreshold = FrameEncoder.Payload.MAX_SIZE -
                                         Math.max(FrameEncoderCrc.HEADER_AND_TRAILER_LENGTH,
                                                  FrameEncoderLZ4.HEADER_AND_TRAILER_LENGTH);

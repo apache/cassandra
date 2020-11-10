@@ -641,6 +641,16 @@ public class NodeProbe implements AutoCloseable
         return memProxy.getHeapMemoryUsage();
     }
 
+    public long getSnapshotLinksPerSecond()
+    {
+        return ssProxy.getSnapshotLinksPerSecond();
+    }
+
+    public void setSnapshotLinksPerSecond(long throttle)
+    {
+        ssProxy.setSnapshotLinksPerSecond(throttle);
+    }
+
     /**
      * Take a snapshot of all the keyspaces, optionally specifying only a specific column family.
      *

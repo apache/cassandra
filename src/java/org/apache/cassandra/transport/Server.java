@@ -69,15 +69,15 @@ public class Server implements CassandraDaemon.Server
     };
 
     public final InetSocketAddress socket;
-    public boolean useSSL = false;
+    public final EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     private final PipelineConfigurator pipelineConfigurator;
-    private EventLoopGroup workerGroup;
+    private final EventLoopGroup workerGroup;
 
     private Server (Builder builder)
     {
         this.socket = builder.getSocket();
-        this.useSSL = builder.useSSL;
+        this.tlsEncryptionPolicy = builder.tlsEncryptionPolicy;
         if (builder.workerGroup != null)
         {
             workerGroup = builder.workerGroup;
@@ -90,16 +90,12 @@ public class Server implements CassandraDaemon.Server
                 workerGroup = new NioEventLoopGroup();
         }
 
-        EncryptionOptions encryptionOptions = this.useSSL
-                                              ? DatabaseDescriptor.getNativeProtocolEncryptionOptions()
-                                              : EncryptionOptions.DISABLED;
-
         pipelineConfigurator = builder.pipelineConfigurator != null
                                ? builder.pipelineConfigurator
                                : new PipelineConfigurator(useEpoll,
                                                           DatabaseDescriptor.getRpcKeepAlive(),
                                                           DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                          encryptionOptions);
+                                                          builder.tlsEncryptionPolicy);
 
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
@@ -176,15 +172,15 @@ public class Server implements CassandraDaemon.Server
     public static class Builder
     {
         private EventLoopGroup workerGroup;
-        private boolean useSSL = false;
+        private EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy = EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
         private InetAddress hostAddr;
         private int port = -1;
         private InetSocketAddress socket;
         private PipelineConfigurator pipelineConfigurator;
 
-        public Builder withSSL(boolean useSSL)
+        public Builder withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy)
         {
-            this.useSSL = useSSL;
+            this.tlsEncryptionPolicy = tlsEncryptionPolicy;
             return this;
         }
 

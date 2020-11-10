@@ -108,14 +108,14 @@ public class SharedExecutorPool
             schedule(Work.SPINNING);
     }
 
-    public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, int maxQueuedTasks, String jmxPath, String name)
+    public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, String jmxPath, String name)
     {
-        return newExecutor(maxConcurrency, i -> {}, maxQueuedTasks, jmxPath, name);
+        return newExecutor(maxConcurrency, i -> {}, jmxPath, name);
     }
 
-    public LocalAwareExecutorService newExecutor(int maxConcurrency, LocalAwareExecutorService.MaximumPoolSizeListener maximumPoolSizeListener, int maxQueuedTasks, String jmxPath, String name)
+    public LocalAwareExecutorService newExecutor(int maxConcurrency, LocalAwareExecutorService.MaximumPoolSizeListener maximumPoolSizeListener, String jmxPath, String name)
     {
-        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maximumPoolSizeListener, maxQueuedTasks, jmxPath, name);
+        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maximumPoolSizeListener, jmxPath, name);
         executors.add(executor);
         return executor;
     }

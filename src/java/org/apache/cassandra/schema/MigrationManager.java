@@ -28,7 +28,6 @@ import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -65,135 +64,12 @@ public class MigrationManager
 
     private MigrationManager() {}
 
-    public static void scheduleSchemaPull(InetAddressAndPort endpoint, EndpointState state)
-    {
-        UUID schemaVersion = state.getSchemaVersion();
-        if (!endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) && schemaVersion != null)
-            maybeScheduleSchemaPull(schemaVersion, endpoint, state.getApplicationState(ApplicationState.RELEASE_VERSION).value);
-    }
-
-    /**
-     * If versions differ this node sends request with local migration list to the endpoint
-     * and expecting to receive a list of migrations to apply locally.
-     */
-    private static void maybeScheduleSchemaPull(final UUID theirVersion, final InetAddressAndPort endpoint, String releaseVersion)
-    {
-        String ourMajorVersion = FBUtilities.getReleaseVersionMajor();
-        if (!releaseVersion.startsWith(ourMajorVersion))
-        {
-            logger.debug("Not pulling schema because release version in Gossip is not major version {}, it is {}", ourMajorVersion, releaseVersion);
-            return;
-        }
-        if (Schema.instance.getVersion() == null)
-        {
-            logger.debug("Not pulling schema from {}, because local schema version is not known yet",
-                         endpoint);
-            SchemaMigrationDiagnostics.unknownLocalSchemaVersion(endpoint, theirVersion);
-            return;
-        }
-        if (Schema.instance.isSameVersion(theirVersion))
-        {
-            logger.debug("Not pulling schema from {}, because schema versions match ({})",
-                         endpoint,
-                         Schema.schemaVersionToString(theirVersion));
-            SchemaMigrationDiagnostics.versionMatch(endpoint, theirVersion);
-            return;
-        }
-        if (!shouldPullSchemaFrom(endpoint))
-        {
-            logger.debug("Not pulling schema from {}, because versions match ({}/{}), or shouldPullSchemaFrom returned false",
-                         endpoint, Schema.instance.getVersion(), theirVersion);
-            SchemaMigrationDiagnostics.skipPull(endpoint, theirVersion);
-            return;
-        }
-
-        if (Schema.instance.isEmpty() || getUptimeFn.getAsLong() < MIGRATION_DELAY_IN_MS)
-        {
-            // If we think we may be bootstrapping or have recently started, submit MigrationTask immediately
-            logger.debug("Immediately submitting migration task for {}, " +
-                         "schema versions: local={}, remote={}",
-                         endpoint,
-                         Schema.schemaVersionToString(Schema.instance.getVersion()),
-                         Schema.schemaVersionToString(theirVersion));
-            submitMigrationTask(endpoint);
-        }
-        else
-        {
-            // Include a delay to make sure we have a chance to apply any changes being
-            // pushed out simultaneously. See CASSANDRA-5025
-            Runnable runnable = () ->
-            {
-                // grab the latest version of the schema since it may have changed again since the initial scheduling
-                UUID epSchemaVersion = Gossiper.instance.getSchemaVersion(endpoint);
-                if (epSchemaVersion == null)
-                {
-                    logger.debug("epState vanished for {}, not submitting migration task", endpoint);
-                    return;
-                }
-                if (Schema.instance.isSameVersion(epSchemaVersion))
-                {
-                    logger.debug("Not submitting migration task for {} because our versions match ({})", endpoint, epSchemaVersion);
-                    return;
-                }
-                logger.debug("Submitting migration task for {}, schema version mismatch: local={}, remote={}",
-                             endpoint,
-                             Schema.schemaVersionToString(Schema.instance.getVersion()),
-                             Schema.schemaVersionToString(epSchemaVersion));
-                submitMigrationTask(endpoint);
-            };
-            ScheduledExecutors.nonPeriodicTasks.schedule(runnable, MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
-        }
-    }
-
-    private static Future<?> submitMigrationTask(InetAddressAndPort endpoint)
-    {
-        /*
-         * Do not de-ref the future because that causes distributed deadlock (CASSANDRA-3832) because we are
-         * running in the gossip stage.
-         */
-        return MIGRATION.submit(new MigrationTask(endpoint));
-    }
-
-    static boolean shouldPullSchemaFrom(InetAddressAndPort endpoint)
-    {
-        /*
-         * Don't request schema from nodes with a differnt or unknonw major version (may have incompatible schema)
-         * Don't request schema from fat clients
-         */
-        return MessagingService.instance().versions.knows(endpoint)
-                && MessagingService.instance().versions.getRaw(endpoint) == MessagingService.current_version
-                && !Gossiper.instance.isGossipOnlyMember(endpoint);
-    }
-
     private static boolean shouldPushSchemaTo(InetAddressAndPort endpoint)
     {
         // only push schema to nodes with known and equal versions
         return !endpoint.equals(FBUtilities.getBroadcastAddressAndPort())
                && MessagingService.instance().versions.knows(endpoint)
                && MessagingService.instance().versions.getRaw(endpoint) == MessagingService.current_version;
-    }
-
-    public static boolean isReadyForBootstrap()
-    {
-        return MigrationTask.getInflightTasks().isEmpty();
-    }
-
-    public static void waitUntilReadyForBootstrap()
-    {
-        CountDownLatch completionLatch;
-        while ((completionLatch = MigrationTask.getInflightTasks().poll()) != null)
-        {
-            try
-            {
-                if (!completionLatch.await(MIGRATION_TASK_WAIT_IN_SECONDS, TimeUnit.SECONDS))
-                    logger.error("Migration task failed to complete");
-            }
-            catch (InterruptedException e)
-            {
-                Thread.currentThread().interrupt();
-                logger.error("Migration task was interrupted");
-            }
-        }
     }
 
     public static void announceNewKeyspace(KeyspaceMetadata ksm) throws ConfigurationException
@@ -220,21 +96,6 @@ public class MigrationManager
     public static void announceNewTable(TableMetadata cfm)
     {
         announceNewTable(cfm, true, FBUtilities.timestampMicros());
-    }
-
-    /**
-     * Announces the table even if the definition is already know locally.
-     * This should generally be avoided but is used internally when we want to force the most up to date version of
-     * a system table schema (Note that we don't know if the schema we force _is_ the most recent version or not, we
-     * just rely on idempotency to basically ignore that announce if it's not. That's why we can't use announceTableUpdate
-     * it would for instance delete new columns if this is not called with the most up-to-date version)
-     *
-     * Note that this is only safe for system tables where we know the id is fixed and will be the same whatever version
-     * of the definition is used.
-     */
-    public static void forceAnnounceNewTable(TableMetadata cfm)
-    {
-        announceNewTable(cfm, false, 0);
     }
 
     private static void announceNewTable(TableMetadata cfm, boolean throwOnDuplicate, long timestamp)
@@ -412,12 +273,10 @@ public class MigrationManager
         // force migration if there are nodes around
         for (InetAddressAndPort node : liveEndpoints)
         {
-            if (shouldPullSchemaFrom(node))
-            {
-                logger.debug("Requesting schema from {}", node);
-                FBUtilities.waitOnFuture(submitMigrationTask(node));
-                break;
-            }
+            EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(node);
+            Future<Void> pull = MigrationCoordinator.instance.reportEndpointVersion(node, state);
+            if (pull != null)
+                FBUtilities.waitOnFuture(pull);
         }
 
         logger.info("Local schema reset is complete.");

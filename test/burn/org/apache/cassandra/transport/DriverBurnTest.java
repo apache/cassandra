@@ -41,6 +41,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.AssertUtil;
 
+import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryStatement;
@@ -54,7 +55,7 @@ public class DriverBurnTest extends CQLTester
     @Before
     public void setup()
     {
-        PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED)
+        PipelineConfigurator configurator = new PipelineConfigurator(NativeTransportService.useEpoll(), false, false, UNENCRYPTED)
         {
             protected ClientResourceLimits.ResourceProvider resourceProvider(ClientResourceLimits.Allocator allocator)
             {

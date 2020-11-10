@@ -89,25 +89,24 @@ public class PipelineConfigurator
 
     private final boolean epoll;
     private final boolean keepAlive;
-    private final EncryptionOptions encryptionOptions;
+    private final EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy;
     private final Dispatcher dispatcher;
 
     public PipelineConfigurator(boolean epoll,
                                 boolean keepAlive,
                                 boolean legacyFlusher,
-                                EncryptionOptions encryptionOptions)
+                                EncryptionOptions.TlsEncryptionPolicy encryptionPolicy)
     {
-        this.epoll              = epoll;
-        this.keepAlive          = keepAlive;
-        this.encryptionOptions  = encryptionOptions;
-        this.dispatcher         = dispatcher(legacyFlusher);
+        this.epoll               = epoll;
+        this.keepAlive           = keepAlive;
+        this.tlsEncryptionPolicy = encryptionPolicy;
+        this.dispatcher          = dispatcher(legacyFlusher);
     }
 
     public ChannelFuture initializeChannel(final EventLoopGroup workerGroup,
                                            final InetSocketAddress socket,
                                            final Connection.Factory connectionFactory)
     {
-
         ServerBootstrap bootstrap = new ServerBootstrap()
                                     .channel(epoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                                     .childOption(ChannelOption.TCP_NODELAY, true)
@@ -123,7 +122,7 @@ public class PipelineConfigurator
 
         // Bind and start to accept incoming connections.
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
-        logger.info("Starting listening for CQL clients on {} ({})...", socket, encryptionOptions.isEnabled() ? "encrypted" : "unencrypted");
+        logger.info("Starting listening for CQL clients on {} ({})...", socket, tlsEncryptionPolicy.description());
         return bootstrap.bind(socket);
     }
 
@@ -150,59 +149,59 @@ public class PipelineConfigurator
 
     protected EncryptionConfig encryptionConfig()
     {
-        // if encryption is not enabled, no further steps are required after the initial setup
-        if (!encryptionOptions.isEnabled())
-            return channel -> {};
-
-        // If optional, install a handler which detects whether or not the client is sending
-        // encrypted bytes. If so, on receipt of the next bytes, replace that handler with
-        // an SSL Handler, otherwise just remove it and proceed with an unencrypted channel.
-        if (encryptionOptions.optional)
+        final EncryptionOptions encryptionOptions = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
+        switch (tlsEncryptionPolicy)
         {
-            logger.info("Enabling optionally encrypted CQL connections between client and server");
-            return channel -> {
+            case UNENCRYPTED:
+                // if encryption is not enabled, no further steps are required after the initial setup
+                return channel -> {};
+            case OPTIONAL:
+                // If optional, install a handler which detects whether or not the client is sending
+                // encrypted bytes. If so, on receipt of the next bytes, replace that handler with
+                // an SSL Handler, otherwise just remove it and proceed with an unencrypted channel.
+                logger.debug("Enabling optionally encrypted CQL connections between client and server");
+                return channel -> {
+                    SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
+                                                                             encryptionOptions.require_client_auth,
+                                                                             SSLFactory.SocketType.SERVER);
 
-                SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                         encryptionOptions.require_client_auth,
-                                                                         SSLFactory.SocketType.SERVER);
-
-                channel.pipeline().addFirst(SSL_HANDLER, new ByteToMessageDecoder()
-                {
-                    @Override
-                    protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
+                    channel.pipeline().addFirst(SSL_HANDLER, new ByteToMessageDecoder()
                     {
-                        if (byteBuf.readableBytes() < 5)
+                        @Override
+                        protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
                         {
-                            // To detect if SSL must be used we need to have at least 5 bytes, so return here and try again
-                            // once more bytes a ready.
-                            return;
+                            if (byteBuf.readableBytes() < 5)
+                            {
+                                // To detect if SSL must be used we need to have at least 5 bytes, so return here and try again
+                                // once more bytes a ready.
+                                return;
+                            }
+                            if (SslHandler.isEncrypted(byteBuf))
+                            {
+                                // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
+                                // encryption.
+                                SslHandler sslHandler = sslContext.newHandler(channel.alloc());
+                                channelHandlerContext.pipeline().replace(SSL_HANDLER, SSL_HANDLER, sslHandler);
+                            }
+                            else
+                            {
+                                // Connection use no TLS/SSL encryption, just remove the detection handler and continue without
+                                // SslHandler in the pipeline.
+                                channelHandlerContext.pipeline().remove(SSL_HANDLER);
+                            }
                         }
-                        if (SslHandler.isEncrypted(byteBuf))
-                        {
-                            // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
-                            // encryption.
-                            SslHandler sslHandler = sslContext.newHandler(channel.alloc());
-                            channelHandlerContext.pipeline().replace(SSL_HANDLER, SSL_HANDLER, sslHandler);
-                        }
-                        else
-                        {
-                            // Connection use no TLS/SSL encryption, just remove the detection handler and continue without
-                            // SslHandler in the pipeline.
-                            channelHandlerContext.pipeline().remove(SSL_HANDLER);
-                        }
-                    }
-                });
-            };
-        }
-        else
-        {
-            logger.info("Enabling encrypted CQL connections between client and server");
-            return channel -> {
-                SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                         encryptionOptions.require_client_auth,
-                                                                         SSLFactory.SocketType.SERVER);
-                channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
-            };
+                    });
+                };
+            case ENCRYPTED:
+                logger.debug("Enabling encrypted CQL connections between client and server");
+                return channel -> {
+                    SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
+                                                                             encryptionOptions.require_client_auth,
+                                                                             SSLFactory.SocketType.SERVER);
+                    channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
+                };
+            default:
+                throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);
         }
     }
 

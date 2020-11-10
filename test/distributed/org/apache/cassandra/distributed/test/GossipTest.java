@@ -19,17 +19,13 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.Closeable;
-import java.net.InetAddress;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.LockSupport;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
@@ -39,11 +35,7 @@ import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
@@ -61,13 +53,13 @@ public class GossipTest extends TestBaseImpl
             if (nodeNumber != 2)
                 return;
             new ByteBuddy().rebase(StorageService.class)
-                           .method(named("bootstrap").and(takesArguments(1)))
+                           .method(named("bootstrap").and(takesArguments(2)))
                            .intercept(MethodDelegation.to(BBBootstrapInterceptor.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static boolean bootstrap(Collection<Token> tokens) throws Exception
+        public static boolean bootstrap(Collection<Token> tokens, long bootstrapTimeoutMillis)
         {
             bootstrapStart.countDown();
             Uninterruptibles.awaitUninterruptibly(bootstrapReady);

@@ -1074,9 +1074,10 @@ public abstract class CQLTester
         return sessions.get(protocolVersion);
     }
 
-    protected SimpleClient newSimpleClient(ProtocolVersion version, boolean compression, boolean isOverloadedException) throws IOException
+    protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException
     {
-        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions()).connect(compression, isOverloadedException);
+        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions().applyConfig())
+               .connect(false, false);
     }
 
     protected String formatQuery(String query)

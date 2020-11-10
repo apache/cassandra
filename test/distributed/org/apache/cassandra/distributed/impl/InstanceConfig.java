@@ -57,6 +57,7 @@ public class InstanceConfig implements IInstanceConfig
     public final UUID hostId;
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
+    private final Map<String, Object> dtestParams = new TreeMap<>();
 
     private final EnumSet featureFlags;
 
@@ -125,6 +126,7 @@ public class InstanceConfig implements IInstanceConfig
         this.num = copy.num;
         this.networkTopology = new NetworkTopology(copy.networkTopology);
         this.params.putAll(copy.params);
+        this.dtestParams.putAll(copy.dtestParams);
         this.hostId = copy.hostId;
         this.featureFlags = copy.featureFlags;
         this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
@@ -190,8 +192,7 @@ public class InstanceConfig implements IInstanceConfig
     {
         if (value == null)
             value = NULL;
-
-        params.put(fieldName, value);
+        getParams(fieldName).put(fieldName, value);
         return this;
     }
 
@@ -201,8 +202,16 @@ public class InstanceConfig implements IInstanceConfig
             value = NULL;
 
         // test value
-        params.put(fieldName, value);
+        getParams(fieldName).put(fieldName, value);
         return this;
+    }
+
+    private Map<String, Object> getParams(String fieldName)
+    {
+        Map<String, Object> map = params;
+        if (fieldName.startsWith("dtest"))
+            map = dtestParams;
+        return map;
     }
 
     public void propagate(Object writeToConfig, Map<Class<?>, Function<Object, Object>> mapping)
@@ -218,17 +227,17 @@ public class InstanceConfig implements IInstanceConfig
 
     public Object get(String name)
     {
-        return params.get(name);
+        return getParams(name).get(name);
     }
 
     public int getInt(String name)
     {
-        return (Integer)params.get(name);
+        return (Integer) get(name);
     }
 
     public String getString(String name)
     {
-        return (String)params.get(name);
+        return (String) get(name);
     }
 
     public Map<String, Object> getParams()

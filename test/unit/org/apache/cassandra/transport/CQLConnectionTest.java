@@ -60,6 +60,7 @@ import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
+import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.net.FramingTest.randomishBytes;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -463,7 +464,7 @@ public class CQLConnectionTest
 
         public ServerConfigurator(Builder builder)
         {
-            super(NativeTransportService.useEpoll(), false, false, EncryptionOptions.DISABLED);
+            super(NativeTransportService.useEpoll(), false, false, UNENCRYPTED);
             this.consumer = builder.consumer;
             this.decoder = builder.decoder;
             this.allocationObserver = builder.observer;

@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
 import java.util.regex.Matcher;
 
-import com.google.common.collect.Iterables;
 import com.google.common.net.InetAddresses;
 
 import com.codahale.metrics.Timer;
@@ -366,11 +364,11 @@ public class MessagingServiceTest
             for (InboundSockets.InboundSocket socket : connections.sockets())
             {
                 Assert.assertEquals(serverEncryptionOptions.isEnabled(), socket.settings.encryption.isEnabled());
-                Assert.assertEquals(serverEncryptionOptions.optional, socket.settings.encryption.optional);
+                Assert.assertEquals(serverEncryptionOptions.isOptional(), socket.settings.encryption.isOptional());
                 if (!serverEncryptionOptions.isEnabled())
                     Assert.assertFalse(legacySslPort == socket.settings.bindAddress.port);
                 if (legacySslPort == socket.settings.bindAddress.port)
-                    Assert.assertFalse(socket.settings.encryption.optional);
+                    Assert.assertFalse(socket.settings.encryption.isOptional());
                 Assert.assertTrue(socket.settings.bindAddress.toString(), expect.remove(socket.settings.bindAddress));
             }
         }
