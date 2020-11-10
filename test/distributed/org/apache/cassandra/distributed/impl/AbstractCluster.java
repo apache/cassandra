@@ -47,6 +47,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -330,7 +331,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         NetworkTopology topology = NetworkTopology.build(ipPrefix, broadcastPort, nodeIdTopology);
 
         InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp, datadirCount);
-        config.set("dtest.api.cluster_id", clusterId.toString());
+        config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
         if (configUpdater != null)
             configUpdater.accept(config);
 
