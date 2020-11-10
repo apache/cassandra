@@ -142,9 +142,11 @@ public class SSTableExport
         try
         {
             TableMetadata metadata = Util.metadataFromSSTable(desc);
+            SSTableReader sstable = SSTableReader.openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
+            IPartitioner partitioner = sstable.getPartitioner();
             if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
             {
-                try (KeyIterator iter = new KeyIterator(desc, metadata))
+                try (KeyIterator iter = KeyIterator.forSSTable(sstable))
                 {
                     JsonTransformer.keysToJson(null, Util.iterToStream(iter),
                                                cmd.hasOption(RAW_TIMESTAMPS),
@@ -154,8 +156,6 @@ public class SSTableExport
             }
             else
             {
-                SSTableReader sstable = SSTableReader.openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
-                IPartitioner partitioner = sstable.getPartitioner();
                 final ISSTableScanner currentScanner;
                 if ((keys != null) && (keys.length > 0))
                 {

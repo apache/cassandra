@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -58,6 +59,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
@@ -65,6 +67,7 @@ import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
@@ -205,9 +208,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     protected final IFilter bf;
     public final IndexSummary indexSummary;
 
-    protected final RowIndexEntry.IndexSerializer<?> rowIndexEntrySerializer;
-
-    protected InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
+    protected InstrumentingCache<KeyCacheKey, BigTableRowIndexEntry> keyCache;
 
     protected final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
 
@@ -659,7 +660,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         this.bf = bf;
         this.maxDataAge = maxDataAge;
         this.openReason = openReason;
-        this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata.get(), desc.version, header);
         tidy = new InstanceTidier(descriptor, metadata.id);
         selfRef = new Ref<>(this, tidy);
     }
@@ -681,6 +681,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sum;
     }
 
+    public abstract PartitionIndexIterator allKeysIterator() throws IOException;
+
     public boolean equals(Object that)
     {
         return that instanceof SSTableReader && ((SSTableReader) that).descriptor.equals(this.descriptor);
@@ -701,7 +703,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
-        InstrumentingCache<KeyCacheKey, RowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
+        InstrumentingCache<KeyCacheKey, BigTableRowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
         if (maybeKeyCache.getCapacity() > 0)
             keyCache = maybeKeyCache;
 
@@ -995,25 +997,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
     {
         // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
-        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
-        try
+        try (KeyIterator iterator = KeyIterator.forSSTable(this);
+             IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata().params.minIndexInterval, newSamplingLevel))
         {
-            long indexSize = primaryIndex.length();
-            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata().params.minIndexInterval, newSamplingLevel))
-            {
-                long indexPosition;
-                while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
-                {
-                    summaryBuilder.maybeAddEntry(decorateKey(ByteBufferUtil.readWithShortLength(primaryIndex)), indexPosition);
-                    RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
-                }
+            while (iterator.hasNext())
+                summaryBuilder.maybeAddEntry(iterator.next(), iterator.getKeyPosition());
 
-                return summaryBuilder.build(getPartitioner());
-            }
-        }
-        finally
-        {
-            FileUtils.closeQuietly(primaryIndex);
+            return summaryBuilder.build(getPartitioner());
         }
     }
 
@@ -1314,7 +1304,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return new KeyCacheKey(metadata(), descriptor, key.getKey());
     }
 
-    public void cacheKey(DecoratedKey key, RowIndexEntry info)
+    public void cacheKey(DecoratedKey key, BigTableRowIndexEntry info)
     {
         CachingParams caching = metadata().params.caching;
 
@@ -1326,20 +1316,20 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         keyCache.put(cacheKey, info);
     }
 
-    public RowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
+    public BigTableRowIndexEntry getCachedPosition(DecoratedKey key, boolean updateStats)
     {
         if (isKeyCacheEnabled())
             return getCachedPosition(new KeyCacheKey(metadata(), descriptor, key.getKey()), updateStats);
         return null;
     }
 
-    protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
+    protected BigTableRowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
         if (isKeyCacheEnabled())
         {
             if (updateStats)
             {
-                RowIndexEntry cachedEntry = keyCache.get(unifiedKey);
+                BigTableRowIndexEntry cachedEntry = keyCache.get(unifiedKey);
                 keyCacheRequest.incrementAndGet();
                 if (cachedEntry != null)
                 {
@@ -1367,28 +1357,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * allow key selection by token bounds but only if op != * EQ
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
      */
-    public final RowIndexEntry getPosition(PartitionPosition key, Operator op)
+    public final RowIndexEntry<?> getPosition(PartitionPosition key, Operator op)
     {
-        return getPosition(key, op, SSTableReadsListener.NOOP_LISTENER);
+        return getPosition(key, op, true, false, SSTableReadsListener.NOOP_LISTENER);
     }
 
-    /**
-     * Retrieves the position while updating the key cache and the stats.
-     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
-     * @param listener the {@code SSTableReaderListener} that must handle the notifications.
-     */
-    public final RowIndexEntry getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
+    public final boolean checkEntryExists(PartitionPosition key,
+                                          Operator op,
+                                          boolean updateCacheAndStats)
     {
-        return getPosition(key, op, true, false, listener);
-    }
-
-    public final RowIndexEntry getPosition(PartitionPosition key,
-                                           Operator op,
-                                           boolean updateCacheAndStats)
-    {
-        return getPosition(key, op, updateCacheAndStats, false, SSTableReadsListener.NOOP_LISTENER);
+        return getPosition(key, op, updateCacheAndStats, false, SSTableReadsListener.NOOP_LISTENER) != null;
     }
 
     /**
@@ -1399,11 +1377,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @param listener a listener used to handle internal events
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected abstract RowIndexEntry getPosition(PartitionPosition key,
-                                                 Operator op,
-                                                 boolean updateCacheAndStats,
-                                                 boolean permitMatchPastLast,
-                                                 SSTableReadsListener listener);
+    protected abstract RowIndexEntry<?> getPosition(PartitionPosition key,
+                                                    Operator op,
+                                                    boolean updateCacheAndStats,
+                                                    boolean permitMatchPastLast,
+                                                    SSTableReadsListener listener);
 
     public abstract UnfilteredRowIterator iterator(DecoratedKey key,
                                                    Slices slices,
@@ -1411,9 +1389,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                    boolean reversed,
                                                    SSTableReadsListener listener);
 
-    public abstract UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
-
-    public abstract UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, boolean tombstoneOnly);
+    public abstract UnfilteredRowIterator simpleIterator(Supplier<FileDataInput> dfile, DecoratedKey key, boolean tombstoneOnly);
 
     /**
      * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
@@ -1428,24 +1404,22 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (ifile == null)
             return null;
 
-        String path = null;
-        try (FileDataInput in = ifile.createReader(sampledPosition))
+        try (PartitionIndexIterator iterator = allKeysIterator())
         {
-            path = in.getPath();
-            while (!in.isEOF())
+            iterator.indexPosition(sampledPosition);
+            KeyIterator keyIterator = new KeyIterator(iterator, getPartitioner());
+
+            while (keyIterator.hasNext())
             {
-                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
-                DecoratedKey indexDecoratedKey = decorateKey(indexKey);
+                DecoratedKey indexDecoratedKey = keyIterator.next();
                 if (indexDecoratedKey.compareTo(token) > 0)
                     return indexDecoratedKey;
-
-                RowIndexEntry.Serializer.skip(in, descriptor.version);
             }
         }
         catch (IOException e)
         {
             markSuspect();
-            throw new CorruptSSTableException(e, path);
+            throw new CorruptSSTableException(e, ifile.path());
         }
 
         return null;
@@ -1618,25 +1592,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
     }
 
-    public DecoratedKey keyAt(long indexPosition) throws IOException
-    {
-        DecoratedKey key;
-        try (FileDataInput in = ifile.createReader(indexPosition))
-        {
-            if (in.isEOF())
-                return null;
-
-            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
-
-            // hint read path about key location if caching is enabled
-            // this saves index summary lookup and index file iteration which whould be pretty costly
-            // especially in presence of promoted column indexes
-            if (isKeyCacheEnabled())
-                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
-        }
-
-        return key;
-    }
+    public abstract DecoratedKey keyAt(long indexPosition) throws IOException;
 
     public boolean isPendingRepair()
     {
@@ -1715,7 +1671,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return bloomFilterTracker.getRecentTruePositiveCount();
     }
 
-    public InstrumentingCache<KeyCacheKey, RowIndexEntry> getKeyCache()
+    public InstrumentingCache<KeyCacheKey, BigTableRowIndexEntry> getKeyCache()
     {
         return keyCache;
     }
@@ -1944,7 +1900,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return selfRef.ref();
     }
 
-    void setup(boolean trackHotness)
+    protected void setup(boolean trackHotness)
     {
         tidy.setup(this, trackHotness);
         this.readMeter = tidy.global.readMeter;
@@ -2190,9 +2146,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         GlobalTidy.lookup.clear();
     }
 
-    public static abstract class Factory
+    public interface Factory
     {
-        public abstract SSTableReader open(SSTableReaderBuilder builder);
+        SSTableReader open(SSTableReaderBuilder builder);
+
+        PartitionIndexIterator indexIterator(Descriptor descriptor, TableMetadata metadata);
     }
 
     public static class PartitionPositionBounds

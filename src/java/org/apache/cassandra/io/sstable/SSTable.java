@@ -33,7 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -79,6 +79,8 @@ public abstract class SSTable
 
     protected final DiskOptimizationStrategy optimizationStrategy;
     protected final TableMetadataRef metadata;
+    private static final int SAMPLES_CAP = 10000;
+    private static final int BYTES_CAP = 10000000;
 
     protected SSTable(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, DiskOptimizationStrategy optimizationStrategy)
     {
@@ -265,21 +267,24 @@ public abstract class SSTable
     }
 
     /** @return An estimate of the number of keys contained in the given index file. */
-    public static long estimateRowsFromIndex(RandomAccessReader ifile, Descriptor descriptor) throws IOException
+    public static long estimateRowsFromIndex(PartitionIndexIterator iterator) throws IOException
     {
         // collect sizes for the first 10000 keys, or first 10 megabytes of data
-        final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
-        int keys = 0;
-        while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
+        try
         {
-            ByteBufferUtil.skipShortLength(ifile);
-            RowIndexEntry.Serializer.skip(ifile, descriptor.version);
-            keys++;
+            int keys = 0;
+            while (!iterator.isExhausted() && iterator.indexPosition() < BYTES_CAP && keys < SAMPLES_CAP)
+            {
+                iterator.advance();
+                keys++;
+            }
+            assert keys > 0 && iterator.indexPosition() > 0 && iterator.indexLength() > 0 : "Unexpected empty index file";
+            return iterator.indexLength() / (iterator.indexPosition() / keys);
         }
-        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;
-        long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
-        ifile.seek(0);
-        return estimatedRows;
+        finally
+        {
+            iterator.reset();
+        }
     }
 
     public long bytesOnDisk()

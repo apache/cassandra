@@ -20,14 +20,14 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Supplier;
 
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.SSTableIterator;
-import org.apache.cassandra.db.columniterator.SSTableReversedIterator;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -52,9 +52,18 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
+    protected final BigTableRowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+
     BigTableReader(SSTableReaderBuilder builder)
     {
         super(builder);
+        this.rowIndexEntrySerializer = new BigTableRowIndexEntry.Serializer(descriptor.version, header);
+    }
+
+    @Override
+    public PartitionIndexIterator allKeysIterator() throws IOException
+    {
+        return BigTablePartitionIndexIterator.create(getIndexFile(), rowIndexEntrySerializer);
     }
 
     public UnfilteredRowIterator iterator(DecoratedKey key,
@@ -63,12 +72,12 @@ public class BigTableReader extends SSTableReader
                                           boolean reversed,
                                           SSTableReadsListener listener)
     {
-        RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ, listener);
+        BigTableRowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ, true, false, listener);
         return iterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
     @SuppressWarnings("resource")
-    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
+    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, BigTableRowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
         if (indexEntry == null)
             return UnfilteredRowIterators.noRowsIterator(metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
@@ -121,9 +130,12 @@ public class BigTableReader extends SSTableReader
 
     @SuppressWarnings("resource") // caller to close
     @Override
-    public UnfilteredRowIterator simpleIterator(FileDataInput dfile, DecoratedKey key, RowIndexEntry position, boolean tombstoneOnly)
+    public UnfilteredRowIterator simpleIterator(Supplier<FileDataInput> dfile, DecoratedKey key, boolean tombstoneOnly)
     {
-        return SSTableIdentityIterator.create(this, dfile, position, key, tombstoneOnly);
+        BigTableRowIndexEntry position = getPosition(key, SSTableReader.Operator.EQ, true, false, SSTableReadsListener.NOOP_LISTENER);
+        if (position == null)
+            return null;
+        return SSTableIdentityIterator.create(this, dfile.get(), position, key, tombstoneOnly);
     }
 
     /**
@@ -133,11 +145,11 @@ public class BigTableReader extends SSTableReader
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected RowIndexEntry getPosition(PartitionPosition key,
-                                        Operator op,
-                                        boolean updateCacheAndStats,
-                                        boolean permitMatchPastLast,
-                                        SSTableReadsListener listener)
+    protected BigTableRowIndexEntry getPosition(PartitionPosition key,
+                                                Operator op,
+                                                boolean updateCacheAndStats,
+                                                boolean permitMatchPastLast,
+                                                SSTableReadsListener listener)
     {
         if (op == Operator.EQ)
         {
@@ -154,7 +166,7 @@ public class BigTableReader extends SSTableReader
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey) key;
-            RowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
+            BigTableRowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
                 listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
@@ -243,7 +255,7 @@ public class BigTableReader extends SSTableReader
                 if (opSatisfied)
                 {
                     // read data position from index entry
-                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
+                    BigTableRowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
@@ -270,7 +282,7 @@ public class BigTableReader extends SSTableReader
                     return indexEntry;
                 }
 
-                RowIndexEntry.Serializer.skip(in, descriptor.version);
+                BigTableRowIndexEntry.Serializer.skip(in, descriptor.version);
             }
         }
         catch (IOException e)
@@ -287,4 +299,24 @@ public class BigTableReader extends SSTableReader
     }
 
 
+    @Override
+    public DecoratedKey keyAt(long indexPosition) throws IOException
+    {
+        DecoratedKey key;
+        try (FileDataInput in = ifile.createReader(indexPosition))
+        {
+            if (in.isEOF())
+                return null;
+
+            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
+
+            // hint read path about key location if caching is enabled
+            // this saves index summary lookup and index file iteration which whould be pretty costly
+            // especially in presence of promoted column indexes
+            if (isKeyCacheEnabled())
+                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
+        }
+
+        return key;
+    }
 }
