@@ -31,7 +31,6 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.serializers.MarshalException;
 
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -40,6 +39,7 @@ import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONEN
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT_NULL;
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT_NULL_REVERSED;
 import static org.apache.cassandra.utils.bytecomparable.ByteSource.TERMINATOR;
+import org.apache.cassandra.io.sstable.format.big.IndexInfo;
 
 /**
  * A comparator of clustering prefixes (or more generally of {@link Clusterable}}.

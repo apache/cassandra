@@ -63,6 +63,7 @@ import org.apache.cassandra.distributed.impl.InstanceKiller;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.ForwardingSSTableReader;
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.ChannelProxy;
@@ -271,6 +272,12 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         private FailingSSTableReader(SSTableReader delegate)
         {
             super(delegate);
+        }
+
+        @Override
+        public PartitionIndexIterator allKeysIterator() throws IOException
+        {
+            throw new IOException("Fail");
         }
 
         public ISSTableScanner getScanner()

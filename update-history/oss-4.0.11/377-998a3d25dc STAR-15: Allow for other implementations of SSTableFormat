@@ -1,0 +1,20 @@
+--- a/test/distributed/org/apache/cassandra/distributed/test/JVMStabilityInspectorThrowableTest.java
++++ b/test/distributed/org/apache/cassandra/distributed/test/JVMStabilityInspectorThrowableTest.java
+@@ -227,17 +227,7 @@
+             throw throwFSError();
+         }
+ 
+-<<<<<<<
+-=======
+-        @Override
+-        public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
+-        {
+-            if (shouldThrowCorrupted)
+-                throw throwCorrupted();
+-            throw throwFSError();
+-        }
+ 
+->>>>>>>
+         private CorruptSSTableException throwCorrupted()
+         {
+             throw new CorruptSSTableException(new IOException("failed to get position"), descriptor.baseFilename());
