@@ -1,4 +1,5 @@
 3.0.24:
+ * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
  * Fix invalid cell value skipping when reading from disk (CASSANDRA-16223)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
