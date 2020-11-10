@@ -66,6 +66,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -132,7 +133,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         super("node" + config.num(), classLoader);
         this.config = config;
-        Object clusterId = Objects.requireNonNull(config.get("dtest.api.cluster_id"), "cluster_id is not defined");
+        Object clusterId = Objects.requireNonNull(config.get(Constants.KEY_DTEST_API_CLUSTER_ID), "cluster_id is not defined");
         ClusterIDDefiner.setId("cluster-" + clusterId);
         InstanceIDDefiner.setInstanceId(config.num());
         FBUtilities.setBroadcastInetAddress(config.broadcastAddress().getAddress());
@@ -595,7 +596,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private static Config loadConfig(IInstanceConfig overrides)
     {
         Map<String,Object> params = ((InstanceConfig) overrides).getParams();
-        return YamlConfigurationLoader.fromMap(params, Config.class);
+        boolean check = true;
+        if (overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK) != null)
+            check = (boolean) overrides.get(Constants.KEY_DTEST_API_CONFIG_CHECK);
+        return YamlConfigurationLoader.fromMap(params, check, Config.class);
     }
 
     private void initializeRing(ICluster cluster)
