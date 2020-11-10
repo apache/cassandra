@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.columniterator;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
@@ -30,7 +30,7 @@ import org.apache.cassandra.io.util.FileHandle;
 /**
  *  A Cell Iterator over SSTable
  */
-public class SSTableIterator extends AbstractSSTableIterator
+public class SSTableIterator extends AbstractBigTableIterator
 {
     /**
      * The index of the slice being processed.
@@ -40,7 +40,7 @@ public class SSTableIterator extends AbstractSSTableIterator
     public SSTableIterator(SSTableReader sstable,
                            FileDataInput file,
                            DecoratedKey key,
-                           RowIndexEntry indexEntry,
+                           BigTableRowIndexEntry indexEntry,
                            Slices slices,
                            ColumnFilter columns,
                            FileHandle ifile)
@@ -48,7 +48,7 @@ public class SSTableIterator extends AbstractSSTableIterator
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected RowReader createReaderInternal(BigTableRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
              ? new ForwardIndexedReader(indexEntry, file, shouldCloseFile)
@@ -72,7 +72,7 @@ public class SSTableIterator extends AbstractSSTableIterator
         return false;
     }
 
-    private class ForwardReader extends Reader
+    private class ForwardReader extends RowReader
     {
         // The start of the current slice. This will be null as soon as we know we've passed that bound.
         protected ClusteringBound<?> start;
@@ -211,7 +211,7 @@ public class SSTableIterator extends AbstractSSTableIterator
 
         private int lastBlockIdx; // the last index block that has data for the current query
 
-        private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        private ForwardIndexedReader(BigTableRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
             this.indexState = new IndexState(this, metadata.comparator, indexEntry, false, ifile);

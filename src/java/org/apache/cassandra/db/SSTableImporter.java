@@ -181,8 +181,15 @@ public class SSTableImporter
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
-                if (options.invalidateCaches && cfs.isRowCacheEnabled())
-                    invalidateCachesForSSTable(reader.descriptor);
+                try
+                {
+                    if (options.invalidateCaches && cfs.isRowCacheEnabled())
+                        invalidateCachesForSSTable(reader);
+                }
+                catch (IOException ex)
+                {
+                    throw new RuntimeException(ex);
+                }
             }
 
         }
@@ -311,9 +318,9 @@ public class SSTableImporter
      * Iterates over all keys in the sstable index and invalidates the row cache
      */
     @VisibleForTesting
-    void invalidateCachesForSSTable(Descriptor desc)
+    void invalidateCachesForSSTable(SSTableReader reader) throws IOException
     {
-        try (KeyIterator iter = new KeyIterator(desc, cfs.metadata()))
+        try (KeyIterator iter = KeyIterator.forSSTable(reader))
         {
             while (iter.hasNext())
             {

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,7 +36,17 @@ import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.columniterator.AbstractSSTableIterator;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
@@ -53,10 +63,8 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.LongSerializer;
@@ -68,7 +76,7 @@ import org.apache.cassandra.utils.btree.BTree;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
 
-public class RowIndexEntryTest extends CQLTester
+public class BigTableRowIndexEntryTest extends CQLTester
 {
     private static final List<AbstractType<?>> clusterTypes = Collections.singletonList(LongType.instance);
     private static final ClusteringComparator comp = new ClusteringComparator(clusterTypes);
@@ -146,7 +154,7 @@ public class RowIndexEntryTest extends CQLTester
         SerializationHeader header = new SerializationHeader(true, metadata, metadata.regularAndStaticColumns(), EncodingStats.NO_STATS);
 
         // create C-11206 + old serializer instances
-        RowIndexEntry.IndexSerializer rieSerializer = new RowIndexEntry.Serializer(version, header);
+        BigTableRowIndexEntry.IndexSerializer rieSerializer = new BigTableRowIndexEntry.Serializer(version, header);
         Pre_C_11206_RowIndexEntry.Serializer oldSerializer = new Pre_C_11206_RowIndexEntry.Serializer(metadata, version, header);
 
         @SuppressWarnings({ "resource", "IOResourceOpenedButNotSafelyClosed" })
@@ -156,9 +164,9 @@ public class RowIndexEntryTest extends CQLTester
 
         final SequentialWriter dataWriterNew;
         final SequentialWriter dataWriterOld;
-        final org.apache.cassandra.db.ColumnIndex columnIndex;
+        final org.apache.cassandra.io.sstable.format.big.ColumnIndex columnIndex;
 
-        RowIndexEntry rieNew;
+        BigTableRowIndexEntry rieNew;
         ByteBuffer rieNewSerialized;
         Pre_C_11206_RowIndexEntry rieOld;
         ByteBuffer rieOldSerialized;
@@ -168,8 +176,8 @@ public class RowIndexEntryTest extends CQLTester
             SequentialWriterOption option = SequentialWriterOption.newBuilder().bufferSize(1024).build();
             File f = FileUtils.createTempFile("RowIndexEntryTest-", "db");
             dataWriterNew = new SequentialWriter(f, option);
-            columnIndex = new org.apache.cassandra.db.ColumnIndex(header, dataWriterNew, version, Collections.emptyList(),
-                                                                  rieSerializer.indexInfoSerializer());
+            columnIndex = new org.apache.cassandra.io.sstable.format.big.ColumnIndex(header, dataWriterNew, version, Collections.emptyList(),
+                                                                                     rieSerializer.indexInfoSerializer());
 
             f = FileUtils.createTempFile("RowIndexEntryTest-", "db");
             dataWriterOld = new SequentialWriter(f, option);
@@ -187,17 +195,17 @@ public class RowIndexEntryTest extends CQLTester
 
             Iterator<Clustering<?>> clusteringIter = clusterings.iterator();
             columnIndex.buildRowIndex(makeRowIter(staticRow, partitionKey, clusteringIter, dataWriterNew));
-            rieNew = RowIndexEntry.create(startPosition, 0L,
-                                          deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
-                                          columnIndex.indexInfoSerializedSize(),
-                                          columnIndex.indexSamples(), columnIndex.offsets(),
-                                          rieSerializer.indexInfoSerializer());
+            rieNew = BigTableRowIndexEntry.create(startPosition, 0L,
+                                                  deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
+                                                  columnIndex.indexInfoSerializedSize(),
+                                                  columnIndex.indexSamples(), columnIndex.offsets(),
+                                                  rieSerializer.indexInfoSerializer());
             rieSerializer.serialize(rieNew, rieOutput, columnIndex.buffer());
             rieNewSerialized = rieOutput.buffer().duplicate();
 
             Iterator<Clustering<?>> clusteringIter2 = clusterings.iterator();
-            ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(makeRowIter(staticRow, partitionKey, clusteringIter2, dataWriterOld),
-                                                                                       dataWriterOld, header, Collections.emptySet(), BigFormat.latestVersion);
+            ColumnIndex columnIndex = BigTableRowIndexEntryTest.ColumnIndex.writeAndBuildIndex(makeRowIter(staticRow, partitionKey, clusteringIter2, dataWriterOld),
+                                                                                               dataWriterOld, header, Collections.emptySet(), BigFormat.latestVersion);
             rieOld = Pre_C_11206_RowIndexEntry.create(startPosition, deletionInfo, columnIndex);
             oldSerializer.serialize(rieOld, oldOutput);
             rieOldSerialized = oldOutput.buffer().duplicate();
@@ -389,7 +397,7 @@ public class RowIndexEntryTest extends CQLTester
 
                 // It's possible we add no rows, just a top level deletion
                 if (written == 0)
-                    return RowIndexEntryTest.ColumnIndex.EMPTY;
+                    return BigTableRowIndexEntryTest.ColumnIndex.EMPTY;
 
                 // the last column may have fallen on an index boundary already.  if not, index it explicitly.
                 if (firstClustering != null)
@@ -427,7 +435,7 @@ public class RowIndexEntryTest extends CQLTester
         File tempFile = FileUtils.createTempFile("row_index_entry_test", null);
         tempFile.deleteOnExit();
         SequentialWriter writer = new SequentialWriter(tempFile);
-        ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(partition.unfilteredIterator(), writer, header, Collections.emptySet(), BigFormat.latestVersion);
+        ColumnIndex columnIndex = BigTableRowIndexEntryTest.ColumnIndex.writeAndBuildIndex(partition.unfilteredIterator(), writer, header, Collections.emptySet(), BigFormat.latestVersion);
         Pre_C_11206_RowIndexEntry withIndex = Pre_C_11206_RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
         IndexInfo.Serializer indexSerializer = IndexInfo.serializer(BigFormat.latestVersion, header);
 
@@ -774,7 +782,7 @@ public class RowIndexEntryTest extends CQLTester
         indexes.add(new IndexInfo(cn(10L), cn(15L), 0, 0, deletionInfo));
         indexes.add(new IndexInfo(cn(20L), cn(25L), 0, 0, deletionInfo));
 
-        RowIndexEntry rie = new RowIndexEntry(0L)
+        BigTableRowIndexEntry rie = new BigTableRowIndexEntry(0L)
         {
             public IndexInfoRetriever openWithIndex(FileHandle indexFile)
             {
@@ -797,7 +805,7 @@ public class RowIndexEntryTest extends CQLTester
             }
         };
         
-        AbstractSSTableIterator.IndexState indexState = new AbstractSSTableIterator.IndexState(
+        IndexState indexState = new IndexState(
             null, comp, rie, false, null                                                                                              
         );
         
@@ -811,7 +819,7 @@ public class RowIndexEntryTest extends CQLTester
         assertEquals(3, indexState.indexFor(cn(100L), 2));
         assertEquals(3, indexState.indexFor(cn(100L), 3));
 
-        indexState = new AbstractSSTableIterator.IndexState(
+        indexState = new IndexState(
             null, comp, rie, true, null
         );
 

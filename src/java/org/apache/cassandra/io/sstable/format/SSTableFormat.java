@@ -19,9 +19,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import com.google.common.base.CharMatcher;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 
 /**
@@ -31,6 +28,7 @@ public interface SSTableFormat
 {
     static boolean enableSSTableDevelopmentTestMode = Boolean.getBoolean("cassandra.test.sstableformatdevelopment");
 
+    Type getType();
 
     Version getLatestVersion();
     Version getVersion(String version);
@@ -38,9 +36,7 @@ public interface SSTableFormat
     SSTableWriter.Factory getWriterFactory();
     SSTableReader.Factory getReaderFactory();
 
-    RowIndexEntry.IndexSerializer<?> getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header);
-
-    public static enum Type
+    public enum Type
     {
         //The original sstable format
         BIG("big", BigFormat.instance);
@@ -53,7 +49,7 @@ public interface SSTableFormat
             return BIG;
         }
 
-        private Type(String name, SSTableFormat info)
+        Type(String name, SSTableFormat info)
         {
             //Since format comes right after generation
             //we disallow formats with numeric names

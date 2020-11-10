@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -26,6 +27,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * Caller must acquire and release references to the sstables used here.
@@ -38,8 +40,16 @@ public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
     public ReducingKeyIterator(Collection<SSTableReader> sstables)
     {
         iters = new ArrayList<>(sstables.size());
-        for (SSTableReader sstable : sstables)
-            iters.add(new KeyIterator(sstable.descriptor, sstable.metadata()));
+        try
+        {
+            for (SSTableReader sstable : sstables)
+                iters.add(KeyIterator.forSSTable(sstable));
+        }
+        catch (IOException | RuntimeException ex)
+        {
+            iters.forEach(KeyIterator::close);
+            throw Throwables.cleaned(ex);
+        }
     }
 
     private void maybeInit()

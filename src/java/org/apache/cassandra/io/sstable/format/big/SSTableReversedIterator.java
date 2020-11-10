@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.columniterator;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.*;
@@ -34,7 +34,7 @@ import org.apache.cassandra.utils.btree.BTree;
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
  */
-public class SSTableReversedIterator extends AbstractSSTableIterator
+public class SSTableReversedIterator extends AbstractBigTableIterator
 {
     /**
      * The index of the slice being processed.
@@ -44,7 +44,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
     public SSTableReversedIterator(SSTableReader sstable,
                                    FileDataInput file,
                                    DecoratedKey key,
-                                   RowIndexEntry indexEntry,
+                                   BigTableRowIndexEntry indexEntry,
                                    Slices slices,
                                    ColumnFilter columns,
                                    FileHandle ifile)
@@ -52,7 +52,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(BigTableRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
              ? new ReverseIndexedReader(indexEntry, file, shouldCloseFile)
@@ -76,7 +76,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         return slice < slices.size();
     }
 
-    private class ReverseReader extends Reader
+    private class ReverseReader extends RowReader
     {
         protected ReusablePartitionData buffer;
         protected Iterator<Unfiltered> iterator;
@@ -262,7 +262,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         // The last index block to consider for the slice
         private int lastBlockIdx;
 
-        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        private ReverseIndexedReader(BigTableRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
             this.indexState = new IndexState(this, metadata.comparator, indexEntry, true, ifile);
