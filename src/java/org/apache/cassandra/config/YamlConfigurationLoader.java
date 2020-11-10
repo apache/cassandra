@@ -128,8 +128,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         }
     }
 
-    @SuppressWarnings("unchecked") //getSingleData returns Object, not T
     public static <T> T fromMap(Map<String,Object> map, Class<T> klass)
+    {
+        return fromMap(map, true, klass);
+    }
+
+    @SuppressWarnings("unchecked") //getSingleData returns Object, not T
+    public static <T> T fromMap(Map<String,Object> map, boolean shouldCheck, Class<T> klass)
     {
         Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
         YamlConfigurationLoader.MissingPropertiesChecker propertiesChecker = new YamlConfigurationLoader.MissingPropertiesChecker();
@@ -145,7 +150,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             }
         });
         T value = (T) constructor.getSingleData(klass);
-        propertiesChecker.check();
+        if (shouldCheck)
+            propertiesChecker.check();
         return value;
     }
 
