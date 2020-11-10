@@ -196,4 +196,14 @@ public class UpgradeTestBase extends DistributedTestBase
         }
     }
 
+    protected TestCase allUpgrades(int nodes, int... toUpgrade)
+    {
+        return new TestCase().nodes(nodes)
+                             .upgrade(Versions.Major.v22, Versions.Major.v30)
+                             .upgrade(Versions.Major.v22, Versions.Major.v3X)
+                             .upgrade(Versions.Major.v30, Versions.Major.v3X)
+                             .upgrade(Versions.Major.v30, Versions.Major.v4)
+                             .upgrade(Versions.Major.v3X, Versions.Major.v4)
+                             .nodesToUpgrade(toUpgrade);
+    }
 }
