@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.util.Collection;
 import java.util.UUID;
 
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -47,6 +48,12 @@ public class BigFormat implements SSTableFormat
     }
 
     @Override
+    public Type getType()
+    {
+        return Type.BIG;
+    }
+
+    @Override
     public Version getLatestVersion()
     {
         return latestVersion;
@@ -71,7 +78,7 @@ public class BigFormat implements SSTableFormat
     }
 
     @Override
-    public RowIndexEntry.IndexSerializer getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
+    public RowIndexEntry.IndexSerializer<IndexInfo> getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
     {
         return new RowIndexEntry.Serializer(version, header);
     }
