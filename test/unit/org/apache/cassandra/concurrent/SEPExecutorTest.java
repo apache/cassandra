@@ -59,7 +59,7 @@ public class SEPExecutorTest
 
         for (int idx = 0; idx < 20; idx++)
         {
-            ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
+            ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), "STAGE", run + MAGIC + idx);
             // Write to black hole
             es.execute(() -> nullPrintSteam.println("TEST" + es));
         }
@@ -87,7 +87,7 @@ public class SEPExecutorTest
         SharedExecutorPool sharedPool = new SharedExecutorPool("ChangingMaxWorkersMeetsConcurrencyGoalsTest");
         final AtomicInteger notifiedMaxPoolSize = new AtomicInteger();
 
-        LocalAwareExecutorService executor = sharedPool.newExecutor(0, notifiedMaxPoolSize::set, 4, "internal", "resizetest");
+        LocalAwareExecutorService executor = sharedPool.newExecutor(0, notifiedMaxPoolSize::set, "internal", "resizetest");
 
         // Keep feeding the executor work while resizing
         // so it stays under load.

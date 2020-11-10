@@ -191,7 +191,7 @@ public enum Stage
 
     static LocalAwareExecutorService multiThreadedLowSignalStage(String jmxName, String jmxType, int numThreads, LocalAwareExecutorService.MaximumPoolSizeListener onSetMaximumPoolSize)
     {
-        return SharedExecutorPool.SHARED.newExecutor(numThreads, onSetMaximumPoolSize, Integer.MAX_VALUE, jmxType, jmxName);
+        return SharedExecutorPool.SHARED.newExecutor(numThreads, onSetMaximumPoolSize, jmxType, jmxName);
     }
 
     static LocalAwareExecutorService singleThreadedStage(String jmxName, String jmxType, int numThreads, LocalAwareExecutorService.MaximumPoolSizeListener onSetMaximumPoolSize)
