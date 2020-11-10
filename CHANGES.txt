@@ -1,5 +1,6 @@
 3.11.10
 Merged from 3.0:
+ * Fix a race condition on ColumnFamilyStore and TableMetrics (CASSANDRA-16228)
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Fix invalid cell value skipping when reading from disk (CASSANDRA-16223)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
