@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import java.io.FileNotFoundException;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -136,17 +137,21 @@ public final class JVMStabilityInspector
     private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
     {
         // See the oom thrown from java.nio.Bits.reserveMemory.
-        if (!"Direct buffer memory".equals(oom.getMessage()))
+        // In jdk 13 and up, the message is "Cannot reserve XX bytes of direct buffer memory (...)"
+        // In jdk 11 and below, the message is "Direct buffer memory"
+        if ((oom.getMessage() != null && oom.getMessage().toLowerCase().contains("direct buffer memory")) ||
+            Arrays.stream(oom.getStackTrace()).anyMatch(x -> x.getClassName().equals("java.nio.Bits")
+                                                             && x.getMethodName().equals("reserveMemory")))
         {
-            return;
-        }
-        logger.error("Force heap space OutOfMemoryError in the presence of", oom);
-        List<long[]> ignored = new ArrayList<>();
-        while (true)
-        {
-            // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
-            // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
-            ignored.add(new long[Integer.MAX_VALUE / 2]);
+            logger.error("Force heap space OutOfMemoryError in the presence of", oom);
+            // Start to produce heap space OOM forcibly.
+            List<long[]> ignored = new ArrayList<>();
+            while (true)
+            {
+                // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
+                // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
+                ignored.add(new long[Integer.MAX_VALUE / 2]);
+            }
         }
     }
 
