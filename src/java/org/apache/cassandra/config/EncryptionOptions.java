@@ -225,8 +225,8 @@ public class EncryptionOptions
 
     /**
      * Sets accepted TLS protocols for this channel. Note that this should only be called by
-     * the configuration parser or tests. It is public only for that purpose, mutating protocl state
-     * is probably a bad idea.
+     * the configuration parser or tests. It is public only for that purpose, mutating protocol state
+     * is probably a bad idea. The function casing is required for snakeyaml to find this setter for the protected field.
      * @param accepted_protocols value to set
      */
     public void setaccepted_protocols(List<String> accepted_protocols) {

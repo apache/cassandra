@@ -243,7 +243,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
 
             TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
-            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
+            Assert.assertEquals("Should not be possible to establish a TLSv1.2 connection",
                                 ConnectResult.FAILED_TO_NEGOTIATE, tls12Connection.connect());
             tls12Connection.assertReceivedHandshakeException();
         }
@@ -268,7 +268,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             TlsConnection connection = new TlsConnection(address.getHostAddress(), port,
                                                          Collections.singletonList("TLSv1.2"),
                                                          Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"));
-            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
+            Assert.assertEquals("Should not be possible to establish a TLSv1.2 connection with different ciphers",
                                 ConnectResult.FAILED_TO_NEGOTIATE, connection.connect());
             connection.assertReceivedHandshakeException();
         }
