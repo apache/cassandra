@@ -135,7 +135,16 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
 
-        this.updatedColumns = updatedColumnsBuilder.build();
+        RegularAndStaticColumns modifiedColumns = updatedColumnsBuilder.build();
+
+        // Compact tables have not row marker. So if we don't actually update any particular column,
+        // this means that we're only updating the PK, which we allow if only those were declared in
+        // the definition. In that case however, we do went to write the compactValueColumn (since again
+        // we can't use a "row marker") so add it automatically.
+        if (metadata.isCompactTable() && modifiedColumns.isEmpty() && updatesRegularRows())
+            modifiedColumns = metadata.regularAndStaticColumns();
+
+        this.updatedColumns = modifiedColumns;
         this.conditionColumns = conditionColumnsBuilder.build();
         this.requiresRead = requiresReadBuilder.build();
     }

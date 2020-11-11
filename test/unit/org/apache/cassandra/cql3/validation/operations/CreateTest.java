@@ -421,10 +421,6 @@ public class CreateTest extends CQLTester
         // repeated column
         assertInvalidMessage("Duplicate column 'k' declaration for table", String.format("CREATE TABLE %s (k int PRIMARY KEY, c int, k text)", table4));
 
-        // compact storage limitations
-        assertInvalidThrow(SyntaxException.class,
-                           String.format("CREATE TABLE %s (k int, name, int, c1 int, c2 int, PRIMARY KEY(k, name)) WITH COMPACT STORAGE", table4));
-
         execute(String.format("DROP TABLE %s.%s", keyspace(), table1));
 
         createTable(String.format("CREATE TABLE %s.%s ( k int PRIMARY KEY, c1 int, c2 int, ) ", keyspace(), table1));
@@ -685,13 +681,6 @@ public class CreateTest extends CQLTester
         assertThrowsConfigurationException("Unknown compression options unknownOption",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                             + " WITH compression = { 'class' : 'SnappyCompressor', 'unknownOption' : 32 };");
-    }
-
-    @Test
-    public void compactTableTest() throws Throwable
-    {
-        assertInvalidMessage("COMPACT STORAGE tables are not allowed starting with version 4.0",
-                             "CREATE TABLE compact_table_create (id text PRIMARY KEY, content text) WITH COMPACT STORAGE;");
     }
 
     private void assertThrowsConfigurationException(String errorMsg, String createStmt)

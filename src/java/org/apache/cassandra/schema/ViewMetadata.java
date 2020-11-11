@@ -194,7 +194,9 @@ public final class ViewMetadata implements SchemaElement
 
         metadata.appendPrimaryKey(builder);
 
-        builder.decreaseIndent();
+        builder.decreaseIndent()
+               .append(" WITH ")
+               .increaseIndent();
 
         metadata.appendTableOptions(builder, internals);
     }

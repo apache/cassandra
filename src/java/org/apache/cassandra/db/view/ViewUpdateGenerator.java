@@ -171,6 +171,16 @@ public class ViewUpdateGenerator
         //   1) if there is a column not part of the base PK in the view PK, whether it is changed by the update.
         //   2) whether mergedBaseRow actually match the view SELECT filter
 
+        if (baseMetadata.isCompactTable())
+        {
+            Clustering clustering = mergedBaseRow.clustering();
+            for (int i = 0; i < clustering.size(); i++)
+            {
+                if (clustering.get(i) == null)
+                    return UpdateAction.NONE;
+            }
+        }
+
         assert view.baseNonPKColumnsInViewPK.size() <= 1 : "We currently only support one base non-PK column in the view PK";
 
         if (view.baseNonPKColumnsInViewPK.isEmpty())
