@@ -25,6 +25,11 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
+/**
+ * Test read repair after partial deletions when the cluster nodes are on different versions.
+ *
+ * This test and {@link MixedModeReadRepairWriteTest} are separated to avoid OOM errors in CI (see CASSANDRA-16237).
+ */
 public class MixedModeReadRepairDeleteTest extends UpgradeTestBase
 {
     /**
