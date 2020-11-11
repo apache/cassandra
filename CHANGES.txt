@@ -1,4 +1,5 @@
 4.0-beta4
+ * Ensure that CacheMetrics.requests is picked up by the metric reporter (CASSANDRA-16228)
  * Add a ratelimiter to snapshot creation and deletion (CASSANDRA-13019)
  * Produce consistent tombstone for reads to avoid digest mistmatch (CASSANDRA-15369)
  * Fix SSTableloader issue when restoring a table named backups (CASSANDRA-16235)
@@ -7,6 +8,7 @@
  * TLS connections to the storage port on a node without server encryption configured causes java.io.IOException accessing missing keystore (CASSANDRA-16144)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix a race condition on ColumnFamilyStore and TableMetrics (CASSANDRA-16228)
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
@@ -51,6 +53,7 @@ Merged from 2.2:
  * Package tools/bin scripts as executable (CASSANDRA-16151)
  * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
  * Automatically drop compact storage on tables for which it is safe (CASSANDRA-16048)
+ * Fixed NullPointerException for COMPACT STORAGE tables with null clustering (CASSANDRA-16241)
 
 4.0-beta2
  * Add addition incremental repair visibility to nodetool repair_admin (CASSANDRA-14939)
