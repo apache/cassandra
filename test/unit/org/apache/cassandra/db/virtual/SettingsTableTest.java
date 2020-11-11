@@ -154,7 +154,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "protocol", "[TLSv5]");
 
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
-        check(pre + "protocol", "[TLSv1.2, TLSv1.1, TLSv1]");
+        check(pre + "protocol", "[TLSv1.3, TLSv1.2, TLSv1.1, TLSv1]");
 
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
         config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));

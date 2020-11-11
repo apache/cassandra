@@ -190,7 +190,7 @@ public class SSLFactoryTest
                                     .withKeyStorePassword("bad password")
                                     .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
-        SSLFactory.initHotReloading(options, options, true);
+        SSLFactory.validateSslContext("testSslFactorySslInit_BadPassword_ThrowsException", options, false, true);
     }
 
     @Test
