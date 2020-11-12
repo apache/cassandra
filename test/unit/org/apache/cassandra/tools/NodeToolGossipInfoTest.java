@@ -125,6 +125,6 @@ public class NodeToolGossipInfoTest extends CQLTester
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
         String newHeartbeatCount = StringUtils.substringBetween(tool.getStdout(), "heartbeat:", "\n");
-        assertTrue(Integer.parseInt(origHeartbeatCount) < Integer.parseInt(newHeartbeatCount));
+        assertTrue(Integer.parseInt(origHeartbeatCount) <= Integer.parseInt(newHeartbeatCount));
     }
 }
