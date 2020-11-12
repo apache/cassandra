@@ -642,6 +642,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new AssertionError(e);
         }
 
+        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
+        {
+            logger.info("Loading persisted ring state");
+            populatePeerTokenMetadata();
+            for (InetAddressAndPort endpoint : tokenMetadata.getAllEndpoints())
+                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(endpoint));
+        }
+
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         drainOnShutdown = NamedThreadFactory.createThread(new WrappedRunnable()
         {
@@ -663,8 +671,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!Boolean.parseBoolean(System.getProperty("cassandra.start_gossip", "true")))
         {
             logger.info("Not starting gossip as requested.");
-            // load ring state in preparation for starting gossip later
-            loadRingState(false);
             initialized = true;
             return;
         }
@@ -708,41 +714,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void populateTokenMetadata()
     {
-        loadRingState(true);
-    }
-
-    private void loadRingState(boolean populateTokenMetadataOnly)
-    {
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
-            logger.info("Loading persisted ring state (populateTokenMetadataOnly: {})", populateTokenMetadataOnly);
-            Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
-            Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
-
+            populatePeerTokenMetadata();
             // if we have not completed bootstrapping, we should not add ourselves as a normal token
-            if (populateTokenMetadataOnly && !shouldBootstrap())
-                loadedTokens.putAll(FBUtilities.getBroadcastAddressAndPort(), SystemKeyspace.getSavedTokens());
+            if (!shouldBootstrap())
+                tokenMetadata.updateNormalTokens(SystemKeyspace.getSavedTokens(), FBUtilities.getBroadcastAddressAndPort());
 
-            for (InetAddressAndPort ep : loadedTokens.keySet())
-            {
-                if (!populateTokenMetadataOnly && ep.equals(FBUtilities.getBroadcastAddressAndPort()))
-                {
-                    // entry has been mistakenly added, delete it
-                    SystemKeyspace.removeEndpoint(ep);
-                }
-                else
-                {
-                    tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
-                    if (loadedHostIds.containsKey(ep))
-                        tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
+            logger.info("Token metadata: {}", tokenMetadata);
+        }
+    }
 
-                    if (!populateTokenMetadataOnly)
-                        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(ep));
-                }
-            }
+    private void populatePeerTokenMetadata()
+    {
+        logger.info("Populating token metadata from system tables");
+        Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
 
-            if (populateTokenMetadataOnly)
-                logger.info("Token metadata: {}", tokenMetadata);
+        // entry has been mistakenly added, delete it
+        if (loadedTokens.containsKey(FBUtilities.getBroadcastAddressAndPort()))
+            SystemKeyspace.removeEndpoint(FBUtilities.getBroadcastAddressAndPort());
+
+        Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
+        for (InetAddressAndPort ep : loadedTokens.keySet())
+        {
+            tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
+            if (loadedHostIds.containsKey(ep))
+                tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
         }
     }
 
@@ -848,8 +845,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             appStates.put(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(FBUtilities.getBroadcastNativeAddressAndPort()));
             appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(FBUtilities.getJustBroadcastNativeAddress()));
             appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
-
-            loadRingState(false);
 
             logger.info("Starting up server gossip");
             Gossiper.instance.register(this);
