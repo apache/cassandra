@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -45,7 +44,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.tools.OfflineToolUtils.SystemExitException;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.util.Lists;
 
