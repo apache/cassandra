@@ -203,16 +203,6 @@ public abstract class OfflineToolUtils
         initialThreads = Arrays.asList(threads.getThreadInfo(threads.getAllThreadIds()));
     }
 
-    public static class SystemExitException extends Error
-    {
-        public final int status;
-
-        public SystemExitException(int status)
-        {
-            this.status = status;
-        }
-    }
-
     public static String findOneSSTable(String ks, String cf) throws IOException
     {
         File cfDir = sstableDir(ks, cf);

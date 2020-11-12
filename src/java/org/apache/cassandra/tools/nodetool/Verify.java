@@ -74,6 +74,7 @@ public class Verify extends NodeToolCmd
         if (checkOwnsTokens && !extendedVerify)
         {
             out.println("Token verification requires --extended-verify");
+            // if System.exit gets removed, make sure to update org.apache.cassandra.distributed.test.NodeToolTest.testNodetoolSystemExit
             System.exit(1);
         }
 
