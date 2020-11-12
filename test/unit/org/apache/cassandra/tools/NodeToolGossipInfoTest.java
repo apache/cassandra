@@ -97,7 +97,7 @@ public class NodeToolGossipInfoTest extends CQLTester
     }
 
     @Test
-    public void testTPStats() throws Throwable
+    public void testGossipInfo() throws Throwable
     {
         ToolResult tool = ToolRunner.invokeNodetool("gossipinfo");
         Assertions.assertThat(tool.getStdout()).contains("/127.0.0.1");
@@ -125,6 +125,6 @@ public class NodeToolGossipInfoTest extends CQLTester
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
         String newHeartbeatCount = StringUtils.substringBetween(tool.getStdout(), "heartbeat:", "\n");
-        assertTrue(Integer.parseInt(origHeartbeatCount) < Integer.parseInt(newHeartbeatCount));
+        assertTrue(Integer.parseInt(origHeartbeatCount) <= Integer.parseInt(newHeartbeatCount));
     }
 }
