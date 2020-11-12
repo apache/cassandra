@@ -254,6 +254,8 @@ Upgrading
       default (16) was meant for spinning disk volumes.  See CASSANDRA-14902 for details.
     - Custom compaction strategies must now handle getting sstables added/removed notifications for
       sstables already added/removed - see CASSANDRA-14103 for details.
+    - Support for JNA with glibc 2.6 and earlier has been removed. Centos 5, Debian 4, and Ubuntu 7.10 operating systems
+      must be first upgraded. See CASSANDRA-16212 for more.
 
 
 Deprecation

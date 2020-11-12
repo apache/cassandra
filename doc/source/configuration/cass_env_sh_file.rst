@@ -18,10 +18,6 @@ Facilitates setting auto_bootstrap to false on initial set-up of the cluster. Th
 ---------------------------------------------------------
 In a multi-instance deployment, multiple Cassandra instances will independently assume that all CPU processors are available to it. This setting allows you to specify a smaller set of processors.
 
-``cassandra.boot_without_jna=true``
------------------------------------
-If JNA fails to initialize, Cassandra fails to boot. Use this command to boot Cassandra without JNA.
-
 ``cassandra.config=<directory>``
 --------------------------------
 The directory location of the ``cassandra.yaml file``. The default location depends on the type of installation.
