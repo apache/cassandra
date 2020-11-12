@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
+import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -78,7 +79,6 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
-import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -102,7 +102,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.StartupChecks;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamReceiveTask;
@@ -110,6 +109,7 @@ import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
+import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -607,7 +607,35 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             try (CapturingOutput output = new CapturingOutput())
             {
                 DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate);
-                int rc = nodetool.execute(commandAndArgs);
+                // install security manager to get informed about the exit-code
+                System.setSecurityManager(new SecurityManager()
+                {
+                    public void checkExit(int status)
+                    {
+                        throw new SystemExitException(status);
+                    }
+
+                    public void checkPermission(Permission perm)
+                    {
+                    }
+
+                    public void checkPermission(Permission perm, Object context)
+                    {
+                    }
+                });
+                int rc;
+                try
+                {
+                    rc = nodetool.execute(commandAndArgs);
+                }
+                catch (SystemExitException e)
+                {
+                    rc = e.status;
+                }
+                finally
+                {
+                    System.setSecurityManager(null);
+                }
                 return new NodeToolResult(commandAndArgs, rc,
                                           new ArrayList<>(nodetool.notifications.notifications),
                                           nodetool.latestError,
@@ -705,6 +733,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         protected void err(Throwable e)
         {
+            if (e instanceof SystemExitException)
+                return;
             super.err(e);
             latestError = e;
         }
