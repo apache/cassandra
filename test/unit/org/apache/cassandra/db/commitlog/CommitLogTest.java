@@ -69,8 +69,6 @@ import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import org.junit.After;
-
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
