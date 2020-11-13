@@ -1,5 +1,5 @@
 2.2.20
-
+ * Fix the histogram merge of the table metrics (CASSANDRA-16259)
 
 2.2.19
  * Package tools/bin scripts as executable (CASSANDRA-16151)
