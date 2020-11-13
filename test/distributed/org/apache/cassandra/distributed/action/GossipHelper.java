@@ -444,10 +444,15 @@ public class GossipHelper
 
     public static void withProperty(String prop, boolean value, Runnable r)
     {
+        withProperty(prop, Boolean.toString(value), r);
+    }
+
+    public static void withProperty(String prop, String value, Runnable r)
+    {
         String before = System.getProperty(prop);
         try
         {
-            System.setProperty(prop, Boolean.toString(value));
+            System.setProperty(prop, value);
             r.run();
         }
         finally
