@@ -322,7 +322,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 Preconditions.checkArgument(streamsFor.get(address).isEmpty(), "We should not fetch ranges from ourselves");
                 for (InetAddressAndPort fetchFrom : streamsFor.hosts())
                 {
-                    List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
+                    List<Range<Token>> toFetch = new ArrayList<>(streamsFor.get(fetchFrom));
                     assert !toFetch.isEmpty();
 
                     logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
@@ -347,6 +347,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
                     syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
+        logger.debug("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
         return syncTasks;
     }
 
