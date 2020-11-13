@@ -533,6 +533,11 @@ public class Config
 
     public boolean autocompaction_on_startup_enabled = Boolean.parseBoolean(System.getProperty("cassandra.autocompaction_on_startup_enabled", "true"));
 
+    // see CASSANDRA-3200 / CASSANDRA-16274
+    public volatile boolean auto_optimise_inc_repair_streams = false;
+    public volatile boolean auto_optimise_full_repair_streams = false;
+    public volatile boolean auto_optimise_preview_repair_streams = false;
+
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.

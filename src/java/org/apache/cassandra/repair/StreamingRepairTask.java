@@ -72,7 +72,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
 
     public void run()
     {
-        logger.info("[streaming task #{}] Performing streaming repair of {} ranges with {}", desc.sessionId, ranges.size(), dst);
+        logger.info("[streaming task #{}] Performing {}streaming repair of {} ranges with {}", desc.sessionId, asymmetric ? "asymmetric " : "", ranges.size(), dst);
         createStreamPlan(dst).execute();
     }
 

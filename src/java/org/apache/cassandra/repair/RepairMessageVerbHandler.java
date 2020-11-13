@@ -152,23 +152,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                        request.ranges,
                                                                        isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
                                                                        request.previewKind,
-                                                                       false);
+                                                                       request.asymmetric);
                     task.run();
-                    break;
-
-                case ASYMMETRIC_SYNC_REQ:
-                    // forwarded sync request
-                    AsymmetricSyncRequest asymmetricSyncRequest = (AsymmetricSyncRequest) message.payload;
-                    logger.debug("Syncing {}", asymmetricSyncRequest);
-                    StreamingRepairTask asymmetricTask = new StreamingRepairTask(desc,
-                                                                                 asymmetricSyncRequest.initiator,
-                                                                                 asymmetricSyncRequest.fetchingNode,
-                                                                                 asymmetricSyncRequest.fetchFrom,
-                                                                                 asymmetricSyncRequest.ranges,
-                                                                                 isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
-                                                                                 asymmetricSyncRequest.previewKind,
-                                                                                 true);
-                    asymmetricTask.run();
                     break;
 
                 case CLEANUP_MSG:

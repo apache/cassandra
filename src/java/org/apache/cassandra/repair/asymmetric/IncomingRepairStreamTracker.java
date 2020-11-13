@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
@@ -37,7 +35,7 @@ public class IncomingRepairStreamTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(IncomingRepairStreamTracker.class);
     private final DifferenceHolder differences;
-    private final Map<Range<Token>, StreamFromOptions> incoming = new HashMap<>();
+    private final RangeMap<StreamFromOptions> incoming = new RangeMap<>();
 
     public IncomingRepairStreamTracker(DifferenceHolder differences)
     {
@@ -65,9 +63,7 @@ public class IncomingRepairStreamTracker
         logger.trace("adding incoming range {} from {}", range, streamFromNode);
         Set<Range<Token>> newInput = RangeDenormalizer.denormalize(range, incoming);
         for (Range<Token> input : newInput)
-        {
             incoming.computeIfAbsent(input, (newRange) -> new StreamFromOptions(differences, newRange)).add(streamFromNode);
-        }
     }
 
     public ImmutableMap<Range<Token>, StreamFromOptions> getIncoming()

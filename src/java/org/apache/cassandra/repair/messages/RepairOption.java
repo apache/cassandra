@@ -390,7 +390,22 @@ public class RepairOption
 
     public boolean optimiseStreams()
     {
-        return optimiseStreams;
+        if(optimiseStreams)
+            return true;
+
+        if (isPullRepair() || isForcedRepair())
+            return false;
+
+        if (isIncremental() && DatabaseDescriptor.autoOptimiseIncRepairStreams())
+            return true;
+
+        if (isPreview() && DatabaseDescriptor.autoOptimisePreviewRepairStreams())
+            return true;
+
+        if (!isIncremental() && DatabaseDescriptor.autoOptimiseFullRepairStreams())
+            return true;
+
+        return false;
     }
 
     public boolean ignoreUnreplicatedKeyspaces()
@@ -413,7 +428,7 @@ public class RepairOption
                ", # of ranges: " + ranges.size() +
                ", pull repair: " + pullRepair +
                ", force repair: " + forceRepair +
-               ", optimise streams: "+ optimiseStreams +
+               ", optimise streams: "+ optimiseStreams() +
                ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
                ')';
     }

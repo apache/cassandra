@@ -826,4 +826,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort();
+
+    // see CASSANDRA-3200
+    public boolean autoOptimiseIncRepairStreams();
+    public void setAutoOptimiseIncRepairStreams(boolean enabled);
+    public boolean autoOptimiseFullRepairStreams();
+    public void setAutoOptimiseFullRepairStreams(boolean enabled);
+    public boolean autoOptimisePreviewRepairStreams();
+    public void setAutoOptimisePreviewRepairStreams(boolean enabled);
 }

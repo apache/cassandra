@@ -5767,4 +5767,34 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
                                                                         e -> e.getValue().stream().map(InetAddressAndPort::toString).collect(Collectors.toSet())));
     }
+
+    public boolean autoOptimiseIncRepairStreams()
+    {
+        return DatabaseDescriptor.autoOptimiseIncRepairStreams();
+    }
+
+    public void setAutoOptimiseIncRepairStreams(boolean enabled)
+    {
+        DatabaseDescriptor.setAutoOptimiseIncRepairStreams(enabled);
+    }
+
+    public boolean autoOptimiseFullRepairStreams()
+    {
+        return DatabaseDescriptor.autoOptimiseFullRepairStreams();
+    }
+
+    public void setAutoOptimiseFullRepairStreams(boolean enabled)
+    {
+        DatabaseDescriptor.setAutoOptimiseFullRepairStreams(enabled);
+    }
+
+    public boolean autoOptimisePreviewRepairStreams()
+    {
+        return DatabaseDescriptor.autoOptimisePreviewRepairStreams();
+    }
+
+    public void setAutoOptimisePreviewRepairStreams(boolean enabled)
+    {
+        DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
+    }
 }

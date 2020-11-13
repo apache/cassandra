@@ -73,6 +73,7 @@ import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
 import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class RepairJobTest
 {
@@ -610,7 +611,7 @@ public class RepairJobTest
     }
 
     @Test
-    public void testOptimizedCreateStandardSyncTasksAllDifferent()
+    public void testOptimisedCreateStandardSyncTasksAllDifferent()
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
@@ -636,8 +637,17 @@ public class RepairJobTest
     }
 
     @Test
-    public void testOptimizedCreateStandardSyncTasks()
+    public void testOptimisedCreateStandardSyncTasks()
     {
+        /*
+        addr1 will stream range1 from addr3
+                          range2 from addr2 or addr3
+        addr2 will stream range1 from addr3
+                          range2 from addr1
+        addr3 will stream range1 from addr1 or addr2
+                          range2 from addr1
+         */
+
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one"),
                                                          treeResponse(addr2, RANGE_1, "one", RANGE_2, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "two"));
@@ -652,21 +662,23 @@ public class RepairJobTest
 
         assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
 
-        assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).containsExactly(RANGE_1);
+        // addr1 streams range1 from addr3:
+        assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).contains(RANGE_1);
         // addr1 can get range2 from either addr2 or addr3 but not from both
         assertStreamRangeFromEither(tasks, RANGE_2, addr1, addr2, addr3);
 
-        assertThat(tasks.get(pair(addr2, addr3)).rangesToSync).containsExactly(RANGE_1);
-        assertThat(tasks.get(pair(addr2, addr1)).rangesToSync).containsExactly(RANGE_2);
-
+        // addr2 streams range1 from addr3
+        assertThat(tasks.get(pair(addr2, addr3)).rangesToSync).contains(RANGE_1);
+        // addr2 streams range2 from addr1
+        assertThat(tasks.get(pair(addr2, addr1)).rangesToSync).contains(RANGE_2);
         // addr3 can get range1 from either addr1 or addr2 but not from both
         assertStreamRangeFromEither(tasks, RANGE_1, addr3, addr2, addr1);
-
-        assertThat(tasks.get(pair(addr3, addr1)).rangesToSync).containsExactly(RANGE_2);
+        // addr3 streams range2 from addr1
+        assertThat(tasks.get(pair(addr3, addr1)).rangesToSync).contains(RANGE_2);
     }
 
     @Test
-    public void testOptimizedCreateStandardSyncTasksWithTransient()
+    public void testOptimisedCreateStandardSyncTasksWithTransient()
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"),
@@ -681,7 +693,6 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
-        assertThat(tasks).hasSize(3);
         SyncTask task = tasks.get(pair(addr1, addr2));
 
         assertThat(task)
@@ -698,23 +709,21 @@ public class RepairJobTest
     public static void assertStreamRangeFromEither(Map<SyncNodePair, SyncTask> tasks, Range<Token> range,
                                                    InetAddressAndPort target, InetAddressAndPort either, InetAddressAndPort or)
     {
-        InetAddressAndPort streamsFrom;
-        InetAddressAndPort doesntStreamFrom;
-        if (tasks.containsKey(pair(target, either)) && tasks.get(pair(target, either)).rangesToSync.contains(range))
-        {
-            streamsFrom = either;
-            doesntStreamFrom = or;
-        }
-        else
-        {
-            doesntStreamFrom = either;
-            streamsFrom = or;
-        }
+        SyncTask task1 = tasks.get(pair(target, either));
+        SyncTask task2 = tasks.get(pair(target, or));
 
-        SyncTask task = tasks.get(pair(target, streamsFrom));
-        assertThat(task).isInstanceOf(AsymmetricRemoteSyncTask.class);
-        assertThat(task.rangesToSync).containsOnly(range);
-        assertDoesntStreamRangeFrom(range, tasks.get(pair(target, doesntStreamFrom)));
+        boolean foundRange = false;
+        if (task1 != null && task1.rangesToSync.contains(range))
+        {
+            foundRange = true;
+            assertDoesntStreamRangeFrom(range, task2);
+        }
+        else if (task2 != null && task2.rangesToSync.contains(range))
+        {
+            foundRange = true;
+            assertDoesntStreamRangeFrom(range, task1);
+        }
+        assertTrue(foundRange);
     }
 
     public static void assertDoesntStreamRangeFrom(Range<Token> range, SyncTask task)

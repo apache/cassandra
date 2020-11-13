@@ -22,16 +22,21 @@ package org.apache.cassandra.repair.asymmetric;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+import org.apache.commons.collections.keyvalue.AbstractMapEntry;
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -263,30 +268,30 @@ public class ReduceHelperTest
 
         HostDifferences n0 = reduced.get(A);
 
-        assertTrue(n0.get(B).equals(list(range(50, 100))));
-        assertTrue(n0.get(C).equals(list(range(0, 50))));
+        assertTrue(n0.get(B).equals(set(range(50, 100))));
+        assertTrue(n0.get(C).equals(set(range(0, 50))));
 
         HostDifferences n1 = reduced.get(B);
         assertEquals(0, n1.get(B).size());
         if (!n1.get(A).isEmpty())
         {
-            assertTrue(n1.get(C).equals(list(range(0, 50))));
-            assertTrue(n1.get(A).equals(list(range(50, 100))));
+            assertTrue(n1.get(C).equals(set(range(0, 50))));
+            assertTrue(n1.get(A).equals(set(range(50, 100))));
         }
         else
         {
-            assertTrue(n1.get(C).equals(list(range(0, 50), range(50, 100))));
+            assertTrue(n1.get(C).equals(set(range(0, 50), range(50, 100))));
         }
         HostDifferences n2 = reduced.get(C);
         assertEquals(0, n2.get(C).size());
         if (!n2.get(A).isEmpty())
         {
-            assertTrue(n2.get(A).equals(list(range(0,50))));
-            assertTrue(n2.get(B).equals(list(range(50, 100))));
+            assertTrue(n2.get(A).equals(set(range(0,50))));
+            assertTrue(n2.get(B).equals(set(range(50, 100))));
         }
         else
         {
-            assertTrue(n2.get(A).equals(list(range(0, 50), range(50, 100))));
+            assertTrue(n2.get(A).equals(set(range(0, 50), range(50, 100))));
         }
 
 
@@ -389,6 +394,14 @@ public class ReduceHelperTest
         return ret;
     }
 
+    @SafeVarargs
+    private static NavigableSet<Range<Token>> set(Range<Token> ... ranges)
+    {
+        NavigableSet<Range<Token>> res = new TreeSet<>(Comparator.comparing(o -> o.left));
+        res.addAll(Arrays.asList(ranges));
+        return res;
+    }
+
     static Murmur3Partitioner.LongToken longtok(long l)
     {
         return new Murmur3Partitioner.LongToken(l);
@@ -399,19 +412,24 @@ public class ReduceHelperTest
         return new Range<>(longtok(t), longtok(t2));
     }
 
+    static Map.Entry<Range<Token>, StreamFromOptions> rangeEntry(long t, long t2)
+    {
+        return new AbstractMapEntry(range(t, t2), new StreamFromOptions(null, null)) {};
+    }
+
     @Test
     public void testSubtractAllRanges()
     {
-        Set<Range<Token>> ranges = new HashSet<>();
-        ranges.add(range(10, 20)); ranges.add(range(40, 60));
+        Set<Map.Entry<Range<Token>, StreamFromOptions>> ranges = new HashSet<>();
+        ranges.add(rangeEntry(10, 20)); ranges.add(rangeEntry(40, 60));
         assertEquals(0, RangeDenormalizer.subtractFromAllRanges(ranges, range(0, 100)).size());
-        ranges.add(range(90, 110));
+        ranges.add(rangeEntry(90, 110));
         assertEquals(Sets.newHashSet(range(100, 110)), RangeDenormalizer.subtractFromAllRanges(ranges, range(0, 100)));
-        ranges.add(range(-10, 10));
+        ranges.add(rangeEntry(-10, 10));
         assertEquals(Sets.newHashSet(range(-10, 0), range(100, 110)), RangeDenormalizer.subtractFromAllRanges(ranges, range(0, 100)));
     }
 
-    private void assertStreamFromEither(List<Range<Token>> r1, List<Range<Token>> r2)
+    private void assertStreamFromEither(Collection<Range<Token>> r1, Collection<Range<Token>> r2)
     {
         assertTrue(r1.size() > 0 ^ r2.size() > 0);
     }

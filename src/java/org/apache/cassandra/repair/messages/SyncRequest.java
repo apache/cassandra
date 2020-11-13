@@ -50,8 +50,15 @@ public class SyncRequest extends RepairMessage
     public final InetAddressAndPort dst;
     public final Collection<Range<Token>> ranges;
     public final PreviewKind previewKind;
+    public final boolean asymmetric;
 
-   public SyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
+   public SyncRequest(RepairJobDesc desc,
+                      InetAddressAndPort initiator,
+                      InetAddressAndPort src,
+                      InetAddressAndPort dst,
+                      Collection<Range<Token>> ranges,
+                      PreviewKind previewKind,
+                      boolean asymmetric)
    {
         super(desc);
         this.initiator = initiator;
@@ -59,6 +66,7 @@ public class SyncRequest extends RepairMessage
         this.dst = dst;
         this.ranges = ranges;
         this.previewKind = previewKind;
+        this.asymmetric = asymmetric;
     }
 
     @Override
@@ -72,7 +80,8 @@ public class SyncRequest extends RepairMessage
                src.equals(req.src) &&
                dst.equals(req.dst) &&
                ranges.equals(req.ranges) &&
-               previewKind == req.previewKind;
+               previewKind == req.previewKind &&
+               asymmetric == req.asymmetric;
     }
 
     @Override
@@ -96,6 +105,7 @@ public class SyncRequest extends RepairMessage
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
             }
             out.writeInt(message.previewKind.getSerializationVal());
+            out.writeBoolean(message.asymmetric);
         }
 
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
@@ -109,7 +119,8 @@ public class SyncRequest extends RepairMessage
             for (int i = 0; i < rangesCount; ++i)
                 ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version));
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
-            return new SyncRequest(desc, owner, src, dst, ranges, previewKind);
+            boolean asymmetric = in.readBoolean();
+            return new SyncRequest(desc, owner, src, dst, ranges, previewKind, asymmetric);
         }
 
         public long serializedSize(SyncRequest message, int version)
@@ -120,6 +131,7 @@ public class SyncRequest extends RepairMessage
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
+            size += TypeSizes.sizeof(message.asymmetric);
             return size;
         }
     };
@@ -133,6 +145,7 @@ public class SyncRequest extends RepairMessage
                 ", dst=" + dst +
                 ", ranges=" + ranges +
                 ", previewKind=" + previewKind +
+                ", asymmetric=" + asymmetric +
                 "} " + super.toString();
     }
 }
