@@ -117,7 +117,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
-    public static final int SCHEMA_DELAY = getRingDelay(); // delay after which we assume ring has stablized
+    public static final int SCHEMA_DELAY_MILLIS = getSchemaDelay();
 
     private static final boolean REQUIRE_SCHEMAS = !Boolean.getBoolean("cassandra.skip_schema_check");
 
@@ -149,7 +149,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         String newdelay = System.getProperty("cassandra.schema_delay_ms");
         if (newdelay != null)
         {
-            logger.info("Overriding SCHEMA_DELAY to {}ms", newdelay);
+            logger.info("Overriding SCHEMA_DELAY_MILLIS to {}ms", newdelay);
             return Integer.parseInt(newdelay);
         }
         else
@@ -933,7 +933,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
 
-        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(SCHEMA_DELAY));
+        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(SCHEMA_DELAY_MILLIS);
 
         if (schemasReceived)
             return;
