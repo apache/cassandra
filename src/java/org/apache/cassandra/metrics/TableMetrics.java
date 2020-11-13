@@ -23,9 +23,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+
+import org.apache.commons.lang3.ArrayUtils;
+
 import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
-import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -186,34 +190,32 @@ public class TableMetrics
         Iterator<SSTableReader> iterator = sstables.iterator();
         if (!iterator.hasNext())
         {
-            return new long[0];
+            return ArrayUtils.EMPTY_LONG_ARRAY;
         }
         long[] firstBucket = getHistogram.getHistogram(iterator.next()).getBuckets(false);
-        long[] values = new long[firstBucket.length];
-        System.arraycopy(firstBucket, 0, values, 0, values.length);
+        long[] values = Arrays.copyOf(firstBucket, firstBucket.length);
 
         while (iterator.hasNext())
         {
             long[] nextBucket = getHistogram.getHistogram(iterator.next()).getBuckets(false);
-            if (nextBucket.length > values.length)
-            {
-                long[] newValues = new long[nextBucket.length];
-                System.arraycopy(firstBucket, 0, newValues, 0, firstBucket.length);
-                for (int i = 0; i < newValues.length; i++)
-                {
-                    newValues[i] += nextBucket[i];
-                }
-                values = newValues;
-            }
-            else
-            {
-                for (int i = 0; i < values.length; i++)
-                {
-                    values[i] += nextBucket[i];
-                }
-            }
+            values = addHistogram(values, nextBucket);
         }
         return values;
+    }
+
+    @VisibleForTesting
+    public static long[] addHistogram(long[] sums, long[] buckets)
+    {
+        if (buckets.length > sums.length)
+        {
+            sums = Arrays.copyOf(sums, buckets.length);
+        }
+
+        for (int i = 0; i < buckets.length; i++)
+        {
+            sums[i] += buckets[i];
+        }
+        return sums;
     }
 
     /**
