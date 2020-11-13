@@ -35,6 +35,7 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static java.util.Arrays.asList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.distributed.action.GossipHelper.bootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.pullSchemaFrom;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
@@ -93,8 +94,9 @@ public class BootstrapTest extends TestBaseImpl
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
             IInvokableInstance newInstance = cluster.bootstrap(config);
-            withProperty("cassandra.join_ring", false,
-                         () -> newInstance.startup(cluster));
+            withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
+                         () -> withProperty("cassandra.join_ring", false,
+                                            () -> newInstance.startup(cluster)));
 
             newInstance.nodetoolResult("join").asserts().success();
 

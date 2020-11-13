@@ -121,6 +121,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -139,9 +141,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public static final int INDEFINITE = -1;
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
-    public static final int SCHEMA_DELAY = getRingDelay(); // delay after which we assume ring has stablized
+    public static final int SCHEMA_DELAY_MILLIS = getSchemaDelay();
 
-    private static final boolean REQUIRE_SCHEMAS = !Boolean.getBoolean("cassandra.skip_schema_check");
+    private static final boolean REQUIRE_SCHEMAS = !BOOTSTRAP_SKIP_SCHEMA_CHECK.getBoolean();
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
@@ -161,10 +163,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static int getSchemaDelay()
     {
-        String newdelay = System.getProperty("cassandra.schema_delay_ms");
+        String newdelay = BOOTSTRAP_SCHEMA_DELAY_MS.getString();
         if (newdelay != null)
         {
-            logger.info("Overriding SCHEMA_DELAY to {}ms", newdelay);
+            logger.info("Overriding SCHEMA_DELAY_MILLIS to {}ms", newdelay);
             return Integer.parseInt(newdelay);
         }
         else
@@ -894,7 +896,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
 
-        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(SCHEMA_DELAY));
+        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(SCHEMA_DELAY_MILLIS);
 
         if (schemasReceived)
             return;
