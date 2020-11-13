@@ -20,15 +20,12 @@ package org.apache.cassandra.batchlog;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import org.junit.Test;
-import org.junit.matchers.JUnitMatchers;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -40,7 +37,7 @@ public class BatchlogEndpointFilterTest
     private static final String LOCAL = "local";
 
     @Test
-    public void shouldSelect2hostsFromNonLocalRacks() throws UnknownHostException
+    public void shouldSelect2HostsFromNonLocalRacks() throws UnknownHostException
     {
         Multimap<String, InetAddressAndPort> endpoints = ImmutableMultimap.<String, InetAddressAndPort> builder()
                 .put(LOCAL, InetAddressAndPort.getByName("0"))
@@ -54,6 +51,27 @@ public class BatchlogEndpointFilterTest
         assertThat(result.size(), is(2));
         assertTrue(result.contains(InetAddressAndPort.getByName("11")));
         assertTrue(result.contains(InetAddressAndPort.getByName("22")));
+    }
+
+    @Test
+    public void shouldSelectLastHostsFromLastNonLocalRacks() throws UnknownHostException
+    {
+        Multimap<String, InetAddressAndPort> endpoints = ImmutableMultimap.<String, InetAddressAndPort> builder()
+                                                         .put(LOCAL, InetAddressAndPort.getByName("00"))
+                                                         .put("1", InetAddressAndPort.getByName("11"))
+                                                         .put("2", InetAddressAndPort.getByName("2"))
+                                                         .put("2", InetAddressAndPort.getByName("22"))
+                                                         .put("3", InetAddressAndPort.getByName("3"))
+                                                         .put("3", InetAddressAndPort.getByName("33"))
+                                                         .build();
+        
+        Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
+        assertThat(result.size(), is(2));
+
+        // result should be the last replicas of the last two racks
+        // (Collections.shuffle has been replaced with Collections.reverse for testing)
+        assertTrue(result.contains(InetAddressAndPort.getByName("22")));
+        assertTrue(result.contains(InetAddressAndPort.getByName("33")));
     }
 
     @Test
@@ -71,7 +89,7 @@ public class BatchlogEndpointFilterTest
     }
 
     @Test
-    public void shouldReturnAsIsIfNoEnoughEndpoints() throws UnknownHostException
+    public void shouldReturnPassedEndpointForSingleNodeDC() throws UnknownHostException
     {
         Multimap<String, InetAddressAndPort> endpoints = ImmutableMultimap.<String, InetAddressAndPort> builder()
                 .put(LOCAL, InetAddressAndPort.getByName("0"))
@@ -114,6 +132,19 @@ public class BatchlogEndpointFilterTest
         assertThat(result.size(), is(2));
         assertTrue(result.contains(InetAddressAndPort.getByName("111")));
         assertTrue(result.contains(InetAddressAndPort.getByName("1111")));
+    }
+
+    @Test
+    public void shouldSelectOnlyTwoHostsEvenIfLocal() throws UnknownHostException
+    {
+        Multimap<String, InetAddressAndPort> endpoints = ImmutableMultimap.<String, InetAddressAndPort> builder()
+                                                         .put(LOCAL, InetAddressAndPort.getByName("1"))
+                                                         .put(LOCAL, InetAddressAndPort.getByName("11"))
+                                                         .build();
+        Collection<InetAddressAndPort> result = filterBatchlogEndpoints(endpoints);
+        assertThat(result.size(), is(2));
+        assertTrue(result.contains(InetAddressAndPort.getByName("1")));
+        assertTrue(result.contains(InetAddressAndPort.getByName("11")));
     }
 
     private Collection<InetAddressAndPort> filterBatchlogEndpoints(Multimap<String, InetAddressAndPort> endpoints)

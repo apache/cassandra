@@ -50,7 +50,7 @@ public class LocalStrategy extends AbstractReplicationStrategy
      * LocalStrategy may be used before tokens are set up.
      */
     @Override
-    public EndpointsForRange getNaturalReplicas(RingPosition searchPosition)
+    public EndpointsForRange getNaturalReplicas(RingPosition<?> searchPosition)
     {
         return replicas;
     }
@@ -74,9 +74,10 @@ public class LocalStrategy extends AbstractReplicationStrategy
     {
     }
 
+    @Override
     public Collection<String> recognizedOptions()
     {
         // LocalStrategy doesn't expect any options.
-        return Collections.<String>emptySet();
+        return Collections.emptySet();
     }
 }

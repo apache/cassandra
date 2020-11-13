@@ -99,12 +99,12 @@ public abstract class AbstractReplicationStrategy
      * @param searchPosition the position the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public EndpointsForToken getNaturalReplicasForToken(RingPosition searchPosition)
+    public EndpointsForToken getNaturalReplicasForToken(RingPosition<?> searchPosition)
     {
         return getNaturalReplicas(searchPosition).forToken(searchPosition.getToken());
     }
 
-    public EndpointsForRange getNaturalReplicas(RingPosition searchPosition)
+    public EndpointsForRange getNaturalReplicas(RingPosition<?> searchPosition)
     {
         Token searchToken = searchPosition.getToken();
         Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
@@ -121,7 +121,7 @@ public abstract class AbstractReplicationStrategy
         return endpoints;
     }
 
-    public Replica getLocalReplicaFor(RingPosition searchPosition)
+    public Replica getLocalReplicaFor(RingPosition<?> searchPosition)
     {
         return getNaturalReplicas(searchPosition)
                .byEndpoint()
@@ -160,7 +160,7 @@ public abstract class AbstractReplicationStrategy
                                                                        long queryStartNanoTime,
                                                                        ConsistencyLevel idealConsistencyLevel)
     {
-        AbstractWriteResponseHandler resultResponseHandler;
+        AbstractWriteResponseHandler<T> resultResponseHandler;
         if (replicaPlan.consistencyLevel().isDatacenterLocal())
         {
             // block for in this context will be localnodes block.
@@ -188,11 +188,11 @@ public abstract class AbstractReplicationStrategy
             else
             {
                 //Construct a delegate response handler to use to track the ideal consistency level
-                AbstractWriteResponseHandler idealHandler = getWriteResponseHandler(replicaPlan.withConsistencyLevel(idealConsistencyLevel),
-                                                                                    callback,
-                                                                                    writeType,
-                                                                                    queryStartNanoTime,
-                                                                                    idealConsistencyLevel);
+                AbstractWriteResponseHandler<T> idealHandler = getWriteResponseHandler(replicaPlan.withConsistencyLevel(idealConsistencyLevel),
+                                                                                       callback,
+                                                                                       writeType,
+                                                                                       queryStartNanoTime,
+                                                                                       idealConsistencyLevel);
                 resultResponseHandler.setIdealCLResponseHandler(idealHandler);
             }
         }
@@ -319,7 +319,7 @@ public abstract class AbstractReplicationStrategy
         throws ConfigurationException
     {
         AbstractReplicationStrategy strategy;
-        Class [] parameterTypes = new Class[] {String.class, TokenMetadata.class, IEndpointSnitch.class, Map.class};
+        Class<?>[] parameterTypes = new Class[] {String.class, TokenMetadata.class, IEndpointSnitch.class, Map.class};
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
@@ -436,7 +436,7 @@ public abstract class AbstractReplicationStrategy
             if (rf.hasTransientReplicas())
             {
                 if (DatabaseDescriptor.getNumTokens() > 1)
-                    throw new ConfigurationException(String.format("Transient replication is not supported with vnodes yet"));
+                    throw new ConfigurationException("Transient replication is not supported with vnodes yet");
             }
         }
         catch (IllegalArgumentException e)
@@ -447,7 +447,7 @@ public abstract class AbstractReplicationStrategy
 
     protected void validateExpectedOptions() throws ConfigurationException
     {
-        Collection expectedOptions = recognizedOptions();
+        Collection<String> expectedOptions = recognizedOptions();
         if (expectedOptions == null)
             return;
 

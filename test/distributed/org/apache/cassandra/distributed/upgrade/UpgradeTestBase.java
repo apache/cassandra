@@ -28,12 +28,15 @@ import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.distributed.shared.Versions.Major;
 import static org.apache.cassandra.distributed.shared.Versions.Version;
@@ -205,5 +208,33 @@ public class UpgradeTestBase extends DistributedTestBase
                              .upgrade(Versions.Major.v30, Versions.Major.v4)
                              .upgrade(Versions.Major.v3X, Versions.Major.v4)
                              .nodesToUpgrade(toUpgrade);
+    }
+
+    protected static int primaryReplica(List<Long> initialTokens, Long token)
+    {
+        int primary = 1;
+
+        for (Long initialToken : initialTokens)
+        {
+            if (token <= initialToken)
+            {
+                break;
+            }
+
+            primary++;
+        }
+
+        return primary;
+    }
+
+    protected static Long tokenFrom(int key)
+    {
+        DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
+        return (Long) dk.getToken().getTokenValue();
+    }
+
+    protected static int nextNode(int current, int numNodes)
+    {
+        return current == numNodes ? 1 : current + 1;
     }
 }
