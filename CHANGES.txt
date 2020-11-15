@@ -1,4 +1,5 @@
 3.11.10
+ * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
  * Improved check of num_tokens against the length of initial_token (CASSANDRA-14477)
  * Fix a race condition on ColumnFamilyStore and TableMetrics (CASSANDRA-16228)
