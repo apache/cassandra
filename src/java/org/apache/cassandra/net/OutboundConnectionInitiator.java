@@ -42,6 +42,7 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.FailedFuture;
@@ -86,6 +87,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private final OutboundConnectionSettings settings;
     private final int requestMessagingVersion; // for pre40 nodes
     private final Promise<Result<SuccessType>> resultPromise;
+    private boolean isClosed;
 
     private OutboundConnectionInitiator(ConnectionType type, OutboundConnectionSettings settings,
                                         int requestMessagingVersion, Promise<Result<SuccessType>> resultPromise)
@@ -363,6 +365,21 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
         {
+            if (isClosed && cause instanceof SslClosedEngineException)
+            {
+                /*
+                 * Occasionally Netty will invoke this handler to process an exception of the following kind:
+                 *      io.netty.channel.unix.Errors$NativeIoException: readAddress(..) failed: Connection reset by peer
+                 *
+                 * When we invoke ctx.close() later in this method, the listener, set up in channelActive(), might be
+                 * failed with an SslClosedEngineException("SSLEngine closed already") by Netty, and exceptionCaught() will be invoked
+                 * once again, this time to handle the SSLException triggered by ctx.close().
+                 *
+                 * The exception at this stage is benign, and we shouldn't be double-logging the failure to connect.
+                 */
+                return;
+            }
+
             try
             {
                 JVMStabilityInspector.inspectThrowable(cause, false);
@@ -371,6 +388,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                     logger.info("Failed to connect to peer {}", settings.connectToId(), cause);
                 else
                     logger.error("Failed to handshake with peer {}", settings.connectToId(), cause);
+                isClosed = true;
                 ctx.close();
             }
             catch (Throwable t)
