@@ -34,6 +34,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+/*
+ * We are testing cmd line params here.
+ * For sstable scrubbing tests look at {@link ScrubTest}
+ * For TTL sstable scrubbing tests look at {@link TTLTest}
+ */
+
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StandaloneScrubberTest extends OfflineToolUtils
 {

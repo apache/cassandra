@@ -18,21 +18,34 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.commons.lang3.StringUtils;
+
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.apache.cassandra.*;
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
@@ -41,18 +54,27 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Scrubber;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SSTableRewriter;
+import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
@@ -60,7 +82,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.tools.StandaloneScrubber;
+import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -79,9 +105,11 @@ public class ScrubTest
     public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
 
     public static final String KEYSPACE = "Keyspace1";
+    public static final String KEYSPACE2 = "Keyspace2";
     public static final String CF = "Standard1";
     public static final String CF2 = "Standard2";
     public static final String CF3 = "Standard3";
+    public static final String CF4 = "Standard4";
     public static final String COUNTER_CF = "Counter1";
     public static final String CF_UUID = "UUIDKeys";
     public static final String CF_INDEX1 = "Indexed1";
@@ -108,6 +136,12 @@ public class ScrubTest
                        SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true),
                        SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1_BYTEORDERED, true).partitioner(ByteOrderedPartitioner.instance),
                        SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2_BYTEORDERED, true).partitioner(ByteOrderedPartitioner.instance));
+    }
+
+    @AfterClass
+    public static void clearClassEnv()
+    {
+        System.clearProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST);
     }
 
     @Test
@@ -711,5 +745,135 @@ public class ScrubTest
         QueryProcessor.executeInternal(String.format("DELETE FROM \"%s\".cf_with_duplicates_3_0 WHERE a=1 AND b =2", KEYSPACE));
         rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".cf_with_duplicates_3_0", KEYSPACE));
         assertEquals(0, rs.size());
+    }
+
+    @Test
+    public void testToolTestingEnvSetup()
+    {
+        createKeyspace(KEYSPACE2,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE2, CF),
+                       standardCFMD(KEYSPACE2, CF2),
+                       standardCFMD(KEYSPACE2, CF3),
+                       standardCFMD(KEYSPACE2, CF4),
+                       counterCFMD(KEYSPACE2, COUNTER_CF));
+
+        System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+    }
+
+    @Test
+    public void testScrubOneRowWithTool()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 1);
+        assertOrderedAll(cfs, 1);
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, KEYSPACE2, CF);
+        Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
+        Assertions.assertThat(tool.getStdout()).contains("1 rows in new sstable and 0 empty");
+        tool.assertOnCleanExit();
+
+        // check data is still there
+        assertOrderedAll(cfs, 1);
+    }
+
+    @Test
+    public void testSkipScrubCorruptedCounterRowWithTool() throws IOException, WriteTimeoutException
+    {
+        int numPartitions = 1000;
+
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COUNTER_CF);
+        cfs.clearUnsafe();
+
+        fillCounterCF(cfs, numPartitions);
+        assertOrderedAll(cfs, numPartitions);
+        assertEquals(1, cfs.getLiveSSTables().size());
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+
+        // with skipCorrupted == false, the scrub is expected to fail
+        try
+        {
+            ToolRunner.invokeClass(StandaloneScrubber.class, KEYSPACE2, COUNTER_CF);
+            fail("Expected a CorruptSSTableException to be thrown");
+        }
+        catch (IOError err) {}
+
+        // with skipCorrupted == true, the corrupt rows will be skipped
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-s", KEYSPACE2, COUNTER_CF);
+        Assertions.assertThat(tool.getStdout()).contains("0 empty");
+        Assertions.assertThat(tool.getStdout()).contains("rows that were skipped");
+        tool.assertOnCleanExit();
+
+        assertEquals(1, cfs.getLiveSSTables().size());
+    }
+
+    @Test
+    public void testNoCheckScrubMultiRowWithTool()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF2);
+        cfs.clearUnsafe();
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 10);
+        assertOrderedAll(cfs, 10);
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-n", KEYSPACE2, CF2);
+        Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
+        Assertions.assertThat(tool.getStdout()).contains("10 rows in new sstable and 0 empty");
+        tool.assertOnCleanExit();
+
+        // check data is still there
+        assertOrderedAll(cfs, 10);
+    }
+
+    @Test
+    public void testHeaderFixWithTool()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF3);
+        cfs.clearUnsafe();
+
+        fillCF(cfs, 1);
+        assertOrderedAll(cfs, 1);
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate_only", KEYSPACE2, CF3);
+        Assertions.assertThat(tool.getStdout()).contains("Not continuing with scrub, since '--header-fix validate-only' was specified.");
+        tool.assertOnCleanExit();
+        assertOrderedAll(cfs, 1);
+
+        tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate", KEYSPACE2, CF3);
+        Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
+        Assertions.assertThat(tool.getStdout()).contains("1 rows in new sstable and 0 empty");
+        tool.assertOnCleanExit();
+        assertOrderedAll(cfs, 1);
+
+        tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix-only", KEYSPACE2, CF3);
+        Assertions.assertThat(tool.getStdout()).contains("Not continuing with scrub, since '--header-fix fix-only' was specified.");
+        tool.assertOnCleanExit();
+        assertOrderedAll(cfs, 1);
+
+        tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix", KEYSPACE2, CF3);
+        Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
+        Assertions.assertThat(tool.getStdout()).contains("1 rows in new sstable and 0 empty");
+        tool.assertOnCleanExit();
+        assertOrderedAll(cfs, 1);
+
+        tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "off", KEYSPACE2, CF3);
+        Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
+        Assertions.assertThat(tool.getStdout()).contains("1 rows in new sstable and 0 empty");
+        tool.assertOnCleanExit();
+        assertOrderedAll(cfs, 1);
     }
 }

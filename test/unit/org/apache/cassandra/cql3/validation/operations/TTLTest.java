@@ -23,10 +23,12 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
@@ -37,12 +39,17 @@ import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.rows.AbstractCell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.tools.StandaloneScrubber;
+import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class TTLTest extends CQLTester
 {
     public static String NEGATIVE_LOCAL_EXPIRATION_TEST_DIR = "test/data/negative-local-expiration-test/%s";
@@ -54,6 +61,7 @@ public class TTLTest extends CQLTester
     public static final String COMPLEX_NOCLUSTERING = "table3";
     public static final String COMPLEX_CLUSTERING = "table4";
     private Config.CorruptedTombstoneStrategy corruptTombstoneStrategy;
+
     @Before
     public void before()
     {
@@ -203,9 +211,20 @@ public class TTLTest extends CQLTester
     {
         // this tests writes corrupt tombstones on purpose, disable the strategy:
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.disabled);
-        baseTestRecoverOverflowedExpiration(false, false);
-        baseTestRecoverOverflowedExpiration(true, false);
-        baseTestRecoverOverflowedExpiration(true, true);
+        baseTestRecoverOverflowedExpiration(false, false, false);
+        baseTestRecoverOverflowedExpiration(true, false, false);
+        baseTestRecoverOverflowedExpiration(true, false, true);
+        // we reset the corrupted ts strategy after each test in @After above
+    }
+
+    @Test
+    public void testRecoverOverflowedExpirationWithSSTableScrub() throws Throwable
+    {
+        // this tests writes corrupt tombstones on purpose, disable the strategy:
+        DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.disabled);
+        baseTestRecoverOverflowedExpiration(false, false, false);
+        baseTestRecoverOverflowedExpiration(false, true, false);
+        baseTestRecoverOverflowedExpiration(false, true, true);
         // we reset the corrupted ts strategy after each test in @After above
     }
 
@@ -276,16 +295,16 @@ public class TTLTest extends CQLTester
         }
     }
 
-    public void baseTestRecoverOverflowedExpiration(boolean runScrub, boolean reinsertOverflowedTTL) throws Throwable
+    public void baseTestRecoverOverflowedExpiration(boolean runScrub, boolean runSStableScrub, boolean reinsertOverflowedTTL) throws Throwable
     {
         // simple column, clustering
-        testRecoverOverflowedExpirationWithScrub(true, true, runScrub, reinsertOverflowedTTL);
+        testRecoverOverflowedExpirationWithScrub(true, true, runScrub, runSStableScrub, reinsertOverflowedTTL);
         // simple column, noclustering
-        testRecoverOverflowedExpirationWithScrub(true, false, runScrub, reinsertOverflowedTTL);
+        testRecoverOverflowedExpirationWithScrub(true, false, runScrub, runSStableScrub, reinsertOverflowedTTL);
         // complex column, clustering
-        testRecoverOverflowedExpirationWithScrub(false, true, runScrub, reinsertOverflowedTTL);
+        testRecoverOverflowedExpirationWithScrub(false, true, runScrub, runSStableScrub, reinsertOverflowedTTL);
         // complex column, noclustering
-        testRecoverOverflowedExpirationWithScrub(false, false, runScrub, reinsertOverflowedTTL);
+        testRecoverOverflowedExpirationWithScrub(false, false, runScrub, runSStableScrub, reinsertOverflowedTTL);
     }
 
     private void createTable(boolean simple, boolean clustering)
@@ -350,11 +369,11 @@ public class TTLTest extends CQLTester
         return AbstractCell.MAX_DELETION_TIME - nowInSecs;
     }
 
-    public void testRecoverOverflowedExpirationWithScrub(boolean simple, boolean clustering, boolean runScrub, boolean reinsertOverflowedTTL) throws Throwable
+    public void testRecoverOverflowedExpirationWithScrub(boolean simple, boolean clustering, boolean runScrub, boolean runSStableScrub,  boolean reinsertOverflowedTTL) throws Throwable
     {
         if (reinsertOverflowedTTL)
         {
-            assert runScrub;
+            assert runScrub || runSStableScrub;
         }
 
         createTable(simple, clustering);
@@ -371,25 +390,49 @@ public class TTLTest extends CQLTester
         if (runScrub)
         {
             cfs.scrub(true, false, true, reinsertOverflowedTTL, 1);
-        }
 
-        if (reinsertOverflowedTTL)
-        {
-            if (simple)
-                assertRows(execute("SELECT * from %s"), row(1, 1, 1), row(2, 2, null));
+            if (reinsertOverflowedTTL)
+            {
+                if (simple)
+                    assertRows(execute("SELECT * from %s"), row(1, 1, 1), row(2, 2, null));
+                else
+                    assertRows(execute("SELECT * from %s"), row(1, 1, set("v11", "v12", "v13", "v14")), row(2, 2, set("v21", "v22", "v23", "v24")));
+
+                cfs.forceMajorCompaction();
+
+                if (simple)
+                    assertRows(execute("SELECT * from %s"), row(1, 1, 1), row(2, 2, null));
+                else
+                    assertRows(execute("SELECT * from %s"), row(1, 1, set("v11", "v12", "v13", "v14")), row(2, 2, set("v21", "v22", "v23", "v24")));
+            }
             else
-                assertRows(execute("SELECT * from %s"), row(1, 1, set("v11", "v12", "v13", "v14")), row(2, 2, set("v21", "v22", "v23", "v24")));
-
-            cfs.forceMajorCompaction();
-
-            if (simple)
-                assertRows(execute("SELECT * from %s"), row(1, 1, 1), row(2, 2, null));
-            else
-                assertRows(execute("SELECT * from %s"), row(1, 1, set("v11", "v12", "v13", "v14")), row(2, 2, set("v21", "v22", "v23", "v24")));
+            {
+                assertEmpty(execute("SELECT * from %s"));
+            }
         }
-        else
+        if (runSStableScrub)
         {
-            assertEmpty(execute("SELECT * from %s"));
+            System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+
+            try
+            {
+                ToolResult tool;
+                if (reinsertOverflowedTTL)
+                    tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-r", KEYSPACE, cfs.name);
+                else
+                    tool = ToolRunner.invokeClass(StandaloneScrubber.class, KEYSPACE, cfs.name);
+
+                Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
+                if (reinsertOverflowedTTL)
+                    Assertions.assertThat(tool.getStdout()).contains("Fixed 2 rows with overflowed local deletion time.");
+                else
+                    Assertions.assertThat(tool.getStdout()).contains("Unable to recover 2 rows that were skipped.");
+                tool.assertOnCleanExit();
+            }
+            finally
+            {
+                System.clearProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST);
+            }
         }
     }
 

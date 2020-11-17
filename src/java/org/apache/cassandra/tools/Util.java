@@ -54,7 +54,7 @@ import com.google.common.collect.Lists;
 @SuppressWarnings("serial")
 public final class Util
 {
-    static final String ALLOW_TOOL_REINIT_FOR_TEST = Util.class.getName() + "ALLOW_TOOL_REINIT_FOR_TEST"; // Necessary for testing
+    public static final String ALLOW_TOOL_REINIT_FOR_TEST = Util.class.getName() + "ALLOW_TOOL_REINIT_FOR_TEST"; // Necessary for testing
     static final String RESET = "\u001B[0m";
     static final String BLUE = "\u001B[34m";
     static final String CYAN = "\u001B[36m";
