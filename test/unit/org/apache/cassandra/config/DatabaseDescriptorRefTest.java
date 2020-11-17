@@ -217,7 +217,7 @@ public class DatabaseDescriptorRefTest
             "clientInitialization",
             "applyAddressConfig",
             "applyThriftHSHA",
-            "applyInitialTokens",
+            "applyTokensConfig",
             // no seed provider in default configuration for clients
             // "applySeedProvider",
             // definitely not safe for clients - implicitly instantiates schema
