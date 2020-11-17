@@ -10,6 +10,7 @@
  * TLS connections to the storage port on a node without server encryption configured causes java.io.IOException accessing missing keystore (CASSANDRA-16144)
 Merged from 3.11:
 Merged from 3.0:
+ * Improved check of num_tokens against the length of initial_token (CASSANDRA-14477)
  * Fix a race condition on ColumnFamilyStore and TableMetrics (CASSANDRA-16228)
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
