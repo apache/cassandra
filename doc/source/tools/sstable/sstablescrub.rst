@@ -29,6 +29,13 @@ sstablescrub <options> <keyspace> <table>
 
 ===================================     ================================================================================
 --debug                                 display stack traces
+-e,--header-fix <arg>                   Option whether and how to perform a check of the sstable serialization-headers and fix , fixable issues.
+                                        Possible argument values:
+                                         - validate-only: validate the serialization-headers, but do not fix those. Do not continue with scrub - i.e. only validate the header (dry-run of fix-only).
+                                         - validate: (default) validate the serialization-headers, but do not fix those and only continue with scrub if no error were detected.
+                                         - fix-only: validate and fix the serialization-headers, don't continue with scrub.
+                                         - fix: validate and fix the serialization-headers, do not fix and do not continue with scrub if the serialization-header check encountered errors.
+                                         - off: don't perform the serialization-header checks.
 -h,--help                               display this help message
 -m,--manifest-check                     only check and repair the leveled manifest, without actually scrubbing the sstables
 -n,--no-validate                        do not validate columns using column validator

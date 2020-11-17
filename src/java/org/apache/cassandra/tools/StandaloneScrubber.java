@@ -20,28 +20,40 @@ package org.apache.cassandra.tools;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.ParseException;
 
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.compaction.AbstractStrategyHolder;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionStrategyManager;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneScrubber
 {
@@ -64,7 +76,11 @@ public class StandaloneScrubber
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        Util.initDatabaseDescriptor();
+
+        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+            DatabaseDescriptor.toolInitialization(false); //Necessary for testing
+        else
+            Util.initDatabaseDescriptor();
 
         try
         {
