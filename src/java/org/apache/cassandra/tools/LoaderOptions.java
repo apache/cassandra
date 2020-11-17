@@ -475,13 +475,11 @@ public class LoaderOptions
                 if (cmd.hasOption(SSL_TRUSTSTORE))
                 {
                     clientEncOptions = clientEncOptions.withTrustStore(cmd.getOptionValue(SSL_TRUSTSTORE));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE_PW))
                 {
                     clientEncOptions = clientEncOptions.withTrustStorePassword(cmd.getOptionValue(SSL_TRUSTSTORE_PW));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE))
@@ -489,37 +487,31 @@ public class LoaderOptions
                     // if a keystore was provided, lets assume we'll need to use
                     clientEncOptions = clientEncOptions.withKeyStore(cmd.getOptionValue(SSL_KEYSTORE))
                                                        .withRequireClientAuth(true);
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE_PW))
                 {
                     clientEncOptions = clientEncOptions.withKeyStorePassword(cmd.getOptionValue(SSL_KEYSTORE_PW));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_PROTOCOL))
                 {
                     clientEncOptions = clientEncOptions.withProtocol(cmd.getOptionValue(SSL_PROTOCOL));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_ALGORITHM))
                 {
                     clientEncOptions = clientEncOptions.withAlgorithm(cmd.getOptionValue(SSL_ALGORITHM));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_STORE_TYPE))
                 {
                     clientEncOptions = clientEncOptions.withStoreType(cmd.getOptionValue(SSL_STORE_TYPE));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(SSL_CIPHER_SUITES))
                 {
                     clientEncOptions = clientEncOptions.withCipherSuites(cmd.getOptionValue(SSL_CIPHER_SUITES).split(","));
-                    clientEncOptions.applyConfig();
                 }
 
                 if (cmd.hasOption(TARGET_KEYSPACE))

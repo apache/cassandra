@@ -44,4 +44,25 @@ public class LoaderOptionsTest
         options = LoaderOptions.builder().parseArgs(args2).build();
         assertEquals(9142, options.nativePort);
     }
+
+    /**
+     * Regression testing for CASSANDRA-16280
+     *
+     * Check that providing encryption parameters to the loader (such as keystore and truststore) won't break loading
+     * the options.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testEncryptionSettings() throws Exception
+    {
+        String[] args = { "-d", "127.9.9.1", "-ts", "test.jks", "-tspw", "truststorePass1", "-ks", "test.jks", "-kspw",
+                "testdata1", "--ssl-ciphers", "TLS_RSA_WITH_AES_256_CBC_SHA",
+                "--ssl-alg", "SunX509", "--store-type", "JKS", "--ssl-protocol", "TLS",
+                sstableDirName("legacy_sstables", "legacy_ma_simple") };
+        LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
+        options = LoaderOptions.builder().parseArgs(args).build();
+        assertEquals("test.jks", options.clientEncOptions.keystore);
+    }
 }
+
