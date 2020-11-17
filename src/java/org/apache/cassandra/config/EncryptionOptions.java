@@ -21,6 +21,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import org.slf4j.Logger;
@@ -219,6 +220,7 @@ public class EncryptionOptions
      * is probably a bad idea.
      * @param protocol value to set
      */
+    @VisibleForTesting
     public void setProtocol(String protocol) {
         this.protocol = protocol;
     }

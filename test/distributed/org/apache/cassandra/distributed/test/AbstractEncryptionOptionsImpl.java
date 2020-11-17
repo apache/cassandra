@@ -72,7 +72,7 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
                                                                            .putAll(validKeystore)
                                                                            .put("accepted_protocols", Collections.singletonList("NoProtocolIKnow"))
                                                                            .build();
-    // Configuration with a valid keystore, but an unknown protocol
+    // Configuration with a valid keystore, but an unknown cipher suite
     final static Map<String,Object> nonExistantCipher = ImmutableMap.<String,Object>builder()
                                                                            .putAll(validKeystore)
                                                                            .put("cipher_suites", Collections.singletonList("NoCipherIKnow"))

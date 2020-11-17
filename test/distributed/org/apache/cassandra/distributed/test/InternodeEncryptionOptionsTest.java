@@ -274,6 +274,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         }
     }
 
+    @Test
     public void nodeMustNotStartWithNonExistantProtocol() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
@@ -287,6 +288,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         }
     }
 
+    @Test
     public void nodeMustNotStartWithNonExistantCipher() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {

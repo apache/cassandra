@@ -175,12 +175,7 @@ public final class SSLFactory
         try
         {
             SSLContext ctx = SSLContext.getInstance("TLS");
-            String[] acceptedProtocols = options.acceptedProtocolsArray();
-            if (acceptedProtocols != null)
-            {
-                SSLParameters sslParameters = ctx.getDefaultSSLParameters();
-                sslParameters.setProtocols(acceptedProtocols);
-            }
+            ctx.getDefaultSSLParameters().setProtocols(options.acceptedProtocolsArray());
             ctx.init(kmf.getKeyManagers(), trustManagers, null);
             return ctx;
         }
@@ -471,8 +466,8 @@ public final class SSLFactory
         {
             try
             {
-                CipherSuiteFilter loggingCipherSuiteFilter =logProtocolAndCiphers ?  new LoggingCipherSuiteFilter(contextDescription)
-                                                                                  : LoggingCipherSuiteFilter.QUIET_FILTER;
+                CipherSuiteFilter loggingCipherSuiteFilter = logProtocolAndCiphers ? new LoggingCipherSuiteFilter(contextDescription)
+                                                                                   : LoggingCipherSuiteFilter.QUIET_FILTER;
                 SslContext sslContext = createNettySslContext(options, buildTrustStore, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
                 SSLEngine engine = sslContext.newEngine(ByteBufAllocator.DEFAULT);
 
