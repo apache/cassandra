@@ -47,7 +47,7 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
-    - In cassandra.yaml, num_tokens must be defined if initial_token is defined.
+    - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
       If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
       the node will not start. See CASSANDRA-14477 for details.
 
