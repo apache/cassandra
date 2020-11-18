@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.db.RowIndexEntry.IndexSerializer;
+import org.apache.cassandra.io.sstable.format.big.RowIndexEntry.IndexSerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.util.FileHandle;
