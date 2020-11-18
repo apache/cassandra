@@ -799,7 +799,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         finally
         {
-            metrics.incomingStreamMessageProcessTime.update(System.nanoTime() - receivedStartNanos, TimeUnit.NANOSECONDS);
+            long latencyNanos = System.nanoTime() - receivedStartNanos;
+            metrics.incomingStreamMessageProcessTime.update(latencyNanos, TimeUnit.NANOSECONDS);
+            long latencyMs = TimeUnit.NANOSECONDS.toMillis(latencyNanos);
+            int timeout = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+            if (timeout > 0 && latencyMs > timeout)
+                logger.warn("Time taken ({} ms) for processing the incoming stream message ({}) exceeded internode streaming TCP user timeout ({} ms),",
+                            latencyMs, message, timeout);
         }
     }
 
