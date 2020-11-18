@@ -1062,7 +1062,7 @@ dynamic_snitch_reset_interval_in_ms: 600000
 # expressed as a double which represents a percentage.  Thus, a value of
 # 0.2 means Cassandra would continue to prefer the static snitch values
 # until the pinned host was 20% worse than the fastest.
-dynamic_snitch_badness_threshold: 0.1
+dynamic_snitch_badness_threshold: 1.0
 
 # Configure server-to-server internode encryption
 #
