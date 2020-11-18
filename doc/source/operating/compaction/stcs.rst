@@ -17,7 +17,7 @@
 
 .. _STCS:
 
-Leveled Compaction Strategy
+Size Tiered Compaction Strategy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The basic idea of ``SizeTieredCompactionStrategy`` (STCS) is to merge sstables of approximately the same size. All
