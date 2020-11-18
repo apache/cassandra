@@ -21,7 +21,7 @@ import java.io.File;
 import java.io.IOException;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -101,7 +101,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
             keyPosition = in.getFilePointer();
             DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
-            RowIndexEntry.Serializer.skip(in.get(), desc.version); // skip remainder of the entry
+            BigTableRowIndexEntry.Serializer.skip(in.get(), desc.version); // skip remainder of the entry
             return key;
         }
         catch (IOException e)

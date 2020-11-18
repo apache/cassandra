@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -34,7 +34,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
- * {@code IndexInfo} is embedded in the indexed version of {@link RowIndexEntry}.
+ * {@code IndexInfo} is embedded in the indexed version of {@link BigTableRowIndexEntry}.
  * Each instance roughly covers a range of {@link org.apache.cassandra.config.Config#column_index_size_in_kb column_index_size_in_kb} kB
  * and contains the first and last clustering value (or slice bound), its offset in the data file and width in the data file.
  * <p>

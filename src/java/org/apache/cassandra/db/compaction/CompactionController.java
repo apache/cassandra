@@ -30,7 +30,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
@@ -258,7 +257,7 @@ public class CompactionController extends AbstractCompactionController
         {
             // if we don't have bloom filter(bf_fp_chance=1.0 or filter file is missing),
             // we check index file instead.
-            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.getPosition(key, SSTableReader.Operator.EQ, false) != null
+            if (sstable.getBloomFilter() instanceof AlwaysPresentFilter && sstable.checkEntryExists(key, SSTableReader.Operator.EQ, false)
                 || sstable.getBloomFilter().isPresent(key))
             {
                 minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
@@ -322,11 +321,7 @@ public class CompactionController extends AbstractCompactionController
             reader.getMaxTimestamp() <= minTimestamp ||
             tombstoneOnly && !reader.mayHaveTombstones())
             return null;
-        RowIndexEntry<?> position = reader.getPosition(key, SSTableReader.Operator.EQ);
-        if (position == null)
-            return null;
-        FileDataInput dfile = openDataFiles.computeIfAbsent(reader, this::openDataFile);
-        return reader.simpleIterator(dfile, key, position, tombstoneOnly);
+        return reader.simpleIterator(() -> openDataFiles.computeIfAbsent(reader, this::openDataFile), key, tombstoneOnly);
     }
 
     /**

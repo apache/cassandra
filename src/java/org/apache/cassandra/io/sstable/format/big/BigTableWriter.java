@@ -54,7 +54,7 @@ public class BigTableWriter extends SSTableWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
-    protected final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+    protected final BigTableRowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
     private final ColumnIndex columnIndexWriter;
     private final IndexWriter iwriter;
     private final FileHandle.Builder dbuilder;
@@ -106,7 +106,7 @@ public class BigTableWriter extends SSTableWriter
         chunkCache.ifPresent(dbuilder::withChunkCache);
         iwriter = new IndexWriter(keyCount);
 
-        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
+        this.rowIndexEntrySerializer = new BigTableRowIndexEntry.Serializer(descriptor.version, header);
         columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, rowIndexEntrySerializer.indexInfoSerializer());
     }
 
@@ -172,7 +172,7 @@ public class BigTableWriter extends SSTableWriter
         return (lastWrittenKey == null) ? 0 : dataFile.position();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, RowIndexEntry index, ByteBuffer indexInfo) throws IOException
+    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, BigTableRowIndexEntry index, ByteBuffer indexInfo) throws IOException
     {
         metadataCollector.addKey(decoratedKey.getKey());
         lastWrittenKey = decoratedKey;
@@ -194,7 +194,7 @@ public class BigTableWriter extends SSTableWriter
      *
      * @throws FSWriteError if a write to the dataFile fails
      */
-    public RowIndexEntry append(UnfilteredRowIterator iterator)
+    public BigTableRowIndexEntry append(UnfilteredRowIterator iterator)
     {
         DecoratedKey key = iterator.partitionKey();
 
@@ -221,14 +221,14 @@ public class BigTableWriter extends SSTableWriter
             // serialized size to the index-writer position
             long indexFilePosition = ByteBufferUtil.serializedSizeWithShortLength(key.getKey()) + iwriter.indexFile.position();
 
-            RowIndexEntry entry = RowIndexEntry.create(startPosition, indexFilePosition,
-                                                       collecting.partitionLevelDeletion(),
-                                                       columnIndexWriter.headerLength,
-                                                       columnIndexWriter.columnIndexCount,
-                                                       columnIndexWriter.indexInfoSerializedSize(),
-                                                       columnIndexWriter.indexSamples(),
-                                                       columnIndexWriter.offsets(),
-                                                       rowIndexEntrySerializer.indexInfoSerializer());
+            BigTableRowIndexEntry entry = BigTableRowIndexEntry.create(startPosition, indexFilePosition,
+                                                                       collecting.partitionLevelDeletion(),
+                                                                       columnIndexWriter.headerLength,
+                                                                       columnIndexWriter.columnIndexCount,
+                                                                       columnIndexWriter.indexInfoSerializedSize(),
+                                                                       columnIndexWriter.indexSamples(),
+                                                                       columnIndexWriter.offsets(),
+                                                                       rowIndexEntrySerializer.indexInfoSerializer());
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;
@@ -503,7 +503,7 @@ public class BigTableWriter extends SSTableWriter
             return summary.getLastReadableBoundary();
         }
 
-        public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd, ByteBuffer indexInfo) throws IOException
+        public void append(DecoratedKey key, BigTableRowIndexEntry indexEntry, long dataEnd, ByteBuffer indexInfo) throws IOException
         {
             bf.add(key);
             long indexStart = indexFile.position();

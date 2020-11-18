@@ -24,10 +24,10 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -92,7 +92,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
 
                         try
                         {
-                            RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
+                            RowIndexEntry<?> indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
                             dataFile.seek(indexEntry.position);
                             ByteBufferUtil.readWithShortLength(dataFile); // key
 

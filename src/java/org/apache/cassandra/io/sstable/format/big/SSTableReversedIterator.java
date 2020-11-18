@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.columniterator;
+package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.*;
@@ -24,8 +24,9 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.IndexState;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableIterator;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
@@ -35,7 +36,7 @@ import org.apache.cassandra.utils.btree.BTree;
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
  */
-public class SSTableReversedIterator extends AbstractSSTableIterator
+public class SSTableReversedIterator extends AbstractSSTableIterator<BigTableRowIndexEntry>
 {
     /**
      * The index of the slice being processed.
@@ -45,7 +46,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
     public SSTableReversedIterator(SSTableReader sstable,
                                    FileDataInput file,
                                    DecoratedKey key,
-                                   RowIndexEntry indexEntry,
+                                   BigTableRowIndexEntry indexEntry,
                                    Slices slices,
                                    ColumnFilter columns,
                                    FileHandle ifile)
@@ -53,7 +54,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(BigTableRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
              ? new ReverseIndexedReader(indexEntry, file, shouldCloseFile)
@@ -263,7 +264,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         // The last index block to consider for the slice
         private int lastBlockIdx;
 
-        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+        private ReverseIndexedReader(BigTableRowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
             this.indexState = new IndexState(this, metadata.comparator, indexEntry, true, ifile);

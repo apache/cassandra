@@ -1686,7 +1686,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (SSTableReader sstr : select(View.select(SSTableSet.LIVE, dk)).sstables)
             {
                 // check if the key actually exists in this sstable, without updating cache and stats
-                if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) != null)
+                if (sstr.checkEntryExists(dk, SSTableReader.Operator.EQ, false))
                     files.add(sstr.getFilename());
             }
             return files;

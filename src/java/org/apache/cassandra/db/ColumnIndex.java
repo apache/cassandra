@@ -28,7 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 /**
  * Column index builder used by {@link org.apache.cassandra.io.sstable.format.big.BigTableWriter}.
  * For index entries that exceed {@link org.apache.cassandra.config.Config#column_index_cache_size_in_kb},
- * this uses the serialization logic as in {@link RowIndexEntry}.
+ * this uses the serialization logic as in {@link BigTableRowIndexEntry}.
  */
 public class ColumnIndex
 {
@@ -289,7 +289,7 @@ public class ColumnIndex
         // in indexOffsets[]. buffer is != null, if it exceeds Config.column_index_cache_size_in_kb.
         // In the other case, when buffer==null, the offsets are serialized in RowIndexEntry.IndexedEntry.serialize().
         if (buffer != null)
-            RowIndexEntry.Serializer.serializeOffsets(buffer, indexOffsets, columnIndexCount);
+            BigTableRowIndexEntry.Serializer.serializeOffsets(buffer, indexOffsets, columnIndexCount);
 
         // we should always have at least one computed index block, but we only write it out if there is more than that.
         assert columnIndexCount > 0 && headerLength >= 0;
