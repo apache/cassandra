@@ -280,6 +280,18 @@ Materialized Views
       to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
       specify them explicitly now.
 
+3.11.10
+======
+
+Upgrading
+---------
+    - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
+      it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
+      lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
+      logged, and the setting reverted to the default value of 1GB. It is up to the user to correct the setting
+      after an upgrade, via dropping and recreating the index. See CASSANDRA-16071 for details.
+
+
 3.11.6
 ======
 

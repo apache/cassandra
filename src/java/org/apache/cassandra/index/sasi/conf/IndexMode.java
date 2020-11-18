@@ -56,6 +56,7 @@ public class IndexMode
     private static final String INDEX_IS_LITERAL_OPTION = "is_literal";
     private static final String INDEX_MAX_FLUSH_MEMORY_OPTION = "max_compaction_flush_memory_in_mb";
     private static final double INDEX_MAX_FLUSH_DEFAULT_MULTIPLIER = 0.15;
+    private static final long DEFAULT_MAX_MEM_BYTES = (long) (1073741824 * INDEX_MAX_FLUSH_DEFAULT_MULTIPLIER); // 1G default for memtable
 
     public final Mode mode;
     public final boolean isAnalyzed, isLiteral;
@@ -187,9 +188,14 @@ public class IndexMode
         }
 
         long maxMemBytes = indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION) == null
-                ? (long) (1073741824 * INDEX_MAX_FLUSH_DEFAULT_MULTIPLIER) // 1G default for memtable
+                ? DEFAULT_MAX_MEM_BYTES
                 : 1048576L * Long.parseLong(indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION));
 
+        if (maxMemBytes > 100L * 1073741824)
+        {
+            logger.error("{} configured as {} is above 100GB, reverting to default 1GB", INDEX_MAX_FLUSH_MEMORY_OPTION, maxMemBytes);
+            maxMemBytes = DEFAULT_MAX_MEM_BYTES;
+        }
         return new IndexMode(mode, isLiteral, isAnalyzed, analyzerClass, maxMemBytes);
     }
 
