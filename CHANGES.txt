@@ -18,6 +18,7 @@ Merged from 3.0:
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
+ * Raise Dynamic Snitch Default Badness Threshold to 1.0 (CASSANDRA-16285)
 
 4.0-beta3
  * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)
