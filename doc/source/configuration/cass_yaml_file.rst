@@ -1406,17 +1406,33 @@ Lowest acceptable value is 10 ms.
 Defensive settings for protecting Cassandra from true network partitions.
 See (CASSANDRA-14358) for details.
 
-The amount of time to wait for internode tcp connections to establish.
-internode_tcp_connect_timeout_in_ms = 2000
 
+``internode_tcp_connect_timeout_in_ms``
+---------------------------------------
+The amount of time to wait for internode tcp connections to establish.
+
+*Default Value:* 2000
+
+``internode_tcp_user_timeout_in_ms``
+------------------------------------
 The amount of time unacknowledged data is allowed on a connection before we throw out the connection
 Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
 (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
 which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-internode_tcp_user_timeout_in_ms = 30000
 
-The maximum continuous period a connection may be unwritable in application space
-internode_application_timeout_in_ms = 30000
+*Default Value:* 30000
+
+``internode_streaming_tcp_user_timeout_in_ms``
+----------------------------------------------
+The amount of time unacknowledged data is allowed on a streaming connection before we close the connection.
+
+*Default Value:* 300000 (5 minutes)
+
+``internode_application_timeout_in_ms``
+---------------------------------------
+The maximum continuous period a connection may be unwritable in application space.
+
+*Default Value:* 30000
 
 Global, per-endpoint and per-connection limits imposed on messages queued for delivery to other nodes
 and waiting to be processed on arrival from other nodes in the cluster.  These limits are applied to the on-wire
