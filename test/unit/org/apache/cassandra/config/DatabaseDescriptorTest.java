@@ -315,7 +315,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testApplyInitialTokensInitialTokensSetNumTokensSetAndDoesMatch() throws Exception
+    public void testApplyTokensConfigInitialTokensSetNumTokensSetAndDoesMatch() throws Exception
     {
         Config config = DatabaseDescriptor.loadConfig();
         config.initial_token = "0,256,1024";
@@ -337,7 +337,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testApplyInitialTokensInitialTokensSetNumTokensSetAndDoesntMatch() throws Exception
+    public void testApplyTokensConfigInitialTokensSetNumTokensSetAndDoesntMatch() throws Exception
     {
         Config config = DatabaseDescriptor.loadConfig();
         config.initial_token = "0,256,1024";
@@ -349,7 +349,7 @@ public class DatabaseDescriptorTest
         {
             DatabaseDescriptor.applyTokensConfig(config);
 
-            Assert.fail("initial_token = 0,256,1024 and num_tokens = 10 but applyInitialTokens() did not fail!");
+            Assert.fail("initial_token = 0,256,1024 and num_tokens = 10 but applyTokensConfig() did not fail!");
         }
         catch (ConfigurationException ex)
         {
@@ -363,7 +363,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testApplyInitialTokensInitialTokensSetNumTokensNotSet() throws Exception
+    public void testApplyTokensConfigInitialTokensSetNumTokensNotSet() throws Exception
     {
         Config config = DatabaseDescriptor.loadConfig();
 
@@ -387,7 +387,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testApplyInitialTokensInitialTokensNotSetNumTokensSet() throws Exception
+    public void testApplyTokensConfigInitialTokensNotSetNumTokensSet() throws Exception
     {
         Config config = DatabaseDescriptor.loadConfig();
         config.num_tokens = 3;
@@ -408,7 +408,7 @@ public class DatabaseDescriptorTest
     }
 
     @Test
-    public void testApplyInitialTokensInitialTokensNotSetNumTokensNotSet() throws Exception
+    public void testApplyTokensConfigInitialTokensNotSetNumTokensNotSet() throws Exception
     {
         Config config = DatabaseDescriptor.loadConfig();
 
@@ -425,6 +425,28 @@ public class DatabaseDescriptorTest
 
         Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
         Assert.assertTrue(DatabaseDescriptor.tokensFromString(config.initial_token).isEmpty());
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensOneNumTokensNotSet() throws Exception
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "123";
+        config.num_tokens = null;
+
+        unregisterSnitchesForTokenConfigTest();
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+        }
+        finally
+        {
+            unregisterSnitchesForTokenConfigTest();
+        }
+
+        Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
+        Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
     }
 
     private void unregisterSnitchesForTokenConfigTest() throws Exception

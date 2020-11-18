@@ -300,7 +300,10 @@ public class DatabaseDescriptor
             Collection<String> tokens = tokensFromString(config.initial_token);
             if (config.num_tokens == null)
             {
-                throw new ConfigurationException("initial_token was set but num_tokens is not!", false);
+                if (tokens.size() == 1)
+                    config.num_tokens = 1;
+                else
+                    throw new ConfigurationException("initial_token was set but num_tokens is not!", false);
             }
 
             if (tokens.size() != config.num_tokens)
