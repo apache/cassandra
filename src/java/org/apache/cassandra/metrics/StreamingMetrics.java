@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentMap;
 
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -43,6 +44,8 @@ public class StreamingMetrics
     public static final Counter totalOutgoingRepairSSTables = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairSSTables", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
+    /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */
+    public final Timer incomingStreamMessageProcessTime;
 
     public static StreamingMetrics get(InetAddressAndPort ip)
     {
@@ -74,5 +77,6 @@ public class StreamingMetrics
         MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.toString().replace(':', '.'));
         incomingBytes = Metrics.counter(factory.createMetricName("IncomingBytes"));
         outgoingBytes= Metrics.counter(factory.createMetricName("OutgoingBytes"));
+        incomingStreamMessageProcessTime = Metrics.timer(factory.createMetricName("IncomingStreamMessageProcessTime"));
     }
 }

@@ -792,7 +792,15 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // send back file received message
         messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
-        receivers.get(message.header.tableId).received(message.stream);
+        long receivedStartNanos = System.nanoTime();
+        try
+        {
+            receivers.get(message.header.tableId).received(message.stream);
+        }
+        finally
+        {
+            metrics.incomingStreamMessageProcessTime.update(System.nanoTime() - receivedStartNanos, TimeUnit.NANOSECONDS);
+        }
     }
 
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
