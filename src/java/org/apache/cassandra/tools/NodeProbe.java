@@ -1178,6 +1178,8 @@ public class NodeProbe implements AutoCloseable
                 return ssProxy.getInternodeTcpConnectTimeoutInMS();
             case "internodeuser":
                 return ssProxy.getInternodeTcpUserTimeoutInMS();
+            case "internodestreaminguser":
+                return ssProxy.getInternodeStreamingTcpUserTimeoutInMS();
             default:
                 throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");
         }
@@ -1267,6 +1269,9 @@ public class NodeProbe implements AutoCloseable
                 break;
             case "internodeuser":
                 ssProxy.setInternodeTcpUserTimeoutInMS((int) value);
+                break;
+            case "internodestreaminguser":
+                ssProxy.setInternodeStreamingTcpUserTimeoutInMS((int) value);
                 break;
             default:
                 throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");

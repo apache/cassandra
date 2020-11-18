@@ -1322,6 +1322,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
     }
 
+    public void setInternodeStreamingTcpUserTimeoutInMS(int value)
+    {
+        if (value < 0)
+            throw new IllegalArgumentException("TCP user timeout cannot be negative for internode streaming connection. Got " + value);
+        DatabaseDescriptor.setInternodeStreamingTcpUserTimeoutInMS(value);
+        logger.info("set internode streaming tcp user timeout to {} ms", value);
+    }
+
+    public int getInternodeStreamingTcpUserTimeoutInMS()
+    {
+        return DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+    }
+
     public void setCounterWriteRpcTimeout(long value)
     {
         DatabaseDescriptor.setCounterWriteRpcTimeout(value);

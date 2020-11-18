@@ -178,6 +178,8 @@ public class Config
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
     public int internode_tcp_user_timeout_in_ms = 30000;
+    // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
+    public int internode_streaming_tcp_user_timeout_in_ms = 0;
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;

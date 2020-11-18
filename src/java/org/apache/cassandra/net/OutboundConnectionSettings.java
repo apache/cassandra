@@ -410,10 +410,19 @@ public class OutboundConnectionSettings
                                              : DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
     }
 
-    public int tcpUserTimeoutInMS()
+    public int tcpUserTimeoutInMS(ConnectionCategory category)
     {
-        return tcpUserTimeoutInMS != null ? tcpUserTimeoutInMS
-                                          : DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+        // Reusing tcpUserTimeoutInMS for both messaging and streaming, since the connection is created for either one of them.
+        if (tcpUserTimeoutInMS != null)
+            return tcpConnectTimeoutInMS;
+
+        if (category.isMessaging())
+            return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+        else if (category.isStreaming())
+            return DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+        else
+            throw new IllegalArgumentException("Unknown connection category: " + category);
+
     }
 
     public boolean tcpNoDelay()
@@ -479,7 +488,7 @@ public class OutboundConnectionSettings
                                               applicationSendQueueReserveEndpointCapacityInBytes(),
                                               applicationSendQueueReserveGlobalCapacityInBytes(),
                                               tcpNoDelay(), flushLowWaterMark, flushHighWaterMark,
-                                              tcpConnectTimeoutInMS(), tcpUserTimeoutInMS(), acceptVersions(category),
+                                              tcpConnectTimeoutInMS(), tcpUserTimeoutInMS(category), acceptVersions(category),
                                               from(), socketFactory(), callbacks(), debug(), endpointToVersion());
     }
 
