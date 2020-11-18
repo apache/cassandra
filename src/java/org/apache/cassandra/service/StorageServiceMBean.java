@@ -574,6 +574,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setInternodeTcpUserTimeoutInMS(int value);
     public int getInternodeTcpUserTimeoutInMS();
 
+    public void setInternodeStreamingTcpUserTimeoutInMS(int value);
+    public int getInternodeStreamingTcpUserTimeoutInMS();
+
     public void setCounterWriteRpcTimeout(long value);
     public long getCounterWriteRpcTimeout();
 

@@ -1,4 +1,5 @@
 4.0-beta4
+ * Add dedicated tcp user timeout for streaming connection (CASSANDRA-16143)
  * Add generatetokens script for offline token allocation strategy generation (CASSANDRA-16205)
  * Remove Windows scripts (CASSANDRA-16171)
  * Improve checksumming and compression in protocol V5 (CASSANDRA-15299)
