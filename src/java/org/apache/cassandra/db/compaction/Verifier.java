@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -71,9 +72,7 @@ public class Verifier implements Closeable
 
 
     private final RandomAccessReader dataFile;
-    private final RandomAccessReader indexFile;
     private final VerifyInfo verifyInfo;
-    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final Options options;
     private final boolean isOffline;
     /**
@@ -98,14 +97,12 @@ public class Verifier implements Closeable
         this.cfs = cfs;
         this.sstable = sstable;
         this.outputHandler = outputHandler;
-        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(cfs.metadata(), sstable.descriptor.version, sstable.header);
 
         this.controller = new VerifyController(cfs);
 
         this.dataFile = isOffline
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
-        this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
         this.verifyInfo = new VerifyInfo(dataFile, sstable);
         this.options = options;
         this.isOffline = isOffline;
@@ -233,14 +230,10 @@ public class Verifier implements Closeable
 
         outputHandler.output("Extended Verify requested, proceeding to inspect values");
 
-        try
+        try(PartitionIndexIterator indexIterator = sstable.allKeysIterator())
         {
-            ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
-            {
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                if (firstRowPositionFromIndex != 0)
-                    markAndThrow();
-            }
+            if (indexIterator.dataPosition() != 0)
+                markAndThrow();
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
             RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
@@ -279,14 +272,18 @@ public class Verifier implements Closeable
                     }
                 }
 
-                ByteBuffer currentIndexKey = nextIndexKey;
+                ByteBuffer currentIndexKey = indexIterator.key();
                 long nextRowPositionFromIndex = 0;
                 try
                 {
-                    nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
-                    nextRowPositionFromIndex = indexFile.isEOF()
-                                             ? dataFile.length()
-                                             : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
+                    if (indexIterator.advance())
+                    {
+                        nextRowPositionFromIndex = indexIterator.dataPosition();
+                    }
+                    else
+                    {
+                        nextRowPositionFromIndex = dataFile.length();
+                    }
                 }
                 catch (Throwable th)
                 {
@@ -302,8 +299,6 @@ public class Verifier implements Closeable
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
                 outputHandler.debug(String.format("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize)));
-
-                assert currentIndexKey != null || indexFile.isEOF();
 
                 try
                 {
@@ -446,7 +441,6 @@ public class Verifier implements Closeable
     public void close()
     {
         FileUtils.closeQuietly(dataFile);
-        FileUtils.closeQuietly(indexFile);
     }
 
     private void throwIfFatal(Throwable th)

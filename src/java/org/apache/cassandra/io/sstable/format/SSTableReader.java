@@ -204,8 +204,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     protected final IFilter bf;
     public final IndexSummary indexSummary;
 
-    protected final RowIndexEntry.IndexSerializer<?> rowIndexEntrySerializer;
-
     protected InstrumentingCache<KeyCacheKey, RowIndexEntry> keyCache;
 
     protected final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
@@ -658,7 +656,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         this.bf = bf;
         this.maxDataAge = maxDataAge;
         this.openReason = openReason;
-        this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata.get(), desc.version, header);
         tidy = new InstanceTidier(descriptor, metadata.id);
         selfRef = new Ref<>(this, tidy);
     }
@@ -679,6 +676,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         return sum;
     }
+
+    public abstract PartitionIndexIterator allKeysIterator() throws IOException;
 
     public boolean equals(Object that)
     {
@@ -1617,25 +1616,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
     }
 
-    public DecoratedKey keyAt(long indexPosition) throws IOException
-    {
-        DecoratedKey key;
-        try (FileDataInput in = ifile.createReader(indexPosition))
-        {
-            if (in.isEOF())
-                return null;
-
-            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
-
-            // hint read path about key location if caching is enabled
-            // this saves index summary lookup and index file iteration which whould be pretty costly
-            // especially in presence of promoted column indexes
-            if (isKeyCacheEnabled())
-                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
-        }
-
-        return key;
-    }
+    public abstract DecoratedKey keyAt(long indexPosition) throws IOException;
 
     public boolean isPendingRepair()
     {

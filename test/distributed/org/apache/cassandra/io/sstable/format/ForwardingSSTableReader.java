@@ -73,6 +73,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public PartitionIndexIterator allKeysIterator() throws IOException
+    {
+        return delegate.allKeysIterator();
+    }
+
+    @Override
     public boolean equals(Object that)
     {
         return delegate.equals(that);

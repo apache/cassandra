@@ -54,6 +54,7 @@ public class BigTableWriter extends SSTableWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
+    protected final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
     private final ColumnIndex columnIndexWriter;
     private final IndexWriter iwriter;
     private final FileHandle.Builder dbuilder;
@@ -105,7 +106,8 @@ public class BigTableWriter extends SSTableWriter
         chunkCache.ifPresent(dbuilder::withChunkCache);
         iwriter = new IndexWriter(keyCount);
 
-        columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, getRowIndexEntrySerializer().indexInfoSerializer());
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
+        columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, rowIndexEntrySerializer.indexInfoSerializer());
     }
 
     /**
@@ -226,7 +228,7 @@ public class BigTableWriter extends SSTableWriter
                                                        columnIndexWriter.indexInfoSerializedSize(),
                                                        columnIndexWriter.indexSamples(),
                                                        columnIndexWriter.offsets(),
-                                                       getRowIndexEntrySerializer().indexInfoSerializer());
+                                                       rowIndexEntrySerializer.indexInfoSerializer());
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;
@@ -243,11 +245,6 @@ public class BigTableWriter extends SSTableWriter
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
-    }
-
-    private RowIndexEntry.IndexSerializer<IndexInfo> getRowIndexEntrySerializer()
-    {
-        return (RowIndexEntry.IndexSerializer<IndexInfo>) rowIndexEntrySerializer;
     }
 
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)

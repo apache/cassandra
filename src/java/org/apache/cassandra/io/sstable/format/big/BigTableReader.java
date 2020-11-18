@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,9 +53,18 @@ public class BigTableReader extends SSTableReader
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
+    protected final RowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
+
     BigTableReader(SSTableReaderBuilder builder)
     {
         super(builder);
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
+    }
+
+    @Override
+    public PartitionIndexIterator allKeysIterator() throws IOException
+    {
+        return BigTablePartitionIndexIterator.create(getIndexFile(), rowIndexEntrySerializer);
     }
 
     public UnfilteredRowIterator iterator(DecoratedKey key,
@@ -154,7 +164,7 @@ public class BigTableReader extends SSTableReader
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey) key;
-            RowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
+            RowIndexEntry<IndexInfo> cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
                 listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
@@ -243,7 +253,7 @@ public class BigTableReader extends SSTableReader
                 if (opSatisfied)
                 {
                     // read data position from index entry
-                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
+                    RowIndexEntry<IndexInfo> indexEntry = rowIndexEntrySerializer.deserialize(in);
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
@@ -287,4 +297,24 @@ public class BigTableReader extends SSTableReader
     }
 
 
+    @Override
+    public DecoratedKey keyAt(long indexPosition) throws IOException
+    {
+        DecoratedKey key;
+        try (FileDataInput in = ifile.createReader(indexPosition))
+        {
+            if (in.isEOF())
+                return null;
+
+            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
+
+            // hint read path about key location if caching is enabled
+            // this saves index summary lookup and index file iteration which whould be pretty costly
+            // especially in presence of promoted column indexes
+            if (isKeyCacheEnabled())
+                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
+        }
+
+        return key;
+    }
 }
