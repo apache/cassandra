@@ -139,11 +139,11 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             predicate = (s) -> !prs.isIncremental || !s.isRepaired();
         }
 
-        try (ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, predicate)))
+        try (ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
         {
             for (SSTableReader sstable : sstableCandidates.sstables)
             {
-                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges))
+                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges) && predicate.apply(sstable))
                 {
                     sstablesToValidate.add(sstable);
                 }
