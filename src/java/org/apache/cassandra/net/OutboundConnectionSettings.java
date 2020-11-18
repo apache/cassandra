@@ -414,7 +414,7 @@ public class OutboundConnectionSettings
     {
         // Reusing tcpUserTimeoutInMS for both messaging and streaming, since the connection is created for either one of them.
         if (tcpUserTimeoutInMS != null)
-            return tcpConnectTimeoutInMS;
+            return tcpUserTimeoutInMS;
 
         if (category.isMessaging())
             return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
