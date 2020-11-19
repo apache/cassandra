@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import org.junit.After;
 import org.junit.Before;
@@ -128,9 +129,9 @@ public class CompactionValidationTest
     {
         final UUID repairSessionId = UUIDGen.getTimeUUID();
 
-        final List<Range<Token>> ranges = cfs.getLiveSSTables().stream()
-                                             .map(sstable -> new Range<>(sstable.first.getToken(), sstable.last.getToken()))
-                                             .collect(toList());
+        final List<Range<Token>> ranges = Stream.of(cfs.getLiveSSTables().iterator().next())
+                                                .map(sstable -> new Range<>(sstable.first.getToken(), sstable.last.getToken()))
+                                                .collect(toList());
 
         final RepairJobDesc repairJobDesc = new RepairJobDesc(repairSessionId,
                                                               UUIDGen.getTimeUUID(),
