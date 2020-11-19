@@ -19,6 +19,9 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -28,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -60,17 +64,12 @@ public final class JVMStabilityInspector
      */
     public static void inspectThrowable(Throwable t) throws OutOfMemoryError
     {
-        inspectThrowable(t, true);
-    }
-
-    public static void inspectThrowable(Throwable t, boolean propagateOutOfMemory) throws OutOfMemoryError
-    {
-        inspectThrowable(t, propagateOutOfMemory, JVMStabilityInspector::inspectDiskError);
+        inspectThrowable(t, JVMStabilityInspector::inspectDiskError);
     }
 
     public static void inspectCommitLogThrowable(Throwable t)
     {
-        inspectThrowable(t, true, JVMStabilityInspector::inspectCommitLogError);
+        inspectThrowable(t, JVMStabilityInspector::inspectCommitLogError);
     }
 
     private static void inspectDiskError(Throwable t)
@@ -81,7 +80,7 @@ public final class JVMStabilityInspector
             FileUtils.handleFSError((FSError) t);
     }
 
-    public static void inspectThrowable(Throwable t, boolean propagateOutOfMemory, Consumer<Throwable> fn) throws OutOfMemoryError
+    public static void inspectThrowable(Throwable t, Consumer<Throwable> fn) throws OutOfMemoryError
     {
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
@@ -102,11 +101,11 @@ public final class JVMStabilityInspector
             logger.error("OutOfMemory error letting the JVM handle the error:", t);
 
             StorageService.instance.removeShutdownHook();
+
+            forceHeapSpaceOomMaybe((OutOfMemoryError) t);
+
             // We let the JVM handle the error. The startup checks should have warned the user if it did not configure
             // the JVM behavior in case of OOM (CASSANDRA-13006).
-            if (!propagateOutOfMemory)
-                return;
-
             throw (OutOfMemoryError) t;
         }
 
@@ -125,7 +124,35 @@ public final class JVMStabilityInspector
             killer.killCurrentJVM(t);
 
         if (t.getCause() != null)
-            inspectThrowable(t.getCause(), propagateOutOfMemory, fn);
+            inspectThrowable(t.getCause(), fn);
+    }
+
+    /**
+     * Intentionally produce a heap space OOM upon seeing a Direct buffer memory OOM.
+     * Direct buffer OOM cannot trigger JVM OOM error related options,
+     * e.g. OnOutOfMemoryError, HeapDumpOnOutOfMemoryError, etc.
+     * See CASSANDRA-15214 for more details
+     */
+    @Exclude // Exclude from just in time compilation.
+    private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
+    {
+        // See the oom thrown from java.nio.Bits.reserveMemory.
+        // In jdk 13 and up, the message is "Cannot reserve XX bytes of direct buffer memory (...)"
+        // In jdk 11 and below, the message is "Direct buffer memory"
+        if ((oom.getMessage() != null && oom.getMessage().toLowerCase().contains("direct buffer memory")) ||
+            Arrays.stream(oom.getStackTrace()).anyMatch(x -> x.getClassName().equals("java.nio.Bits")
+                                                             && x.getMethodName().equals("reserveMemory")))
+        {
+            logger.error("Force heap space OutOfMemoryError in the presence of", oom);
+            // Start to produce heap space OOM forcibly.
+            List<long[]> ignored = new ArrayList<>();
+            while (true)
+            {
+                // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
+                // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
+                ignored.add(new long[Integer.MAX_VALUE / 2]);
+            }
+        }
     }
 
     private static void inspectCommitLogError(Throwable t)
