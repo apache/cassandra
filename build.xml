@@ -2089,6 +2089,7 @@
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
       <jar jarfile="${build.dir}/dtest-${base.version}.jar">
           <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
+          <zipgroupfileset dir="${build.dir.lib}/jars" includes="javassist-*.jar,reflections-*.jar" excludes="META-INF/*.SF"/>
           <fileset dir="${build.classes.main}"/>
           <fileset dir="${test.classes}"/>
           <fileset dir="${test.conf}" />
