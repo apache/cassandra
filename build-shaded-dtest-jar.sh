@@ -2,12 +2,14 @@
 
 set -xe
 
-# Cassandra version that is specified in build.xml
-CASSANDRA_VERSION=$1
-# In-JVM dtest version that is specified in relocate-dependencies.pom
-DTEST_VERSION=$2
 ARTIFACT_NAME=cassandra-dtest
 REPO_DIR=~/.m2/repository
+CASSANDRA_VERSION=$(cat build.xml | grep 'property name="base.version"' | awk -F "\"" '{print $4}')
+DTEST_VERSION=$(cat relocate-dependencies.pom | grep "dtest-local.version>" | awk -F "\>|\<" '{print $3}')
+SHADED_DTEST_VERSION=$(cat relocate-dependencies.pom | grep -m 1 "<version>" | awk -F "\>|\<" '{print $3}')
+
+echo $CASSANDRA_VERSION
+echo $DTEST_VERSION
 
 ant clean
 ant dtest-jar
@@ -27,7 +29,7 @@ mvn -f relocate-dependencies.pom package -DskipTests -nsu
 
 # Deploy shaded artifact
 mvn install:install-file                 \
-   -Dfile=./target/${ARTIFACT_NAME}-shaded-${DTEST_VERSION}.jar \
+   -Dfile=./target/${ARTIFACT_NAME}-shaded-${SHADED_DTEST_VERSION}.jar \
    -DgroupId=org.apache.cassandra        \
    -DartifactId=${ARTIFACT_NAME}-shaded  \
    -Dversion=${DTEST_VERSION}            \
