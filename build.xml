@@ -216,9 +216,11 @@
       stop-the-world pause.
     -->
     <resources id="_jvm8_test_arg_items">
+      <!-- TODO see CASSANDRA-16212 - we seem to OOM non stop now after CASSANDRA-16212, so to have clean CI while this gets looked into, disabling limiting metaspace
         <string>-XX:MaxMetaspaceExpansion=64M</string>
         <string>-XX:MaxMetaspaceSize=512M</string>
         <string>-XX:MetaspaceSize=128M</string>
+      -->
     </resources>
     <pathconvert property="_jvm8_test_arg_items_concat" refid="_jvm8_test_arg_items" pathsep=" "/>
     <resources id="_jvm11_test_arg_items">
