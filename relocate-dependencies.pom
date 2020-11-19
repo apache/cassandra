@@ -19,6 +19,7 @@
         <junit.version>4.12</junit.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
+        <dtest-local.version>4.0.0-SNAPSHOT</dtest-local.version>
     </properties>
 
     <dependencies>
@@ -26,7 +27,7 @@
         <dependency>
             <groupId>org.apache.cassandra</groupId>
             <artifactId>cassandra-dtest-local</artifactId>
-            <version>4.0.0-SNAPSHOT</version>
+            <version>${dtest-local.version}</version>
         </dependency>
 
         <dependency>
