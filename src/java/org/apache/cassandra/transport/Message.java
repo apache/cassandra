@@ -805,6 +805,8 @@ public abstract class Message
                     });
                 }
             }
+
+            JVMStabilityInspector.inspectThrowable(cause);
         }
     }
 

@@ -382,7 +382,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
             try
             {
-                JVMStabilityInspector.inspectThrowable(cause, false);
+                JVMStabilityInspector.inspectThrowable(cause);
                 resultPromise.tryFailure(cause);
                 if (isCausedByConnectionReset(cause))
                     logger.info("Failed to connect to peer {}", settings.connectToId(), cause);
