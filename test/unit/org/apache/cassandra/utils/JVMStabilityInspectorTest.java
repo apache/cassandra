@@ -118,12 +118,21 @@ public class JVMStabilityInspectorTest
             assertFalse(killerForTests.wasKilled());
 
             killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new SocketException());
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new FileNotFoundException());
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
             JVMStabilityInspector.inspectThrowable(new SocketException("Too many open files"));
             assertTrue(killerForTests.wasKilled());
 
             killerForTests.reset();
             JVMStabilityInspector.inspectCommitLogThrowable(new FileNotFoundException("Too many open files"));
             assertTrue(killerForTests.wasKilled());
+
         }
         finally
         {
