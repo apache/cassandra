@@ -489,10 +489,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                             GossipHelper.unsafeStatusToNormal(this, (IInstance) peer);
                     });
 
+                    StorageService.instance.setUpDistributedSystemKeyspaces();
                     StorageService.instance.setNormalModeUnsafe();
                 }
-
-                StorageService.instance.ensureTraceKeyspace();
 
                 // Populate tokenMetadata for the second time,
                 // see org.apache.cassandra.service.CassandraDaemon.setup
@@ -735,6 +734,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                           output.getErrString());
             }
         }).call();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "node" + config.num();
     }
 
     private static class CapturingOutput implements Closeable
