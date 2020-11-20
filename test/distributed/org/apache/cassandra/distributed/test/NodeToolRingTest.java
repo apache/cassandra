@@ -147,7 +147,8 @@ public class NodeToolRingTest extends TestBaseImpl
             Assertions.assertThat(tool.getStdout())
                       .contains("Datacenter: datacenter0")
                       .contains("Address    Rack        Status State   Load            Owns                Token")
-                      .contains("localhost  rack0       Up     Normal")
+                      .contains("localhost")
+                      .contains("rack0       Up     Normal")
                       .contains("100.00%             9223372036854775807");
             assertEquals(0, tool.getExitCode());
             assertTrue(tool.getCleanedStderr().isEmpty());
