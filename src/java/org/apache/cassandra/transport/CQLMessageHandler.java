@@ -242,7 +242,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
     /**
      * For use in the case where the error can't be mapped to a specific stream id,
-     * such as a corrupted frame, or when extracing a CQL message from the frame's
+     * such as a corrupted frame, or when extracting a CQL message from the frame's
      * payload fails. This does not attempt to release any resources, as these errors
      * should only occur before any capacity acquisition is attempted (e.g. on receipt
      * of a corrupt frame, or failure to extract a CQL message from the envelope).
