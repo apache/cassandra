@@ -257,7 +257,7 @@ public class DatabaseDescriptorRefTest
         for (String methodName : new String[]{
             "clientInitialization",
             "applyAddressConfig",
-            "applyInitialTokens",
+            "applyTokensConfig",
             // no seed provider in default configuration for clients
             // "applySeedProvider",
             // definitely not safe for clients - implicitly instantiates schema

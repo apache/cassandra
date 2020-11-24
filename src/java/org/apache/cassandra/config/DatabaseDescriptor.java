@@ -354,7 +354,7 @@ public class DatabaseDescriptor
 
         applySnitch();
 
-        applyInitialTokens();
+        applyTokensConfig();
 
         applySeedProvider();
 
@@ -677,7 +677,7 @@ public class DatabaseDescriptor
         if (conf.concurrent_materialized_view_builders <= 0)
             throw new ConfigurationException("concurrent_materialized_view_builders should be strictly greater than 0, but was " + conf.concurrent_materialized_view_builders, false);
 
-        if (conf.num_tokens > MAX_NUM_TOKENS)
+        if (conf.num_tokens != null && conf.num_tokens > MAX_NUM_TOKENS)
             throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS), false);
 
         try
@@ -1072,16 +1072,38 @@ public class DatabaseDescriptor
         logger.info("found {}::{} less than lowest acceptable value {}, continuing with {}", property, actualValue, lowestAcceptedValue, lowestAcceptedValue);
     }
 
-    public static void applyInitialTokens()
+    public static void applyTokensConfig()
+    {
+        applyTokensConfig(conf);
+    }
+
+    static void applyTokensConfig(Config conf)
     {
         if (conf.initial_token != null)
         {
             Collection<String> tokens = tokensFromString(conf.initial_token);
+            if (conf.num_tokens == null)
+            {
+                if (tokens.size() == 1)
+                    conf.num_tokens = 1;
+                else
+                    throw new ConfigurationException("initial_token was set but num_tokens is not!", false);
+            }
+
             if (tokens.size() != conf.num_tokens)
-                throw new ConfigurationException("The number of initial tokens (by initial_token) specified is different from num_tokens value", false);
+            {
+                throw new ConfigurationException(String.format("The number of initial tokens (by initial_token) specified (%s) is different from num_tokens value (%s)",
+                                                               tokens.size(),
+                                                               conf.num_tokens),
+                                                 false);
+            }
 
             for (String token : tokens)
                 partitioner.getTokenFactory().validate(token);
+        }
+        else if (conf.num_tokens == null)
+        {
+            conf.num_tokens = 1;
         }
     }
 

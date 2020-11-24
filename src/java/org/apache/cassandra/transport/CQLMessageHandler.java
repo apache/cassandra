@@ -167,7 +167,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         }
         catch (Throwable t)
         {
-            JVMStabilityInspector.inspectThrowable(t, false);
+            JVMStabilityInspector.inspectThrowable(t);
             logger.error("{} unexpected exception caught while deserializing a message header", id(), t);
             // Ideally we would recover from this as we could simply drop the entire frame.
             // However, we have no good way to communicate this back to the client as we don't

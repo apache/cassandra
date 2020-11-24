@@ -101,7 +101,6 @@ public class StartupChecks
                                                                       checkMaxMapCount,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
-                                                                      checkOutdatedTables,
                                                                       checkSystemKeyspaceState,
                                                                       checkDatacenter,
                                                                       checkRack,
@@ -426,8 +425,6 @@ public class StartupChecks
 
         }
     };
-
-    public static final StartupCheck checkOutdatedTables = SchemaKeyspace::validateNonCompact;
 
     public static final StartupCheck checkSystemKeyspaceState = new StartupCheck()
     {

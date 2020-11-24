@@ -122,6 +122,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -140,9 +142,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public static final int INDEFINITE = -1;
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
-    public static final int SCHEMA_DELAY = getRingDelay(); // delay after which we assume ring has stablized
+    public static final int SCHEMA_DELAY_MILLIS = getSchemaDelay();
 
-    private static final boolean REQUIRE_SCHEMAS = !Boolean.getBoolean("cassandra.skip_schema_check");
+    private static final boolean REQUIRE_SCHEMAS = !BOOTSTRAP_SKIP_SCHEMA_CHECK.getBoolean();
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
@@ -162,10 +164,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static int getSchemaDelay()
     {
-        String newdelay = System.getProperty("cassandra.schema_delay_ms");
+        String newdelay = BOOTSTRAP_SCHEMA_DELAY_MS.getString();
         if (newdelay != null)
         {
-            logger.info("Overriding SCHEMA_DELAY to {}ms", newdelay);
+            logger.info("Overriding SCHEMA_DELAY_MILLIS to {}ms", newdelay);
             return Integer.parseInt(newdelay);
         }
         else
@@ -638,21 +640,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MessagingService.instance().listen();
     }
 
-    public void populateTokenMetadata()
-    {
-        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
-        {
-            logger.info("Populating token metadata from system tables");
-            Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
-            if (!shouldBootstrap()) // if we have not completed bootstrapping, we should not add ourselves as a normal token
-                loadedTokens.putAll(FBUtilities.getBroadcastAddressAndPort(), SystemKeyspace.getSavedTokens());
-            for (InetAddressAndPort ep : loadedTokens.keySet())
-                tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
-
-            logger.info("Token metadata: {}", tokenMetadata);
-        }
-    }
-
     public synchronized void initServer() throws ConfigurationException
     {
         initServer(RING_DELAY);
@@ -677,6 +664,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new AssertionError(e);
         }
 
+        if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
+        {
+            logger.info("Loading persisted ring state");
+            populatePeerTokenMetadata();
+            for (InetAddressAndPort endpoint : tokenMetadata.getAllEndpoints())
+                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(endpoint));
+        }
+
         // daemon threads, like our executors', continue to run while shutdown hooks are invoked
         drainOnShutdown = NamedThreadFactory.createThread(new WrappedRunnable()
         {
@@ -698,8 +693,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!Boolean.parseBoolean(System.getProperty("cassandra.start_gossip", "true")))
         {
             logger.info("Not starting gossip as requested.");
-            // load ring state in preparation for starting gossip later
-            loadRingState();
             initialized = true;
             return;
         }
@@ -741,27 +734,34 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initialized = true;
     }
 
-    private void loadRingState()
+    public void populateTokenMetadata()
     {
         if (Boolean.parseBoolean(System.getProperty("cassandra.load_ring_state", "true")))
         {
-            logger.info("Loading persisted ring state");
-            Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
-            Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
-            for (InetAddressAndPort ep : loadedTokens.keySet())
-            {
-                if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
-                {
-                    // entry has been mistakenly added, delete it
-                    SystemKeyspace.removeEndpoint(ep);
-                }
-                else
-                {
-                    if (loadedHostIds.containsKey(ep))
-                        tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
-                    Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.addSavedEndpoint(ep));
-                }
-            }
+            populatePeerTokenMetadata();
+            // if we have not completed bootstrapping, we should not add ourselves as a normal token
+            if (!shouldBootstrap())
+                tokenMetadata.updateNormalTokens(SystemKeyspace.getSavedTokens(), FBUtilities.getBroadcastAddressAndPort());
+
+            logger.info("Token metadata: {}", tokenMetadata);
+        }
+    }
+
+    private void populatePeerTokenMetadata()
+    {
+        logger.info("Populating token metadata from system tables");
+        Multimap<InetAddressAndPort, Token> loadedTokens = SystemKeyspace.loadTokens();
+
+        // entry has been mistakenly added, delete it
+        if (loadedTokens.containsKey(FBUtilities.getBroadcastAddressAndPort()))
+            SystemKeyspace.removeEndpoint(FBUtilities.getBroadcastAddressAndPort());
+
+        Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
+        for (InetAddressAndPort ep : loadedTokens.keySet())
+        {
+            tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
+            if (loadedHostIds.containsKey(ep))
+                tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
         }
     }
 
@@ -869,11 +869,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(FBUtilities.getJustBroadcastNativeAddress()));
             appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
-            // load the persisted ring state. This used to be done earlier in the init process,
-            // but now we always perform a shadow round when preparing to join and we have to
-            // clear endpoint states after doing that.
-            loadRingState();
-
             logger.info("Starting up server gossip");
             Gossiper.instance.register(this);
             Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), appStates); // needed for node-ring gathering.
@@ -902,7 +897,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
 
-        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(TimeUnit.SECONDS.toMillis(SCHEMA_DELAY));
+        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(SCHEMA_DELAY_MILLIS);
 
         if (schemasReceived)
             return;
@@ -4752,15 +4747,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "shutting down MessageService", false);
 
-            // In-progress writes originating here could generate hints to be written, so shut down MessagingService
-            // before mutation stage, so we can get all the hints saved before shutting down
-            MessagingService.instance().shutdown();
+            // In-progress writes originating here could generate hints to be written,
+            // which is currently scheduled on the mutation stage. So shut down MessagingService
+            // before mutation stage, so we can get all the hints saved before shutting down.
+            try
+            {
+                MessagingService.instance().shutdown();
+            }
+            catch (Throwable t)
+            {
+                // prevent messaging service timing out shutdown from aborting
+                // drain process; otherwise drain and/or shutdown might throw
+                logger.error("Messaging service timed out shutting down", t);
+            }
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "clearing mutation stage", false);
             viewMutationStage.shutdown();
             counterMutationStage.shutdown();
             mutationStage.shutdown();
+
+            // FIXME? should these *really* take up to one hour?
             viewMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
             counterMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
             mutationStage.awaitTermination(3600, TimeUnit.SECONDS);

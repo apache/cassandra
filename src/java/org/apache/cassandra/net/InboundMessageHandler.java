@@ -238,7 +238,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         }
         catch (Throwable t)
         {
-            JVMStabilityInspector.inspectThrowable(t, false);
+            JVMStabilityInspector.inspectThrowable(t);
             callbacks.onFailedDeserialize(size, header, t);
             logger.error("{} unexpected exception caught while deserializing a message", id(), t);
         }
@@ -353,7 +353,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
     {
         decoder.discard();
 
-        JVMStabilityInspector.inspectThrowable(cause, false);
+        JVMStabilityInspector.inspectThrowable(cause);
 
         if (cause instanceof Message.InvalidLegacyProtocolMagic)
             logger.error("{} invalid, unrecoverable CRC mismatch detected while reading messages - closing the connection", id());
@@ -435,7 +435,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
             }
             catch (Throwable t)
             {
-                JVMStabilityInspector.inspectThrowable(t, false);
+                JVMStabilityInspector.inspectThrowable(t);
                 callbacks.onFailedDeserialize(size, header, t);
                 logger.error("{} unexpected exception caught while deserializing a message", id(), t);
             }

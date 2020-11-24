@@ -360,7 +360,8 @@ public class PagingState
                 if (!cells.hasNext())
                 {
                     // If the last returned row has no cell, this means in 2.1/2.2 terms that we stopped on the row
-                    // marker.
+                    // marker.  Note that this shouldn't happen if the table is COMPACT STORAGE tables.
+                    assert !metadata.isCompactTable();
                     mark = encodeCellName(metadata, row.clustering(), EMPTY_BYTE_BUFFER, null);
                 }
                 else

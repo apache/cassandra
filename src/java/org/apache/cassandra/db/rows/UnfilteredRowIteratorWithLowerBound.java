@@ -238,7 +238,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         // Side-note: pre-2.1 sstable stat file had clustering value arrays whose size may not match the comparator size
         // and that would break getMetadataLowerBound. We don't support upgrade from 2.0 to 3.0 directly however so it's
         // not a true concern. Besides, !sstable.mayHaveTombstones already ensure this is a 3.0 sstable anyway.
-        return !sstable.mayHaveTombstones();
+        return !sstable.mayHaveTombstones() && !sstable.metadata().isCompactTable();
     }
 
     /**

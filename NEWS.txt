@@ -149,10 +149,6 @@ Upgrading
     - Timestamp ties between values resolve differently: if either value has a TTL,
       this value always wins. This is to provide consistent reconciliation before
       and after the value expires into a tombstone.
-    - Cassandra 4.0 removed support for COMPACT STORAGE tables. All Compact Tables
-      have to be migrated using `ALTER ... DROP COMPACT STORAGE` statement in 3.0/3.11.
-      Cassandra starting 4.0 will not start if flags indicate that the table is non-CQL.
-      Syntax for creating compact tables is also deprecated.
     - Support for legacy auth tables in the system_auth keyspace (users,
       permissions, credentials) and the migration code has been removed. Migration
       of these legacy auth tables must have been completed before the upgrade to
@@ -254,6 +250,11 @@ Upgrading
       default (16) was meant for spinning disk volumes.  See CASSANDRA-14902 for details.
     - Custom compaction strategies must now handle getting sstables added/removed notifications for
       sstables already added/removed - see CASSANDRA-14103 for details.
+    - Support for JNA with glibc 2.6 and earlier has been removed. Centos 5, Debian 4, and Ubuntu 7.10 operating systems
+      must be first upgraded. See CASSANDRA-16212 for more.
+    - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
+      If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
+      the node will not start. See CASSANDRA-14477 for details.
 
 
 Deprecation
@@ -274,6 +275,18 @@ Materialized Views
     - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
       to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
       specify them explicitly now.
+
+3.11.10
+======
+
+Upgrading
+---------
+    - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
+      it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
+      lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
+      logged, and the setting reverted to the default value of 1GB. It is up to the user to correct the setting
+      after an upgrade, via dropping and recreating the index. See CASSANDRA-16071 for details.
+
 
 3.11.6
 ======

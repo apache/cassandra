@@ -37,6 +37,7 @@ import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
  *
@@ -231,6 +232,7 @@ public class PreV5Handlers
                 if (cause instanceof ProtocolException)
                     future.addListener((ChannelFutureListener) f -> ctx.close());
             }
+            JVMStabilityInspector.inspectThrowable(cause);
         }
     }
 }

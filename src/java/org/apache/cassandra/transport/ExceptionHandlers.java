@@ -33,6 +33,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class ExceptionHandlers
 {
@@ -79,6 +80,7 @@ public class ExceptionHandlers
                 finally
                 {
                     payload.release();
+                    JVMStabilityInspector.inspectThrowable(cause);
                 }
             }
         }

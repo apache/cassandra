@@ -1,4 +1,9 @@
 4.0-beta4
+ * Update jctools dependency to 3.1.0 (CASSANDRA-16255)
+ * 'SSLEngine closed already' exception on failed outbound connection (CASSANDRA-16277)
+ * Drain and/or shutdown might throw because of slow messaging service shutdown (CASSANDRA-16276)
+ * Upgrade JNA to 5.6.0, dropping support for <=glibc-2.6 systems (CASSANDRA-16212)
+ * Add saved Host IDs to TokenMetadata at startup (CASSANDRA-16246)
  * Ensure that CacheMetrics.requests is picked up by the metric reporter (CASSANDRA-16228)
  * Add a ratelimiter to snapshot creation and deletion (CASSANDRA-13019)
  * Produce consistent tombstone for reads to avoid digest mistmatch (CASSANDRA-15369)
@@ -6,12 +11,17 @@
  * Invalid serialized size for responses caused by increasing message time by 1ms which caused extra bytes in size calculation (CASSANDRA-16103)
  * Throw BufferOverflowException from DataOutputBuffer for better visibility (CASSANDRA-16214)
  * TLS connections to the storage port on a node without server encryption configured causes java.io.IOException accessing missing keystore (CASSANDRA-16144)
+ * Internode messaging catches OOMs and does not rethrow (CASSANDRA-15214)
 Merged from 3.11:
+ * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
+ * Avoid potential NPE in JVMStabilityInspector (CASSANDRA-16294)
+ * Improved check of num_tokens against the length of initial_token (CASSANDRA-14477)
  * Fix a race condition on ColumnFamilyStore and TableMetrics (CASSANDRA-16228)
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
+ * Raise Dynamic Snitch Default Badness Threshold to 1.0 (CASSANDRA-16285)
 
 4.0-beta3
  * Segregate Network and Chunk Cache BufferPools and Recirculate Partially Freed Chunks (CASSANDRA-15229)

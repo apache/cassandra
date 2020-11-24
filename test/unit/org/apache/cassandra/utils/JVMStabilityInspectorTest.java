@@ -31,7 +31,9 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 
 import static java.util.Arrays.asList;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -109,6 +111,21 @@ public class JVMStabilityInspectorTest
     }
 
     @Test
+    public void testForceHeapSpaceOom()
+    {
+        try
+        {
+            JVMStabilityInspector.inspectThrowable(new OutOfMemoryError("Direct buffer memory"));
+            fail("The JVMStabilityInspector should force trigger a heap space OutOfMemoryError and delegate the handling to the JVM");
+        }
+        catch (Throwable e)
+        {
+            assertSame(e.getClass(), OutOfMemoryError.class);
+            assertEquals("Java heap space", e.getMessage());
+        }
+    }
+
+    @Test
     public void fileHandleTest()
     {
         KillerForTests killerForTests = new KillerForTests();
@@ -125,12 +142,21 @@ public class JVMStabilityInspectorTest
             assertFalse(killerForTests.wasKilled());
 
             killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new SocketException());
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new FileNotFoundException());
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
             JVMStabilityInspector.inspectThrowable(new SocketException("Too many open files"));
             assertTrue(killerForTests.wasKilled());
 
             killerForTests.reset();
             JVMStabilityInspector.inspectCommitLogThrowable(new FileNotFoundException("Too many open files"));
             assertTrue(killerForTests.wasKilled());
+
         }
         finally
         {

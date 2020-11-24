@@ -795,7 +795,7 @@ tablePartitionKey[CreateTableStatement.Raw stmt]
 
 tableProperty[CreateTableStatement.Raw stmt]
     : property[stmt.attrs]
-    | K_COMPACT K_STORAGE { throw new SyntaxException("COMPACT STORAGE tables are not allowed starting with version 4.0"); }
+    | K_COMPACT K_STORAGE { $stmt.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' tableClusteringOrder[stmt] (',' tableClusteringOrder[stmt])* ')'
     ;
 
@@ -946,6 +946,8 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
 
       | K_RENAME id1=ident K_TO toId1=ident { $stmt.rename(id1, toId1); }
          ( K_AND idn=ident K_TO toIdn=ident { $stmt.rename(idn, toIdn); } )*
+
+      | K_DROP K_COMPACT K_STORAGE { $stmt.dropCompactStorage(); }
 
       | K_WITH properties[$stmt.attrs] { $stmt.attrs(); }
       )
