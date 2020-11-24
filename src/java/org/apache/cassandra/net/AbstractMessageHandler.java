@@ -34,7 +34,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.FrameDecoder.Frame;
 import org.apache.cassandra.net.FrameDecoder.FrameProcessor;
@@ -51,17 +50,17 @@ import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 /**
  * Core logic for handling inbound message deserialization and execution (in tandem with {@link FrameDecoder}).
  *
- * Handles small and large messages, corruption, flow control, dispatch of message processing onto an appropriate
- * thread pool.
+ * Handles small and large messages, corruption, flow control, dispatch of message processing to a suitable
+ * consumer.
  *
  * # Interaction with {@link FrameDecoder}
  *
- * {@link AbstractMessageHandler} sits on top of a {@link FrameDecoder} in the Netty pipeline, and is tightly
- * coupled with it.
+ * An {@link AbstractMessageHandler} implementation sits on top of a {@link FrameDecoder} in the Netty pipeline,
+ * and is tightly coupled with it.
  *
  * {@link FrameDecoder} decodes inbound frames and relies on a supplied {@link FrameProcessor} to act on them.
  * {@link AbstractMessageHandler} provides two implementations of that interface:
- *  - {@link #process(Frame)} is the default, primary processor, and the primary entry point to this class
+ *  - {@link #process(Frame)} is the default, primary processor, and is expected to be implemented by subclasses
  *  - {@link UpToOneMessageFrameProcessor}, supplied to the decoder when the handler is reactivated after being
  *    put in waiting mode due to lack of acquirable reserve memory capacity permits
  *
@@ -98,24 +97,28 @@ import static org.apache.cassandra.utils.MonotonicClock.approxTime;
  * thread pool for processing. Large messages accumulate frames until completion of a message, then hand off
  * the untouched frames to the correct thread pool for the verb to be deserialized there and immediately processed.
  *
- * See {@link LargeMessage} for details of the large-message accumulating state-machine, and {@link ProcessMessage}
- * and its inheritors for the differences in execution.
+ * See {@link LargeMessage} and subclasses for concrete {@link AbstractMessageHandler} implementations for details
+ * of the large-message accumulating state-machine, and {@link ProcessMessage} and its inheritors for the differences
+ *in execution.
  *
  * # Flow control (backpressure)
  *
- * To prevent nodes from overwhelming and bringing each other to the knees with more inbound messages that
- * can be processed in a timely manner, {@link AbstractMessageHandler} implements a strict flow control policy.
+ * To prevent message producers from overwhelming and bringing nodes down with more inbound messages that
+ * can be processed in a timely manner, {@link AbstractMessageHandler} provides support for implementations to
+ * provide their own flow control policy.
  *
- * Before we attempt to process a message fully, we first infer its size from the stream. Then we attempt to
- * acquire memory permits for a message of that size. If we succeed, then we move on actually process the message.
- * If we fail, the frame decoder deactivates until sufficient permits are released for the message to be processed
- * and the handler is activated again. Permits are released back once the message has been fully processed -
- * after the verb handler has been invoked - on the {@link Stage} for the {@link Verb} of the message.
+ * Before we attempt to process a message fully, we first infer its size from the stream. This inference is
+ * delegated to implementations as the encoding of the message size is protocol specific. Having assertained
+ * the size of the incoming message, we then attempt to acquire the corresponding number of memory permits.
+ * If we succeed, then we move on actually process the message. If we fail, the frame decoder deactivates
+ * until sufficient permits are released for the message to be processed and the handler is activated again.
+ * Permits are released back once the message has been fully processed - the definition of which is again
+ * delegated to the concrete implementations.
  *
- * Every connection has an exclusive number of permits allocated to it (by default 4MiB). In addition to it,
- * there is a per-endpoint reserve capacity and a global reserve capacity {@link Limit}, shared between all
- * connections from the same host and all connections, respectively. So long as long as the handler stays within
- * its exclusive limit, it doesn't need to tap into reserve capacity.
+ * Every connection has an exclusive number of permits allocated to it. In addition to it, there is a per-endpoint
+ * reserve capacity and a global reserve capacity {@link Limit}, shared between all connections from the same host
+ * and all connections, respectively. So long as long as the handler stays within its exclusive limit, it doesn't
+ * need to tap into reserve capacity.
  *
  * If tapping into reserve capacity is necessary, but the handler fails to acquire capacity from either
  * endpoint of global reserve (and it needs to acquire from both), the handler and its frame decoder become

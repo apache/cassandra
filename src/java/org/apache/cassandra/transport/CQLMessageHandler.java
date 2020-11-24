@@ -46,6 +46,29 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
+/**
+ * Implementation of {@link AbstractMessageHandler} for processing CQL messages which comprise a {@link Message} wrapped
+ * in an {@link Envelope}. This class is parameterized by a {@link Message} subtype, expected to be either
+ * {@link Message.Request} or {@link Message.Response}. Most commonly, an instance for handling {@link Message.Request}
+ * is created for each inbound CQL client connection.
+ *
+ * # Small vs large messages
+ * Small messages are deserialized in place, and then handed off to a consumer for processing.
+ * Large messages accumulate frames until all bytes for the envelope are received, then concatenate and deserialize the
+ * frames on the event loop thread and pass them on to the same consumer.
+ *
+ * # Flow control (backpressure)
+ *
+ * The size of an incoming message is explicit in the {@link Envelope.Header}.
+ * {@link org.apache.cassandra.net.Message.Serializer#inferMessageSize(ByteBuffer, int, int, int)}.
+ *
+ * By default, every connection has 1MiB of exlusive permits available before needing to access the per-endpoint
+ * and global reserves. By default, those reserves are sized proportionally to the heap - 2.5% of heap per-endpoint
+ * and a 10% for the global reserve.
+ *
+ * Permits are held while CQL messages are processed and released after the response has been encoded into the
+ * buffers of the response frame.
+ */
 public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(CQLMessageHandler.class);

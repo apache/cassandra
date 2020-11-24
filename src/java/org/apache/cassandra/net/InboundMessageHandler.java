@@ -48,85 +48,24 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 /**
- * Core logic for handling inbound message deserialization and execution (in tandem with {@link FrameDecoder}).
- *
- * Handles small and large messages, corruption, flow control, dispatch of message processing onto an appropriate
- * thread pool.
- *
- * # Interaction with {@link FrameDecoder}
- *
- * {@link InboundMessageHandler} sits on top of a {@link FrameDecoder} in the Netty pipeline, and is tightly
- * coupled with it.
- *
- * {@link FrameDecoder} decodes inbound frames and relies on a supplied {@link FrameProcessor} to act on them.
- * {@link InboundMessageHandler} provides two implementations of that interface:
- *  - {@link #process(Frame)} is the default, primary processor, and the primary entry point to this class
- *  - {@link UpToOneMessageFrameProcessor}, supplied to the decoder when the handler is reactivated after being
- *    put in waiting mode due to lack of acquirable reserve memory capacity permits
- *
- * Return value of {@link FrameProcessor#process(Frame)} determines whether the decoder should keep processing
- * frames (if {@code true} is returned) or stop until explicitly reactivated (if {@code false} is). To reactivate
- * the decoder (once notified of available resource permits), {@link FrameDecoder#reactivate()} is invoked.
- *
- * # Frames
- *
- * {@link InboundMessageHandler} operates on frames of messages, and there are several kinds of them:
- *  1. {@link IntactFrame} that are contained. As names suggest, these contain one or multiple fully contained
- *     messages believed to be uncorrupted. Guaranteed to not contain an part of an incomplete message.
- *     See {@link #processFrameOfContainedMessages(ShareableBytes, Limit, Limit)}.
- *  2. {@link IntactFrame} that are NOT contained. These are uncorrupted parts of a large message split over multiple
- *     parts due to their size. Can represent first or subsequent frame of a large message.
- *     See {@link #processFirstFrameOfLargeMessage(IntactFrame, Limit, Limit)} and
- *     {@link #processSubsequentFrameOfLargeMessage(Frame)}.
- *  3. {@link CorruptFrame} with corrupt header. These are unrecoverable, and force a connection to be dropped.
- *  4. {@link CorruptFrame} with a valid header, but corrupt payload. These can be either contained or uncontained.
- *     - contained frames with corrupt payload can be gracefully dropped without dropping the connection
- *     - uncontained frames with corrupt payload can be gracefully dropped unless they represent the first
- *       frame of a new large message, as in that case we don't know how many bytes to skip
- *     See {@link #processCorruptFrame(CorruptFrame)}.
- *
- *  Fundamental frame invariants:
- *  1. A contained frame can only have fully-encapsulated messages - 1 to n, that don't cross frame boundaries
- *  2. An uncontained frame can hold a part of one message only. It can NOT, say, contain end of one large message
- *     and a beginning of another one. All the bytes in an uncontained frame always belong to a single message.
+ * Implementation of {@link AbstractMessageHandler} for processing internode messages from peers.
  *
  * # Small vs large messages
- *
- * A single handler is equipped to process both small and large messages, potentially interleaved, but the logic
- * differs depending on size. Small messages are deserialized in place, and then handed off to an appropriate
+ * Small messages are deserialized in place, and then handed off to an appropriate
  * thread pool for processing. Large messages accumulate frames until completion of a message, then hand off
  * the untouched frames to the correct thread pool for the verb to be deserialized there and immediately processed.
- *
- * See {@link LargeMessage} for details of the large-message accumulating state-machine, and {@link ProcessMessage}
- * and its inheritors for the differences in execution.
  *
  * # Flow control (backpressure)
  *
  * To prevent nodes from overwhelming and bringing each other to the knees with more inbound messages that
  * can be processed in a timely manner, {@link InboundMessageHandler} implements a strict flow control policy.
+ * The size of the incoming message is dependent on the messaging version of the specific peer connection. See
+ * {@link Message.Serializer#inferMessageSize(ByteBuffer, int, int, int)}.
  *
- * Before we attempt to process a message fully, we first infer its size from the stream. Then we attempt to
- * acquire memory permits for a message of that size. If we succeed, then we move on actually process the message.
- * If we fail, the frame decoder deactivates until sufficient permits are released for the message to be processed
- * and the handler is activated again. Permits are released back once the message has been fully processed -
- * after the verb handler has been invoked - on the {@link Stage} for the {@link Verb} of the message.
+ * By default, every connection has 4MiB of exlusive permits available before needing to access the per-endpoint
+ * and global reserves.
  *
- * Every connection has an exclusive number of permits allocated to it (by default 4MiB). In addition to it,
- * there is a per-endpoint reserve capacity and a global reserve capacity {@link Limit}, shared between all
- * connections from the same host and all connections, respectively. So long as long as the handler stays within
- * its exclusive limit, it doesn't need to tap into reserve capacity.
- *
- * If tapping into reserve capacity is necessary, but the handler fails to acquire capacity from either
- * endpoint of global reserve (and it needs to acquire from both), the handler and its frame decoder become
- * inactive and register with a {@link WaitQueue} of the appropriate type, depending on which of the reserves
- * couldn't be tapped into. Once enough messages have finished processing and had their permits released back
- * to the reserves, {@link WaitQueue} will reactivate the sleeping handlers and they'll resume processing frames.
- *
- * The reason we 'split' reserve capacity into two limits - endpoing and global - is to guarantee liveness, and
- * prevent single endpoint's connections from taking over the whole reserve, starving other connections.
- *
- * One permit per byte of serialized message gets acquired. When inflated on-heap, each message will occupy more
- * than that, necessarily, but despite wide variance, it's a good enough proxy that correlates with on-heap footprint.
+ * Permits are released after the verb handler has been invoked on the {@link Stage} for the {@link Verb} of the message.
  */
 public class InboundMessageHandler extends AbstractMessageHandler
 {

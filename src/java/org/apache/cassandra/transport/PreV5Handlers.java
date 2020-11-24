@@ -39,13 +39,11 @@ import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-/**
- *
- */
 public class PreV5Handlers
 {
     /**
-     *
+     * Wraps an {@link org.apache.cassandra.transport.Dispatcher} so that it can be used as an
+     * channel inbound handler in pre-V5 pipelines.
      */
     public static class LegacyDispatchHandler extends SimpleChannelInboundHandler<Message.Request>
     {
@@ -169,7 +167,8 @@ public class PreV5Handlers
     }
 
     /**
-     *
+     * Simple adaptor to allow {@link org.apache.cassandra.transport.Message.Decoder#decodeMessage(Channel, Envelope)}
+     * to be used as a handler in pre-V5 pipelines
      */
     @ChannelHandler.Sharable
     public static class ProtocolDecoder extends MessageToMessageDecoder<Envelope>
@@ -193,7 +192,7 @@ public class PreV5Handlers
     }
 
     /**
-     *
+     * Simple adaptor to plug CQL message encoding into pre-V5 pipelines
      */
     @ChannelHandler.Sharable
     public static class ProtocolEncoder extends MessageToMessageEncoder<Message>
@@ -211,7 +210,8 @@ public class PreV5Handlers
     }
 
     /**
-     *
+     * Pre-V5 exception handler which closes the connection if an {@link org.apache.cassandra.transport.ProtocolException}
+     * is thrown
      */
     @ChannelHandler.Sharable
     public static final class ExceptionHandler extends ChannelInboundHandlerAdapter
