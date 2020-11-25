@@ -35,7 +35,7 @@ public class YamlConfigurationLoaderTest
     {
         Integer storagePort = 123;
         Config.CommitLogSync commitLogSync = Config.CommitLogSync.batch;
-        ParameterizedClass seedProvider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", Collections.emptyMap());
+        ParameterizedClass seedProvider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", Collections.<String, String>emptyMap());
         EncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions();
         encryptionOptions.keystore = "myNewKeystore";
         encryptionOptions.cipher_suites = new String[] {"SomeCipher"};

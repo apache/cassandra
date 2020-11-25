@@ -31,18 +31,22 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 public class ExecutorUtils
 {
 
-    public static Runnable runWithThreadName(Runnable runnable, String threadName)
+    public static Runnable runWithThreadName(final Runnable runnable, final String threadName)
     {
-        return () -> {
-            String oldThreadName = Thread.currentThread().getName();
-            try
+        return new Runnable()
+        {
+            public void run()
             {
-                Thread.currentThread().setName(threadName);
-                runnable.run();
-            }
-            finally
-            {
-                Thread.currentThread().setName(oldThreadName);
+                String oldThreadName = Thread.currentThread().getName();
+                try
+                {
+                    Thread.currentThread().setName(threadName);
+                    runnable.run();
+                }
+                finally
+                {
+                    Thread.currentThread().setName(oldThreadName);
+                }
             }
         };
     }
