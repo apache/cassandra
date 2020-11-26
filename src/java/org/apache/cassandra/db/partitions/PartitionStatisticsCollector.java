@@ -23,6 +23,7 @@ import org.apache.cassandra.db.rows.Cell;
 public interface PartitionStatisticsCollector
 {
     public void update(LivenessInfo info);
+    public void updatePartitionDeletion(DeletionTime dt);
     public void update(DeletionTime deletionTime);
     public void update(Cell<?> cell);
     public void updateColumnSetPerRow(long columnSetInRow);
