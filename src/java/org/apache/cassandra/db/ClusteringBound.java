@@ -26,15 +26,22 @@ import java.util.List;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
+import static org.apache.cassandra.db.AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY;
+
 /**
  * The start or end of a range of clusterings, either inclusive or exclusive.
  */
 public interface ClusteringBound<V> extends ClusteringBoundOrBoundary<V>
 {
     /** The smallest start bound, i.e. the one that starts before any row. */
-    public static final ClusteringBound<?> BOTTOM = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_START_BOUND, BufferClusteringBound.EMPTY_VALUES_ARRAY);
+    public static final ClusteringBound<?> BOTTOM = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_START_BOUND, EMPTY_VALUES_ARRAY);
     /** The biggest end bound, i.e. the one that ends after any row. */
-    public static final ClusteringBound<?> TOP = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND, BufferClusteringBound.EMPTY_VALUES_ARRAY);
+    public static final ClusteringBound<?> TOP = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND, EMPTY_VALUES_ARRAY);
+
+    /** The biggest start bound, i.e. the one that starts after any row. */
+    public static final ClusteringBound<?> MAX_START = new BufferClusteringBound(Kind.EXCL_START_BOUND, EMPTY_VALUES_ARRAY);
+    /** The smallest end bound, i.e. the one that end before any row. */
+    public static final ClusteringBound<?> MIN_END = new BufferClusteringBound(Kind.EXCL_END_BOUND, EMPTY_VALUES_ARRAY);
 
     public static ClusteringPrefix.Kind boundKind(boolean isStart, boolean isInclusive)
     {
@@ -67,6 +74,21 @@ public interface ClusteringBound<V> extends ClusteringBoundOrBoundary<V>
     default boolean isExclusive()
     {
         return kind() == Kind.EXCL_START_BOUND || kind() == Kind.EXCL_END_BOUND;
+    }
+
+    default boolean isArtificial()
+    {
+        return kind() == Kind.SSTABLE_LOWER_BOUND || kind() == Kind.SSTABLE_UPPER_BOUND;
+    }
+
+    default ClusteringBound<V> artificialLowerBound()
+    {
+        return create(Kind.SSTABLE_LOWER_BOUND, this);
+    }
+
+    default ClusteringBound<V> artificialUpperBound()
+    {
+        return create(Kind.SSTABLE_UPPER_BOUND, this);
     }
 
     // For use by intersects, it's called with the sstable bound opposite to the slice bound
@@ -102,12 +124,12 @@ public interface ClusteringBound<V> extends ClusteringBoundOrBoundary<V>
         return from.accessor().factory().bound(kind, from.getRawValues());
     }
 
-    public static ClusteringBound<?> inclusiveStartOf(ClusteringPrefix<?> from)
+    public static <V> ClusteringBound<V> inclusiveStartOf(ClusteringPrefix<V> from)
     {
         return create(ClusteringPrefix.Kind.INCL_START_BOUND, from);
     }
 
-    public static ClusteringBound<?> inclusiveEndOf(ClusteringPrefix<?> from)
+    public static <V> ClusteringBound<V> inclusiveEndOf(ClusteringPrefix<V> from)
     {
         return create(ClusteringPrefix.Kind.INCL_END_BOUND, from);
     }
@@ -133,5 +155,17 @@ public interface ClusteringBound<V> extends ClusteringBoundOrBoundary<V>
                 builder.add(val);
         }
         return builder.buildBound(isStart, isInclusive);
+    }
+
+    @Override
+    default ClusteringBound<V> asStartBound()
+    {
+        return this;
+    }
+
+    @Override
+    default ClusteringBound<V> asEndBound()
+    {
+        return this;
     }
 }

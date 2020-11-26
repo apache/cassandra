@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -42,7 +41,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -54,7 +52,6 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ValueAccessors;
-import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -63,8 +60,6 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -82,7 +77,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -369,8 +363,8 @@ public class CompactionsTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             StatsMetadata stats = sstable.getSSTableMetadata();
-            assertEquals(ByteBufferUtil.bytes("0"), stats.minClusteringValues.get(0));
-            assertEquals(ByteBufferUtil.bytes("b"), stats.maxClusteringValues.get(0));
+            assertEquals(ByteBufferUtil.bytes("0"), stats.coveredClustering.start().bufferAt(0));
+            assertEquals(ByteBufferUtil.bytes("b"), stats.coveredClustering.end().bufferAt(0));
         }
 
         assertEquals(keys, k);

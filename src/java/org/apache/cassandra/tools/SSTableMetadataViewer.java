@@ -30,7 +30,6 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -39,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -355,20 +355,10 @@ public class SSTableMetadataViewer
             if (validation != null && header != null)
                 printMinMaxToken(descriptor, FBUtilities.newPartitioner(descriptor), header.getKeyType());
 
-            if (header != null && header.getClusteringTypes().size() == stats.minClusteringValues.size())
+            if (header != null)
             {
-                List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
-                List<ByteBuffer> minClusteringValues = stats.minClusteringValues;
-                List<ByteBuffer> maxClusteringValues = stats.maxClusteringValues;
-                String[] minValues = new String[clusteringTypes.size()];
-                String[] maxValues = new String[clusteringTypes.size()];
-                for (int i = 0; i < clusteringTypes.size(); i++)
-                {
-                    minValues[i] = clusteringTypes.get(i).getString(minClusteringValues.get(i));
-                    maxValues[i] = clusteringTypes.get(i).getString(maxClusteringValues.get(i));
-                }
-                field("minClusteringValues", Arrays.toString(minValues));
-                field("maxClusteringValues", Arrays.toString(maxValues));
+                ClusteringComparator comparator = new ClusteringComparator(header.getClusteringTypes());
+                field("covered clusterings", stats.coveredClustering.toString(comparator));
             }
             field("Estimated droppable tombstones",
                   stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - this.gc));

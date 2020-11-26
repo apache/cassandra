@@ -131,7 +131,7 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "na";
+        public static final String current_version = "nb";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -141,6 +141,7 @@ public class BigFormat implements SSTableFormat
         // md (3.0.18, 3.11.4): corrected sstable min/max clustering
 
         // na (4.0.0): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
+        // nb (4.1.0): improved min/max
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -149,6 +150,8 @@ public class BigFormat implements SSTableFormat
         private final boolean hasCommitLogLowerBound;
         private final boolean hasCommitLogIntervals;
         private final boolean hasAccurateMinMax;
+        private final boolean hasImprovedMinMax;
+        private final boolean hasPartitionLevelDeletionPresenceMarker;
         public final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
@@ -170,6 +173,8 @@ public class BigFormat implements SSTableFormat
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
+            hasImprovedMinMax = version.compareTo("nb") >= 0;
+            hasPartitionLevelDeletionPresenceMarker = version.compareTo("nb") >= 0;
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
@@ -222,6 +227,18 @@ public class BigFormat implements SSTableFormat
         public boolean hasAccurateMinMax()
         {
             return hasAccurateMinMax;
+        }
+
+        @Override
+        public boolean hasImprovedMinMax()
+        {
+            return hasImprovedMinMax;
+        }
+
+        @Override
+        public boolean hasPartitionLevelDeletionsPresenceMarker()
+        {
+            return hasPartitionLevelDeletionPresenceMarker;
         }
 
         public boolean isCompatible()

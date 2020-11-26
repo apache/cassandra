@@ -68,6 +68,16 @@ public abstract class Version
 
     public abstract boolean hasAccurateMinMax();
 
+    /**
+     * If the sstable has improved min/max encoding.
+     */
+    public abstract boolean hasImprovedMinMax();
+
+    /**
+     * Records in th stats if the sstable has any partition deletions.
+     */
+    public abstract boolean hasPartitionLevelDeletionsPresenceMarker();
+
     public String getVersion()
     {
         return version;
