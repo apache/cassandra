@@ -94,6 +94,16 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract Slice get(int i);
 
+    public ClusteringBound<?> start()
+    {
+        return get(0).start();
+    }
+
+    public ClusteringBound<?> end()
+    {
+        return get(size() - 1).end();
+    }
+
     /**
      * Returns slices for continuing the paging of those slices given the last returned clustering prefix.
      *
@@ -128,18 +138,13 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract boolean selects(Clustering<?> clustering);
 
-
     /**
-     * Given the per-clustering column minimum and maximum value a sstable contains, whether or not this slices potentially
-     * intersects that sstable or not.
+     * Checks whether any of the slices intersects witht the given one.
      *
-     * @param minClusteringValues the smallest values for each clustering column that a sstable contains.
-     * @param maxClusteringValues the biggest values for each clustering column that a sstable contains.
-     *
-     * @return whether the slices might intersects with the sstable having {@code minClusteringValues} and
-     * {@code maxClusteringValues}.
+     * @return {@code true} if there exists a slice which ({@link Slice#intersects(ClusteringComparator, Slice)}) with
+     * the provided slice
      */
-    public abstract boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues);
+    public abstract boolean intersects(Slice slice);
 
     public abstract String toCQLString(TableMetadata metadata);
 
@@ -439,11 +444,12 @@ public abstract class Slices implements Iterable<Slice>
             return Slices.NONE;
         }
 
-        public boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+        @Override
+        public boolean intersects(Slice slice)
         {
-            for (Slice slice : this)
+            for (Slice s : this)
             {
-                if (slice.intersects(comparator, minClusteringValues, maxClusteringValues))
+                if (s.intersects(comparator, slice))
                     return true;
             }
             return false;
@@ -748,7 +754,8 @@ public abstract class Slices implements Iterable<Slice>
             return trivialTester;
         }
 
-        public boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+        @Override
+        public boolean intersects(Slice slice)
         {
             return true;
         }
@@ -824,6 +831,12 @@ public abstract class Slices implements Iterable<Slice>
         }
 
         public boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+        {
+            return false;
+        }
+
+        @Override
+        public boolean intersects(Slice slice)
         {
             return false;
         }

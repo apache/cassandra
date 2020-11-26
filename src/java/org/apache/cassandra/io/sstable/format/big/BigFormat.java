@@ -152,6 +152,8 @@ public class BigFormat implements SSTableFormat
         private final boolean hasCommitLogIntervals;
         private final boolean hasAccurateMinMax;
         private final boolean hasOriginatingHostId;
+        private final boolean hasImprovedMinMax;
+        private final boolean hasPartitionLevelDeletionPresenceMarker;
         public final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
@@ -174,6 +176,8 @@ public class BigFormat implements SSTableFormat
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
             hasOriginatingHostId = version.matches("(m[e-z])|(n[b-z])");
+            hasImprovedMinMax = version.compareTo("nb") >= 0;
+            hasPartitionLevelDeletionPresenceMarker = version.compareTo("nb") >= 0;
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
@@ -226,6 +230,18 @@ public class BigFormat implements SSTableFormat
         public boolean hasAccurateMinMax()
         {
             return hasAccurateMinMax;
+        }
+
+        @Override
+        public boolean hasImprovedMinMax()
+        {
+            return hasImprovedMinMax;
+        }
+
+        @Override
+        public boolean hasPartitionLevelDeletionsPresenceMarker()
+        {
+            return hasPartitionLevelDeletionPresenceMarker;
         }
 
         public boolean isCompatible()

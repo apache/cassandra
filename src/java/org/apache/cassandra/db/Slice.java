@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -47,9 +46,9 @@ public class Slice
         }
 
         @Override
-        public boolean intersects(ClusteringComparator comparator, List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+        public boolean intersects(ClusteringComparator comparator, Slice other)
         {
-            return true;
+            return !other.isEmpty(comparator);
         }
 
         @Override
@@ -105,6 +104,13 @@ public class Slice
         assert start != Clustering.STATIC_CLUSTERING && end != Clustering.STATIC_CLUSTERING;
 
         return new Slice(ClusteringBound.inclusiveStartOf(start), ClusteringBound.inclusiveEndOf(end));
+    }
+
+    public static Slice make(ClusteringPrefix<?> start, ClusteringPrefix<?> end)
+    {
+        // This doesn't give us what we want with the clustering prefix
+        assert start != Clustering.STATIC_CLUSTERING && end != Clustering.STATIC_CLUSTERING;
+        return make(start.asStartBound(), end.asEndBound());
     }
 
     public ClusteringBound<?> start()
@@ -230,20 +236,25 @@ public class Slice
     }
 
     /**
-     * Given the per-clustering column minimum and maximum value a sstable contains, whether or not this slice potentially
-     * intersects that sstable or not.
+     * Whether this slice and the provided slice intersects.
      *
      * @param comparator the comparator for the table this is a slice of.
-     * @param minClusteringValues the smallest values for each clustering column that a sstable contains.
-     * @param maxClusteringValues the biggest values for each clustering column that a sstable contains.
+     * @param other the other slice to check intersection with.
      *
-     * @return whether the slice might intersects with the sstable having {@code minClusteringValues} and
-     * {@code maxClusteringValues}.
+     * @return whether this slice intersects {@code other}.
      */
-    public boolean intersects(ClusteringComparator comparator, List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+    public boolean intersects(ClusteringComparator comparator, Slice other)
     {
-        // If this slice starts after max clustering or ends before min clustering, it can't intersect
-        return start.compareTo(comparator, maxClusteringValues) <= 0 && end.compareTo(comparator, minClusteringValues) >= 0;
+        // Empty slices never intersect anything (and we have to special case it as there is many ways to build an
+        // empty slice; for instance, without this, (0, 0) would intersect Slice.ALL or [-1, 1]).
+        if (isEmpty(comparator) || other.isEmpty(comparator))
+            return false;
+
+        // Otherwise, the slice intersects if they contains more than just their boundaries. That is, the comparison
+        // below needs to be strict, because for instance, a=[0, 3] and b=(3, 5] do not intersects, yet the end of a is
+        // equal to end start of b as far as `ClusteringPrefix.Kind#compare` goes (see the javadoc on that method for
+        // why that is).
+        return comparator.compare(start, other.end) < 0 && comparator.compare(end, other.start) > 0;
     }
 
     public String toString(ClusteringComparator comparator)

@@ -363,8 +363,8 @@ public class CompactionsTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             StatsMetadata stats = sstable.getSSTableMetadata();
-            assertEquals(ByteBufferUtil.bytes("0"), stats.minClusteringValues.get(0));
-            assertEquals(ByteBufferUtil.bytes("b"), stats.maxClusteringValues.get(0));
+            assertEquals(ByteBufferUtil.bytes("0"), stats.coveredClustering.start().bufferAt(0));
+            assertEquals(ByteBufferUtil.bytes("b"), stats.coveredClustering.end().bufferAt(0));
         }
 
         assertEquals(keys, k);
