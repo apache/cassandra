@@ -85,7 +85,6 @@ class ReservedKeywords
                                                      "NAN",
                                                      "INFINITY",
                                                      "OR",
-                                                     "REPLACE",
                                                      "DEFAULT",
                                                      "UNSET",
                                                      "MBEAN",
