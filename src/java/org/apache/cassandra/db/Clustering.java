@@ -55,6 +55,18 @@ public interface Clustering<V> extends ClusteringPrefix<V>
         return new BufferClustering(newValues);
     }
 
+    @Override
+    default ClusteringBound<V> asStartBound()
+    {
+        return ClusteringBound.inclusiveStartOf(this);
+    }
+
+    @Override
+    default ClusteringBound<V> asEndBound()
+    {
+        return ClusteringBound.inclusiveEndOf(this);
+    }
+
     public default String toString(TableMetadata metadata)
     {
         StringBuilder sb = new StringBuilder();
