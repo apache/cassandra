@@ -116,6 +116,8 @@ New features
 
 Upgrading
 ---------
+    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
+      replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
 
       Background: The serialization-header in the -Statistics.db sstable component contains the type information
