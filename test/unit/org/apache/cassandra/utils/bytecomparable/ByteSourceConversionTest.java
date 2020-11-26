@@ -291,7 +291,8 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
     <V> void assertClusteringPairConvertsSame(ValueAccessor<V> accessor, AbstractType t1, AbstractType t2, Object o1, Object o2)
     {
         boolean checkEquals = t1 != DecimalType.instance && t2 != DecimalType.instance;
-        for (ClusteringPrefix.Kind k1 : ClusteringPrefix.Kind.values())
+        EnumSet<ClusteringPrefix.Kind> skippedKinds = EnumSet.of(ClusteringPrefix.Kind.SSTABLE_LOWER_BOUND, ClusteringPrefix.Kind.SSTABLE_UPPER_BOUND);
+        for (ClusteringPrefix.Kind k1 : EnumSet.complementOf(skippedKinds))
             {
                 ClusteringComparator comp = new ClusteringComparator(t1, t2);
                 V[] b = accessor.createArray(2);

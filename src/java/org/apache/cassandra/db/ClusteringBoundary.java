@@ -37,4 +37,16 @@ public interface ClusteringBoundary<V> extends ClusteringBoundOrBoundary<V>
     {
         return from.accessor().factory().boundary(kind, from.getRawValues());
     }
+
+    @Override
+    default ClusteringBound<V> asStartBound()
+    {
+        return openBound(false);
+    }
+
+    @Override
+    default ClusteringBound<V> asEndBound()
+    {
+        return closeBound(false);
+    }
 }

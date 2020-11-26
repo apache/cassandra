@@ -216,11 +216,11 @@ public class SSTableMetadataTest
         assertEquals(1, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
         {
-            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
-            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "7col149");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().coveredClustering.start().bufferAt(0)), "0col100");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().coveredClustering.end().bufferAt(0)), "7col149");
             // make sure the clustering values are minimised
-            assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
-            assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
+            assertTrue(sstable.getSSTableMetadata().coveredClustering.start().bufferAt(0).capacity() < 50);
+            assertTrue(sstable.getSSTableMetadata().coveredClustering.end().bufferAt(0).capacity() < 50);
         }
         String key = "row2";
 
@@ -238,11 +238,11 @@ public class SSTableMetadataTest
         assertEquals(1, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
         {
-            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
-            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "9col298");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().coveredClustering.start().bufferAt(0)), "0col100");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().coveredClustering.end().bufferAt(0)), "9col298");
             // and make sure the clustering values are still minimised after compaction
-            assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
-            assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
+            assertTrue(sstable.getSSTableMetadata().coveredClustering.start().bufferAt(0).capacity() < 50);
+            assertTrue(sstable.getSSTableMetadata().coveredClustering.end().bufferAt(0).capacity() < 50);
         }
     }
 

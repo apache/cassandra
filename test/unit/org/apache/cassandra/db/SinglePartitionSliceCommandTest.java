@@ -21,6 +21,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -38,6 +39,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.Util;
@@ -57,11 +63,6 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.RangeTombstoneMarker;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -73,9 +74,11 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SinglePartitionSliceCommandTest
@@ -231,7 +234,7 @@ public class SinglePartitionSliceCommandTest
         Cell<?> cell = cellIterator.next();
         Assert.assertEquals(s, cell.column());
         Assert.assertEquals(ByteBufferUtil.bytesToHex(cell.buffer()), ByteBufferUtil.bytes("s"), cell.buffer());
-        Assert.assertFalse(cellIterator.hasNext());
+        assertFalse(cellIterator.hasNext());
     }
 
     @Test
@@ -240,7 +243,7 @@ public class SinglePartitionSliceCommandTest
         DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
 
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k1', 's')");
-        Assert.assertFalse(QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k1'").isEmpty());
+        assertFalse(QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k1'").isEmpty());
 
         ColumnFilter columnFilter = ColumnFilter.selection(RegularAndStaticColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
@@ -481,7 +484,7 @@ public class SinglePartitionSliceCommandTest
                                                             sliceFilter);
         String ret = cmd.toCQLString();
         Assert.assertNotNull(ret);
-        Assert.assertFalse(ret.isEmpty());
+        assertFalse(ret.isEmpty());
     }
 
     public static UnfilteredRowIterator getIteratorFromSinglePartition(String q)
@@ -564,6 +567,171 @@ public class SinglePartitionSliceCommandTest
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=3 AND c2=2");
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=3 AND c2=2 AND c3=2"); // clustering names
 
+    }
+
+    @Test
+    public void testLowerBoundApplicableSingleColumnAsc()
+    {
+        String query = "INSERT INTO %s.%s (k, i) VALUES ('k1', %s)";
+        SSTableReader sstable = createSSTable(metadata, KEYSPACE, TABLE, query);
+        assertEquals(Slice.make(Util.clustering(metadata.comparator, BigInteger.valueOf(0)),
+                                Util.clustering(metadata.comparator, BigInteger.valueOf(9))),
+                     sstable.getSSTableMetadata().coveredClustering);
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
+
+        Slice slice1 = Slice.make(Util.clustering(metadata.comparator, BigInteger.valueOf(3)), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(metadata, key, slice1, sstable, false));
+        assertTrue(lowerBoundApplicable(metadata, key, slice1, sstable, true));
+
+        Slice slice2 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(metadata.comparator, BigInteger.valueOf(3)));
+        assertTrue(lowerBoundApplicable(metadata, key, slice2, sstable, false));
+        assertFalse(lowerBoundApplicable(metadata, key, slice2, sstable, true));
+
+        // corner cases
+        Slice slice3 = Slice.make(Util.clustering(metadata.comparator, BigInteger.valueOf(0)), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(metadata, key, slice3, sstable, false));
+        assertTrue(lowerBoundApplicable(metadata, key, slice3, sstable, true));
+
+        Slice slice4 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(metadata.comparator, BigInteger.valueOf(9)));
+        assertTrue(lowerBoundApplicable(metadata, key, slice4, sstable, false));
+        assertFalse(lowerBoundApplicable(metadata, key, slice4, sstable, true));
+    }
+
+    @Test
+    public void testLowerBoundApplicableSingleColumnDesc()
+    {
+        String TABLE_REVERSED = "tbl_reversed";
+        String createTable = String.format(
+        "CREATE TABLE %s.%s (k text, i varint, v int, primary key (k, i)) WITH CLUSTERING ORDER BY (i DESC)",
+        KEYSPACE, TABLE_REVERSED);
+        QueryProcessor.executeOnceInternal(createTable);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_REVERSED);
+        TableMetadata metadata = cfs.metadata();
+        String query = "INSERT INTO %s.%s (k, i) VALUES ('k1', %s)";
+        SSTableReader sstable = createSSTable(metadata, KEYSPACE, TABLE_REVERSED, query);
+        assertEquals(Slice.make(Util.clustering(metadata.comparator, BigInteger.valueOf(9)),
+                                Util.clustering(metadata.comparator, BigInteger.valueOf(0))),
+                     sstable.getSSTableMetadata().coveredClustering);
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
+
+        Slice slice1 = Slice.make(Util.clustering(metadata.comparator, BigInteger.valueOf(8)), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(metadata, key, slice1, sstable, false));
+        assertTrue(lowerBoundApplicable(metadata, key, slice1, sstable, true));
+
+        Slice slice2 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(metadata.comparator, BigInteger.valueOf(8)));
+        assertTrue(lowerBoundApplicable(metadata, key, slice2, sstable, false));
+        assertFalse(lowerBoundApplicable(metadata, key, slice2, sstable, true));
+
+        // corner cases
+        Slice slice3 = Slice.make(Util.clustering(metadata.comparator, BigInteger.valueOf(9)), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(metadata, key, slice3, sstable, false));
+        assertTrue(lowerBoundApplicable(metadata, key, slice3, sstable, true));
+
+        Slice slice4 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(metadata.comparator, BigInteger.valueOf(0)));
+        assertTrue(lowerBoundApplicable(metadata, key, slice4, sstable, false));
+        assertFalse(lowerBoundApplicable(metadata, key, slice4, sstable, true));
+    }
+
+    @Test
+    public void testLowerBoundApplicableMultipleColumnsAsc()
+    {
+        String query = "INSERT INTO %s.%s (k, c1, c2) VALUES ('k1', 0, %s)";
+        SSTableReader sstable = createSSTable(CFM_SLICES, KEYSPACE, TABLE_SCLICES, query);
+        assertEquals(Slice.make(Util.clustering(CFM_SLICES.comparator, 0, 0),
+                                Util.clustering(CFM_SLICES.comparator, 0, 9)),
+                     sstable.getSSTableMetadata().coveredClustering);
+        DecoratedKey key = CFM_SLICES.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
+
+        Slice slice1 = Slice.make(Util.clustering(CFM_SLICES.comparator, 0, 3), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(CFM_SLICES, key, slice1, sstable, false));
+        assertTrue(lowerBoundApplicable(CFM_SLICES, key, slice1, sstable, true));
+
+        Slice slice2 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(CFM_SLICES.comparator, 0, 3));
+        assertTrue(lowerBoundApplicable(CFM_SLICES, key, slice2, sstable, false));
+        assertFalse(lowerBoundApplicable(CFM_SLICES, key, slice2, sstable, true));
+
+        // corner cases
+        Slice slice3 = Slice.make(Util.clustering(CFM_SLICES.comparator, 0, 0), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(CFM_SLICES, key, slice3, sstable, false));
+        assertTrue(lowerBoundApplicable(CFM_SLICES, key, slice3, sstable, true));
+
+        Slice slice4 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(CFM_SLICES.comparator, 0, 9));
+        assertTrue(lowerBoundApplicable(CFM_SLICES, key, slice4, sstable, false));
+        assertFalse(lowerBoundApplicable(CFM_SLICES, key, slice4, sstable, true));
+    }
+
+    @Test
+    public void testLowerBoundApplicableMultipleColumnsDesc()
+    {
+        String TABLE_REVERSED = "tbl_slices_reversed";
+        String createTable = String.format(
+        "CREATE TABLE %s.%s (k text, c1 int, c2 int, v int, primary key (k, c1, c2)) WITH CLUSTERING ORDER BY (c1 ASC, c2 DESC)",
+        KEYSPACE, TABLE_REVERSED);
+        QueryProcessor.executeOnceInternal(createTable);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_REVERSED);
+        TableMetadata metadata = cfs.metadata();
+
+        String query = "INSERT INTO %s.%s (k, c1, c2) VALUES ('k1', 0, %s)";
+        SSTableReader sstable = createSSTable(metadata, KEYSPACE, TABLE_REVERSED, query);
+        assertEquals(Slice.make(Util.clustering(metadata.comparator, 0, 9),
+                                Util.clustering(metadata.comparator, 0, 0)),
+                     sstable.getSSTableMetadata().coveredClustering);
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
+
+        Slice slice1 = Slice.make(Util.clustering(metadata.comparator, 0, 8), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(metadata, key, slice1, sstable, false));
+        assertTrue(lowerBoundApplicable(metadata, key, slice1, sstable, true));
+
+        Slice slice2 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(metadata.comparator, 0, 8));
+        assertTrue(lowerBoundApplicable(metadata, key, slice2, sstable, false));
+        assertFalse(lowerBoundApplicable(metadata, key, slice2, sstable, true));
+
+        // corner cases
+        Slice slice3 = Slice.make(Util.clustering(metadata.comparator, 0, 9), ClusteringBound.TOP);
+        assertFalse(lowerBoundApplicable(metadata, key, slice3, sstable, false));
+        assertTrue(lowerBoundApplicable(metadata, key, slice3, sstable, true));
+
+        Slice slice4 = Slice.make(ClusteringBound.BOTTOM, Util.clustering(metadata.comparator, 0, 0));
+        assertTrue(lowerBoundApplicable(metadata, key, slice4, sstable, false));
+        assertFalse(lowerBoundApplicable(metadata, key, slice4, sstable, true));
+    }
+
+    private SSTableReader createSSTable(TableMetadata metadata, String keyspace, String table, String query)
+    {
+        ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        for (int i = 0; i < 10; i++)
+            QueryProcessor.executeInternal(String.format(query, keyspace, table, i));
+        cfs.forceBlockingFlush();
+        DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.bytes("k1"));
+        ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, key));
+        assertEquals(1, view.sstables.size());
+        return view.sstables.get(0);
+    }
+
+    private boolean lowerBoundApplicable(TableMetadata metadata, DecoratedKey key, Slice slice, SSTableReader sstable, boolean isReversed)
+    {
+        Slices.Builder slicesBuilder = new Slices.Builder(metadata.comparator);
+        slicesBuilder.add(slice);
+        Slices slices = slicesBuilder.build();
+        ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, isReversed);
+
+        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(metadata,
+                                                                           FBUtilities.nowInSeconds(),
+                                                                           ColumnFilter.all(metadata),
+                                                                           RowFilter.NONE,
+                                                                           DataLimits.NONE,
+                                                                           key,
+                                                                           filter);
+
+        try (UnfilteredRowIteratorWithLowerBound iter = new UnfilteredRowIteratorWithLowerBound(key,
+                                                                                                sstable,
+                                                                                                slices,
+                                                                                                isReversed,
+                                                                                                ColumnFilter.all(metadata),
+                                                                                                Mockito.mock(SSTableReadsListener.class)))
+        {
+            return iter.lowerBound() != null;
+        }
     }
 
     private String toString(List<Unfiltered> unfiltereds, TableMetadata metadata)

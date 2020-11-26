@@ -64,6 +64,10 @@ public interface ByteSource
     int LT_NEXT_COMPONENT = 0x20;
     int GT_NEXT_COMPONENT = 0x60;
 
+    // Unsupported, for artificial bounds
+    int LTLT_NEXT_COMPONENT = 0x1F;
+    int GTGT_NEXT_COMPONENT = 0x61;
+
     // Special value for components that should be excluded from the normal min/max span. (static rows)
     int EXCLUDED = 0x18;
 

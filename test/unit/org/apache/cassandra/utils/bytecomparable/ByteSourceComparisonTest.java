@@ -322,9 +322,10 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
 
     void assertClusteringPairComparesSame(AbstractType t1, AbstractType t2, Object o1, Object o2, Object o3, Object o4)
     {
+        EnumSet<ClusteringPrefix.Kind> skippedKinds = EnumSet.of(ClusteringPrefix.Kind.SSTABLE_LOWER_BOUND, ClusteringPrefix.Kind.SSTABLE_UPPER_BOUND);
         for (Version v : Version.values())
-            for (ClusteringPrefix.Kind k1 : ClusteringPrefix.Kind.values())
-                for (ClusteringPrefix.Kind k2 : ClusteringPrefix.Kind.values())
+            for (ClusteringPrefix.Kind k1 : EnumSet.complementOf(skippedKinds))
+                for (ClusteringPrefix.Kind k2 : EnumSet.complementOf(skippedKinds))
                 {
                     ClusteringComparator comp = new ClusteringComparator(t1, t2);
                     ByteBuffer[] b = new ByteBuffer[2];

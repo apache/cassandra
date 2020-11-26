@@ -215,6 +215,12 @@ public class EncodingStats implements IMeasurableMemory
             updateLocalDeletionTime(deletionTime.localDeletionTime());
         }
 
+        @Override
+        public void updatePartitionDeletion(DeletionTime dt)
+        {
+            update(dt);
+        }
+
         public void updateTimestamp(long timestamp)
         {
             isTimestampSet = true;

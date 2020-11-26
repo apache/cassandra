@@ -20,14 +20,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.AbstractBufferClusteringPrefix;
-import org.apache.cassandra.db.BufferClustering;
-import org.apache.cassandra.db.BufferClusteringBound;
-import org.apache.cassandra.db.BufferClusteringBoundary;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ClusteringBound;
-import org.apache.cassandra.db.ClusteringBoundary;
-import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -41,6 +34,13 @@ class ByteBufferObjectFactory implements ValueAccessor.ObjectFactory<ByteBuffer>
     /** The biggest end bound, i.e. the one that ends after any row. */
     private static final BufferClusteringBound TOP_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND,
                                                                                      AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY);
+
+    /** The biggest start bound, i.e. the one that starts after any row. */
+    private static final BufferClusteringBound MAX_START_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.EXCL_START_BOUND,
+                                                                                         AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY);
+    /** The smallest end bound, i.e. the one that end before any row. */
+    private static final BufferClusteringBound MIN_END_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.EXCL_END_BOUND,
+                                                                                       AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY);
 
     static final ValueAccessor.ObjectFactory<ByteBuffer> instance = new ByteBufferObjectFactory();
 
@@ -72,7 +72,15 @@ class ByteBufferObjectFactory implements ValueAccessor.ObjectFactory<ByteBuffer>
 
     public ClusteringBound<ByteBuffer> bound(ClusteringPrefix.Kind kind)
     {
-        return kind.isStart() ? BOTTOM_BOUND : TOP_BOUND;
+        switch (kind)
+        {
+            case EXCL_END_BOUND: return MIN_END_BOUND;
+            case INCL_START_BOUND: return BOTTOM_BOUND;
+            case INCL_END_BOUND: return TOP_BOUND;
+            case EXCL_START_BOUND: return MAX_START_BOUND;
+            default:
+                throw new AssertionError(String.format("Unexpected kind %s for empty bound or boundary", kind));
+        }
     }
 
     public ClusteringBoundary<ByteBuffer> boundary(ClusteringPrefix.Kind kind, ByteBuffer... values)
