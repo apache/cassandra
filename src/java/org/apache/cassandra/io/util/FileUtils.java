@@ -591,11 +591,26 @@ public final class FileUtils
 
 
     /**
-     * Deletes all files and subdirectories under "dir".
+     * Deletes the specified directory after having deleted its content.
+     *
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
      */
     public static void deleteRecursive(File dir)
+    {
+        deleteChildrenRecursive(dir);
+
+        // The directory is now empty so now it can be smoked
+        deleteWithConfirm(dir);
+    }
+
+    /**
+     * Deletes all files and subdirectories under "dir".
+     *
+     * @param dir Directory to be deleted
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
+    public static void deleteChildrenRecursive(File dir)
     {
         if (dir.isDirectory())
         {
@@ -603,9 +618,6 @@ public final class FileUtils
             for (String child : children)
                 deleteRecursive(new File(dir, child));
         }
-
-        // The directory is now empty so now it can be smoked
-        deleteWithConfirm(dir);
     }
 
     /**

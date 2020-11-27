@@ -31,7 +31,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -41,6 +40,8 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.ServerTestUtils.cleanup;
+import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.apache.cassandra.locator.Ec2Snitch.EC2_NAMING_LEGACY;
 import static org.junit.Assert.assertEquals;
 
@@ -62,8 +63,8 @@ public class EC2SnitchTest
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
-        SchemaLoader.mkdirs();
-        SchemaLoader.cleanup();
+        mkdirs();
+        cleanup();
         Keyspace.setInitialized();
         StorageService.instance.initServer(0);
     }

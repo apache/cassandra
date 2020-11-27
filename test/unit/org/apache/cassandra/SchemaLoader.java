@@ -73,7 +73,8 @@ public class SchemaLoader
 
     public static void prepareServer()
     {
-       CQLTester.prepareServer();
+        ServerTestUtils.daemonInitialization();
+        ServerTestUtils.prepareServer();
     }
 
     public static void startGossiper()
@@ -727,47 +728,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     public static void cleanupAndLeaveDirs() throws IOException
     {
-        // We need to stop and unmap all CLS instances prior to cleanup() or we'll get failures on Windows.
-        CommitLog.instance.stopUnsafe(true);
-        mkdirs();
-        cleanup();
-        mkdirs();
-        CommitLog.instance.restartUnsafe();
-    }
-
-    public static void cleanup()
-    {
-        // clean up commitlog
-        String[] directoryNames = { DatabaseDescriptor.getCommitLogLocation(), };
-        for (String dirName : directoryNames)
-        {
-            File dir = new File(dirName);
-            if (!dir.exists())
-                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-
-            // Leave the folder around as Windows will complain about directory deletion w/handles open to children files
-            String[] children = dir.list();
-            for (String child : children)
-                FileUtils.deleteRecursive(new File(dir, child));
-        }
-
-        cleanupSavedCaches();
-
-        // clean up data directory which are stored as data directory/keyspace/data files
-        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            File dir = new File(dirName);
-            if (!dir.exists())
-                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            String[] children = dir.list();
-            for (String child : children)
-                FileUtils.deleteRecursive(new File(dir, child));
-        }
-    }
-
-    public static void mkdirs()
-    {
-        DatabaseDescriptor.createAllDirectories();
+        ServerTestUtils.cleanupAndLeaveDirs();
     }
 
     public static void insertData(String keyspace, String columnFamily, int offset, int numberOfRows)
@@ -788,11 +749,6 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     public static void cleanupSavedCaches()
     {
-        File cachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
-
-        if (!cachesDir.exists() || !cachesDir.isDirectory())
-            return;
-
-        FileUtils.delete(cachesDir.listFiles());
+        ServerTestUtils.cleanupSavedCaches();
     }
 }

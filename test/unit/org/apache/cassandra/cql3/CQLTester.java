@@ -25,7 +25,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.ServerSocket;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.rmi.server.RMISocketFactory;
 import java.util.*;
@@ -57,28 +56,25 @@ import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -92,7 +88,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
-import org.apache.cassandra.security.ThreadAwareSecurityManager;
 
 import static junit.framework.Assert.assertNotNull;
 
@@ -110,9 +105,9 @@ public abstract class CQLTester
     protected static final long ROW_CACHE_SIZE_IN_MB = Integer.valueOf(System.getProperty("cassandra.test.row_cache_size_in_mb", "0"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
-    public static final String DATA_CENTER = "datacenter1";
-    public static final String DATA_CENTER_REMOTE = "datacenter2";
-    public static final String RACK1 = "rack1";
+    public static final String DATA_CENTER = ServerTestUtils.DATA_CENTER;
+    public static final String DATA_CENTER_REMOTE = ServerTestUtils.DATA_CENTER_REMOTE;
+    public static final String RACK1 = ServerTestUtils.RACK1;
 
     private static org.apache.cassandra.transport.Server server;
     private static JMXConnectorServer jmxServer;
@@ -125,8 +120,6 @@ public abstract class CQLTester
     protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
     private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
     protected static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
-
-    private static boolean isServerPrepared = false;
 
     public static final List<ProtocolVersion> PROTOCOL_VERSIONS = new ArrayList<>(ProtocolVersion.SUPPORTED.size());
 
@@ -149,50 +142,15 @@ public abstract class CQLTester
                ? ProtocolVersion.CURRENT
                : PROTOCOL_VERSIONS.get(PROTOCOL_VERSIONS.size() - 1);
     }
+
     static
     {
-        DatabaseDescriptor.daemonInitialization();
-
-        // The latest versions might not be supported yet by the java driver
-        for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
-        {
-            try
-            {
-                com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt());
-                PROTOCOL_VERSIONS.add(version);
-            }
-            catch (IllegalArgumentException e)
-            {
-                logger.warn("Protocol Version {} not supported by java driver", version);
-            }
-        }
+        checkProtocolVersion();
 
         nativeAddr = InetAddress.getLoopbackAddress();
+        nativePort = getAutomaticallyAllocatedPort(nativeAddr);
 
-        // Register an EndpointSnitch which returns fixed values for test.
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
-        {
-            @Override public String getRack(InetAddressAndPort endpoint) { return RACK1; }
-            @Override public String getDatacenter(InetAddressAndPort endpoint) {
-                if (remoteAddrs.contains(endpoint))
-                    return DATA_CENTER_REMOTE;
-                return DATA_CENTER;
-            }
-            @Override public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
-        });
-
-        try
-        {
-            try (ServerSocket serverSocket = new ServerSocket(0))
-            {
-                nativePort = serverSocket.getLocalPort();
-            }
-            Thread.sleep(250);
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        ServerTestUtils.daemonInitialization();
     }
 
     private List<String> keyspaces = new ArrayList<>();
@@ -211,51 +169,57 @@ public abstract class CQLTester
         return usePrepared;
     }
 
-    public static void prepareServer()
+    /**
+     * Returns a port number that is automatically allocated,
+     * typically from an ephemeral port range.
+     *
+     * @return a port number
+     */
+    private static int getAutomaticallyAllocatedPort(InetAddress address)
     {
-        if (isServerPrepared)
-            return;
-
-        DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        CommitLog.instance.start();
-
-        // Cleanup first
         try
         {
-            cleanupAndLeaveDirs();
+            try (ServerSocket sock = new ServerSocket())
+            {
+                // A port number of {@code 0} means that the port number will be automatically allocated,
+                // typically from an ephemeral port range.
+                sock.bind(new InetSocketAddress(address, 0));
+                return sock.getLocalPort();
+            }
         }
         catch (IOException e)
         {
-            logger.error("Failed to cleanup and recreate directories.");
             throw new RuntimeException(e);
         }
-
-        try {
-            remoteAddrs.add(InetAddressAndPort.getByName("127.0.0.4"));
-        }
-        catch (UnknownHostException e)
-        {
-            logger.error("Failed to lookup host");
-            throw new RuntimeException(e);
-        }
-
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
-        {
-            public void uncaughtException(Thread t, Throwable e)
-            {
-                logger.error("Fatal exception in thread " + t, e);
-            }
-        });
-
-        ThreadAwareSecurityManager.install();
-
-        Keyspace.setInitialized();
-        SystemKeyspace.persistLocalMetadata();
-        AuditLogManager.instance.initialize();
-        isServerPrepared = true;
     }
-    
+
+    private static void checkProtocolVersion()
+    {
+        // The latest versions might not be supported yet by the java driver
+        for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
+        {
+            try
+            {
+                com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt());
+                PROTOCOL_VERSIONS.add(version);
+            }
+            catch (IllegalArgumentException e)
+            {
+                logger.warn("Protocol Version {} not supported by java driver", version);
+            }
+        }
+    }
+
+    public static void prepareServer()
+    {
+        ServerTestUtils.prepareServer();
+    }
+
+    public static void cleanup()
+    {
+        ServerTestUtils.cleanup();
+    }
+
     /**
      * Starts the JMX server. It's safe to call this method multiple times.
      */
@@ -266,12 +230,7 @@ public abstract class CQLTester
 
         InetAddress loopback = InetAddress.getLoopbackAddress();
         jmxHost = loopback.getHostAddress();
-        try (ServerSocket sock = new ServerSocket())
-        {
-            sock.bind(new InetSocketAddress(loopback, 0));
-            jmxPort = sock.getLocalPort();
-        }
-
+        jmxPort = getAutomaticallyAllocatedPort(loopback);
         jmxServer = JMXServerUtils.createJMXServer(jmxPort, true);
         jmxServer.start();
     }
@@ -291,60 +250,6 @@ public abstract class CQLTester
         assert jmxServer != null : "jmxServer not started";
 
         return new JMXServiceURL(String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", jmxHost, jmxPort));
-    }
-
-    public static void cleanupAndLeaveDirs() throws IOException
-    {
-        // We need to stop and unmap all CLS instances prior to cleanup() or we'll get failures on Windows.
-        CommitLog.instance.start();
-        CommitLog.instance.stopUnsafe(true);
-        mkdirs();
-        cleanup();
-        mkdirs();
-        CommitLog.instance.restartUnsafe();
-    }
-
-    public static void cleanup()
-    {
-        // clean up commitlog
-        String[] directoryNames = { DatabaseDescriptor.getCommitLogLocation(), };
-        for (String dirName : directoryNames)
-        {
-            File dir = new File(dirName);
-            if (!dir.exists())
-                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            FileUtils.deleteRecursive(dir);
-        }
-
-        File cdcDir = new File(DatabaseDescriptor.getCDCLogLocation());
-        if (cdcDir.exists())
-            FileUtils.deleteRecursive(cdcDir);
-
-        cleanupSavedCaches();
-
-        // clean up data directory which are stored as data directory/keyspace/data files
-        for (String dirName : DatabaseDescriptor.getAllDataFileLocations())
-        {
-            File dir = new File(dirName);
-            if (!dir.exists())
-                throw new RuntimeException("No such directory: " + dir.getAbsolutePath());
-            FileUtils.deleteRecursive(dir);
-        }
-    }
-
-    public static void mkdirs()
-    {
-        DatabaseDescriptor.createAllDirectories();
-    }
-
-    public static void cleanupSavedCaches()
-    {
-        File cachesDir = new File(DatabaseDescriptor.getSavedCachesLocation());
-
-        if (!cachesDir.exists() || !cachesDir.isDirectory())
-            return;
-
-        FileUtils.delete(cachesDir.listFiles());
     }
 
     @BeforeClass
