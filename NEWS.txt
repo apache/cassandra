@@ -283,6 +283,14 @@ Materialized Views
 
 Upgrading
 ---------
+    - This release fix a correctness issue with SERIAL reads, and LWT writes that do not apply.
+      Unfortunately, this fix has a performance impact on read performance at the SERIAL or
+      LOCAL_SERIAL consistency levels. For heavy users of such SERIAL reads, the performance
+      impact may be noticeable and may also result in an increased of timeouts. For that
+      reason, a opt-in system property has been added to disable the fix:
+        -Dcassandra.unsafe.disable-serial-reads-linearizability=true
+      Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
+      previous versions. See CASSANDRA-12126 for details. 
     - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
       it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
       lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
