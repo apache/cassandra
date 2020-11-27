@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -202,6 +202,10 @@ public class StorageProxy implements StorageProxyMBean
      */
     private static final int MAX_CONCURRENT_RANGE_REQUESTS = Math.max(1, Integer.getInteger("cassandra.max_concurrent_range_requests", FBUtilities.getAvailableProcessors() * 10));
 
+    private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
+    private static final boolean disableSerialReadLinearizability =
+        Boolean.parseBoolean(System.getProperty(DISABLE_SERIAL_READ_LINEARIZABILITY_KEY, "false"));
+
     private StorageProxy()
     {
     }
@@ -245,6 +249,16 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         ReadRepairMetrics.init();
+
+        if (disableSerialReadLinearizability)
+        {
+            logger.warn("This node was started with -D{}. SERIAL (and LOCAL_SERIAL) reads coordinated by this node " +
+                        "will not offer linearizability (see CASSANDRA-12126 for details on what this mean) with " +
+                        "respect to other SERIAL operations. Please note that, with this flag, SERIAL reads will be " +
+                        "slower than QUORUM reads, yet offer no more guarantee. This flag should only be used in " +
+                        "the restricted case of upgrading from a pre-CASSANDRA-12126 version, and only if you " +
+                        "understand the tradeoff.", DISABLE_SERIAL_READ_LINEARIZABILITY_KEY);
+        }
     }
 
     /**
@@ -300,23 +314,12 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
         final long startTimeForMetrics = System.nanoTime();
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
-        int contentions = 0;
         try
         {
-            consistencyForPaxos.validateForCas();
-            consistencyForCommit.validateForCasCommit(keyspaceName);
+            TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
 
-            long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
-            while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
+            Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () ->
             {
-                // for simplicity, we'll do a single liveness check at the start of each attempt
-                ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(keyspaceName), key, consistencyForPaxos);
-
-                final PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, replicaPlan, consistencyForPaxos, consistencyForCommit, true, state);
-                final UUID ballot = pair.ballot;
-                contentions += pair.contentions;
-
                 // read the current values and check they validate the conditions
                 Tracing.trace("Reading existing values for CAS precondition");
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
@@ -332,11 +335,10 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("CAS precondition does not match current values {}", current);
                     casWriteMetrics.conditionNotMet.inc();
-                    return current.rowIterator();
+                    return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
                 }
 
-                // finish the paxos round w/ the desired updates
-                // TODO turn null updates into delete?
+                // Create the desired updates
                 PartitionUpdate updates = request.makeUpdates(current);
 
                 long size = updates.dataSize();
@@ -352,34 +354,30 @@ public class StorageProxy implements StorageProxyMBean
                 // InvalidRequestException) any which aren't.
                 updates = TriggerExecutor.instance.execute(updates);
 
+                return Pair.create(updates, null);
+            };
 
-                Commit proposal = Commit.newProposal(ballot, updates);
-                Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
-                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
-                {
-                    commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
-                    Tracing.trace("CAS successful");
-                    return null;
-                }
+            return doPaxos(metadata,
+                           key,
+                           consistencyForPaxos,
+                           consistencyForCommit,
+                           consistencyForCommit,
+                           state,
+                           queryStartNanoTime,
+                           casWriteMetrics,
+                           updateProposer);
 
-                Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
-                contentions++;
-                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-                // continue to retry
-            }
-
-            throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
         }
         catch (CasWriteUnknownResultException e)
         {
             casWriteMetrics.unknownResult.mark();
             throw e;
         }
-        catch (WriteTimeoutException wte)
+        catch (CasWriteTimeoutException wte)
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
-            throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, contentions);
+            throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, wte.contentions);
         }
         catch (ReadTimeoutException e)
         {
@@ -387,7 +385,7 @@ public class StorageProxy implements StorageProxyMBean
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
             throw e;
         }
-        catch (WriteFailureException|ReadFailureException e)
+        catch (WriteFailureException | ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
             writeMetricsMap.get(consistencyForPaxos).failures.mark();
@@ -401,18 +399,137 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            recordCasContention(contentions);
-            Keyspace.open(keyspaceName).getColumnFamilyStore(cfName).metric.topCasPartitionContention.addSample(key.getKey(), contentions);
             final long latency = System.nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
             writeMetricsMap.get(consistencyForPaxos).addNano(latency);
         }
     }
 
-    private static void recordCasContention(int contentions)
+    private static void recordCasContention(TableMetadata table,
+                                            DecoratedKey key,
+                                            CASClientRequestMetrics casMetrics,
+                                            int contentions)
     {
-        if(contentions > 0)
-            casWriteMetrics.contention.update(contentions);
+        if (contentions == 0)
+            return;
+
+        casMetrics.contention.update(contentions);
+        Keyspace.open(table.keyspace)
+                .getColumnFamilyStore(table.name)
+                .metric
+                .topCasPartitionContention
+                .addSample(key.getKey(), contentions);
+    }
+
+    /**
+     * Performs the Paxos rounds for a given proposal, retrying when preempted until the timeout.
+     *
+     * <p>The main 'configurable' of this method is the {@code createUpdateProposal} method: it is called by the method
+     * once a ballot has been successfully 'prepared' to generate the update to 'propose' (and commit if the proposal is
+     * successful). That method also generates the result that the whole method will return. Note that due to retrying,
+     * this method may be called multiple times and does not have to return the same results.
+     *
+     * @param metadata the table to update with Paxos.
+     * @param key the partition updated.
+     * @param consistencyForPaxos the serial consistency of the operation (either {@link ConsistencyLevel#SERIAL} or
+     *     {@link ConsistencyLevel#LOCAL_SERIAL}).
+     * @param consistencyForReplayCommits the consistency for the commit phase of "replayed" in-progress operations.
+     * @param consistencyForCommit the consistency for the commit phase of _this_ operation update.
+     * @param state the client state.
+     * @param queryStartNanoTime the nano time for the start of the query this is part of. This is the base time for
+     *     timeouts.
+     * @param casMetrics the metrics to update for this operation.
+     * @param createUpdateProposal method called after a successful 'prepare' phase to obtain 1) the actual update of
+     *     this operation and 2) the result that the whole method should return. This can return {@code null} in the
+     *     special where, after having "prepared" (and thus potentially replayed in-progress upgdates), we don't want
+     *     to propose anything (the whole method then return {@code null}).
+     * @return the second element of the pair returned by {@code createUpdateProposal} (for the last call of that method
+     *     if that method is called multiple times due to retries).
+     */
+    private static RowIterator doPaxos(TableMetadata metadata,
+                                       DecoratedKey key,
+                                       ConsistencyLevel consistencyForPaxos,
+                                       ConsistencyLevel consistencyForReplayCommits,
+                                       ConsistencyLevel consistencyForCommit,
+                                       ClientState state,
+                                       long queryStartNanoTime,
+                                       CASClientRequestMetrics casMetrics,
+                                       Supplier<Pair<PartitionUpdate, RowIterator>> createUpdateProposal)
+    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
+    {
+        int contentions = 0;
+        Keyspace keyspace = Keyspace.open(metadata.keyspace);
+        try
+        {
+            consistencyForPaxos.validateForCas();
+            consistencyForReplayCommits.validateForCasCommit(metadata.keyspace);
+            consistencyForCommit.validateForCasCommit(metadata.keyspace);
+
+            long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
+            while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
+            {
+                // for simplicity, we'll do a single liveness check at the start of each attempt
+                ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(keyspace, key, consistencyForPaxos);
+                PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime,
+                                                                    key,
+                                                                    metadata,
+                                                                    replicaPlan,
+                                                                    consistencyForPaxos,
+                                                                    consistencyForReplayCommits,
+                                                                    casMetrics,
+                                                                    state);
+
+                final UUID ballot = pair.ballot;
+                contentions += pair.contentions;
+
+                Pair<PartitionUpdate, RowIterator> proposalPair = createUpdateProposal.get();
+                // See method javadoc: null here is code for "stop here and return null".
+                if (proposalPair == null)
+                    return null;
+
+                Commit proposal = Commit.newProposal(ballot, proposalPair.left);
+                Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
+                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
+                {
+                    // We skip committing accepted updates when they are empty. This is an optimization which works
+                    // because we also skip replaying those same empty update in beginAndRepairPaxos (see the longer
+                    // comment there). As empty update are somewhat common (serial reads and non-applying CAS propose
+                    // them), this is worth bothering.
+                    if (!proposal.update.isEmpty())
+                        commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
+                    RowIterator result = proposalPair.right;
+                    if (result != null)
+                        Tracing.trace("CAS did not apply");
+                    else
+                        Tracing.trace("CAS applied successfully");
+                    return result;
+                }
+
+                Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
+                contentions++;
+                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
+                // continue to retry
+            }
+        }
+        catch (CasWriteTimeoutException e)
+        {
+            // Might be thrown by beginRepairAndPaxos. In that case, any contention that happened within the method and
+            // led up to the timeout was not accounted in our local 'contentions' variable and we add it now so it the
+            // contention recorded in the finally is correct.
+            contentions += e.contentions;
+            throw e;
+        }
+        catch (WriteTimeoutException e)
+        {
+            // Might be thrown by proposePaxos or commitPaxos
+            throw new CasWriteTimeoutException(e.writeType, e.consistency, e.received, e.blockFor, contentions);
+        }
+        finally
+        {
+            recordCasContention(metadata, key, casMetrics, contentions);
+        }
+
+        throw new CasWriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(keyspace), contentions);
     }
 
     /**
@@ -427,7 +544,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 ReplicaPlan.ForPaxosWrite paxosPlan,
                                                                 ConsistencyLevel consistencyForPaxos,
                                                                 ConsistencyLevel consistencyForCommit,
-                                                                final boolean isWrite,
+                                                                CASClientRequestMetrics casMetrics,
                                                                 ClientState state)
     throws WriteTimeoutException, WriteFailureException
     {
@@ -448,76 +565,87 @@ public class StorageProxy implements StorageProxyMBean
             UUID ballot = UUIDGen.getRandomTimeUUIDFromMicros(ballotMicros);
 
             // prepare
-            Tracing.trace("Preparing {}", ballot);
-            Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
-            summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime);
-            if (!summary.promised)
+            try
             {
-                Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
-                contentions++;
-                // sleep a random amount to give the other proposer a chance to finish
-                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-                continue;
-            }
-
-            Commit inProgress = summary.mostRecentInProgressCommitWithUpdate;
-            Commit mostRecent = summary.mostRecentCommit;
-
-            // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
-            // needs to be completed, so do it.
-            if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
-            {
-                Tracing.trace("Finishing incomplete paxos round {}", inProgress);
-                if(isWrite)
-                    casWriteMetrics.unfinishedCommit.inc();
-                else
-                    casReadMetrics.unfinishedCommit.inc();
-                Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
-                if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
+                Tracing.trace("Preparing {}", ballot);
+                Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
+                summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime);
+                if (!summary.promised)
                 {
-                    try
+                    Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+                    contentions++;
+                    // sleep a random amount to give the other proposer a chance to finish
+                    Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
+                    continue;
+                }
+
+                Commit inProgress = summary.mostRecentInProgressCommit;
+                Commit mostRecent = summary.mostRecentCommit;
+
+                // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
+                // needs to be completed, so do it.
+                // One special case we make is for update that are empty (which are proposed by serial reads and
+                // non-applying CAS). While we could handle those as any other updates, we can optimize this somewhat by
+                // neither committing those empty updates, nor replaying in-progress ones. The reasoning is this: as the
+                // update is empty, we have nothing to apply to storage in the commit phase, so the only reason to commit
+                // would be to update the MRC. However, if we skip replaying those empty updates, then we don't need to
+                // update the MRC for following updates to make progress (that is, if we didn't had the empty update skip
+                // below _but_ skipped updating the MRC on empty updates, then we'd be stuck always proposing that same
+                // empty update). And the reason skipping that replay is safe is that when an operation tries to propose
+                // an empty value, there can be only 2 cases:
+                //  1) the propose succeed, meaning a quorum of nodes accept it, in which case we are guaranteed no earlier
+                //     pending operation can ever be replayed (which is what we want to guarantee with the empty update).
+                //  2) the propose does not succeed. But then the operation proposing the empty update will not succeed
+                //     either (it will retry or ultimately timeout), and we're actually ok if earlier pending operation gets
+                //     replayed in that case.
+                // Tl;dr, it is safe to skip committing empty updates _as long as_ we also skip replying them below. And
+                // doing is more efficient, so we do so.
+                if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
+                {
+                    Tracing.trace("Finishing incomplete paxos round {}", inProgress);
+                    casMetrics.unfinishedCommit.inc();
+                    Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
+                    if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
                     {
                         commitPaxos(refreshedInProgress, consistencyForCommit, false, queryStartNanoTime);
                     }
-                    catch (WriteTimeoutException e)
+                    else
                     {
-                        recordCasContention(contentions);
-                        // We're still doing preparation for the paxos rounds, so we want to use the CAS (see CASSANDRA-8672)
-                        throw new WriteTimeoutException(WriteType.CAS, e.consistency, e.received, e.blockFor);
+                        Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+                        // sleep a random amount to give the other proposer a chance to finish
+                        contentions++;
+                        Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
                     }
+                    continue;
                 }
-                else
+
+                // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
+                // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
+                // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
+                // mean we lost messages), we pro-actively "repair" those nodes, and retry.
+                int nowInSec = Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(ballotMicros));
+                Iterable<InetAddressAndPort> missingMRC = summary.replicasMissingMostRecentCommit(metadata, nowInSec);
+                if (Iterables.size(missingMRC) > 0)
                 {
-                    Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
-                    // sleep a random amount to give the other proposer a chance to finish
-                    contentions++;
-                    Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
+                    Tracing.trace("Repairing replicas that missed the most recent commit");
+                    sendCommit(mostRecent, missingMRC);
+                    // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
+                    // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
+                    // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
+                    // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
+                    continue;
                 }
-                continue;
-            }
 
-            // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
-            // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
-            // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
-            // mean we lost messages), we pro-actively "repair" those nodes, and retry.
-            int nowInSec = Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(ballotMicros));
-            Iterable<InetAddressAndPort> missingMRC = summary.replicasMissingMostRecentCommit(metadata, nowInSec);
-            if (Iterables.size(missingMRC) > 0)
+                return new PaxosBallotAndContention(ballot, contentions);
+            }
+            catch (WriteTimeoutException e)
             {
-                Tracing.trace("Repairing replicas that missed the most recent commit");
-                sendCommit(mostRecent, missingMRC);
-                // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
-                // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
-                // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
-                // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
-                continue;
+                // We're still doing preparation for the paxos rounds, so we want to use the CAS (see CASSANDRA-8672)
+                throw new CasWriteTimeoutException(WriteType.CAS, e.consistency, e.received, e.blockFor, contentions);
             }
-
-            return new PaxosBallotAndContention(ballot, contentions);
         }
 
-        recordCasContention(contentions);
-        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.keyspace)));
+        throw new CasWriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.keyspace)), contentions);
     }
 
     /**
@@ -1643,19 +1771,31 @@ public class StorageProxy implements StorageProxyMBean
         PartitionIterator result = null;
         try
         {
-            // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
-            ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(metadata.keyspace), key, consistencyLevel);
-
-            // does the work of applying in-progress writes; throws UAE or timeout if it can't
-            final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
-                                                                                   ? ConsistencyLevel.LOCAL_QUORUM
-                                                                                   : ConsistencyLevel.QUORUM;
+            final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
+                                                                        ? ConsistencyLevel.LOCAL_QUORUM
+                                                                        : ConsistencyLevel.QUORUM;
 
             try
             {
-                final PaxosBallotAndContention pair = beginAndRepairPaxos(start, key, metadata, replicaPlan, consistencyLevel, consistencyForCommitOrFetch, false, state);
-                if (pair.contentions > 0)
-                    casReadMetrics.contention.update(pair.contentions);
+                // Commit an empty update to make sure all in-progress updates that should be finished first is, _and_
+                // that no other in-progress can get resurrected.
+                Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer =
+                    disableSerialReadLinearizability
+                    ? () -> null
+                    : () -> Pair.create(PartitionUpdate.emptyUpdate(metadata, key), null);
+                // When replaying, we commit at quorum/local quorum, as we want to be sure the following read (done at
+                // quorum/local_quorum) sees any replayed updates. Our own update is however empty, and those don't even
+                // get committed due to an optimiation described in doPaxos/beingRepairAndPaxos, so the commit
+                // consistency is irrelevant (we use ANY just to emphasis that we don't wait on our commit).
+                doPaxos(metadata,
+                        key,
+                        consistencyLevel,
+                        consistencyForReplayCommitsOrFetch,
+                        ConsistencyLevel.ANY,
+                        state,
+                        start,
+                        casReadMetrics,
+                        updateProposer);
             }
             catch (WriteTimeoutException e)
             {
@@ -1666,7 +1806,7 @@ public class StorageProxy implements StorageProxyMBean
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            result = fetchRows(group.queries, consistencyForCommitOrFetch, queryStartNanoTime);
+            result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime);
         }
         catch (UnavailableException e)
         {
