@@ -454,6 +454,9 @@ public class CommitLog implements CommitLogMBean
     @VisibleForTesting
     synchronized public void stopUnsafe(boolean deleteSegments)
     {
+        if (!started)
+            return;
+
         started = false;
         executor.shutdown();
         try

@@ -28,39 +28,36 @@ import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.ServerTestUtils.cleanup;
+import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
@@ -82,8 +79,8 @@ public class StorageServiceServerTest
     @Test
     public void testRegularMode() throws ConfigurationException
     {
-        SchemaLoader.mkdirs();
-        SchemaLoader.cleanup();
+        mkdirs();
+        cleanup();
         StorageService.instance.initServer(0);
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
