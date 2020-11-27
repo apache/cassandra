@@ -602,61 +602,86 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         return YamlConfigurationLoader.fromMap(params, check, Config.class);
     }
 
-    private void initializeRing(ICluster cluster)
+    public static void addToRing(boolean bootstrapping, IInstance peer)
     {
-        // This should be done outside instance in order to avoid serializing config
-        String partitionerName = config.getString("partitioner");
-        List<String> initialTokens = new ArrayList<>();
-        List<InetSocketAddress> hosts = new ArrayList<>();
-        List<UUID> hostIds = new ArrayList<>();
-        for (int i = 1 ; i <= cluster.size() ; ++i)
-        {
-            IInstanceConfig config = cluster.get(i).config();
-            initialTokens.add(config.getString("initial_token"));
-            hosts.add(config.broadcastAddress());
-            hostIds.add(config.hostId());
-        }
-
         try
         {
-            IPartitioner partitioner = FBUtilities.newPartitioner(partitionerName);
-            StorageService storageService = StorageService.instance;
-            List<Token> tokens = new ArrayList<>();
-            for (String token : initialTokens)
-                tokens.add(partitioner.getTokenFactory().fromString(token));
+            IInstanceConfig config = peer.config();
+            IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
+            Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
+            InetAddress address = config.broadcastAddress().getAddress();
 
-            for (int i = 0; i < tokens.size(); i++)
-            {
-                InetSocketAddress ep = hosts.get(i);
-                UUID hostId = hostIds.get(i);
-                Token token = tokens.get(i);
-                Gossiper.runInGossipStageBlocking(() -> {
-                    Gossiper.instance.initializeNodeUnsafe(ep.getAddress(), hostId, 1);
-                    Gossiper.instance.injectApplicationState(ep.getAddress(),
-                                                             ApplicationState.TOKENS,
-                                                             new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
-                    storageService.onChange(ep.getAddress(),
-                                            ApplicationState.STATUS,
-                                            new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
-                    Gossiper.instance.realMarkAlive(ep.getAddress(), Gossiper.instance.getEndpointStateForEndpoint(ep.getAddress()));
-                });
+            UUID hostId = config.hostId();
+            Gossiper.runInGossipStageBlocking(() -> {
+                Gossiper.instance.initializeNodeUnsafe(address, hostId, 1);
+                Gossiper.instance.injectApplicationState(address,
+                        ApplicationState.TOKENS,
+                        new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(token)));
+                StorageService.instance.onChange(address,
+                        ApplicationState.STATUS,
+                        bootstrapping
+                                ? new VersionedValue.VersionedValueFactory(partitioner).bootstrapping(Collections.singleton(token))
+                                : new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(token)));
+                Gossiper.instance.realMarkAlive(address, Gossiper.instance.getEndpointStateForEndpoint(address));
+            });
+            int messagingVersion = peer.isShutdown()
+                    ? MessagingService.current_version
+                    : Math.min(MessagingService.current_version, peer.getMessagingVersion());
+            MessagingService.instance().setVersion(address, messagingVersion);
 
-                int messagingVersion = cluster.get(ep).isShutdown()
-                                       ? MessagingService.current_version
-                                       : Math.min(MessagingService.current_version, cluster.get(ep).getMessagingVersion());
-                MessagingService.instance().setVersion(ep.getAddress(), messagingVersion);
-            }
-
-            // check that all nodes are in token metadata
-            for (int i = 0; i < tokens.size(); ++i)
-                assert storageService.getTokenMetadata().isMember(hosts.get(i).getAddress());
-
-            storageService.setNormalModeUnsafe();
+            if (!bootstrapping)
+                assert StorageService.instance.getTokenMetadata().isMember(address);
+            PendingRangeCalculatorService.instance.blockUntilFinished();
         }
         catch (Throwable e) // UnknownHostException
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void removeFromRing(IInstance peer)
+    {
+        try
+        {
+            IInstanceConfig config = peer.config();
+            IPartitioner partitioner = FBUtilities.newPartitioner(config.getString("partitioner"));
+            Token token = partitioner.getTokenFactory().fromString(config.getString("initial_token"));
+            InetAddress address = config.broadcastAddress().getAddress();
+
+            Gossiper.runInGossipStageBlocking(() -> {
+                StorageService.instance.onChange(address,
+                        ApplicationState.STATUS,
+                        new VersionedValue.VersionedValueFactory(partitioner).left(Collections.singleton(token), 0L));
+                Gossiper.instance.removeEndpoint(address);
+            });
+            PendingRangeCalculatorService.instance.blockUntilFinished();
+        }
+        catch (Throwable e) // UnknownHostException
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void addToRingNormal(IInstance peer)
+    {
+        addToRing(false, peer);
+        assert StorageService.instance.getTokenMetadata().isMember(peer.broadcastAddress().getAddress());
+    }
+
+    public static void addToRingBootstrapping(IInstance peer)
+    {
+        addToRing(true, peer);
+    }
+
+    private static void initializeRing(ICluster cluster)
+    {
+        for (int i = 1 ; i <= cluster.size() ; ++i)
+            addToRing(false, cluster.get(i));
+
+        for (int i = 1; i <= cluster.size(); ++i)
+            assert StorageService.instance.getTokenMetadata().isMember(cluster.get(i).broadcastAddress().getAddress());
+
+        StorageService.instance.setNormalModeUnsafe();
     }
 
     public Future<Void> shutdown()
