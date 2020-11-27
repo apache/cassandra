@@ -46,6 +46,14 @@ using the provided 'sstableupgrade' tool.
 =====
 Upgrading
 ---------
+    - This release fix a correctness issue with SERIAL reads, and LWT writes that do not apply.
+      Unfortunately, this fix has a performance impact on read performance at the SERIAL or
+      LOCAL_SERIAL consistency levels. For heavy users of such SERIAL reads, the performance
+      impact may be noticeable and may also result in an increased of timeouts. For that
+      reason, a opt-in system property has been added to disable the fix:
+        -Dcassandra.unsafe.disable-serial-reads-linearizability=true
+      Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
+      previous versions. See CASSANDRA-12126 for details.
     - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
       If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
       the node will not start. See CASSANDRA-14477 for details.

@@ -20,12 +20,9 @@
  */
 package org.apache.cassandra.service.paxos;
 
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 
-import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.Striped;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;

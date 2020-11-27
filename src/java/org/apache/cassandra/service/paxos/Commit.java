@@ -81,6 +81,12 @@ public class Commit
         return this.ballot.equals(ballot);
     }
 
+    /** Whether this is an empty commit, that is one with no updates. */
+    public boolean isEmpty()
+    {
+        return update.isEmpty();
+    }
+
     public Mutation makeMutation()
     {
         return new Mutation(update);
