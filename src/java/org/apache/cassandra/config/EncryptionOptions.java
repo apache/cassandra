@@ -232,7 +232,7 @@ public class EncryptionOptions
      * @param accepted_protocols value to set
      */
     public void setaccepted_protocols(List<String> accepted_protocols) {
-        this.accepted_protocols = ImmutableList.copyOf(accepted_protocols);
+        this.accepted_protocols = accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols);
     }
 
     /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
@@ -283,18 +283,12 @@ public class EncryptionOptions
     public String[] acceptedProtocolsArray()
     {
         List<String> ap = acceptedProtocols();
-        if (ap == null)
-            return new String[]{};
-        else
-            return ap.toArray(new String[0]);
+        return ap == null ?  new String[0] : ap.toArray(new String[0]);
     }
 
     public String[] cipherSuitesArray()
     {
-        if (cipher_suites == null)
-            return new String[]{};
-        else
-            return cipher_suites.toArray(new String[0]);
+        return cipher_suites == null ? new String[0] : cipher_suites.toArray(new String[0]);
     }
 
     public TlsEncryptionPolicy tlsEncryptionPolicy()
