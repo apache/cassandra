@@ -506,7 +506,8 @@ public abstract class AbstractCommitLogSegmentManager
         for (CommitLogSegment segment : activeSegments)
             segment.close();
 
-        bufferPool.emptyBufferPool();
+        if (bufferPool != null)
+            bufferPool.emptyBufferPool();
     }
 
     /**
