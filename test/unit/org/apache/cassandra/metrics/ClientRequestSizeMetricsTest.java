@@ -18,18 +18,22 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Collection;
+import java.util.stream.Collectors;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
 
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.metrics.ClearableHistogram;
-import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.Range;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -37,8 +41,21 @@ import static org.junit.Assert.assertEquals;
 /**
  * Ensures we properly account for metrics tracked in the native protocol
  */
+@RunWith(Parameterized.class)
 public class ClientRequestSizeMetricsTest extends CQLTester
 {
+
+    @Parameterized.Parameter
+    public ProtocolVersion version;
+
+    @Parameterized.Parameters()
+    public static Collection<Object[]> versions()
+    {
+        return ProtocolVersion.SUPPORTED.stream()
+                                        .map(v -> new Object[]{v})
+                                        .collect(Collectors.toList());
+    }
+
     @BeforeClass
     public static void setUp()
     {
@@ -52,10 +69,10 @@ public class ClientRequestSizeMetricsTest extends CQLTester
         // the event sent upon schema updates
         clearMetrics();
 
-        executeNet("SELECT * from system.peers");
+        executeNet(version, "SELECT * from system.peers");
 
-        long requestLength = ClientRequestSizeMetrics.totalBytesRead.getCount();
-        long responseLength = ClientRequestSizeMetrics.totalBytesWritten.getCount();
+        long requestLength = ClientMessageSizeMetrics.bytesReceived.getCount();
+        long responseLength = ClientMessageSizeMetrics.bytesSent.getCount();
 
         assertThat(requestLength).isGreaterThan(0);
         assertThat(responseLength).isGreaterThan(0);
@@ -63,7 +80,7 @@ public class ClientRequestSizeMetricsTest extends CQLTester
         checkMetrics(1, requestLength, responseLength);
 
         // Let's fire the same request again and test that the changes are the same that previously
-        executeNet("SELECT * from system.peers");
+        executeNet(version, "SELECT * from system.peers");
 
         checkMetrics(2, requestLength, responseLength);
     }
@@ -72,22 +89,22 @@ public class ClientRequestSizeMetricsTest extends CQLTester
     {
         Snapshot snapshot;
         long expectedTotalBytesRead = numberOfRequests * requestLength;
-        assertEquals(expectedTotalBytesRead, ClientRequestSizeMetrics.totalBytesRead.getCount());
+        assertEquals(expectedTotalBytesRead, ClientMessageSizeMetrics.bytesReceived.getCount());
 
         long expectedTotalBytesWritten = numberOfRequests * responseLength;
-        assertEquals(expectedTotalBytesWritten, ClientRequestSizeMetrics.totalBytesWritten.getCount());
+        assertEquals(expectedTotalBytesWritten, ClientMessageSizeMetrics.bytesSent.getCount());
 
         // The request fit in one single frame so we know the new number of received frames
-        assertEquals(numberOfRequests, ClientRequestSizeMetrics.bytesReceivedPerFrame.getCount());
+        assertEquals(numberOfRequests, ClientMessageSizeMetrics.bytesReceivedPerRequest.getCount());
 
-        snapshot = ClientRequestSizeMetrics.bytesReceivedPerFrame.getSnapshot();
+        snapshot = ClientMessageSizeMetrics.bytesReceivedPerRequest.getSnapshot();
         assertMin(snapshot, requestLength);
         assertMax(snapshot, requestLength);
 
         // The response fit in one single frame so we know the new number of received frames
-        assertEquals(numberOfRequests, ClientRequestSizeMetrics.bytesTransmittedPerFrame.getCount());
+        assertEquals(numberOfRequests, ClientMessageSizeMetrics.bytesSentPerResponse.getCount());
 
-        snapshot = ClientRequestSizeMetrics.bytesTransmittedPerFrame.getSnapshot();
+        snapshot = ClientMessageSizeMetrics.bytesSentPerResponse.getSnapshot();
         assertMin(snapshot, responseLength);
         assertMax(snapshot, responseLength);
     }
@@ -106,10 +123,10 @@ public class ClientRequestSizeMetricsTest extends CQLTester
 
     private void clearMetrics()
     {
-        clearCounter(ClientRequestSizeMetrics.totalBytesRead);
-        clearCounter(ClientRequestSizeMetrics.totalBytesWritten);
-        clearHistogram(ClientRequestSizeMetrics.bytesReceivedPerFrame);
-        clearHistogram(ClientRequestSizeMetrics.bytesTransmittedPerFrame);
+        clearCounter(ClientMessageSizeMetrics.bytesReceived);
+        clearCounter(ClientMessageSizeMetrics.bytesSent);
+        clearHistogram(ClientMessageSizeMetrics.bytesReceivedPerRequest);
+        clearHistogram(ClientMessageSizeMetrics.bytesSentPerResponse);
     }
 
     private void clearCounter(Counter counter)

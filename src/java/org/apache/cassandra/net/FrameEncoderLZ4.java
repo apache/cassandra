@@ -34,9 +34,10 @@ import static org.apache.cassandra.net.Crc.*;
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.
  */
 @ChannelHandler.Sharable
+public
 class FrameEncoderLZ4 extends FrameEncoder
 {
-    static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
+    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
 
     private final LZ4Compressor compressor;
 
@@ -46,7 +47,7 @@ class FrameEncoderLZ4 extends FrameEncoder
     }
 
     private static final int HEADER_LENGTH = 8;
-    static final int HEADER_AND_TRAILER_LENGTH = 12;
+    public static final int HEADER_AND_TRAILER_LENGTH = 12;
 
     private static void writeHeader(ByteBuffer frame, boolean isSelfContained, long compressedLength, long uncompressedLength)
     {

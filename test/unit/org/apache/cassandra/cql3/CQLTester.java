@@ -33,6 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -502,16 +503,46 @@ public abstract class CQLTester
     // lazy initialization for all tests that require Java Driver
     protected static void requireNetwork() throws ConfigurationException
     {
+        requireNetwork(server -> {});
+    }
+
+    // lazy initialization for all tests that require Java Driver
+    protected static void requireNetwork(Consumer<Server.Builder> decorator) throws ConfigurationException
+    {
         if (server != null)
             return;
 
         SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
-
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
+        initializeNetwork(decorator);
+    }
 
-        server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
+    protected static void reinitializeNetwork()
+    {
+        if (server != null && server.isRunning())
+        {
+            server.stop();
+            server = null;
+        }
+        List<CloseFuture> futures = new ArrayList<>();
+        for (Cluster cluster : clusters.values())
+            futures.add(cluster.closeAsync());
+        for (Session session : sessions.values())
+            futures.add(session.closeAsync());
+        FBUtilities.waitOnFutures(futures);
+        clusters.clear();
+        sessions.clear();
+
+        initializeNetwork(server -> {});
+    }
+
+    private static void initializeNetwork(Consumer<Server.Builder> decorator)
+    {
+        Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
+        decorator.accept(serverBuilder);
+        server = serverBuilder.build();
         ClientMetrics.instance.init(Collections.singleton(server));
         server.start();
 
@@ -1043,14 +1074,10 @@ public abstract class CQLTester
         return sessions.get(protocolVersion);
     }
 
-    protected SimpleClient newSimpleClient(ProtocolVersion version, boolean compression, boolean checksums, boolean isOverloadedException) throws IOException
+    protected SimpleClient newSimpleClient(ProtocolVersion version) throws IOException
     {
-        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions().applyConfig()).connect(compression, checksums, isOverloadedException);
-    }
-
-    protected SimpleClient newSimpleClient(ProtocolVersion version, boolean compression, boolean checksums) throws IOException
-    {
-        return newSimpleClient(version, compression, checksums, false);
+        return new SimpleClient(nativeAddr.getHostAddress(), nativePort, version, version.isBeta(), new EncryptionOptions().applyConfig())
+               .connect(false, false);
     }
 
     protected String formatQuery(String query)

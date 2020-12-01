@@ -30,7 +30,7 @@ import org.apache.commons.lang3.ArrayUtils;
  * The native (CQL binary) protocol version.
  *
  * Some versions may be in beta, which means that the client must
- * specify the beta flag in the frame for the version to be considered valid.
+ * specify the beta flag in the envelope's header for the version to be considered valid.
  * Beta versions must have the word "beta" in their description, this is mandated
  * by the specs.
  *
@@ -67,7 +67,7 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     final static ProtocolVersion MAX_SUPPORTED_VERSION = SUPPORTED_VERSIONS[SUPPORTED_VERSIONS.length - 1];
 
     /** All supported versions, published as an enumset */
-    public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList((ProtocolVersion[]) ArrayUtils.addAll(SUPPORTED_VERSIONS)));
+    public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList(ArrayUtils.addAll(SUPPORTED_VERSIONS)));
 
     /** Old unsupported versions, this is OK as long as we never add newer unsupported versions */
     public final static EnumSet<ProtocolVersion> UNSUPPORTED = EnumSet.complementOf(SUPPORTED);
@@ -134,11 +134,6 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     public int asInt()
     {
         return num;
-    }
-
-    public boolean supportsChecksums()
-    {
-        return num >= V5.asInt();
     }
 
     @Override

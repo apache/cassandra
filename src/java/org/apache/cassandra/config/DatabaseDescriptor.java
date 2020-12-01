@@ -514,9 +514,6 @@ public class DatabaseDescriptor
         checkValidForByteConversion(conf.batch_size_warn_threshold_in_kb,
                                     "batch_size_warn_threshold_in_kb", ByteUnit.KIBI_BYTES);
 
-        checkValidForByteConversion(conf.native_transport_frame_block_size_in_kb,
-                                    "native_transport_frame_block_size_in_kb", ByteUnit.KIBI_BYTES);
-
         if (conf.native_transport_max_negotiable_protocol_version != null)
             logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
                         "and should be removed from cassandra.yaml as it has no longer has any effect.");
@@ -2192,11 +2189,6 @@ public class DatabaseDescriptor
         conf.native_transport_allow_older_protocols = isEnabled;
     }
 
-    public static int getNativeTransportFrameBlockSize()
-    {
-        return (int) ByteUnit.KIBI_BYTES.toBytes(conf.native_transport_frame_block_size_in_kb);
-    }
-
     public static double getCommitLogSyncGroupWindow()
     {
         return conf.commitlog_sync_group_window_in_ms;
@@ -2205,6 +2197,16 @@ public class DatabaseDescriptor
     public static void setCommitLogSyncGroupWindow(double windowMillis)
     {
         conf.commitlog_sync_group_window_in_ms = windowMillis;
+    }
+
+    public static int getNativeTransportReceiveQueueCapacityInBytes()
+    {
+        return conf.native_transport_receive_queue_capacity_in_bytes;
+    }
+
+    public static void setNativeTransportReceiveQueueCapacityInBytes(int queueSize)
+    {
+        conf.native_transport_receive_queue_capacity_in_bytes = queueSize;
     }
 
     public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
