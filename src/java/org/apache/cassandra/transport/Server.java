@@ -17,38 +17,23 @@
  */
 package org.apache.cassandra.transport;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Reservoir;
-import com.codahale.metrics.Snapshot;
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.ByteToMessageDecoder;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslHandler;
-import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.handler.timeout.IdleStateHandler;
-import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
@@ -57,11 +42,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
-import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -89,8 +71,8 @@ public class Server implements CassandraDaemon.Server
     public final InetSocketAddress socket;
     public final EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
-
-    private EventLoopGroup workerGroup;
+    private final PipelineConfigurator pipelineConfigurator;
+    private final EventLoopGroup workerGroup;
 
     private Server (Builder builder)
     {
@@ -107,6 +89,14 @@ public class Server implements CassandraDaemon.Server
             else
                 workerGroup = new NioEventLoopGroup();
         }
+
+        pipelineConfigurator = builder.pipelineConfigurator != null
+                               ? builder.pipelineConfigurator
+                               : new PipelineConfigurator(useEpoll,
+                                                          DatabaseDescriptor.getRpcKeepAlive(),
+                                                          DatabaseDescriptor.useNativeTransportLegacyFlusher(),
+                                                          builder.tlsEncryptionPolicy);
+
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
@@ -129,40 +119,7 @@ public class Server implements CassandraDaemon.Server
             return;
 
         // Configure the server.
-        ServerBootstrap bootstrap = new ServerBootstrap()
-                                    .channel(useEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
-                                    .childOption(ChannelOption.TCP_NODELAY, true)
-                                    .childOption(ChannelOption.SO_LINGER, 0)
-                                    .childOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
-                                    .childOption(ChannelOption.ALLOCATOR, CBUtil.allocator)
-                                    .childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 32 * 1024)
-                                    .childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 8 * 1024);
-        if (workerGroup != null)
-            bootstrap = bootstrap.group(workerGroup);
-
-        final EncryptionOptions clientEnc = DatabaseDescriptor.getNativeProtocolEncryptionOptions();
-
-        switch (this.tlsEncryptionPolicy)
-        {
-            case UNENCRYPTED:
-                bootstrap.childHandler(new Initializer(this));
-                break;
-            case OPTIONAL:
-                logger.debug("Enabling optionally encrypted CQL connections between client and server");
-                bootstrap.childHandler(new OptionalSecureInitializer(this, clientEnc));
-                break;
-            case ENCRYPTED:
-                logger.debug("Enabling encrypted CQL connections between client and server");
-                bootstrap.childHandler(new SecureInitializer(this, clientEnc));
-                break;
-            default:
-                throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);
-        }
-
-        // Bind and start to accept incoming connections.
-        logger.info("Starting listening for CQL clients on {} ({})...", socket, clientEnc.tlsEncryptionPolicy().description());
-
-        ChannelFuture bindFuture = bootstrap.bind(socket);
+        ChannelFuture bindFuture = pipelineConfigurator.initializeChannel(workerGroup, socket, connectionFactory);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
             throw new IllegalStateException(String.format("Failed to bind port %d on %s.", socket.getPort(), socket.getAddress().getHostAddress()),
                                             bindFuture.cause());
@@ -215,11 +172,11 @@ public class Server implements CassandraDaemon.Server
     public static class Builder
     {
         private EventLoopGroup workerGroup;
-        private EventExecutor eventExecutorGroup;
         private EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy = EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
         private InetAddress hostAddr;
         private int port = -1;
         private InetSocketAddress socket;
+        private PipelineConfigurator pipelineConfigurator;
 
         public Builder withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy)
         {
@@ -244,6 +201,12 @@ public class Server implements CassandraDaemon.Server
         {
             this.port = port;
             this.socket = null;
+            return this;
+        }
+
+        public Builder withPipelineConfigurator(PipelineConfigurator configurator)
+        {
+            this.pipelineConfigurator = configurator;
             return this;
         }
 
@@ -332,256 +295,6 @@ public class Server implements CassandraDaemon.Server
             return result;
         }
 
-    }
-
-    // global inflight payload across all channels across all endpoints
-    private static final ResourceLimits.Concurrent globalRequestPayloadInFlight = new ResourceLimits.Concurrent(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
-
-    public static class EndpointPayloadTracker
-    {
-        // inflight payload per endpoint across corresponding channels
-        private static final ConcurrentMap<InetAddress, EndpointPayloadTracker> requestPayloadInFlightPerEndpoint = new ConcurrentHashMap<>();
-
-        private final AtomicInteger refCount = new AtomicInteger(0);
-        private final InetAddress endpoint;
-
-        final ResourceLimits.EndpointAndGlobal endpointAndGlobalPayloadsInFlight = new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Concurrent(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp()),
-                                                                                                                         globalRequestPayloadInFlight);
-
-        private EndpointPayloadTracker(InetAddress endpoint)
-        {
-            this.endpoint = endpoint;
-        }
-
-        public static EndpointPayloadTracker get(InetAddress endpoint)
-        {
-            while (true)
-            {
-                EndpointPayloadTracker result = requestPayloadInFlightPerEndpoint.computeIfAbsent(endpoint, EndpointPayloadTracker::new);
-                if (result.acquire())
-                    return result;
-
-                requestPayloadInFlightPerEndpoint.remove(endpoint, result);
-            }
-        }
-
-        public static long getCurrentGlobalUsage()
-        {
-            return globalRequestPayloadInFlight.using();
-        }
-
-        public static Snapshot getCurrentIpUsage()
-        {
-            DecayingEstimatedHistogramReservoir histogram = new DecayingEstimatedHistogramReservoir();
-            for (EndpointPayloadTracker tracker : requestPayloadInFlightPerEndpoint.values())
-            {
-                histogram.update(tracker.endpointAndGlobalPayloadsInFlight.endpoint().using());
-            }
-            return histogram.getSnapshot();
-        }
-
-        public static long getGlobalLimit()
-        {
-            return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes();
-        }
-
-        public static void setGlobalLimit(long newLimit)
-        {
-            DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(newLimit);
-            long existingLimit = globalRequestPayloadInFlight.setLimit(DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytes());
-
-            logger.info("Changed native_max_transport_requests_in_bytes from {} to {}", existingLimit, newLimit);
-        }
-
-        public static long getEndpointLimit()
-        {
-            return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
-        }
-
-        public static void setEndpointLimit(long newLimit)
-        {
-            long existingLimit = DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsInBytesPerIp();
-            DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(newLimit); // ensure new trackers get the new limit
-            for (EndpointPayloadTracker tracker : requestPayloadInFlightPerEndpoint.values())
-                existingLimit = tracker.endpointAndGlobalPayloadsInFlight.endpoint().setLimit(newLimit);
-
-            logger.info("Changed native_max_transport_requests_in_bytes_per_ip from {} to {}", existingLimit, newLimit);
-        }
-
-        private boolean acquire()
-        {
-            return 0 < refCount.updateAndGet(i -> i < 0 ? i : i + 1);
-        }
-
-        public void release()
-        {
-            if (-1 == refCount.updateAndGet(i -> i == 1 ? -1 : i - 1))
-                requestPayloadInFlightPerEndpoint.remove(endpoint, this);
-        }
-
-        /**
-         * This will recompute the ip usage histo on each query of the snapshot when requested instead of trying to keep
-         * a histogram up to date with each request
-         */
-        public static Reservoir ipUsageReservoir()
-        {
-            return new Reservoir()
-            {
-                public int size()
-                {
-                    return requestPayloadInFlightPerEndpoint.size();
-                }
-
-                public void update(long l)
-                {
-                    throw new IllegalStateException();
-                }
-
-                public Snapshot getSnapshot()
-                {
-                    return getCurrentIpUsage();
-                }
-            };
-        }
-    }
-
-    private static class Initializer extends ChannelInitializer<Channel>
-    {
-        // Stateless handlers
-        private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
-        private static final Message.ProtocolEncoder messageEncoder = new Message.ProtocolEncoder();
-        private static final Frame.InboundBodyTransformer inboundFrameTransformer = new Frame.InboundBodyTransformer();
-        private static final Frame.OutboundBodyTransformer outboundFrameTransformer = new Frame.OutboundBodyTransformer();
-        private static final Frame.Encoder frameEncoder = new Frame.Encoder();
-        private static final Message.ExceptionHandler exceptionHandler = new Message.ExceptionHandler();
-        private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
-
-        private final Server server;
-
-        public Initializer(Server server)
-        {
-            this.server = server;
-        }
-
-        protected void initChannel(Channel channel) throws Exception
-        {
-            ChannelPipeline pipeline = channel.pipeline();
-
-            // Add the ConnectionLimitHandler to the pipeline if configured to do so.
-            if (DatabaseDescriptor.getNativeTransportMaxConcurrentConnections() > 0
-                    || DatabaseDescriptor.getNativeTransportMaxConcurrentConnectionsPerIp() > 0)
-            {
-                // Add as first to the pipeline so the limit is enforced as first action.
-                pipeline.addFirst("connectionLimitHandler", connectionLimitHandler);
-            }
-
-            long idleTimeout = DatabaseDescriptor.nativeTransportIdleTimeout();
-            if (idleTimeout > 0)
-            {
-                pipeline.addLast("idleStateHandler", new IdleStateHandler(false, 0, 0, idleTimeout, TimeUnit.MILLISECONDS)
-                {
-                    @Override
-                    protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt)
-                    {
-                        logger.info("Closing client connection {} after timeout of {}ms", channel.remoteAddress(), idleTimeout);
-                        ctx.close();
-                    }
-                });
-            }
-
-            //pipeline.addLast("debug", new LoggingHandler());
-
-            pipeline.addLast("frameDecoder", new Frame.Decoder(server.connectionFactory));
-            pipeline.addLast("frameEncoder", frameEncoder);
-
-            pipeline.addLast("inboundFrameTransformer", inboundFrameTransformer);
-            pipeline.addLast("outboundFrameTransformer", outboundFrameTransformer);
-
-            pipeline.addLast("messageDecoder", messageDecoder);
-            pipeline.addLast("messageEncoder", messageEncoder);
-
-            pipeline.addLast("executor", new Message.Dispatcher(DatabaseDescriptor.useNativeTransportLegacyFlusher(),
-                                                                EndpointPayloadTracker.get(((InetSocketAddress) channel.remoteAddress()).getAddress())));
-
-            // The exceptionHandler will take care of handling exceptionCaught(...) events while still running
-            // on the same EventLoop as all previous added handlers in the pipeline. This is important as the used
-            // eventExecutorGroup may not enforce strict ordering for channel events.
-            // As the exceptionHandler runs in the EventLoop as the previous handlers we are sure all exceptions are
-            // correctly handled before the handler itself is removed.
-            // See https://issues.apache.org/jira/browse/CASSANDRA-13649
-            pipeline.addLast("exceptionHandler", exceptionHandler);
-        }
-    }
-
-    protected abstract static class AbstractSecureIntializer extends Initializer
-    {
-        private final EncryptionOptions encryptionOptions;
-
-        protected AbstractSecureIntializer(Server server, EncryptionOptions encryptionOptions)
-        {
-            super(server);
-            this.encryptionOptions = encryptionOptions;
-        }
-
-        protected final SslHandler createSslHandler(ByteBufAllocator allocator) throws IOException
-        {
-            SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth, SSLFactory.SocketType.SERVER);
-            return sslContext.newHandler(allocator);
-        }
-    }
-
-    private static class OptionalSecureInitializer extends AbstractSecureIntializer
-    {
-        public OptionalSecureInitializer(Server server, EncryptionOptions encryptionOptions)
-        {
-            super(server, encryptionOptions);
-        }
-
-        protected void initChannel(final Channel channel) throws Exception
-        {
-            super.initChannel(channel);
-            channel.pipeline().addFirst("sslDetectionHandler", new ByteToMessageDecoder()
-            {
-                @Override
-                protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
-                {
-                    if (byteBuf.readableBytes() < 5)
-                    {
-                        // To detect if SSL must be used we need to have at least 5 bytes, so return here and try again
-                        // once more bytes a ready.
-                        return;
-                    }
-                    if (SslHandler.isEncrypted(byteBuf))
-                    {
-                        // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
-                        // encryption.
-                        SslHandler sslHandler = createSslHandler(channel.alloc());
-                        channelHandlerContext.pipeline().replace(this, "ssl", sslHandler);
-                    }
-                    else
-                    {
-                        // Connection use no TLS/SSL encryption, just remove the detection handler and continue without
-                        // SslHandler in the pipeline.
-                        channelHandlerContext.pipeline().remove(this);
-                    }
-                }
-            });
-        }
-    }
-
-    private static class SecureInitializer extends AbstractSecureIntializer
-    {
-        public SecureInitializer(Server server, EncryptionOptions encryptionOptions)
-        {
-            super(server, encryptionOptions);
-        }
-
-        protected void initChannel(Channel channel) throws Exception
-        {
-            SslHandler sslHandler = createSslHandler(channel.alloc());
-            super.initChannel(channel);
-            channel.pipeline().addFirst("ssl", sslHandler);
-        }
     }
 
     private static class LatestEvent

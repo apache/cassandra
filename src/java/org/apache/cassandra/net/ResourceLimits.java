@@ -163,12 +163,12 @@ public abstract class ResourceLimits
     /**
      * A cheaper, thread-unsafe permit container to be used for unshared limits.
      */
-    static class Basic implements Limit
+    public static class Basic implements Limit
     {
         private long limit;
         private long using;
 
-        Basic(long limit)
+        public Basic(long limit)
         {
             this.limit = limit;
         }

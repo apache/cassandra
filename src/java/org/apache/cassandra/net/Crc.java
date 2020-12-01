@@ -24,7 +24,7 @@ import java.util.zip.CRC32;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocal;
 
-class Crc
+public class Crc
 {
     private static final FastThreadLocal<CRC32> crc32 = new FastThreadLocal<CRC32>()
     {
@@ -37,9 +37,9 @@ class Crc
 
     private static final byte[] initialBytes = new byte[] { (byte) 0xFA, (byte) 0x2D, (byte) 0x55, (byte) 0xCA };
 
-    static final class InvalidCrc extends IOException
+    public static final class InvalidCrc extends IOException
     {
-        InvalidCrc(int read, int computed)
+        public InvalidCrc(int read, int computed)
         {
             super(String.format("Read %d, Computed %d", read, computed));
         }

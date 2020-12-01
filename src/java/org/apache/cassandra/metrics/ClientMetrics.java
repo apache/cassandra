@@ -25,9 +25,7 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Reservoir;
-import org.apache.cassandra.transport.ClientStat;
-import org.apache.cassandra.transport.ConnectedClient;
-import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.*;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -90,9 +88,9 @@ public final class ClientMetrics
         registerGauge("ConnectedNativeClientsByUser", "connectedNativeClientsByUser", this::countConnectedClientsByUser);
         registerGauge("Connections", "connections", this::connectedClients);
         registerGauge("ClientsByProtocolVersion", "clientsByProtocolVersion", this::recentClientStats);
-        registerGauge("RequestsSize", Server.EndpointPayloadTracker::getCurrentGlobalUsage);
+        registerGauge("RequestsSize", ClientResourceLimits::getCurrentGlobalUsage);
 
-        Reservoir ipUsageReservoir = Server.EndpointPayloadTracker.ipUsageReservoir();
+        Reservoir ipUsageReservoir = ClientResourceLimits.ipUsageReservoir();
         Metrics.register(factory.createMetricName("RequestsSizeByIpDistribution"),
                          new Histogram(ipUsageReservoir)
         {
