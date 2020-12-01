@@ -3224,4 +3224,42 @@ public class DatabaseDescriptor
     {
         return conf.autocompaction_on_startup_enabled;
     }
+
+    public static boolean autoOptimiseIncRepairStreams()
+    {
+        return conf.auto_optimise_inc_repair_streams;
+    }
+
+    public static void setAutoOptimiseIncRepairStreams(boolean enabled)
+    {
+        if (enabled != conf.auto_optimise_inc_repair_streams)
+            logger.info("Changing auto_optimise_inc_repair_streams from {} to {}", conf.auto_optimise_inc_repair_streams, enabled);
+        conf.auto_optimise_inc_repair_streams = enabled;
+    }
+
+    public static boolean autoOptimiseFullRepairStreams()
+    {
+        return conf.auto_optimise_full_repair_streams;
+    }
+
+    public static void setAutoOptimiseFullRepairStreams(boolean enabled)
+    {
+        if (enabled != conf.auto_optimise_full_repair_streams)
+            logger.info("Changing auto_optimise_full_repair_streams from {} to {}", conf.auto_optimise_full_repair_streams, enabled);
+        conf.auto_optimise_full_repair_streams = enabled;
+    }
+
+    public static boolean autoOptimisePreviewRepairStreams()
+    {
+        return conf.auto_optimise_preview_repair_streams;
+    }
+
+    public static void setAutoOptimisePreviewRepairStreams(boolean enabled)
+    {
+        if (enabled != conf.auto_optimise_preview_repair_streams)
+            logger.info("Changing auto_optimise_preview_repair_streams from {} to {}", conf.auto_optimise_preview_repair_streams, enabled);
+        conf.auto_optimise_preview_repair_streams = enabled;
+    }
+
+
 }
