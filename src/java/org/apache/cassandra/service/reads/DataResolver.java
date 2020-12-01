@@ -20,8 +20,11 @@ package org.apache.cassandra.service.reads;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
 import com.google.common.base.Joiner;
 
@@ -55,17 +58,20 @@ import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
 import static com.google.common.collect.Iterables.*;
+import static java.util.stream.Collectors.toSet;
 
 public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
     private final ReadRepair<E, P> readRepair;
+    private final Set<String> indicesNotNeedingReplicaProtection;
 
     public DataResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
         super(command, replicaPlan, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
+        indicesNotNeedingReplicaProtection = getIndicesNotNeedingReplicaProtection();
     }
 
     public PartitionIterator getData()
@@ -125,10 +131,27 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (indexDef != null && indexDef.isCustom())
         {
             String className = indexDef.options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return !SASIIndex.class.getName().equals(className);
+            return !indicesNotNeedingReplicaProtection.contains(className);
         }
 
         return true;
+    }
+
+    private Set<String> getIndicesNotNeedingReplicaProtection()
+    {
+        String fromProperty = System.getProperty("cassandra.indices.not.needing.replica.filtering.protection");
+
+        Set<String> indexes = new HashSet<>();
+
+        if (fromProperty != null)
+        {
+            indexes.addAll(Stream.of(fromProperty.split(",")).map(String::trim).filter(index -> !index.isEmpty()).collect(toSet()));
+        }
+
+        // this one should be there every time
+        indexes.add(SASIIndex.class.getName());
+
+        return indexes;
     }
 
     private class ResolveContext
