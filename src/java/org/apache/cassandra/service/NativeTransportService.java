@@ -36,7 +36,7 @@ import io.netty.util.Version;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
-import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
 
@@ -151,7 +151,7 @@ public class NativeTransportService
         // shutdown executors used by netty for native transport server
         workerGroup.shutdownGracefully(3, 5, TimeUnit.SECONDS).awaitUninterruptibly();
 
-        Message.Dispatcher.shutdown();
+        Dispatcher.shutdown();
     }
 
     /**

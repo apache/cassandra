@@ -102,6 +102,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
+import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.*;
@@ -5682,25 +5683,25 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public long getNativeTransportMaxConcurrentRequestsInBytes()
     {
-        return Server.EndpointPayloadTracker.getGlobalLimit();
+        return ClientResourceLimits.getGlobalLimit();
     }
 
     @Override
     public void setNativeTransportMaxConcurrentRequestsInBytes(long newLimit)
     {
-        Server.EndpointPayloadTracker.setGlobalLimit(newLimit);
+        ClientResourceLimits.setGlobalLimit(newLimit);
     }
 
     @Override
     public long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
     {
-        return Server.EndpointPayloadTracker.getEndpointLimit();
+        return ClientResourceLimits.getEndpointLimit();
     }
 
     @Override
     public void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long newLimit)
     {
-        Server.EndpointPayloadTracker.setEndpointLimit(newLimit);
+        ClientResourceLimits.setEndpointLimit(newLimit);
     }
 
     @VisibleForTesting

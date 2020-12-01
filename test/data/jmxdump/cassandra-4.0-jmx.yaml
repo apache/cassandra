@@ -10275,7 +10275,7 @@ org.apache.cassandra.metrics:type=ClientRequest,scope=Write-TWO,name=Unavailable
   - name: objectName
     parameters: []
     returnType: javax.management.ObjectName
-org.apache.cassandra.metrics:type=ClientRequestSize,name=BytesRecievedPerFrame:
+org.apache.cassandra.metrics:type=ClientMessageSize,name=BytesReceivedPerRequest:
   attributes:
   - {access: read-only, name: 50thPercentile, type: double}
   - {access: read-only, name: 75thPercentile, type: double}
@@ -10296,7 +10296,7 @@ org.apache.cassandra.metrics:type=ClientRequestSize,name=BytesRecievedPerFrame:
   - name: values
     parameters: []
     returnType: long[]
-org.apache.cassandra.metrics:type=ClientRequestSize,name=BytesTransmittedPerFrame:
+org.apache.cassandra.metrics:type=ClientMessageSize,name=BytesSentPerResponse:
   attributes:
   - {access: read-only, name: 50thPercentile, type: double}
   - {access: read-only, name: 75thPercentile, type: double}
@@ -10317,14 +10317,14 @@ org.apache.cassandra.metrics:type=ClientRequestSize,name=BytesTransmittedPerFram
   - name: values
     parameters: []
     returnType: long[]
-org.apache.cassandra.metrics:type=ClientRequestSize,name=IncomingBytes:
+org.apache.cassandra.metrics:type=ClientMessageSize,name=BytesReceived:
   attributes:
   - {access: read-only, name: Count, type: long}
   operations:
   - name: objectName
     parameters: []
     returnType: javax.management.ObjectName
-org.apache.cassandra.metrics:type=ClientRequestSize,name=OutgoingBytes:
+org.apache.cassandra.metrics:type=ClientMessageSize,name=BytesSent:
   attributes:
   - {access: read-only, name: Count, type: long}
   operations:
