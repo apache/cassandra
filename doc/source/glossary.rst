@@ -12,7 +12,7 @@ Glossary
 	   A file to which the database appends changed data for recovery in the event of a hardware failure.
 
 	datacenter
-	   A group of related nodes that are configured together within a cluster for replication and workload segregation purposes. 
+	   A group of related nodes that are configured together within a cluster for replication and workload isolation purposes. 
   	   Not necessarily a separate location or physical data center. Datacenter names are case-sensitive and cannot be changed.
 
 	gossip
