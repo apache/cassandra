@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.net.InetAddress;
+import java.util.Collections;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
@@ -213,6 +214,91 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
                 long successfulConnectionAttempts = (long) result[0][0];
                 Assert.assertTrue("At least one connection: " + successfulConnectionAttempts, successfulConnectionAttempts > 0);
             }
+        }
+    }
+
+    @Test
+    public void negotiatedProtocolMustBeAcceptedProtocolTest() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NETWORK);
+            c.set("server_encryption_options",
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("internode_encryption", "all")
+                              .put("accepted_protocols", Collections.singletonList("TLSv1.1"))
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+            int port = cluster.get(1).config().broadcastAddress().getPort();
+
+            TlsConnection tls10Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1"));
+            Assert.assertEquals("Should not be possible to establish a TLSv1 connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, tls10Connection.connect());
+            tls10Connection.assertReceivedHandshakeException();
+
+            TlsConnection tls11Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.1"));
+            Assert.assertEquals("Should be possible to establish a TLSv1.1 connection",
+                                ConnectResult.NEGOTIATED, tls11Connection.connect());
+            Assert.assertEquals("TLSv1.1", tls11Connection.lastProtocol());
+
+            TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
+            Assert.assertEquals("Should not be possible to establish a TLSv1.2 connection",
+                                ConnectResult.FAILED_TO_NEGOTIATE, tls12Connection.connect());
+            tls12Connection.assertReceivedHandshakeException();
+        }
+    }
+
+    @Test
+    public void connectionCannotAgreeOnClientAndServer() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NETWORK);
+            c.set("server_encryption_options",
+                  ImmutableMap.builder().putAll(validKeystore)
+                              .put("internode_encryption", "all")
+                              .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
+                              .put("cipher_suites", Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384"))
+                              .build());
+        }).start())
+        {
+            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
+            int port = cluster.get(1).config().broadcastAddress().getPort();
+
+            TlsConnection connection = new TlsConnection(address.getHostAddress(), port,
+                                                         Collections.singletonList("TLSv1.2"),
+                                                         Collections.singletonList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256"));
+            Assert.assertEquals("Should not be possible to establish a TLSv1.2 connection with different ciphers",
+                                ConnectResult.FAILED_TO_NEGOTIATE, connection.connect());
+            connection.assertReceivedHandshakeException();
+        }
+    }
+
+    @Test
+    public void nodeMustNotStartWithNonExistantProtocol() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NETWORK);
+            c.set("server_encryption_options",
+                  ImmutableMap.<String,Object>builder().putAll(nonExistantProtocol)
+                                                       .put("internode_encryption", "all").build());
+        }).createWithoutStarting())
+        {
+            assertCannotStartDueToConfigurationException(cluster);
+        }
+    }
+
+    @Test
+    public void nodeMustNotStartWithNonExistantCipher() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
+            c.with(Feature.NETWORK);
+            c.set("server_encryption_options",
+                  ImmutableMap.<String,Object>builder().putAll(nonExistantCipher)
+                                                       .put("internode_encryption", "all").build());
+        }).createWithoutStarting())
+        {
+            assertCannotStartDueToConfigurationException(cluster);
         }
     }
 }
