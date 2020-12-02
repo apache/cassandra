@@ -75,14 +75,10 @@ patch -p1 < debian/patches/cassandra_logdir_fix.diff
 # uncomment hints_directory path
 sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 
-# remove batch, powershell, and other files not being installed
-rm -f conf/*.ps1
-rm -f bin/*.bat
+# remove other files not being installed
 rm -f bin/*.orig
-rm -f bin/*.ps1
 rm -f bin/cassandra.in.sh
 rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
-rm -f tools/bin/*.bat
 rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
