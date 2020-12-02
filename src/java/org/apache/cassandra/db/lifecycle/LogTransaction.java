@@ -154,7 +154,10 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     void untrackNew(SSTable table)
     {
-        txnFile.remove(table);
+        synchronized (lock)
+        {
+            txnFile.remove(table);
+        }
     }
 
     /**
