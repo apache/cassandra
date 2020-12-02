@@ -126,6 +126,7 @@ exit 0
 %attr(755,root,root) %{_bindir}/cqlsh.py
 %attr(755,root,root) %{_bindir}/debug-cql
 %attr(755,root,root) %{_bindir}/fqltool
+%attr(755,root,root) %{_bindir}/generatetokens
 %attr(755,root,root) %{_bindir}/nodetool
 %attr(755,root,root) %{_bindir}/sstableloader
 %attr(755,root,root) %{_bindir}/sstablescrub
@@ -180,6 +181,7 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/auditlogviewer
 %attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/fqltool
+%attr(755,root,root) %{_bindir}/generatetokens
 
 
 %changelog
