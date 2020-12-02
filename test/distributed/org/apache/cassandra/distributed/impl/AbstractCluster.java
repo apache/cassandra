@@ -305,6 +305,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             }
         }
 
+        @Override
         public void uncaughtException(Thread thread, Throwable throwable)
         {
             IInvokableInstance delegate = this.delegate;
@@ -312,6 +313,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 delegate.uncaughtException(thread, throwable);
             else
                 logger.error("uncaught exception in thread {}", thread, throwable);
+        }
+
+        @Override
+        public String toString()
+        {
+            IInvokableInstance delegate = this.delegate;
+            return delegate == null ? "node" + config.num() : delegate.toString();
         }
     }
 

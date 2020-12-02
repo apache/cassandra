@@ -439,12 +439,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (registerBookeeping)
         {
             // register the mbean
-            mbeanName = String.format("org.apache.cassandra.db:type=%s,keyspace=%s,table=%s",
-                                         isIndex() ? "IndexTables" : "Tables",
-                                         keyspace.getName(), name);
-            oldMBeanName = String.format("org.apache.cassandra.db:type=%s,keyspace=%s,columnfamily=%s",
-                                         isIndex() ? "IndexColumnFamilies" : "ColumnFamilies",
-                                         keyspace.getName(), name);
+            mbeanName = getTableMBeanName(keyspace.getName(), name, isIndex());
+            oldMBeanName = getColumnFamilieMBeanName(keyspace.getName(), name, isIndex());
 
             String[] objectNames = {mbeanName, oldMBeanName};
             for (String objectName : objectNames)
@@ -459,6 +455,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
+    }
+
+    public static String getTableMBeanName(String ks, String name, boolean isIndex)
+    {
+        return String.format("org.apache.cassandra.db:type=%s,keyspace=%s,table=%s",
+                      isIndex ? "IndexTables" : "Tables",
+                      ks, name);
+    }
+
+    public static String getColumnFamilieMBeanName(String ks, String name, boolean isIndex)
+    {
+       return String.format("org.apache.cassandra.db:type=%s,keyspace=%s,columnfamily=%s",
+                            isIndex ? "IndexColumnFamilies" : "ColumnFamilies",
+                            ks, name);
     }
 
     public void updateSpeculationThreshold()
