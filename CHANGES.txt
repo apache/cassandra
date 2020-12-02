@@ -1,4 +1,5 @@
 4.0-beta4
+ * Add generatetokens script for offline token allocation strategy generation (CASSANDRA-16205)
  * Remove Windows scripts (CASSANDRA-16171)
  * Improve checksumming and compression in protocol V5 (CASSANDRA-15299)
  * Optimised repair streaming improvements (CASSANDRA-16274)
