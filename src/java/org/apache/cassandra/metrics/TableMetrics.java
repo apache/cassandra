@@ -62,6 +62,18 @@ import com.codahale.metrics.RatioGauge;
  */
 public class TableMetrics
 {
+    /**
+     * stores metrics that will be rolled into a single global metric
+     */
+    private static final ConcurrentMap<String, Set<Metric>> ALL_TABLE_METRICS = Maps.newConcurrentMap();
+    public static final long[] EMPTY = new long[0];
+    private static final MetricNameFactory GLOBAL_FACTORY = new AllTableMetricNameFactory("Table");
+    private static final MetricNameFactory GLOBAL_ALIAS_FACTORY = new AllTableMetricNameFactory("ColumnFamily");
+
+    public final static LatencyMetrics GLOBAL_READ_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Read");
+    public final static LatencyMetrics GLOBAL_WRITE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Write");
+    public final static LatencyMetrics GLOBAL_RANGE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Range");
+
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapDataSize;
     /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and partitions overwritten. */
@@ -205,8 +217,6 @@ public class TableMetrics
 
     private final MetricNameFactory factory;
     private final MetricNameFactory aliasFactory;
-    private static final MetricNameFactory globalFactory = new AllTableMetricNameFactory("Table");
-    private static final MetricNameFactory globalAliasFactory = new AllTableMetricNameFactory("ColumnFamily");
 
     public final Counter speculativeRetries;
     public final Counter speculativeFailedRetries;
@@ -237,10 +247,6 @@ public class TableMetrics
     // the repaired data on each replica. These are tracked on each replica.
     public final TableHistogram repairedDataTrackingOverreadRows;
     public final TableTimer repairedDataTrackingOverreadTime;
-
-    public final static LatencyMetrics globalReadLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Read");
-    public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
-    public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
 
     /** When sampler activated, will track the most frequently read partitions **/
     public final Sampler<ByteBuffer> topReadPartitionFrequency;
@@ -284,7 +290,7 @@ public class TableMetrics
         return Pair.create(filtered, total);
     }
 
-    public static final Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
+    public static final Gauge<Double> globalPercentRepaired = Metrics.register(GLOBAL_FACTORY.createMetricName("PercentRepaired"),
                                                                                new Gauge<Double>()
     {
         public Double getValue()
@@ -296,15 +302,15 @@ public class TableMetrics
         }
     });
 
-    public static final Gauge<Long> globalBytesRepaired = Metrics.register(globalFactory.createMetricName("BytesRepaired"),
+    public static final Gauge<Long> globalBytesRepaired = Metrics.register(GLOBAL_FACTORY.createMetricName("BytesRepaired"),
                                                                            () -> totalNonSystemTablesSize(SSTableReader::isRepaired).left);
 
     public static final Gauge<Long> globalBytesUnrepaired = 
-        Metrics.register(globalFactory.createMetricName("BytesUnrepaired"),
+        Metrics.register(GLOBAL_FACTORY.createMetricName("BytesUnrepaired"),
                          () -> totalNonSystemTablesSize(s -> !s.isRepaired() && !s.isPendingRepair()).left);
 
     public static final Gauge<Long> globalBytesPendingRepair = 
-        Metrics.register(globalFactory.createMetricName("BytesPendingRepair"),
+        Metrics.register(GLOBAL_FACTORY.createMetricName("BytesPendingRepair"),
                          () -> totalNonSystemTablesSize(SSTableReader::isPendingRepair).left);
 
     public final Meter readRepairRequests;
@@ -321,15 +327,11 @@ public class TableMetrics
     public final Histogram rfpRowsCachedPerQuery;
 
     public final EnumMap<SamplerType, Sampler<?>> samplers;
-    /**
-     * stores metrics that will be rolled into a single global metric
-     */
-    public final static ConcurrentMap<String, Set<Metric>> allTableMetrics = Maps.newConcurrentMap();
 
     /**
      * Stores all metrics created that can be used when unregistering
      */
-    public final static Set<ReleasableMetric> all = Sets.newHashSet();
+    private final Set<ReleasableMetric> all = Sets.newHashSet();
 
     private interface GetHistogram
     {
@@ -566,9 +568,9 @@ public class TableMetrics
             }
         });
 
-        readLatency = createLatencyMetrics("Read", cfs.keyspace.metric.readLatency, globalReadLatency);
-        writeLatency = createLatencyMetrics("Write", cfs.keyspace.metric.writeLatency, globalWriteLatency);
-        rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, globalRangeLatency);
+        readLatency = createLatencyMetrics("Read", cfs.keyspace.metric.readLatency, GLOBAL_READ_LATENCY);
+        writeLatency = createLatencyMetrics("Write", cfs.keyspace.metric.writeLatency, GLOBAL_WRITE_LATENCY);
+        rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, GLOBAL_RANGE_LATENCY);
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
 
@@ -605,7 +607,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long min = Long.MAX_VALUE;
-                for (Metric cfGauge : allTableMetrics.get("MinPartitionSize"))
+                for (Metric cfGauge : ALL_TABLE_METRICS.get("MinPartitionSize"))
                 {
                     min = Math.min(min, ((Gauge<? extends Number>) cfGauge).getValue().longValue());
                 }
@@ -629,7 +631,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long max = 0;
-                for (Metric cfGauge : allTableMetrics.get("MaxPartitionSize"))
+                for (Metric cfGauge : ALL_TABLE_METRICS.get("MaxPartitionSize"))
                 {
                     max = Math.max(max, ((Gauge<? extends Number>) cfGauge).getValue().longValue());
                 }
@@ -897,7 +899,7 @@ public class TableMetrics
         unleveledSSTables = createTableGauge("UnleveledSSTables", cfs::getUnleveledSSTables, () -> {
             // global gauge
             int cnt = 0;
-            for (Metric cfGauge : allTableMetrics.get("UnleveledSSTables"))
+            for (Metric cfGauge : ALL_TABLE_METRICS.get("UnleveledSSTables"))
             {
                 cnt += ((Gauge<? extends Number>) cfGauge).getValue().intValue();
             }
@@ -944,7 +946,7 @@ public class TableMetrics
         Gauge<T> cfGauge = Metrics.register(factory.createMetricName(name), aliasFactory.createMetricName(alias), gauge);
         if (register(name, alias, cfGauge) && globalGauge != null)
         {
-            Metrics.register(globalFactory.createMetricName(name), globalAliasFactory.createMetricName(alias), globalGauge);
+            Metrics.register(GLOBAL_FACTORY.createMetricName(name), GLOBAL_ALIAS_FACTORY.createMetricName(alias), globalGauge);
         }
         return cfGauge;
     }
@@ -969,11 +971,11 @@ public class TableMetrics
         
         if (register(name, name, deprecated, cfGauge))
         {
-            Metrics.register(globalFactory.createMetricName(name), 
+            Metrics.register(GLOBAL_FACTORY.createMetricName(name),
                              globalGauge,
-                             globalAliasFactory.createMetricName(name),
-                             globalFactory.createMetricName(deprecated),
-                             globalAliasFactory.createMetricName(deprecated));
+                             GLOBAL_ALIAS_FACTORY.createMetricName(name),
+                             GLOBAL_FACTORY.createMetricName(deprecated),
+                             GLOBAL_ALIAS_FACTORY.createMetricName(deprecated));
         }
         return cfGauge;
     }
@@ -992,14 +994,14 @@ public class TableMetrics
         Counter cfCounter = Metrics.counter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
         if (register(name, alias, cfCounter))
         {
-            Metrics.register(globalFactory.createMetricName(name),
-                             globalAliasFactory.createMetricName(alias),
+            Metrics.register(GLOBAL_FACTORY.createMetricName(name),
+                             GLOBAL_ALIAS_FACTORY.createMetricName(alias),
                              new Gauge<Long>()
             {
                 public Long getValue()
                 {
                     long total = 0;
-                    for (Metric cfGauge : allTableMetrics.get(name))
+                    for (Metric cfGauge : ALL_TABLE_METRICS.get(name))
                     {
                         total += ((Counter) cfGauge).getCount();
                     }
@@ -1070,8 +1072,8 @@ public class TableMetrics
         register(name, alias, cfHistogram);
         return new TableHistogram(cfHistogram,
                                   keyspaceHistogram,
-                                  Metrics.histogram(globalFactory.createMetricName(name),
-                                                    globalAliasFactory.createMetricName(alias),
+                                  Metrics.histogram(GLOBAL_FACTORY.createMetricName(name),
+                                                    GLOBAL_ALIAS_FACTORY.createMetricName(alias),
                                                     considerZeroes));
     }
 
@@ -1091,7 +1093,7 @@ public class TableMetrics
     {
         Timer cfTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(name));
         register(name, name, keyspaceTimer);
-        Timer global = Metrics.timer(globalFactory.createMetricName(name), globalAliasFactory.createMetricName(name));
+        Timer global = Metrics.timer(GLOBAL_FACTORY.createMetricName(name), GLOBAL_ALIAS_FACTORY.createMetricName(name));
 
         return new TableTimer(cfTimer, keyspaceTimer, global);
     }
@@ -1114,8 +1116,8 @@ public class TableMetrics
         register(name, alias, meter);
         return new TableMeter(meter,
                               keyspaceMeter,
-                              Metrics.meter(globalFactory.createMetricName(name),
-                                            globalAliasFactory.createMetricName(alias)));
+                              Metrics.meter(GLOBAL_FACTORY.createMetricName(name),
+                                            GLOBAL_ALIAS_FACTORY.createMetricName(alias)));
     }
 
     private LatencyMetrics createLatencyMetrics(String namePrefix, LatencyMetrics ... parents)
@@ -1145,8 +1147,8 @@ public class TableMetrics
      */
     private boolean register(String name, String alias, String deprecated, Metric metric)
     {
-        boolean ret = allTableMetrics.putIfAbsent(name, ConcurrentHashMap.newKeySet()) == null;
-        allTableMetrics.get(name).add(metric);
+        boolean ret = ALL_TABLE_METRICS.putIfAbsent(name, ConcurrentHashMap.newKeySet()) == null;
+        ALL_TABLE_METRICS.get(name).add(metric);
         all.add(() -> releaseMetric(name, alias, deprecated));
         return ret;
     }
@@ -1159,7 +1161,7 @@ public class TableMetrics
         if (metric != null)
         {
             // Metric will be null if we are releasing a view metric.  Views have null for ViewLockAcquireTime and ViewLockReadTime
-            allTableMetrics.get(tableMetricName).remove(metric);
+            ALL_TABLE_METRICS.get(tableMetricName).remove(metric);
             CassandraMetricsRegistry.MetricName cfAlias = aliasFactory.createMetricName(cfMetricName);
             
             if (tableMetricAlias != null)
@@ -1331,7 +1333,7 @@ public class TableMetrics
         public Long getValue()
         {
             long total = 0;
-            for (Metric cfGauge : allTableMetrics.get(name))
+            for (Metric cfGauge : ALL_TABLE_METRICS.get(name))
             {
                 total = total + ((Gauge<? extends Number>) cfGauge).getValue().longValue();
             }

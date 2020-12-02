@@ -15,6 +15,7 @@
  * Throw BufferOverflowException from DataOutputBuffer for better visibility (CASSANDRA-16214)
  * TLS connections to the storage port on a node without server encryption configured causes java.io.IOException accessing missing keystore (CASSANDRA-16144)
  * Internode messaging catches OOMs and does not rethrow (CASSANDRA-15214)
+ * When a table attempts to clean up metrics, it was cleaning up all global table metrics (CASSANDRA-16095)
 Merged from 3.11:
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
