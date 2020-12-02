@@ -2,6 +2,7 @@
  * Rate limit validation compactions using compaction_throughput_mb_per_sec (CASSANDRA-16161)
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
+ * Fix the counting of cells per partition (CASSANDRA-16259)
  * Fix serial read/non-applying CAS linearizability (CASSANDRA-12126)
  * Avoid potential NPE in JVMStabilityInspector (CASSANDRA-16294)
  * Improved check of num_tokens against the length of initial_token (CASSANDRA-14477)
@@ -9,6 +10,8 @@ Merged from 3.0:
  * Remove the SEPExecutor blocking behavior (CASSANDRA-16186)
  * Fix invalid cell value skipping when reading from disk (CASSANDRA-16223)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
+Merged from 2.2:
+ * Fix the histogram merge of the table metrics (CASSANDRA-16259)
 
 3.11.9
  * Synchronize Keyspace instance store/clear (CASSANDRA-16210)
