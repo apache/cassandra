@@ -239,7 +239,7 @@ public class EncryptionOptions
      * it is not a 'default' list or 'support protocol versions' list.  It is just an attempt to preserve the
      * original intent for the user configuration
      */
-    private final List<String> tlsProtocolSubstitution = ImmutableList.of("TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1");
+    private final List<String> TLS_PROTOCOL_SUBSTITUTION = ImmutableList.of("TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1");
 
     /**
      * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
@@ -259,7 +259,7 @@ public class EncryptionOptions
             // so substitute if the user hasn't provided an accepted protocol configuration
             else if (protocol.equalsIgnoreCase("TLS"))
             {
-                return tlsProtocolSubstitution;
+                return TLS_PROTOCOL_SUBSTITUTION;
             }
             else // the user was trying to limit to a single specific protocol, so try that
             {

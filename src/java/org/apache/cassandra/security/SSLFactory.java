@@ -468,28 +468,35 @@ public final class SSLFactory
             {
                 CipherSuiteFilter loggingCipherSuiteFilter = logProtocolAndCiphers ? new LoggingCipherSuiteFilter(contextDescription)
                                                                                    : LoggingCipherSuiteFilter.QUIET_FILTER;
-                SslContext sslContext = createNettySslContext(options, buildTrustStore, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
-                SSLEngine engine = sslContext.newEngine(ByteBufAllocator.DEFAULT);
-
-                if (logProtocolAndCiphers)
+                SslContext serverSslContext = createNettySslContext(options, buildTrustStore, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
+                SSLEngine engine = serverSslContext.newEngine(ByteBufAllocator.DEFAULT);
+                try
                 {
-                    String[] supportedProtocols = engine.getSupportedProtocols();
-                    String[] supportedCiphers = engine.getSupportedCipherSuites();
-                    String[] enabledProtocols = engine.getEnabledProtocols();
-                    String[] enabledCiphers = engine.getEnabledCipherSuites();
+                    if (logProtocolAndCiphers)
+                    {
+                        String[] supportedProtocols = engine.getSupportedProtocols();
+                        String[] supportedCiphers = engine.getSupportedCipherSuites();
+                        String[] enabledProtocols = engine.getEnabledProtocols();
+                        String[] enabledCiphers = engine.getEnabledCipherSuites();
 
-                    logger.debug("{} supported TLS protocols: {}", contextDescription,
-                                 supportedProtocols == null ? "system default" : String.join(", ", supportedProtocols));
-                    logger.info("{} enabled TLS protocols: {}", contextDescription,
-                                enabledProtocols == null ? "system default" : String.join(", ", enabledProtocols));
-                    logger.debug("{} supported cipher suites: {}", contextDescription,
-                                 supportedCiphers == null ? "system default" : String.join(", ", supportedCiphers));
-                    logger.info("{} enabled cipher suites: {}", contextDescription,
-                                enabledCiphers == null ? "system default" : String.join(", ", enabledCiphers));
+                        logger.debug("{} supported TLS protocols: {}", contextDescription,
+                                     supportedProtocols == null ? "system default" : String.join(", ", supportedProtocols));
+                        logger.info("{} enabled TLS protocols: {}", contextDescription,
+                                    enabledProtocols == null ? "system default" : String.join(", ", enabledProtocols));
+                        logger.debug("{} supported cipher suites: {}", contextDescription,
+                                     supportedCiphers == null ? "system default" : String.join(", ", supportedCiphers));
+                        logger.info("{} enabled cipher suites: {}", contextDescription,
+                                    enabledCiphers == null ? "system default" : String.join(", ", enabledCiphers));
+                    }
+                }
+                finally
+                {
+                    ReferenceCountUtil.release(serverSslContext);
                 }
 
                 // Make sure it is possible to build the client context too
-                createNettySslContext(options, buildTrustStore, SocketType.CLIENT, openSslIsAvailable());
+                SslContext clientSslContext = createNettySslContext(options, buildTrustStore, SocketType.CLIENT, openSslIsAvailable());
+                ReferenceCountUtil.release(clientSslContext);
             }
             catch (Exception e)
             {
