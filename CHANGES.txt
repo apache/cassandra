@@ -7,6 +7,8 @@
  * Wait for schema agreement when bootstrapping (CASSANDRA-15158)
  * Fix invalid cell value skipping when reading from disk (CASSANDRA-16223)
  * Prevent invoking enable/disable gossip when not in NORMAL (CASSANDRA-16146)
+Merged from 2.2:
+ * Fix the histogram merge of the table metrics (CASSANDRA-16259)
 
 3.0.23:
  * Fix OOM when terminating repair session (CASSANDRA-15902)
