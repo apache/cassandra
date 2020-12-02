@@ -1,4 +1,5 @@
 4.0-beta4
+ * Remove Windows scripts (CASSANDRA-16171)
  * Improve checksumming and compression in protocol V5 (CASSANDRA-15299)
  * Optimised repair streaming improvements (CASSANDRA-16274)
  * Update jctools dependency to 3.1.0 (CASSANDRA-16255)

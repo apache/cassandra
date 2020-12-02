@@ -258,14 +258,12 @@ Upgrading
       If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
       the node will not start. See CASSANDRA-14477 for details.
 
-
 Deprecation
 -----------
 
     - The JMX MBean org.apache.cassandra.db:type=BlacklistedDirectories has been
       deprecated in favor of org.apache.cassandra.db:type=DisallowedDirectories
       and will be removed in a subsequent major version.
-
 
 Materialized Views
 -------------------
@@ -277,6 +275,13 @@ Materialized Views
     - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
       to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
       specify them explicitly now.
+
+Windows Support Removed
+-----------------------
+    - Due to the lack of maintenance and testing, Windows support is removed from this version onward. The developers
+      who use Windows 10 still can run Apache Cassandra locally using WSL2 (Windows Subsystem for Linux version 2),
+      Docker for Windows, or virtualization platform like Hyper-V and VirtualBox.
+
 
 3.11.10
 ======
