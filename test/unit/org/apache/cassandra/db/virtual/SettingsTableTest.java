@@ -145,13 +145,24 @@ public class SettingsTableTest extends CQLTester
         config.server_encryption_options = config.server_encryption_options.withAlgorithm("SUPERSSL");
         check(pre + "algorithm", "SUPERSSL");
 
-        check(pre + "cipher_suites", "[]");
+        check(pre + "cipher_suites", null);
         config.server_encryption_options = config.server_encryption_options.withCipherSuites("c1", "c2");
         check(pre + "cipher_suites", "[c1, c2]");
 
-        check(pre + "protocol", config.server_encryption_options.protocol);
+        check(pre + "protocol", null);
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv5");
-        check(pre + "protocol", "TLSv5");
+        check(pre + "protocol", "[TLSv5]");
+
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
+        check(pre + "protocol", "[TLSv1.3, TLSv1.2, TLSv1.1, TLSv1]");
+
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
+        config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
+        check(pre + "protocol", "[TLSv1.2, TLSv1.1]");
+
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv2");
+        config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
+        check(pre + "protocol", "[TLSv1.2, TLSv1.1, TLSv2]"); // protocol goes after the explicit accept list if non-TLS
 
         check(pre + "optional", "false");
         config.server_encryption_options = config.server_encryption_options.withOptional(true);

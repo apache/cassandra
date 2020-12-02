@@ -55,7 +55,7 @@ public class SSLFactoryTest
         }
         catch (CertificateException e)
         {
-            throw new RuntimeException("fialed to create test certs");
+            throw new RuntimeException("failed to create test certs");
         }
     }
 
@@ -71,17 +71,6 @@ public class SSLFactoryTest
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
 
         SSLFactory.checkedExpiry = false;
-    }
-
-    @Test
-    public void testFilterCipherSuites()
-    {
-        String[] supported = new String[] {"x", "b", "c", "f"};
-        String[] desired = new String[] { "k", "a", "b", "c" };
-        assertArrayEquals(new String[] { "b", "c" }, SSLFactory.filterCipherSuites(supported, desired));
-
-        desired = new String[] { "c", "b", "x" };
-        assertArrayEquals(desired, SSLFactory.filterCipherSuites(supported, desired));
     }
 
     @Test
@@ -174,11 +163,11 @@ public class SSLFactoryTest
                                                                                                            .isAvailable());
             File keystoreFile = new File(options.keystore);
 
-            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);
+            SSLFactory.checkCertFilesForHotReloading(options, options);
 
             keystoreFile.setLastModified(System.currentTimeMillis() + 15000);
 
-            SSLFactory.checkCertFilesForHotReloading((ServerEncryptionOptions) options, options);;
+            SSLFactory.checkCertFilesForHotReloading(options, options);
             SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
                                                                                                           .isAvailable());
 
@@ -201,7 +190,7 @@ public class SSLFactoryTest
                                     .withKeyStorePassword("bad password")
                                     .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
-        SSLFactory.initHotReloading(options, options, true);
+        SSLFactory.validateSslContext("testSslFactorySslInit_BadPassword_ThrowsException", options, false, true);
     }
 
     @Test
@@ -253,7 +242,7 @@ public class SSLFactoryTest
             testKeystoreFile.setLastModified(System.currentTimeMillis() + 15000);
             FileUtils.forceDelete(testKeystoreFile);
 
-            SSLFactory.checkCertFilesForHotReloading(options, options);;
+            SSLFactory.checkCertFilesForHotReloading(options, options);
             SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, SSLFactory.SocketType.CLIENT, OpenSsl
                                                                                                           .isAvailable());
 
