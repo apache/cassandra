@@ -72,7 +72,7 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
                                           .start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int) with compaction={'class': 'SizeTieredCompactionStrategy'}");
-            for (int i = 0; i < 100000; i++)
+            for (int i = 0; i < 10000; i++)
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (id, t) values (?,?)", ConsistencyLevel.ALL, i, i);
             cluster.forEach((i) -> i.flush(KEYSPACE));
 
@@ -82,7 +82,7 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
                 cluster.coordinator(1).execute("INSERT INTO "+KEYSPACE+".tbl (id, t) values (?,?)", ConsistencyLevel.QUORUM, i, i * 2 + 2);
 
             cluster.get(2).startup();
-            Thread.sleep(10000);
+            Thread.sleep(1000);
             cluster.forEach(c -> c.flush(KEYSPACE));
             cluster.forEach(c -> c.forceCompact(KEYSPACE, "tbl"));
 
@@ -171,12 +171,12 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
                                           .start()))
         {
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int) with compaction={'class': 'SizeTieredCompactionStrategy'}");
-            for (int i = 0; i < 10_000; i++)
+            for (int i = 0; i < 1000; i++)
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (id, t) values (?,?)", ConsistencyLevel.ALL, i, i);
             cluster.forEach((i) -> i.flush(KEYSPACE));
 
             Random r = new Random();
-            for (int i = 0; i < 20000; i++)
+            for (int i = 0; i < 500; i++)
                 for (int j = 1; j <= 3; j++)
                     cluster.get(j).executeInternal("INSERT INTO "+KEYSPACE+".tbl (id, t) values (?,?)", r.nextInt(), i * 2 + 2);
 
