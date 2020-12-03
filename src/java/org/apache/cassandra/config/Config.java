@@ -553,6 +553,9 @@ public class Config
         isClientMode = clientMode;
     }
 
+    public volatile int table_count_warn_threshold = 150;
+    public volatile int keyspace_count_warn_threshold = 40;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

@@ -21,9 +21,13 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -31,12 +35,15 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
 public final class CreateKeyspaceStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(CreateKeyspaceStatement.class);
+
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
 
@@ -97,6 +104,20 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
     public String toString()
     {
         return String.format("%s (%s)", getClass().getSimpleName(), keyspaceName);
+    }
+
+    @Override
+    Set<String> clientWarnings(KeyspacesDiff diff)
+    {
+        int keyspaceCount = Schema.instance.getKeyspaces().size();
+        if (keyspaceCount > DatabaseDescriptor.keyspaceCountWarnThreshold())
+        {
+            String msg = String.format("Cluster already contains %d keyspaces. Having a large number of keyspaces will significantly slow down schema dependent cluster operations.",
+                                       keyspaceCount);
+            logger.warn(msg);
+            return ImmutableSet.of(msg);
+        }
+        return ImmutableSet.of();
     }
 
     public static final class Raw extends CQLStatement.Raw

@@ -23,11 +23,15 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang.StringUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -45,6 +49,7 @@ import static com.google.common.collect.Iterables.concat;
 
 public final class CreateTableStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(CreateTableStatement.class);
     private final String tableName;
 
     private final Map<ColumnIdentifier, CQL3Type.Raw> rawColumns;
@@ -362,6 +367,21 @@ public final class CreateTableStatement extends AlterSchemaStatement
             // that's the case, add it but with a specific EmptyType so we can recognize that case later
             builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
         }
+    }
+
+    @Override
+    public Set<String> clientWarnings(KeyspacesDiff diff)
+    {
+        int tableCount = Schema.instance.getNumberOfTables();
+        if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
+        {
+            String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
+                                       tableCount,
+                                       Schema.instance.getKeyspaces().size());
+            logger.warn(msg);
+            return ImmutableSet.of(msg);
+        }
+        return ImmutableSet.of();
     }
 
     private static class DefaultNames
