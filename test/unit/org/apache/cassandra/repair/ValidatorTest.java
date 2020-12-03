@@ -114,7 +114,7 @@ public class ValidatorTest
         validator.state.phase.start(10, 10);
         MerkleTrees trees = new MerkleTrees(partitioner);
         trees.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
-        validator.prepare(cfs, trees);
+        validator.prepare(cfs, trees, null);
 
         // and confirm that the trees were split
         assertTrue(trees.size() > 1);

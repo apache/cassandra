@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -133,6 +134,23 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.printf(indent + "Droppable tombstone ratio: %01.5f%n", table.droppableTombstoneRatio);
             if (table.isInCorrectLocation != null)
                 out.println(indent + "SSTables in correct location: " + table.isInCorrectLocation);
+            if (table.topSizePartitions != null && !table.topSizePartitions.isEmpty())
+            {
+                out.printf(indent + "Top partitions by size (last update: %s):%n", table.topSizePartitionsLastUpdate);
+                int maxWidth = Math.max(table.topSizePartitions.keySet().stream().map(String::length).max(Integer::compareTo).get() + 3, 5);
+                out.printf(indent + "  %-" + maxWidth + "s %s%n", "Key", "Size");
+                for (Map.Entry<String, String> size : table.topSizePartitions.entrySet())
+                    out.printf(indent + "  %-" + maxWidth + "s %s%n", size.getKey(), size.getValue());
+            }
+
+            if (table.topTombstonePartitions != null && !table.topTombstonePartitions.isEmpty())
+            {
+                out.printf(indent + "Top partitions by tombstone count (last update: %s):%n", table.topTombstonePartitionsLastUpdate);
+                int maxWidth = Math.max(table.topTombstonePartitions.keySet().stream().map(String::length).max(Integer::compareTo).get() + 3, 5);
+                out.printf(indent + "  %-" + maxWidth + "s %s%n", "Key", "Count");
+                for (Map.Entry<String, Long> tombstonecnt : table.topTombstonePartitions.entrySet())
+                    out.printf(indent + "  %-" + maxWidth + "s %s%n", tombstonecnt.getKey(), tombstonecnt.getValue());
+            }
             out.println("");
         }
     }

@@ -991,4 +991,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean getSkipPaxosRepairCompatibilityCheck();
 
     String getToken(String keyspaceName, String table, String partitionKey);
+    public boolean topPartitionsEnabled();
+    public int getMaxTopSizePartitionCount();
+    public void setMaxTopSizePartitionCount(int value);
+    public int getMaxTopTombstonePartitionCount();
+    public void setMaxTopTombstonePartitionCount(int value);
+    public String getMinTrackedPartitionSize();
+    public void setMinTrackedPartitionSize(String value);
+    public long getMinTrackedPartitionTombstoneCount();
+    public void setMinTrackedPartitionTombstoneCount(long value);
 }

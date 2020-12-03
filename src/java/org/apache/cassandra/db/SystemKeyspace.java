@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +46,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
@@ -64,7 +66,9 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -84,6 +88,7 @@ import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Functions;
@@ -159,6 +164,7 @@ public final class SystemKeyspace
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
+    public static final String TOP_PARTITIONS = "top_partitions";
 
     /**
      * By default the system keyspace tables should be stored in a single data directory to allow the server
@@ -400,6 +406,19 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), view_name))")
                 .build();
 
+    private static final TableMetadata TopPartitions =
+        parse(TOP_PARTITIONS,
+                "Stores the top partitions",
+                "CREATE TABLE  %s ("
+                + "keyspace_name text,"
+                + "table_name text,"
+                + "top_type text,"
+                + "top frozen<list<tuple<text, bigint>>>,"
+                + "last_update timestamp,"
+                + "PRIMARY KEY (keyspace_name, table_name, top_type))")
+                .build();
+
+
     private static final TableMetadata PreparedStatements =
         parse(PREPARED_STATEMENTS,
                 "prepared statements",
@@ -513,7 +532,8 @@ public final class SystemKeyspace
                          ViewBuildsInProgress,
                          BuiltViews,
                          PreparedStatements,
-                         Repairs);
+                         Repairs,
+                         TopPartitions);
     }
 
     private static Functions functions()
@@ -1822,5 +1842,49 @@ public final class SystemKeyspace
 
     public static interface TriFunction<A, B, C, D> {
         D accept(A var1, B var2, C var3);
+    }
+
+    public static void saveTopPartitions(TableMetadata metadata, String topType, Collection<TopPartitionTracker.TopPartition> topPartitions, long lastUpdate)
+    {
+        String cql = String.format("INSERT INTO %s.%s (keyspace_name, table_name, top_type, top, last_update) values (?, ?, ?, ?, ?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, TOP_PARTITIONS);
+        List<ByteBuffer> tupleList = new ArrayList<>(topPartitions.size());
+        topPartitions.forEach(tp -> {
+            String key = metadata.partitionKeyType.getString(tp.key.getKey());
+            tupleList.add(TupleType.buildValue(new ByteBuffer[] { UTF8Type.instance.decompose(key),
+                                                                  LongType.instance.decompose(tp.value)}));
+        });
+        executeInternal(cql, metadata.keyspace, metadata.name, topType, tupleList, Date.from(Instant.ofEpochMilli(lastUpdate)));
+    }
+
+    public static TopPartitionTracker.StoredTopPartitions getTopPartitions(TableMetadata metadata, String topType)
+    {
+        try
+        {
+            String cql = String.format("SELECT top, last_update FROM %s.%s WHERE keyspace_name = ? and table_name = ? and top_type = ?", SchemaConstants.SYSTEM_KEYSPACE_NAME, TOP_PARTITIONS);
+            UntypedResultSet res = executeInternal(cql, metadata.keyspace, metadata.name, topType);
+            if (res == null || res.isEmpty())
+                return TopPartitionTracker.StoredTopPartitions.EMPTY;
+            UntypedResultSet.Row row = res.one();
+            long lastUpdated = row.getLong("last_update");
+            List<ByteBuffer> top = row.getList("top", BytesType.instance);
+            if (top == null || top.isEmpty())
+                return TopPartitionTracker.StoredTopPartitions.EMPTY;
+
+            List<TopPartitionTracker.TopPartition> topPartitions = new ArrayList<>(top.size());
+            TupleType tupleType = new TupleType(Lists.newArrayList(UTF8Type.instance, LongType.instance));
+            for (ByteBuffer bb : top)
+            {
+                ByteBuffer[] components = tupleType.split(bb);
+                String keyStr = UTF8Type.instance.compose(components[0]);
+                long value = LongType.instance.compose(components[1]);
+                topPartitions.add(new TopPartitionTracker.TopPartition(metadata.partitioner.decorateKey(metadata.partitionKeyType.fromString(keyStr)), value));
+            }
+            return new TopPartitionTracker.StoredTopPartitions(topPartitions, lastUpdated);
+        }
+        catch (Exception e)
+        {
+            logger.warn("Could not load stored top {} partitions for {}.{}", topType, metadata.keyspace, metadata.name, e);
+            return TopPartitionTracker.StoredTopPartitions.EMPTY;
+        }
     }
 }
