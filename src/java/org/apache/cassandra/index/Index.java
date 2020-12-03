@@ -546,6 +546,17 @@ public interface Index
     }
 
     /**
+     * Tells whether this index supports replica fitering protection or not.
+     *
+     * @param rowFilter rowFilter of query to decide if it supports replica filtering protection or not
+     * @return true if this index supports replica filtering protection, false otherwise
+     */
+    default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
+    {
+        return true;
+    }
+
+    /**
      * Return a function which performs post processing on the results of a partition range read command.
      * In future, this may be used as a generalized mechanism for transforming results on the coordinator prior
      * to returning them to the caller.

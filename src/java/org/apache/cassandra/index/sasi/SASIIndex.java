@@ -249,6 +249,12 @@ public class SASIIndex implements Index, INotificationConsumer
     public void validate(PartitionUpdate update) throws InvalidRequestException
     {}
 
+    @Override
+    public boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
+    {
+        return false;
+    }
+
     public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext context, IndexTransaction.Type transactionType)
     {
         return new Indexer()
