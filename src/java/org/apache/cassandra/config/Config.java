@@ -1015,6 +1015,12 @@ public class Config
      */
     public volatile int paxos_repair_parallelism = -1;
 
+    public volatile int max_top_size_partition_count = 10;
+    public volatile int max_top_tombstone_partition_count = 10;
+    public volatile DataStorageSpec min_tracked_partition_size_bytes = DataStorageSpec.inMebibytes(1);
+    public volatile long min_tracked_partition_tombstone_count = 5000;
+    public volatile boolean top_partitions_enabled = true;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

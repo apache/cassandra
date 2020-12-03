@@ -99,6 +99,10 @@ New features
       any writes to the CDC-enabled tables will be blocked when reaching to the limit for CDC data on disk, which is the
       existing and the default behavior. Setting to false, the writes to the CDC-enabled tables will be accepted and
       the oldest CDC data on disk will be deleted to ensure the size constraint.
+    - Top partitions based on partition size or tombstone count are now tracked per table. These partitions are stored
+      in a new system.top_partitions table and exposed via JMX and nodetool tablestats. The partitions are tracked
+      during full or validation repairs but not incremental ones since those don't include all sstables and the partition
+      size/tombstone count would not be correct.
     - New native functions to convert unix time values into C* native types: toDate(bigint), toTimestamp(bigint),
       mintimeuuid(bigint) and maxtimeuuid(bigint)
     - Support for multiple permission in a single GRANT/REVOKE/LIST statement has been added. It allows to

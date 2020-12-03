@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -37,7 +38,7 @@ public interface TableRepairManager
      * data previously isolated for repair with the given parentId. nowInSec should determine whether tombstones should
      * be purged or not.
      */
-    ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException;
+    ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, int nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException;
 
     /**
      * Begin execution of the given validation callable. Which thread pool a validation should run in is an implementation detail.
