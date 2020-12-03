@@ -18,10 +18,22 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.Server;
+import org.apache.cassandra.transport.SimpleClient;
+import org.apache.cassandra.transport.messages.QueryMessage;
+
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class CreateTableValidationTest extends CQLTester
@@ -47,5 +59,44 @@ public class CreateTableValidationTest extends CQLTester
 
         // sanity check
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH bloom_filter_fp_chance = 0.1");
+    }
+
+    @Test
+    public void testCreateKeyspaceTableWarning() throws IOException
+    {
+        requireNetwork();
+        int tableCountWarn = DatabaseDescriptor.tableCountWarnThreshold();
+        int keyspaceCountWarn = DatabaseDescriptor.keyspaceCountWarnThreshold();
+        DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables());
+        DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size());
+
+        try (SimpleClient client = newSimpleClient(ProtocolVersion.CURRENT).connect(false))
+        {
+            String createKeyspace = "CREATE KEYSPACE createkswarning%d WITH REPLICATION={'class':'org.apache.cassandra.locator.NetworkTopologyStrategy','datacenter1':'2'}";
+            QueryMessage query = new QueryMessage(String.format(createKeyspace, 1), QueryOptions.DEFAULT);
+            Message.Response resp = client.execute(query);
+            assertTrue(resp.getWarnings().size() > 0);
+            assertTrue(resp.getWarnings().get(0).contains("Having a large number of keyspaces will significantly"));
+
+            DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size() + 1);
+            query = new QueryMessage(String.format(createKeyspace, 2), QueryOptions.DEFAULT);
+            resp = client.execute(query);
+            assertTrue(resp.getWarnings() == null || resp.getWarnings().isEmpty());
+
+            query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test1"), QueryOptions.DEFAULT);
+            resp = client.execute(query);
+            assertTrue(resp.getWarnings().size() > 0);
+            assertTrue(resp.getWarnings().get(0).contains("Having a large number of tables"));
+
+            DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables() + 1);
+            query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test2"), QueryOptions.DEFAULT);
+            resp = client.execute(query);
+            assertTrue(resp.getWarnings() == null || resp.getWarnings().isEmpty());
+        }
+        finally
+        {
+            DatabaseDescriptor.setTableCountWarnThreshold(tableCountWarn);
+            DatabaseDescriptor.setKeyspaceCountWarnThreshold(keyspaceCountWarn);
+        }
     }
 }

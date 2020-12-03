@@ -1,4 +1,5 @@
 4.0-beta4
+ * Send back client warnings when creating too many tables/keyspaces (CASSANDRA-16309)
  * Add dedicated tcp user timeout for streaming connection (CASSANDRA-16143)
  * Add generatetokens script for offline token allocation strategy generation (CASSANDRA-16205)
  * Remove Windows scripts (CASSANDRA-16171)
