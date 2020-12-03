@@ -480,6 +480,7 @@
       <!-- define the remote repositories we use -->
       <artifact:remoteRepository id="central"   url="${artifact.remoteRepository.central}"/>
       <artifact:remoteRepository id="apache"    url="${artifact.remoteRepository.apache}"/>
+      <artifact:remoteRepository id="apacheSnapshots"    url="${artifact.remoteRepository.apacheSnapshots}"/>
 
       <macrodef name="install">
         <attribute name="pomFile"/>
@@ -592,7 +593,7 @@
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.6" />
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7-d3e0df5-SNAPSHOT" />
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
@@ -898,6 +899,7 @@
                              dependencyRefsBuildFile="${build.dir}/build-dependencies.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
+          <remoteRepository refid="apacheSnapshots"/>
       </artifact:dependencies>
       <!-- retrieve -source.jar artifacts using the reference-pom with the artifacts that have these -->
       <artifact:dependencies pomRefId="build-deps-pom-sources"
@@ -906,6 +908,7 @@
                              dependencyRefsBuildFile="${build.dir}/build-dependencies-sources.xml">
           <remoteRepository refid="central"/>
           <remoteRepository refid="apache"/>
+          <remoteRepository refid="apacheSnapshots"/>
       </artifact:dependencies>
       <copy todir="${build.dir.lib}/jars">
           <fileset refid="build-dependency-jars"/>
