@@ -633,6 +633,12 @@ public class Config
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
+    public volatile int max_top_size_partition_count = 10;
+    public volatile int max_top_tombstone_partition_count = 10;
+    public volatile long min_tracked_partition_size_bytes = 1 << 20;
+    public volatile long min_tracked_partition_tombstone_count = 5000;
+    public volatile boolean top_partitions_enabled = true;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

@@ -58,6 +58,7 @@ import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.StorageService;
@@ -113,6 +114,7 @@ public final class SystemKeyspace
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
+    public static final String TOP_PARTITIONS = "top_partitions";
 
     /**
      * By default the system keyspace tables should be stored in a single data directory to allow the server
@@ -328,6 +330,19 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), view_name))")
                 .build();
 
+    private static final TableMetadata TopPartitions =
+        parse(TOP_PARTITIONS,
+                "Stores the top partitions",
+                "CREATE TABLE  %s ("
+                + "keyspace_name text,"
+                + "table_name text,"
+                + "top_type text,"
+                + "keys list<blob>,"
+                + "values list<bigint>,"
+                + "PRIMARY KEY (keyspace_name, table_name, top_type))")
+                .build();
+
+
     private static final TableMetadata PreparedStatements =
         parse(PREPARED_STATEMENTS,
                 "prepared statements",
@@ -439,7 +454,8 @@ public final class SystemKeyspace
                          ViewBuildsInProgress,
                          BuiltViews,
                          PreparedStatements,
-                         Repairs);
+                         Repairs,
+                         TopPartitions);
     }
 
     private static Functions functions()
@@ -1592,4 +1608,37 @@ public final class SystemKeyspace
                               row.getString("query_string")));
         return r;
     }
+
+    public static void saveTopPartitions(String keyspaceName, String tableName, String topType, Collection<TopPartitionTracker.TopPartition> topPartitions)
+    {
+        String cql = String.format("INSERT INTO %s (keyspace_name, table_name, top_type, keys, values) values (?, ?, ?, ?, ?)", TopPartitions.toString());
+        List<ByteBuffer> keys = new ArrayList<>(topPartitions.size());
+        List<Long> values = new ArrayList<>(topPartitions.size());
+        topPartitions.forEach(tp -> {
+            keys.add(tp.key.getKey());
+            values.add(tp.value);
+        });
+        executeInternal(cql, keyspaceName, tableName, topType, keys, values);
+    }
+
+    public static List<Pair<ByteBuffer, Long>> getTopPartitions(String keyspaceName, String tableName, String topType)
+    {
+        String cql = String.format("SELECT keys, values FROM %s WHERE keyspace_name = ? and table_name = ? and top_type = ?", TopPartitions.toString());
+        UntypedResultSet res = executeInternal(cql, keyspaceName, tableName, topType);
+        if (res == null || res.isEmpty())
+            return Collections.emptyList();
+        UntypedResultSet.Row row = res.one();
+        List<ByteBuffer> keys = row.getList("keys", BytesType.instance);
+        List<Long> values = row.getList("values", LongType.instance);
+
+        if (keys == null || values == null || keys.isEmpty() || values.isEmpty() || values.size() != keys.size())
+            return Collections.emptyList();
+
+        List<Pair<ByteBuffer, Long>> topPartitions = new ArrayList<>(keys.size());
+        for (int i = 0; i < keys.size(); i++)
+            topPartitions.add(Pair.create(keys.get(i), values.get(i)));
+
+        return topPartitions;
+    }
+
 }

@@ -162,6 +162,8 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("maximum_tombstones_per_slice_last_five_minutes",
                     table.maximumTombstonesPerSliceLastFiveMinutes);
         mpTable.put("dropped_mutations", table.droppedMutations);
+        mpTable.put("top_size_partitions", table.topSizePartitions);
+        mpTable.put("top_tombstone_partitions", table.topTombstonePartitions);
         if (locationCheck)
             mpTable.put("sstables_in_correct_location", table.isInCorrectLocation);
         return mpTable;
@@ -357,6 +359,10 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.averageTombstonesPerSliceLastFiveMinutes = histogram.getMean();
                 statsTable.maximumTombstonesPerSliceLastFiveMinutes = histogram.getMax();
                 statsTable.droppedMutations = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "DroppedMutations"), humanReadable);
+
+                statsTable.topSizePartitions = format(table.getTopSizePartitions(), humanReadable);
+                statsTable.topTombstonePartitions = table.getTopTombstonePartitions();
+
                 statsKeyspace.tables.add(statsTable);
             }
             keyspaces.add(statsKeyspace);
@@ -366,6 +372,14 @@ public class TableStatsHolder implements StatsHolder
     private String format(long bytes, boolean humanReadable)
     {
         return humanReadable ? FileUtils.stringifyFileSize(bytes) : Long.toString(bytes);
+    }
+
+    private Map<String, String> format(Map<String, Long> map, boolean humanReadable)
+    {
+        LinkedHashMap<String, String> retMap = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> entry : map.entrySet())
+            retMap.put(entry.getKey(), format(entry.getValue(), humanReadable));
+        return retMap;
     }
 
     /**

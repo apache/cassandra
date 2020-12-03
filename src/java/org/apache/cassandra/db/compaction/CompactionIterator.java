@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 
 /**
@@ -81,11 +82,17 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId)
     {
-        this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP);
+        this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null);
     }
 
     @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
+    public CompactionIterator(OperationType type,
+                              List<ISSTableScanner> scanners,
+                              AbstractCompactionController controller,
+                              int nowInSec,
+                              UUID compactionId,
+                              ActiveCompactionsTracker activeCompactions,
+                              TopPartitionTracker.Collector topPartitionCollector)
     {
         this.controller = controller;
         this.type = type;
@@ -108,6 +115,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         UnfilteredPartitionIterator merged = scanners.isEmpty()
                                            ? EmptyIterators.unfilteredPartition(controller.cfs.metadata())
                                            : UnfilteredPartitionIterators.merge(scanners, listener());
+        if (topPartitionCollector != null) // need to count tombstones before they are purged
+            merged = Transformation.apply(merged, new TopPartitionTracker.TombstoneCounter(topPartitionCollector, nowInSec));
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
         merged = Transformation.apply(merged, new Purger(controller, nowInSec));
         merged = DuplicateRowChecker.duringCompaction(merged, type);

@@ -44,6 +44,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.io.util.File;
@@ -216,6 +217,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final CassandraStreamManager streamManager;
 
     private final TableRepairManager repairManager;
+    public final TopPartitionTracker topPartitions;
 
     private final SSTableImporter sstableImporter;
 
@@ -458,6 +460,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         streamManager = new CassandraStreamManager(this);
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
+
+        if (!SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
+            topPartitions = new TopPartitionTracker(metadata().partitioner, keyspace.getName(), name);
+        else
+            topPartitions = null;
     }
 
     public static String getTableMBeanName(String ks, String name, boolean isIndex)
@@ -2998,5 +3005,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 return true;
         }
         return false;
+    }
+
+    @Override
+    public Map<String, Long> getTopSizePartitions()
+    {
+        if (topPartitions == null)
+            return Collections.emptyMap();
+        return topPartitions.getTopSizePartitionMap(metadata());
+    }
+
+    @Override
+    public Map<String, Long> getTopTombstonePartitions()
+    {
+        if (topPartitions == null)
+            return Collections.emptyMap();
+        return topPartitions.getTopTombstonePartitionMap(metadata());
     }
 }

@@ -38,6 +38,10 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - "top partitions" now tracked per table (defined by total bytes and/or number of tombstones),
+      this is tracked during repair so can be stale (requires --validate if incremental repair
+      is used). These partitions are stored in a new system.top_partitions table, and exposed via
+      JMX and nodetool tablestats.
     - New native functions to convert unix time values into C* native types: toDate(bigint), toTimestamp(bigint),
       mintimeuuid(bigint) and maxtimeuuid(bigint)
     - Support for multiple permission in a single GRANT/REVOKE/LIST statement has been added. It allows to

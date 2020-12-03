@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -86,10 +87,10 @@ public class ValidationManager
         return trees;
     }
 
-    private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator) throws IOException, NoSuchRepairSessionException
+    private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         RepairJobDesc desc = validator.desc;
-        return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec);
+        return repairManager.getValidationIterator(desc.ranges, desc.parentSessionId, desc.sessionId, validator.isIncremental, validator.nowInSec, topPartitionCollector);
     }
 
     /**
@@ -107,18 +108,22 @@ public class ValidationManager
         if (!cfs.isValid())
             return;
 
+        TopPartitionTracker.Collector topPartitionCollector = null;
+        if (cfs.topPartitions != null && DatabaseDescriptor.topPartitionsEnabled() && isTopPartitionSupported(validator))
+            topPartitionCollector = new TopPartitionTracker.Collector(validator.desc.ranges);
+
         // Create Merkle trees suitable to hold estimated partitions for the given ranges.
         // We blindly assume that a partition is evenly distributed on all sstables for now.
         long start = nanoTime();
         long partitionCount = 0;
         long estimatedTotalBytes = 0;
-        try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
+        try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator, topPartitionCollector))
         {
             MerkleTrees trees = createMerkleTrees(vi, validator.desc.ranges, cfs);
             try
             {
                 // validate the CF as we iterate over it
-                validator.prepare(cfs, trees);
+                validator.prepare(cfs, trees, topPartitionCollector);
                 while (vi.hasNext())
                 {
                     try (UnfilteredRowIterator partition = vi.next())
@@ -139,6 +144,9 @@ public class ValidationManager
         {
             cfs.metric.bytesValidated.update(estimatedTotalBytes);
             cfs.metric.partitionsValidated.update(partitionCount);
+
+            if (topPartitionCollector != null)
+                cfs.topPartitions.merge(topPartitionCollector);
         }
         if (logger.isDebugEnabled())
         {
@@ -148,6 +156,23 @@ public class ValidationManager
                          FBUtilities.prettyPrintMemory(estimatedTotalBytes),
                          duration,
                          validator.desc);
+        }
+    }
+
+    private static boolean isTopPartitionSupported(Validator validator)
+    {
+        // supported: --validate, --full, --full --preview
+        switch (validator.getPreviewKind())
+        {
+            case NONE:
+                return !validator.isIncremental;
+            case ALL:
+            case REPAIRED:
+                return true;
+            case UNREPAIRED:
+                return false;
+            default:
+                throw new AssertionError("Unknown preview kind: " + validator.getPreviewKind());
         }
     }
 

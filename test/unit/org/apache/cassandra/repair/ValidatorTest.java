@@ -109,9 +109,10 @@ public class ValidatorTest
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
         Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
+
         MerkleTrees trees = new MerkleTrees(partitioner);
         trees.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
-        validator.prepare(cfs, trees);
+        validator.prepare(cfs, trees, null);
 
         // and confirm that the trees were split
         assertTrue(trees.size() > 1);

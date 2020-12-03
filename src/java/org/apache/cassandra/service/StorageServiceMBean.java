@@ -920,4 +920,14 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int getDefaultKeyspaceReplicationFactor();
     public void setMinimumKeyspaceReplicationFactor(int value);
     public int getMinimumKeyspaceReplicationFactor();
+
+    public boolean topPartitionsEnabled();
+    public int getMaxTopSizePartitionCount();
+    public void setMaxTopSizePartitionCount(int value);
+    public int getMaxTopTombstonePartitionCount();
+    public void setMaxTopTombstonePartitionCount(int value);
+    public long getMinTrackedPartitionSize();
+    public void setMinTrackedPartitionSize(long value);
+    public long getMinTrackedPartitionTombstoneCount();
+    public void setMinTrackedPartitionTombstoneCount(long value);
 }
