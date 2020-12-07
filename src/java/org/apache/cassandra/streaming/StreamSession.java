@@ -800,7 +800,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         finally
         {
             long latencyNanos = System.nanoTime() - receivedStartNanos;
-            metrics.incomingStreamMessageProcessTime.update(latencyNanos, TimeUnit.NANOSECONDS);
+            metrics.incomingProcessTime.update(latencyNanos, TimeUnit.NANOSECONDS);
             long latencyMs = TimeUnit.NANOSECONDS.toMillis(latencyNanos);
             int timeout = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
             if (timeout > 0 && latencyMs > timeout)

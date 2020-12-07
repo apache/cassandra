@@ -45,7 +45,7 @@ public class StreamingMetrics
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */
-    public final Timer incomingStreamMessageProcessTime;
+    public final Timer incomingProcessTime;
 
     public static StreamingMetrics get(InetAddressAndPort ip)
     {
@@ -77,6 +77,6 @@ public class StreamingMetrics
         MetricNameFactory factory = new DefaultNameFactory("Streaming", peer.toString().replace(':', '.'));
         incomingBytes = Metrics.counter(factory.createMetricName("IncomingBytes"));
         outgoingBytes= Metrics.counter(factory.createMetricName("OutgoingBytes"));
-        incomingStreamMessageProcessTime = Metrics.timer(factory.createMetricName("IncomingStreamMessageProcessTime"));
+        incomingProcessTime = Metrics.timer(factory.createMetricName("IncomingProcessTime"));
     }
 }

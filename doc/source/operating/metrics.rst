@@ -467,6 +467,7 @@ Name                       Type           Description
 ========================== ============== ===========
 IncomingBytes              Counter        Number of bytes streamed to this node from the peer.
 OutgoingBytes              Counter        Number of bytes streamed to the peer endpoint from this node.
+IncomingProcessTime        Timer          The time spent on processing the incoming stream message from the peer.
 ========================== ============== ===========
 
 
