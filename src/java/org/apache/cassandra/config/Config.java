@@ -179,7 +179,8 @@ public class Config
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
     public volatile int internode_tcp_user_timeout_in_ms = 30000;
     // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
-    public volatile int internode_streaming_tcp_user_timeout_in_ms = 0;
+    // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
+    public volatile int internode_streaming_tcp_user_timeout_in_ms = 300_000; // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
