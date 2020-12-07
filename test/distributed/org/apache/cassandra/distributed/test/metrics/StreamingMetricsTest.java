@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.metrics;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -77,10 +78,8 @@ public class StreamingMetricsTest extends TestBaseImpl
         }
 
         cluster.get(2).executeInternal("TRUNCATE system.available_ranges;");
-        {
-            Object[][] results = cluster.get(2).executeInternal(String.format("SELECT k, c1, c2 FROM %s.cf;", KEYSPACE));
-            assertThat(results.length).isEqualTo(0);
-        }
+        Object[][] results = cluster.get(2).executeInternal(String.format("SELECT k, c1, c2 FROM %s.cf;", KEYSPACE));
+        assertThat(results.length).isEqualTo(0);
 
         InetAddressAndPort node1Address = getNodeAddress(1);
         InetAddressAndPort node2Address = getNodeAddress(2);
@@ -88,7 +87,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         cluster.get(2).nodetool("rebuild", "--keyspace", KEYSPACE);
 
         // Trigger streaming in node 2 and assert metrics on completion.
-        cluster.get(2).runOnInstance(() -> {
+        long transmittedBytes = cluster.get(2).callOnInstance(() -> {
             StreamingMetrics metrics = StreamingMetrics.get(node1Address);
             assertThat(metrics.incomingBytes.getCount())
                 .isGreaterThan(0)
@@ -102,6 +101,7 @@ public class StreamingMetricsTest extends TestBaseImpl
             assertThat(metrics.incomingProcessTime.getSnapshot().getMedian())
                 .isGreaterThan(0)
                 .describedAs("The median processing time should be non-0");
+            return metrics.incomingBytes.getCount();
         });
 
         // Assert metrics in node 1
@@ -110,8 +110,8 @@ public class StreamingMetricsTest extends TestBaseImpl
             assertThat(metrics.incomingBytes.getCount())
                 .isEqualTo(0).describedAs("There should not be sstables streamed from the peer.");
             assertThat(metrics.outgoingBytes.getCount())
-                .isGreaterThan(0)
-                .describedAs("There should be bytes streamed to the peer.");
+                .isEqualTo(transmittedBytes)
+                .describedAs("The outgoingBytes count in node1 should be equals to incomingBytes count in node2");
             assertThat(metrics.incomingProcessTime.getCount())
                 .isEqualTo(0)
                 .describedAs("There should be no files streamed from the peer.");
