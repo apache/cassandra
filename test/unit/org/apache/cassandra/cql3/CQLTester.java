@@ -632,9 +632,9 @@ public abstract class CQLTester
         this.usePrepared = USE_PREPARED_VALUES;
     }
 
-    protected void disablePreparedReuseForTest()
+    public static void disablePreparedReuseForTest()
     {
-        this.reusePrepared = false;
+        reusePrepared = false;
     }
 
     protected String createType(String query)

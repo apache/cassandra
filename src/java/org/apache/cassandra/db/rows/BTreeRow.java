@@ -494,8 +494,10 @@ public class BTreeRow extends AbstractRow
     public long unsharedHeapSizeExcludingData()
     {
         long heapSize = EMPTY_SIZE
-                      + clustering.unsharedHeapSizeExcludingData()
-                      + BTree.sizeOfStructureOnHeap(btree);
+                        + clustering.unsharedHeapSizeExcludingData()
+                        + primaryKeyLivenessInfo.unsharedHeapSize()
+                        + deletion.unsharedHeapSize()
+                        + BTree.sizeOfStructureOnHeap(btree);
 
         return accumulate((cd, v) -> v + cd.unsharedHeapSizeExcludingData(), heapSize);
     }

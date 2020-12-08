@@ -1,6 +1,5 @@
 4.0-beta5
- * Fix client notifications in CQL protocol v5 (CASSANDRA-16353)
- * Too defensive check when picking sstables for preview repair (CASSANDRA-16284)
+ * Correct memtable on-heap size calculations to match actual use (CASSANDRA-16318)
  * Ensure pre-negotiation native protocol responses have correct stream id (CASSANDRA-16376)
  * Fix check for -Xlog in cassandra-env.sh (CASSANDRA-16279)
  * SSLFactory should initialize SSLContext before setting protocols (CASSANDRA-16362)

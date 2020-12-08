@@ -28,6 +28,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 
@@ -36,6 +37,7 @@ import static org.apache.cassandra.utils.btree.BTree.Dir.desc;
 public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 {
     protected static final Holder EMPTY = new Holder(RegularAndStaticColumns.NONE, BTree.empty(), DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
+    public static final long HOLDER_UNSHARED_HEAP_SIZE = ObjectSizes.measure(EMPTY);
 
     protected final DecoratedKey partitionKey;
 

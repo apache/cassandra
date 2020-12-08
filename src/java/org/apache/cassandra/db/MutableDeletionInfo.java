@@ -248,6 +248,9 @@ public class MutableDeletionInfo implements DeletionInfo
     @Override
     public long unsharedHeapSize()
     {
+        if (this == LIVE)
+            return 0;
+
         return EMPTY_SIZE + partitionDeletion.unsharedHeapSize() + (ranges == null ? 0 : ranges.unsharedHeapSize());
     }
 
