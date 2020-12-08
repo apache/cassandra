@@ -29,6 +29,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -323,6 +324,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
     public static class Deletion
     {
         public static final Deletion LIVE = new Deletion(DeletionTime.LIVE, false);
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
 
         private final DeletionTime time;
         private final boolean isShadowable;
@@ -420,6 +422,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 return false;
             Deletion that = (Deletion)o;
             return this.time.equals(that.time) && this.isShadowable == that.isShadowable;
+        }
+
+        public long unsharedHeapSize()
+        {
+            if(this == LIVE)
+                return 0;
+
+            return EMPTY_SIZE + time().unsharedHeapSize();
         }
 
         @Override
@@ -722,7 +732,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
             return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
                  ? null
-                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.<ColumnData>noOp()));
+                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.noOp()));
         }
 
         public Clustering<?> mergedClustering()

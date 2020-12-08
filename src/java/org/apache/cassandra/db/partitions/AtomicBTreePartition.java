@@ -135,12 +135,14 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         }
 
         RegularAndStaticColumns columns = update.columns().mergeTo(current.columns);
+        updater.allocated(columns.unsharedHeapSize() - current.columns.unsharedHeapSize());
         Row newStatic = update.staticRow();
         Row staticRow = newStatic.isEmpty()
                         ? current.staticRow
                         : (current.staticRow.isEmpty() ? updater.apply(newStatic) : updater.apply(current.staticRow, newStatic));
         Object[] tree = BTree.update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
         EncodingStats newStats = current.stats.mergeWith(update.stats());
+        updater.allocated(newStats.unsharedHeapSize() - current.stats.unsharedHeapSize());
 
         if (tree != null && refUpdater.compareAndSet(this, current, new Holder(columns, tree, deletionInfo, staticRow, newStats)))
         {
@@ -274,8 +276,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
         if (!writeOp.isOldestLiveGroup())
         {
             Thread.yield();
-            if (!writeOp.isOldestLiveGroup())
-                return false;
+            return writeOp.isOldestLiveGroup();
         }
 
         return true;
@@ -370,7 +371,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             indexer.onInserted(insert);
 
             this.dataSize += data.dataSize();
-            this.heapSize += data.unsharedHeapSizeExcludingData();
+            allocated(data.unsharedHeapSizeExcludingData());
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(data);
@@ -387,7 +388,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             indexer.onUpdated(existing, reconciled);
 
             dataSize += reconciled.dataSize() - existing.dataSize();
-            heapSize += reconciled.unsharedHeapSizeExcludingData() - existing.unsharedHeapSizeExcludingData();
+            allocated(reconciled.unsharedHeapSizeExcludingData() - existing.unsharedHeapSizeExcludingData());
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(reconciled);

@@ -149,7 +149,10 @@ public final class ServerTestUtils
     {
         // clean up commitlog
         cleanupDirectory(DatabaseDescriptor.getCommitLogLocation());
-        cleanupDirectory(DatabaseDescriptor.getCDCLogLocation());
+
+        String cdcDir = DatabaseDescriptor.getCDCLogLocation();
+        if (cdcDir != null)
+            cleanupDirectory(cdcDir);
         cleanupDirectory(DatabaseDescriptor.getHintsDirectory());
         cleanupSavedCaches();
 
