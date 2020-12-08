@@ -1426,7 +1426,7 @@ which picks up the OS default and configure the net.ipv4.tcp_retries2 sysctl to 
 ----------------------------------------------
 The amount of time unacknowledged data is allowed on a streaming connection before we close the connection.
 
-*Default Value:* 3000000
+*Default Value:* 300000 (5 minutes)
 
 ``internode_application_timeout_in_ms``
 ---------------------------------------

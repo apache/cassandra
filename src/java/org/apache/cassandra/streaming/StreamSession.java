@@ -48,6 +48,7 @@ import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -804,12 +805,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             long latencyMs = TimeUnit.NANOSECONDS.toMillis(latencyNanos);
             int timeout = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
             if (timeout > 0 && latencyMs > timeout)
-                logger.warn("The time taken ({} ms) for processing the incoming stream message ({})" +
-                            " exceeded internode streaming TCP user timeout ({} ms).\n" +
-                            "The streaming connection might be closed due to tcp user timeout.\n" +
-                            "Try to increase the internode_streaming_tcp_user_timeout_in_ms" +
-                            " or set it to 0 to use system defaults.",
-                            latencyMs, message, timeout);
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN,
+                                 1, TimeUnit.MINUTES,
+                                 "The time taken ({} ms) for processing the incoming stream message ({})" +
+                                 " exceeded internode streaming TCP user timeout ({} ms).\n" +
+                                 "The streaming connection might be closed due to tcp user timeout.\n" +
+                                 "Try to increase the internode_streaming_tcp_user_timeout_in_ms" +
+                                 " or set it to 0 to use system defaults.",
+                                 latencyMs, message, timeout);
         }
     }
 

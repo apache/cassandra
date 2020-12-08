@@ -59,7 +59,8 @@ public class StreamingMetricsTest extends TestBaseImpl
     @AfterClass
     public static void teardownCluster()
     {
-        cluster.close();
+        if (cluster != null)
+            cluster.close();
     }
 
 
@@ -73,7 +74,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         for (int k = 0; k < files; k++)
         {
             for (int i = k * rowsPerFile; i < k * rowsPerFile + rowsPerFile; ++i)
-                cluster.get(1).executeInternal(String.format("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');", KEYSPACE), Integer.toString(i));
+                cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');"), Integer.toString(i));
             cluster.get(1).nodetool("flush");
         }
 
@@ -84,9 +85,10 @@ public class StreamingMetricsTest extends TestBaseImpl
         InetAddressAndPort node1Address = getNodeAddress(1);
         InetAddressAndPort node2Address = getNodeAddress(2);
 
+        // Trigger streaming from node 2
         cluster.get(2).nodetool("rebuild", "--keyspace", KEYSPACE);
 
-        // Trigger streaming in node 2 and assert metrics on completion.
+        // Assert metrics in node 2
         long transmittedBytes = cluster.get(2).callOnInstance(() -> {
             StreamingMetrics metrics = StreamingMetrics.get(node1Address);
             assertThat(metrics.incomingBytes.getCount())

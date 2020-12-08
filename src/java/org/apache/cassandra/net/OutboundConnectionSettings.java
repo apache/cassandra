@@ -416,13 +416,12 @@ public class OutboundConnectionSettings
         if (tcpUserTimeoutInMS != null)
             return tcpUserTimeoutInMS;
 
-        if (category.isMessaging())
-            return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
-        else if (category.isStreaming())
-            return DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
-        else
-            throw new IllegalArgumentException("Unknown connection category: " + category);
-
+        switch (category)
+        {
+            case MESSAGING: return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+            case STREAMING: return DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+            default: throw new IllegalArgumentException("Unknown connection category: " + category);
+        }
     }
 
     public boolean tcpNoDelay()
