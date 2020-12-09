@@ -19,6 +19,7 @@
  * Internode messaging catches OOMs and does not rethrow (CASSANDRA-15214)
  * When a table attempts to clean up metrics, it was cleaning up all global table metrics (CASSANDRA-16095)
  * Bring back the accepted encryption protocols list as configurable option (CASSANDRA-13325)
+ * DigestResolver.getData throws AssertionError since dataResponse is null (CASSANDRA-16097)
 Merged from 3.11:
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
