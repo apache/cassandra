@@ -119,6 +119,7 @@ import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.CASClientWriteRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientWriteRequestMetrics;
+import org.apache.cassandra.metrics.MatchingNodeMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.metrics.ViewWriteMetrics;
@@ -1469,8 +1470,16 @@ public class StorageProxy implements StorageProxyMBean
 
         if (insertLocal)
         {
+            if (!SchemaConstants.isSystemKeyspace(mutation.getKeyspaceName()))
+            {
+                MatchingNodeMetrics.instance.localRequests.inc();
+            }
             Preconditions.checkNotNull(localReplica);
             performLocally(stage, localReplica, mutation::apply, responseHandler);
+        }
+        else if (!SchemaConstants.isSystemKeyspace(mutation.getKeyspaceName()))
+        {
+            MatchingNodeMetrics.instance.remoteRequests.inc();
         }
 
         if (localDc != null)
@@ -1946,7 +1955,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             reads[i].executeAsync();
         }
-
         // if we have a speculating read executor and it looks like we may not receive a response from the initial
         // set of replicas we sent messages to, speculatively send an additional messages to an un-contacted replica
         for (int i=0; i<cmdCount; i++)
