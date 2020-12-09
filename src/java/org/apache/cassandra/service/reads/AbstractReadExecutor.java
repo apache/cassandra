@@ -371,7 +371,6 @@ public abstract class AbstractReadExecutor
         try
         {
             handler.awaitResults();
-            assert digestResolver.isDataPresent() : "awaitResults returned with no data present.";
         }
         catch (ReadTimeoutException e)
         {
