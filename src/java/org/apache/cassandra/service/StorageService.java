@@ -5170,7 +5170,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         LinkedHashMap<InetAddressAndPort, Float> result = getEffectiveOwnership(keyspace);
         LinkedHashMap<String, Float> asStrings = new LinkedHashMap<>();
-        result.entrySet().stream().forEachOrdered(entry -> asStrings.put(entry.getKey().toString(), entry.getValue()));
+        result.entrySet().stream().forEachOrdered(entry -> asStrings.put(entry.getKey().getHostAddressAndPort(), entry.getValue()));
         return asStrings;
     }
 

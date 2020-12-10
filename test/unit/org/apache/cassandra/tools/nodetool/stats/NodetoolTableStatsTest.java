@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,7 +26,6 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,7 +33,6 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
@@ -49,20 +46,11 @@ import static org.junit.Assert.assertTrue;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class NodetoolTableStatsTest extends CQLTester
 {
-    private static NodeProbe probe;
-
     @BeforeClass
     public static void setup() throws Exception
     {
         StorageService.instance.initServer();
         startJMXServer();
-        probe = new NodeProbe(jmxHost, jmxPort);
-    }
-
-    @AfterClass
-    public static void teardown() throws IOException
-    {
-        probe.close();
     }
 
     @Test

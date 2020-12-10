@@ -1,4 +1,5 @@
 4.0-beta5
+ * Fix nodetool ring, status output when DNS resolution or port printing are in use (CASSANDRA-16283)
  * Upgrade Jacoco to 0.8.6 (for Java 11 support) (CASSANDRA-16365)
  * Move excessive repair debug loggings to trace level (CASSANDRA-16406)
  * Restore validation of each message's protocol version (CASSANDRA-16374)

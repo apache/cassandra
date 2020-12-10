@@ -57,14 +57,14 @@ public class Status extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         PrintStream out = probe.output().out;
-        joiningNodes = probe.getJoiningNodes(printPort);
-        leavingNodes = probe.getLeavingNodes(printPort);
-        movingNodes = probe.getMovingNodes(printPort);
-        loadMap = probe.getLoadMap(printPort);
-        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(printPort);
-        liveNodes = probe.getLiveNodes(printPort);
-        unreachableNodes = probe.getUnreachableNodes(printPort);
-        hostIDMap = probe.getHostIdMap(printPort);
+        joiningNodes = probe.getJoiningNodes(true);
+        leavingNodes = probe.getLeavingNodes(true);
+        movingNodes = probe.getMovingNodes(true);
+        loadMap = probe.getLoadMap(true);
+        Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(true);
+        liveNodes = probe.getLiveNodes(true);
+        unreachableNodes = probe.getUnreachableNodes(true);
+        hostIDMap = probe.getHostIdMap(true);
         epSnitchInfo = probe.getEndpointSnitchInfoProxy();
 
         StringBuilder errors = new StringBuilder();
@@ -102,14 +102,13 @@ public class Status extends NodeToolCmd
 
             ArrayListMultimap<String, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
             for (HostStatWithPort stat : dc.getValue())
-                hostToTokens.put(stat.ipOrDns(printPort), stat);
+                hostToTokens.put(stat.endpointWithPort.getHostAddressAndPort(), stat);
 
             for (String endpoint : hostToTokens.keySet())
             {
                 Float owns = ownerships.get(endpoint);
                 List<HostStatWithPort> tokens = hostToTokens.get(endpoint);
-                addNode(endpoint, owns, tokens.get(0).ipOrDns(printPort), tokens.get(0).token, tokens.size(),
-                        hasEffectiveOwns, tableBuilder);
+                addNode(endpoint, owns, tokens.get(0), tokens.size(), hasEffectiveOwns, tableBuilder);
             }
         }
 
@@ -146,10 +145,10 @@ public class Status extends NodeToolCmd
             tableBuilder.add("--", "Address", "Load", "Tokens", owns, "Host ID", "Rack");
     }
 
-    private void addNode(String endpoint, Float owns, String epDns, String token, int size, boolean hasEffectiveOwns,
+    private void addNode(String endpoint, Float owns, HostStatWithPort hostStat, int size, boolean hasEffectiveOwns,
                            TableBuilder tableBuilder)
     {
-        String status, state, load, strOwns, hostID, rack;
+        String status, state, load, strOwns, hostID, rack, epDns;
         if (liveNodes.contains(endpoint)) status = "U";
         else if (unreachableNodes.contains(endpoint)) status = "D";
         else status = "?";
@@ -166,14 +165,16 @@ public class Status extends NodeToolCmd
         try
         {
             rack = epSnitchInfo.getRack(endpoint);
-        } catch (UnknownHostException e)
+        }
+        catch (UnknownHostException e)
         {
             throw new RuntimeException(e);
         }
 
+        epDns = hostStat.ipOrDns(printPort);
         if (isTokenPerNode)
         {
-            tableBuilder.add(statusAndState, epDns, load, strOwns, hostID, token, rack);
+            tableBuilder.add(statusAndState, epDns, load, strOwns, hostID, hostStat.token, rack);
         }
         else
         {
