@@ -985,11 +985,11 @@ jobs:
           fi
 
           echo "***Collected DTests (j8_upgradetests_without_vnodes)***"
-          set -eo pipefail && ./run_dtests.py --execute-upgrade-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw --cassandra-dir=../cassandra
-          if [ -z '^upgrade_tests' ]; then
+          set -eo pipefail && ./run_dtests.py --execute-upgrade-tests-only --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw --cassandra-dir=../cassandra
+          if [ -z '' ]; then
             mv /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw /tmp/all_dtest_tests_j8_upgradetests_without_vnodes
           else
-            grep -e '^upgrade_tests' /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw > /tmp/all_dtest_tests_j8_upgradetests_without_vnodes || { echo "Filter did not match any tests! Exiting build."; exit 0; }
+            grep -e '' /tmp/all_dtest_tests_j8_upgradetests_without_vnodes_raw > /tmp/all_dtest_tests_j8_upgradetests_without_vnodes || { echo "Filter did not match any tests! Exiting build."; exit 0; }
           fi
           set -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j8_upgradetests_without_vnodes > /tmp/split_dtest_tests_j8_upgradetests_without_vnodes.txt
           cat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes.txt | tr '\n' ' ' > /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt
@@ -1016,7 +1016,7 @@ jobs:
           mkdir -p /tmp/results/dtests
           # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
           export SPLIT_TESTS=`cat /tmp/split_dtest_tests_j8_upgradetests_without_vnodes_final.txt`
-          set -o pipefail && cd ~/cassandra-dtest && pytest --execute-upgrade-tests --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result_j8_upgradetests_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+          set -o pipefail && cd ~/cassandra-dtest && pytest --execute-upgrade-tests-only --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result_j8_upgradetests_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
     - store_test_results:
         path: /tmp/results
     - store_artifacts:

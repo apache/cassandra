@@ -522,13 +522,12 @@ jobs:
       - create_venv
       - create_dtest_containers:
           file_tag: j8_upgradetests_without_vnodes
-          run_dtests_extra_args: '--execute-upgrade-tests'
+          run_dtests_extra_args: '--execute-upgrade-tests-only'
           extra_env_args: 'RUN_STATIC_UPGRADE_MATRIX=true'
-          tests_filter_pattern: '^upgrade_tests'
       - run_dtests:
           file_tag: j8_upgradetests_without_vnodes
           extra_env_args: 'RUN_STATIC_UPGRADE_MATRIX=true'
-          pytest_extra_args: '--execute-upgrade-tests'
+          pytest_extra_args: '--execute-upgrade-tests-only'
 
   j8_cqlsh-dtests-py2-with-vnodes:
     <<: *j8_par_executor
