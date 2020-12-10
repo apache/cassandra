@@ -16,44 +16,96 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.test;
+package org.apache.cassandra.tools.nodetool;
 
-import java.io.IOException;
 import java.util.Arrays;
 
-import org.junit.AfterClass;
-import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
-import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
+import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-public class NodeToolRingTest extends TestBaseImpl
+@RunWith(OrderedJUnit4ClassRunner.class)
+public class RingTest extends CQLTester
 {
-    private static ICluster cluster;
+    private static String token;
 
-    @Before
-    public void setupEnv() throws IOException
+    @BeforeClass
+    public static void setup() throws Exception
     {
-        if (cluster == null)
-            cluster = init(builder().withNodes(1).start());
+        StorageService.instance.initServer();
+        token = StorageService.instance.getTokens().get(0);
+        startJMXServer();
     }
 
-    @AfterClass
-    public static void teardownEnv() throws Exception
+    /**
+     * Validate output, making sure the table mappings work with various host-modifying arguments in use.
+     */
+    @Test
+    public void testRingOutput()
     {
-        cluster.close();
+        final HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
+                                                           false, null);
+        validateRingOutput(host.ipOrDns(false),
+                            "ring");
+        Arrays.asList("-pp", "--print-port").forEach(arg -> {
+            validateRingOutput(host.ipOrDns(true),
+                               "-pp", "ring");
+        });
+
+        final HostStatWithPort hostResolved = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
+                                                                   true, null);
+        Arrays.asList("-r", "--resolve-ip").forEach(arg -> {
+            validateRingOutput(hostResolved.ipOrDns(false),
+                               "ring", "-r");
+        });
+        validateRingOutput(hostResolved.ipOrDns(true),
+                            "-pp", "ring", "-r");
+    }
+
+    private void validateRingOutput(String hostForm, String... args)
+    {
+        ToolRunner.ToolResult nodetool = ToolRunner.invokeNodetool(args);
+        nodetool.assertOnCleanExit();
+        /*
+         Datacenter: datacenter1
+         ==========
+         Address         Rack        Status State   Load            Owns                Token
+
+         127.0.0.1       rack1       Up     Normal  45.71 KiB       100.00%             4652409154190094022
+
+         */
+        String[] lines = nodetool.getStdout().split("\\R");
+        assertThat(lines[1].trim(), endsWith(SimpleSnitch.DATA_CENTER_NAME));
+        assertThat(lines[3], matchesPattern("Address *Rack *Status *State *Load *Owns *Token *"));
+        String hostRing = lines[lines.length-4].trim(); // this command has a couple extra newlines and an empty error message at the end. Not messing with it.
+        assertThat(hostRing, startsWith(hostForm));
+        assertThat(hostRing, containsString(SimpleSnitch.RACK_NAME));
+        assertThat(hostRing, containsString("Up"));
+        assertThat(hostRing, containsString("Normal"));
+        assertThat(hostRing, matchesPattern(".*\\d+\\.\\d+ KiB.*"));
+        assertThat(hostRing, matchesPattern(".*\\d+\\.\\d+%.*"));
+        assertThat(hostRing, endsWith(token));
+        assertThat(hostRing, not(containsString("?")));
     }
 
     @Test
     public void testWrongArgFailsAndPrintsHelp()
     {
-        ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "--wrongarg", "ring");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("--wrongarg", "ring");
         Assertions.assertThat(tool.getStdout()).containsIgnoringCase("nodetool help");
         assertEquals(1, tool.getExitCode());
         assertTrue(tool.getCleanedStderr().isEmpty());
@@ -64,8 +116,8 @@ public class NodeToolRingTest extends TestBaseImpl
     {
         // If you added, modified options or help, please update docs if necessary
 
-        ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "help", "ring");
-        
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "ring");
+
         String help = "NAME\n" + "        nodetool ring - Print information about the token ring\n"
                       + "\n"
                       + "SYNOPSIS\n"
@@ -111,62 +163,17 @@ public class NodeToolRingTest extends TestBaseImpl
     }
 
     @Test
-    public void testRing()
-    {
-        ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "ring");
-        
-        Assertions.assertThat(tool.getStdout())
-                  .contains("Datacenter: datacenter0")
-                  .contains("Address    Rack        Status State   Load            Owns                Token")
-                  .contains("127.0.0.1  rack0       Up     Normal")
-                  .contains("100.00%             9223372036854775807");
-        assertEquals(0, tool.getExitCode());
-        assertTrue(tool.getCleanedStderr().isEmpty());
-    }
-
-    @Test
-    public void testRingPrintPort()
-    {
-        Arrays.asList("-pp", "--print-port").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), arg, "ring");
-            Assertions.assertThat(tool.getStdout())
-                      .contains("Datacenter: datacenter0")
-                      .contains("Address         Rack        Status State   Load            Owns                Token")
-                      .contains("Unknown")
-                      .contains("100.00%             9223372036854775807");
-            assertEquals(0, tool.getExitCode());
-            assertTrue(tool.getCleanedStderr().isEmpty());
-        });
-    }
-
-    @Test
-    public void testRingResolve()
-    {
-        Arrays.asList("-r", "--resolve-ip").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "ring", arg);
-            Assertions.assertThat(tool.getStdout())
-                      .contains("Datacenter: datacenter0")
-                      .contains("Address    Rack        Status State   Load            Owns                Token")
-                      .contains("localhost")
-                      .contains("rack0       Up     Normal")
-                      .contains("100.00%             9223372036854775807");
-            assertEquals(0, tool.getExitCode());
-            assertTrue(tool.getCleanedStderr().isEmpty());
-        });
-    }
-
-    @Test
     public void testRingKeyspace()
     {
         // Bad KS
-        ToolResult tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "ring", "mockks");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("ring", "mockks");
         Assertions.assertThat(tool.getStdout()).contains("The keyspace mockks, does not exist");
         assertEquals(0, tool.getExitCode());
         assertTrue(tool.getCleanedStderr().isEmpty());
 
         // Good KS
-        tool = ToolRunner.invokeNodetoolJvmDtest(cluster.get(1), "ring", "system_schema");
-        Assertions.assertThat(tool.getStdout()).contains("Datacenter: datacenter0");
+        tool = ToolRunner.invokeNodetool("ring", "system_schema");
+        Assertions.assertThat(tool.getStdout()).contains("Datacenter: datacenter1");
         assertEquals(0, tool.getExitCode());
         assertTrue(tool.getCleanedStderr().isEmpty());
     }

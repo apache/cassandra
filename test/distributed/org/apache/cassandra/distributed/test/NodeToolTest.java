@@ -52,7 +52,7 @@ public class NodeToolTest extends TestBaseImpl
     }
 
     @Test
-    public void testCommands() throws Throwable
+    public void testCommands()
     {
         assertEquals(0, NODE.nodetool("help"));
         assertEquals(0, NODE.nodetool("flush"));
@@ -60,11 +60,11 @@ public class NodeToolTest extends TestBaseImpl
     }
 
     @Test
-    public void testCaptureConsoleOutput() throws Throwable
+    public void testCaptureConsoleOutput()
     {
         NodeToolResult ringResult = NODE.nodetoolResult("ring");
         ringResult.asserts().stdoutContains("Datacenter: datacenter0");
-        ringResult.asserts().stdoutContains("127.0.0.1  rack0       Up     Normal");
+        ringResult.asserts().stdoutContains("127.0.0.1       rack0       Up     Normal");
         assertEquals("Non-empty error output", "", ringResult.getStderr());
     }
 
