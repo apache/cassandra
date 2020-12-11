@@ -495,6 +495,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return directories;
     }
 
+    public List<String> getDataPaths() throws IOException
+    {
+        List<String> dataPaths = new ArrayList<>();
+        for (File dataPath : directories.getCFDirectories())
+        {
+            dataPaths.add(dataPath.getCanonicalPath());
+        }
+
+        return dataPaths;
+    }
+
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
         MetadataCollector collector = new MetadataCollector(metadata().comparator).sstableLevel(sstableLevel);
