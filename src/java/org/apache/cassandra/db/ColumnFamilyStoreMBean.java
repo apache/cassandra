@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -225,4 +226,6 @@ public interface ColumnFamilyStoreMBean
      *         If all SSTables are correctly placed or the partitioner does not support splitting, it returns false.
      */
     public boolean hasMisplacedSSTables();
+
+    public List<String> getDataPaths() throws IOException;
 }
