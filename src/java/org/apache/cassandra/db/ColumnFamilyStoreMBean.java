@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -192,4 +193,10 @@ public interface ColumnFamilyStoreMBean
        Enable/Disable compaction space check
      */
     public void compactionDiskSpaceCheck(boolean enable);
+
+    /**
+     *
+     * @return list of paths where this column family stores its data
+     */
+    public List<String> getDataPaths() throws IOException;
 }

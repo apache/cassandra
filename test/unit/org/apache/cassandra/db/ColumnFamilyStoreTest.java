@@ -22,8 +22,11 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -578,5 +581,21 @@ public class ColumnFamilyStoreTest
         List<File> ssTableFiles = new Directories(cfs.metadata).sstableLister(Directories.OnTxnErr.THROW).listFiles();
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
+    }
+
+    @Test
+    public void testDataDirectoriesOfColumnFamily() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        List<String> dataPaths = cfs.getDataPaths();
+        Assert.assertTrue(!dataPaths.isEmpty());
+
+        Path path = Paths.get(dataPaths.get(0));
+
+        String keyspace = path.getParent().getFileName().toString();
+        String table = path.getFileName().toString().split("-")[0];
+
+        Assert.assertEquals(cfs.getTableName(), table);
+        Assert.assertEquals(KEYSPACE1, keyspace);
     }
 }

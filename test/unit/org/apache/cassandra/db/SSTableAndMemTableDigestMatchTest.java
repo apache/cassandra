@@ -27,14 +27,12 @@ import java.util.function.Function;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
-import com.sun.xml.internal.xsom.impl.scd.Iterators;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
