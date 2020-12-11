@@ -26,7 +26,7 @@ import java.util.function.UnaryOperator;
 import com.google.common.base.Joiner;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.ReadCommand;
@@ -44,7 +44,7 @@ import org.apache.cassandra.db.transform.EmptyPartitionsDiscarder;
 import org.apache.cassandra.db.transform.Filter;
 import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
@@ -121,14 +121,22 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (command.rowFilter().isEmpty())
             return false;
 
-        IndexMetadata indexDef = command.indexMetadata();
-        if (indexDef != null && indexDef.isCustom())
+        IndexMetadata indexMetadata = command.indexMetadata();
+
+        if (indexMetadata == null || !indexMetadata.isCustom())
         {
-            String className = indexDef.options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return !SASIIndex.class.getName().equals(className);
+            return true;
         }
 
-        return true;
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(command.metadata().id);
+
+        assert cfs != null;
+
+        Index index = command.getIndex(cfs);
+
+        assert index != null;
+
+        return index.supportsReplicaFilteringProtection(command.rowFilter());
     }
 
     private class ResolveContext

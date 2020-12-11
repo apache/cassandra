@@ -23,6 +23,7 @@
 Merged from 3.11:
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
+ * Extend the exclusion of replica filtering protection to other indices instead of just SASI (CASSANDRA-16311)
  * Synchronize transaction logs for JBOD (CASSANDRA-16225)
  * Fix the counting of cells per partition (CASSANDRA-16259)
  * Fix serial read/non-applying CAS linearizability (CASSANDRA-12126)
