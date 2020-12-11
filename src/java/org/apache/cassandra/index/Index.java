@@ -433,6 +433,23 @@ public interface Index
     }
 
     /**
+     * Tells whether this index supports replica fitering protection or not.
+     *
+     * Replica filtering protection might need to run the query row filter in the coordinator to detect stale results.
+     * An index implementation will be compatible with this protection mechanism if it returns the same results for the
+     * row filter as CQL will return with {@code ALLOW FILTERING} and without using the index. This means that index
+     * implementations using custom query syntax or applying transformations to the indexed data won't support it.
+     * See CASSANDRA-8272 for further details.
+     *
+     * @param rowFilter rowFilter of query to decide if it supports replica filtering protection or not
+     * @return true if this index supports replica filtering protection, false otherwise
+     */
+    default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
+    {
+        return true;
+    }
+
+    /**
      * Return a function which performs post processing on the results of a partition range read command.
      * In future, this may be used as a generalized mechanism for transforming results on the coordinator prior
      * to returning them to the caller.
