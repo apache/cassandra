@@ -139,7 +139,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         YamlConfigurationLoader.MissingPropertiesChecker propertiesChecker = new YamlConfigurationLoader.MissingPropertiesChecker();
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
-        Node node = yaml.represent(map);
+        final Node node = yaml.represent(map);
         constructor.setComposer(new Composer(null, null)
         {
             @Override
