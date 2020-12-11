@@ -35,7 +35,7 @@ public class Throwables
 
     public static void maybeFail(Throwable fail)
     {
-        if (failIfCanCast(fail, null))
+        if (failIfCanCast(fail))
             throw new RuntimeException(fail);
     }
 
@@ -45,7 +45,7 @@ public class Throwables
             throw new RuntimeException(fail);
     }
 
-    public static <T extends Throwable> boolean failIfCanCast(Throwable fail, Class<T> checked) throws T
+    public static boolean failIfCanCast(Throwable fail)
     {
         if (fail == null)
             return false;
@@ -56,10 +56,17 @@ public class Throwables
         if (fail instanceof RuntimeException)
             throw (RuntimeException) fail;
 
+        return true;
+    }
+
+    public static <T extends Throwable> boolean failIfCanCast(Throwable fail, Class<T> checked) throws T
+    {
+        boolean result = failIfCanCast(fail);
+
         if (checked != null && checked.isInstance(fail))
             throw checked.cast(fail);
 
-        return true;
+        return result;
     }
 
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)

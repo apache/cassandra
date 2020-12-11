@@ -776,7 +776,8 @@ public final class MessagingService implements MessagingServiceMBean
                     handleIOException(e);
                 }
 
-            connectionManagers.values().forEach(OutboundTcpConnectionPool::close);
+            for (OutboundTcpConnectionPool pool : connectionManagers.values())
+                pool.close();
         }
         catch (IOException e)
         {
