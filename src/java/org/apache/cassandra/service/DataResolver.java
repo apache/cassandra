@@ -29,7 +29,6 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.filter.DataLimits.Counter;
@@ -40,7 +39,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.tracing.Tracing;
@@ -101,14 +100,22 @@ public class DataResolver extends ResponseResolver
         if (command.rowFilter().isEmpty())
             return false;
 
-        IndexMetadata indexDef = command.indexMetadata();
-        if (indexDef != null && indexDef.isCustom())
+        IndexMetadata indexMetadata = command.indexMetadata();
+
+        if (indexMetadata == null || !indexMetadata.isCustom())
         {
-            String className = indexDef.options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME);
-            return !SASIIndex.class.getName().equals(className);
+            return true;
         }
 
-        return true;
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(command.metadata().cfId);
+
+        assert cfs != null;
+
+        Index index = command.getIndex(cfs);
+
+        assert index != null;
+
+        return index.supportsReplicaFilteringProtection(command.rowFilter());
     }
 
     private class ResolveContext
