@@ -81,6 +81,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
+import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -93,6 +94,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -690,6 +692,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 return 0;
             return Gossiper.instance.getLiveMembers().size();
         }).call();
+    }
+
+    public Metrics metrics()
+    {
+        return callOnInstance(() -> new InstanceMetrics(CassandraMetricsRegistry.Metrics));
     }
 
     public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
