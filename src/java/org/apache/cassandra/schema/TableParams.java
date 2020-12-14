@@ -39,8 +39,6 @@ import static java.util.stream.Collectors.toMap;
 
 public final class TableParams
 {
-    public static final TableParams DEFAULT = TableParams.builder().build();
-
     public enum Option
     {
         BLOOM_FILTER_FP_CHANCE,
