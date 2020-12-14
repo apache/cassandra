@@ -67,6 +67,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
+import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
@@ -254,6 +255,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 return delegate().liveMemberCount();
 
             throw new IllegalStateException("Cannot get live member count on shutdown instance: " + config.num());
+        }
+
+        public Metrics metrics()
+        {
+            if (isShutdown)
+                throw new IllegalStateException();
+
+            return delegate.metrics();
         }
 
         public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
