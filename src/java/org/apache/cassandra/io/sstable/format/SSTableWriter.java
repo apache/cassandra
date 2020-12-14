@@ -325,6 +325,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return (StatsMetadata) finalizeMetadata().get(MetadataType.STATS);
     }
 
+    public void releaseMetadataOverhead()
+    {
+        metadataCollector.release();
+    }
+
     public static void rename(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
     {
         for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))

@@ -272,6 +272,14 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return components;
     }
 
+    /**
+     * Release large memory objects while keeping metrics intact
+     */
+    public void release()
+    {
+        estimatedTombstoneDropTime.releaseBuffers();
+    }
+
     private static List<ByteBuffer> makeList(ByteBuffer[] values)
     {
         // In most case, l will be the same size than values, but it's possible for it to be smaller
