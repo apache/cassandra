@@ -147,6 +147,18 @@ public enum CassandraRelevantProperties
      */
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
 
+    /**
+     * Gossip quarantine delay is used while evaluating membership changes and should only be changed with extreme care.
+     */
+    GOSSIPER_QUARANTINE_DELAY("cassandra.gossip_quarantine_delay_ms"),
+
+    /**
+     * When doing a host replacement its possible that the gossip state is "empty" meaning that the endpoint is known
+     * but the current state isn't known.  If the host replacement is needed to repair this state, this property must
+     * be true.
+     */
+    REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**
