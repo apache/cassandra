@@ -300,6 +300,11 @@ public class PipelineConfigurator
         pipeline.addBefore(INITIAL_HANDLER, MESSAGE_PROCESSOR, processor);
         pipeline.replace(EXCEPTION_HANDLER, EXCEPTION_HANDLER, exceptionHandler);
         pipeline.remove(INITIAL_HANDLER);
+
+        // Handles delivering event messages to registered clients
+        ctx.channel()
+           .attr(Dispatcher.EVENT_DISPATCHER)
+           .set(dispatcher.eventDispatcher(ctx.channel(), version, payloadAllocator));
         onNegotiationComplete(pipeline);
     }
 

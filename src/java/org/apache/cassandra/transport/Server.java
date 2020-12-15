@@ -32,6 +32,7 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.ChannelMatcher;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -97,7 +98,8 @@ public class Server implements CassandraDaemon.Server
                                                           DatabaseDescriptor.useNativeTransportLegacyFlusher(),
                                                           builder.tlsEncryptionPolicy);
 
-        EventNotifier notifier = new EventNotifier(this);
+        EventNotifier notifier = builder.eventNotifier != null ? builder.eventNotifier : new EventNotifier();
+        notifier.registerConnectionTracker(connectionTracker);
         StorageService.instance.register(notifier);
         Schema.instance.registerListener(notifier);
     }
@@ -177,6 +179,7 @@ public class Server implements CassandraDaemon.Server
         private int port = -1;
         private InetSocketAddress socket;
         private PipelineConfigurator pipelineConfigurator;
+        private EventNotifier eventNotifier;
 
         public Builder withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy tlsEncryptionPolicy)
         {
@@ -210,6 +213,12 @@ public class Server implements CassandraDaemon.Server
             return this;
         }
 
+        public Builder withEventNotifier(EventNotifier eventNotifier)
+        {
+            this.eventNotifier = eventNotifier;
+            return this;
+        }
+
         public Server build()
         {
             return new Server(this);
@@ -234,6 +243,11 @@ public class Server implements CassandraDaemon.Server
 
     public static class ConnectionTracker implements Connection.Tracker
     {
+        private static final ChannelMatcher PRE_V5_CHANNEL = channel -> channel.attr(Connection.attributeKey)
+                                                                               .get()
+                                                                               .getVersion()
+                                                                               .isSmallerThan(ProtocolVersion.V5);
+
         // TODO: should we be using the GlobalEventExecutor or defining our own?
         public final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
         private final EnumMap<Event.Type, ChannelGroup> groups = new EnumMap<>(Event.Type.class);
@@ -260,7 +274,16 @@ public class Server implements CassandraDaemon.Server
 
         public void send(Event event)
         {
-            groups.get(event.type).writeAndFlush(new EventMessage(event));
+            ChannelGroup registered = groups.get(event.type);
+            EventMessage message = new EventMessage(event);
+
+            // Deliver event to pre-v5 channels
+            registered.writeAndFlush(message, PRE_V5_CHANNEL);
+
+            // Deliver event to post-v5 channels
+            for (Channel c : registered)
+                if (!PRE_V5_CHANNEL.matches(c))
+                    c.attr(Dispatcher.EVENT_DISPATCHER).get().accept(message);
         }
 
         void closeAll()
@@ -331,9 +354,9 @@ public class Server implements CassandraDaemon.Server
         }
     }
 
-    private static class EventNotifier extends SchemaChangeListener implements IEndpointLifecycleSubscriber
+    public static class EventNotifier extends SchemaChangeListener implements IEndpointLifecycleSubscriber
     {
-        private final Server server;
+        private ConnectionTracker connectionTracker;
 
         // We keep track of the latest status change events we have sent to avoid sending duplicates
         // since StorageService may send duplicate notifications (CASSANDRA-7816, CASSANDRA-8236, CASSANDRA-9156)
@@ -342,9 +365,9 @@ public class Server implements CassandraDaemon.Server
         // state. This tracks the endpoints which have joined, but not yet signalled they're ready for clients
         private final Set<InetAddressAndPort> endpointsPendingJoinedNotification = ConcurrentHashMap.newKeySet();
 
-        private EventNotifier(Server server)
+        private void registerConnectionTracker(ConnectionTracker connectionTracker)
         {
-            this.server = server;
+            this.connectionTracker = connectionTracker;
         }
 
         private InetAddressAndPort getNativeAddress(InetAddressAndPort endpoint)
@@ -381,7 +404,7 @@ public class Server implements CassandraDaemon.Server
 
         private void send(Event event)
         {
-            server.connectionTracker.send(event);
+            connectionTracker.send(event);
         }
 
         public void onJoinCluster(InetAddressAndPort endpoint)
