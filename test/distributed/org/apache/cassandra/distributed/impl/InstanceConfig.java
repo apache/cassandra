@@ -139,6 +139,11 @@ public class InstanceConfig implements IInstanceConfig
         return DistributedTestSnitch.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
     }
 
+    public void unsetBroadcastAddressAndPort()
+    {
+        broadcastAddressAndPort = null;
+    }
+
     protected InetAddressAndPort getBroadcastAddressAndPort()
     {
         if (broadcastAddressAndPort == null)

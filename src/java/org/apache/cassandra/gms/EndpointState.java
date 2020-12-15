@@ -55,6 +55,11 @@ public class EndpointState
         this(initialHbState, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
     }
 
+    public EndpointState(EndpointState other)
+    {
+        this(new HeartBeatState(other.hbState), new EnumMap<>(other.applicationState.get()));
+    }
+
     EndpointState(HeartBeatState initialHbState, Map<ApplicationState, VersionedValue> states)
     {
         hbState = initialHbState;
@@ -136,6 +141,15 @@ public class EndpointState
     void markDead()
     {
         isAlive = false;
+    }
+
+    /**
+     * @return true if {@link HeartBeatState#isEmpty()} is true and no STATUS application state exists
+     */
+    public boolean isEmptyWithoutStatus()
+    {
+        Map<ApplicationState, VersionedValue> state = applicationState.get();
+        return hbState.isEmpty() && !(state.containsKey(ApplicationState.STATUS_WITH_PORT) || state.containsKey(ApplicationState.STATUS));
     }
 
     public boolean isRpcReady()

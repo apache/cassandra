@@ -16,24 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.shared;
+package org.apache.cassandra.distributed.test.hostreplacement;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+
+import static org.apache.cassandra.distributed.shared.ClusterUtils.stopAbrupt;
 
 /**
- * Tells jvm-dtest that a class should be shared accross all {@link ClassLoader}s.
+ * If the operator attempts to assassinate the node before replacing it, this will cause the node to fail to start
+ * as the status is non-normal.
  *
- * Jvm-dtest relies on classloader isolation to run multiple cassandra instances in the same JVM, this makes it
- * so some classes do not get shared (outside a blesssed set of classes/packages). When the default behavior
- * is not desirable, this annotation will tell jvm-dtest to share the class accross all class loaders.
- *
- * This is the oposite of {@link Isolated}.
+ * The node is removed abruptly before assassinate, leaving gossip without an empty entry.
  */
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.TYPE })
-public @interface Shared
+public class AssassinateAbruptDownedNodeTest extends BaseAssassinatedCase
 {
+    @Override
+    void consume(Cluster cluster, IInvokableInstance nodeToRemove)
+    {
+        stopAbrupt(cluster, nodeToRemove);
+    }
 }

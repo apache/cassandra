@@ -23,12 +23,14 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -148,5 +150,18 @@ public class TestBaseImpl extends DistributedTestBase
             return UUIDType.instance;
 
         throw new IllegalArgumentException("Unsupported value type (value is " + value + ')');
+    }
+
+    public static void fixDistributedSchemas(Cluster cluster)
+    {
+        // These keyspaces are under replicated by default, so must be updated when doing a mulit-node cluster;
+        // else bootstrap will fail with 'Unable to find sufficient sources for streaming range <range> in keyspace <name>'
+        for (String ks : Arrays.asList("system_auth", "system_traces"))
+        {
+            cluster.schemaChange("ALTER KEYSPACE " + ks + " WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': " + Math.min(cluster.size(), 3) + "}");
+        }
+
+        // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose
+        // anything, so ignoring repair to speed up the tests.
     }
 }
