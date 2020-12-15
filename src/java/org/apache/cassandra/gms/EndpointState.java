@@ -143,7 +143,10 @@ public class EndpointState
         isAlive = false;
     }
 
-    public boolean isEmpty()
+    /**
+     * @return true if {@link HeartBeatState#isEmpty()} is true and no STATUS application state exists
+     */
+    public boolean isEmptyWithoutStatus()
     {
         Map<ApplicationState, VersionedValue> state = applicationState.get();
         return hbState.isEmpty() && !(state.containsKey(ApplicationState.STATUS_WITH_PORT) || state.containsKey(ApplicationState.STATUS));

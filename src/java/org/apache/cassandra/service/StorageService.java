@@ -103,7 +103,6 @@ import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -538,7 +537,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Collection<Token> tokens = TokenSerializer.deserialize(tokenMetadata.partitioner, new DataInputStream(new ByteArrayInputStream(tokensVersionedValue.toBytes())));
             bootstrapTokens = validateReplacementBootstrapTokens(tokenMetadata, replaceAddress, tokens);
 
-            if (state.isEmpty() && REPLACEMENT_ALLOW_EMPTY.getBoolean())
+            if (state.isEmptyWithoutStatus() && REPLACEMENT_ALLOW_EMPTY.getBoolean())
             {
                 logger.warn("Gossip state not present for replacing node {}. Adding temporary entry to continue.", replaceAddress);
 

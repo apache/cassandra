@@ -1511,7 +1511,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             InetAddressAndPort endpoint = e.getKey();
             EndpointState state = new EndpointState(e.getValue());
-            if (state.isEmpty())
+            if (state.isEmptyWithoutStatus())
             {
                 // We have no app states loaded for this endpoint, but we may well have
                 // some state persisted in the system keyspace. This can happen in the case
@@ -1959,7 +1959,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     }
 
     /**
-     * Creates a new dead {@link EndpointState} that is {@link EndpointState#isEmpty() empty}.  This is used during
+     * Creates a new dead {@link EndpointState} that is {@link EndpointState#isEmptyWithoutStatus() empty}.  This is used during
      * host replacement for edge cases where the seed notified that the endpoint was empty, so need to add such state
      * into gossip explicitly (as empty endpoints are not gossiped outside of the shadow round).
      *
