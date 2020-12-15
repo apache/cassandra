@@ -157,7 +157,7 @@ public enum CassandraRelevantProperties
      * but the current state isn't known.  If the host replacement is needed to repair this state, this property must
      * be true.
      */
-    REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "false"),
+    REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
 
     //cassandra properties (without the "cassandra." prefix)
 

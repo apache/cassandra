@@ -36,7 +36,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
-import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertGossipInfo;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertNotInRing;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
@@ -54,9 +53,6 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
 
     static
     {
-        // by default empty replace isn't allowed, so enable for these tests
-        REPLACEMENT_ALLOW_EMPTY.setBoolean(true);
-
         // Gossip has a notion of quarantine, which is used to remove "fat clients" and "gossip only members"
         // from the ring if not updated recently (recently is defined by this config).
         // The reason for setting to 0 is to make sure even under such an aggressive environment, we do NOT remove
