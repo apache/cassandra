@@ -3324,24 +3324,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return endpoints;
     }
 
-
+    @Deprecated
     public List<String> getJoiningNodes()
     {
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), false);
     }
 
-    @Deprecated
     public List<String> getJoiningNodesWithPort()
     {
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), true);
     }
 
+    @Deprecated
     public List<String> getLiveNodes()
     {
         return stringify(Gossiper.instance.getLiveMembers(), false);
     }
 
-    @Deprecated
     public List<String> getLiveNodesWithPort()
     {
         return stringify(Gossiper.instance.getLiveMembers(), true);
