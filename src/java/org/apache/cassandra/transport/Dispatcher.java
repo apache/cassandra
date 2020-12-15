@@ -20,15 +20,19 @@ package org.apache.cassandra.transport;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
+import io.netty.util.AttributeKey;
 import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
@@ -61,7 +65,8 @@ public class Dispatcher
         this.useLegacyFlusher = useLegacyFlusher;
     }
 
-    public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher) {
+    public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher)
+    {
         requestExecutor.submit(() -> processRequest(channel, request, forFlusher));
     }
 
@@ -139,5 +144,31 @@ public class Dispatcher
         {
             requestExecutor.shutdown();
         }
+    }
+
+
+    /**
+     * Dispatcher for EventMessages. In {@link Server.ConnectionTracker#send(Event)}, the strategy
+     * for delivering events to registered clients is dependent on protocol version and the configuration
+     * of the pipeline. For v5 and newer connections, the event message is encoded into an Envelope,
+     * wrapped in a FlushItem and then delivered via the pipeline's flusher, in a similar way to
+     * a Response returned from {@link #processRequest(Channel, Message.Request, FlushItemConverter)}.
+     * It's worth noting that events are not generally fired as a direct response to a client request,
+     * so this flush item has a null request attribute. The dispatcher itself is created when the
+     * pipeline is first configured during protocol negotiation and is attached to the channel for
+     * later retrieval.
+     *
+     * Pre-v5 connections simply write the EventMessage directly to the pipeline.
+     */
+    static final AttributeKey<Consumer<EventMessage>> EVENT_DISPATCHER = AttributeKey.valueOf("EVTDISP");
+    Consumer<EventMessage> eventDispatcher(final Channel channel,
+                                           final ProtocolVersion version,
+                                           final FrameEncoder.PayloadAllocator allocator)
+    {
+        return eventMessage -> flush(new FlushItem.Framed(channel,
+                                                          eventMessage.encode(version),
+                                                          null,
+                                                          allocator,
+                                                          f -> f.response.release()));
     }
 }
