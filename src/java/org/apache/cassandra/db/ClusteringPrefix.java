@@ -35,8 +35,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ByteComparable.Version;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * A clustering prefix is the unit of what a {@link ClusteringComparator} can compare.
@@ -70,7 +70,7 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
         EXCL_END_INCL_START_BOUNDARY(0, -1, v -> ByteSource.LT_NEXT_COMPONENT),
         STATIC_CLUSTERING           (1, -1, v -> v == Version.LEGACY
                                                  ? ByteSource.LT_NEXT_COMPONENT + 1
-                                                 : ByteSource.TERMINATOR - 1),
+                                                 : ByteSource.EXCLUDED),
         CLUSTERING                  (2,  0, v -> v == Version.LEGACY
                                                  ? ByteSource.NEXT_COMPONENT
                                                  : ByteSource.TERMINATOR),

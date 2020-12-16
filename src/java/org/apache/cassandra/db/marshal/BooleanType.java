@@ -26,8 +26,8 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.BooleanSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,14 +57,23 @@ public class BooleanType extends AbstractType<Boolean>
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer buf, ByteComparable.Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
     {
-        if (!buf.hasRemaining())
+        if (accessor.isEmpty(data))
             return null;
-        byte b = buf.get(buf.position());
+        byte b = accessor.toByte(data);
         if (b != 0)
             b = 1;
         return ByteSource.oneByte(b);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        if (comparableBytes == null)
+            return accessor.empty();
+        int b = comparableBytes.next();
+        return b == 1 ? accessor.valueOf(true) : accessor.valueOf(false);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

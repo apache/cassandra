@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -31,8 +32,14 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.serializers.MarshalException;
 
 import org.apache.cassandra.io.sstable.format.big.IndexInfo;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.EXCLUDED;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT_NULL;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.NEXT_COMPONENT_NULL_REVERSED;
+import static org.apache.cassandra.utils.bytecomparable.ByteSource.TERMINATOR;
 
 /**
  * A comparator of clustering prefixes (or more generally of {@link Clusterable}}.
@@ -302,7 +309,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
                     if (srcnum == sz)
                         return src.kind().asByteComparableValue(version);
 
-                    current = subtype(srcnum).asComparableBytes(src.accessor().toBuffer(src.get(srcnum)), version);
+                    current = subtype(srcnum).asComparableBytes(src.accessor(), src.get(srcnum), version);
                     if (current == null)
                         return subtype(srcnum).isReversed() ? NEXT_COMPONENT_NULL_REVERSED : NEXT_COMPONENT_NULL;
 
@@ -314,6 +321,171 @@ public class ClusteringComparator implements Comparator<Clusterable>
         public String toString()
         {
             return src.clusteringString(subtypes());
+        }
+    }
+
+    /**
+     * Produces a clustering from the given byte-comparable value. The method will throw an exception if the value
+     * does not correctly encode a clustering of this type, including if it encodes a position before or after a
+     * clustering (i.e. a bound/boundary).
+     *
+     * @param accessor Accessor to use to construct components. Because this will be used to construct individual
+     *                 arrays/buffers for each component, it may be sensible to use an accessor that allocates larger
+     *                 buffers in advance.
+     * @param comparable The clustering encoded as a byte-comparable sequence.
+     */
+    public <V> Clustering<V> clusteringFromByteComparable(ValueAccessor<V> accessor,
+                                                          ByteComparable comparable)
+    {
+        ByteComparable.Version version = ByteComparable.Version.OSS41;
+        ByteSource.Peekable orderedBytes = ByteSource.peekable(comparable.asComparableBytes(version));
+        if (orderedBytes == null)
+            return null;
+
+        // First check for special cases (partition key only, static clustering) that can do without buffers.
+        int sep = orderedBytes.next();
+        switch (sep)
+        {
+        case TERMINATOR:
+            assert size() == 0 : "Terminator should be after " + size() + " components, got 0";
+            return accessor.factory().clustering();
+        case EXCLUDED:
+            return accessor.factory().staticClustering();
+        default:
+            // continue with processing
+        }
+
+        int cc = 0;
+        V[] components = accessor.createArray(size());
+
+        while (true)
+        {
+            switch (sep)
+            {
+            case NEXT_COMPONENT_NULL:
+            case NEXT_COMPONENT_NULL_REVERSED:
+                components[cc] = accessor.empty();
+                break;
+            case NEXT_COMPONENT:
+                components[cc] = subtype(cc).fromComparableBytes(accessor, orderedBytes, version);
+                break;
+            case TERMINATOR:
+                assert cc == size() : "Terminator should be after " + size() + " components, got " + cc;
+                return accessor.factory().clustering(components);
+            case EXCLUDED:
+                throw new AssertionError("Unexpected static terminator after the first component");
+            default:
+                throw new AssertionError("Unexpected separator " + Integer.toHexString(sep) + " in Clustering encoding");
+            }
+            ++cc;
+            sep = orderedBytes.next();
+        }
+    }
+
+    /**
+     * Produces a clustering bound from the given byte-comparable value. The method will throw an exception if the value
+     * does not correctly encode a bound position of this type, including if it encodes an exact clustering.
+     *
+     * Note that the encoded clustering position cannot specify the type of bound (i.e. start/end/boundary) because to
+     * correctly compare clustering positions the encoding must be the same for the different types (e.g. the position
+     * for a exclusive end and an inclusive start is the same, before the exact clustering). The type must be supplied
+     * separately (in the bound... vs boundary... call and isEnd argument).
+     *
+     * @param accessor Accessor to use to construct components. Because this will be used to construct individual
+     *                 arrays/buffers for each component, it may be sensible to use an accessor that allocates larger
+     *                 buffers in advance.
+     * @param comparable The clustering position encoded as a byte-comparable sequence.
+     * @param isEnd true if the bound marks the end of a range, false is it marks the start.
+     */
+    public <V> ClusteringBound<V> boundFromByteComparable(ValueAccessor<V> accessor,
+                                                          ByteComparable comparable,
+                                                          boolean isEnd)
+    {
+        ByteComparable.Version version = ByteComparable.Version.OSS41;
+        ByteSource.Peekable orderedBytes = ByteSource.peekable(comparable.asComparableBytes(version));
+        if (orderedBytes == null)
+            return null;
+
+        int sep = orderedBytes.next();
+        int cc = 0;
+        V[] components = accessor.createArray(size());
+
+        while (true)
+        {
+            switch (sep)
+            {
+            case NEXT_COMPONENT_NULL:
+            case NEXT_COMPONENT_NULL_REVERSED:
+                components[cc] = accessor.empty();
+                break;
+            case NEXT_COMPONENT:
+                components[cc] = subtype(cc).fromComparableBytes(accessor, orderedBytes, version);
+                break;
+            case ByteSource.LT_NEXT_COMPONENT:
+                return accessor.factory().bound(isEnd ? ClusteringPrefix.Kind.EXCL_END_BOUND
+                                                      : ClusteringPrefix.Kind.INCL_START_BOUND,
+                                                Arrays.copyOf(components, cc));
+            case ByteSource.GT_NEXT_COMPONENT:
+                return accessor.factory().bound(isEnd ? ClusteringPrefix.Kind.INCL_END_BOUND
+                                                      : ClusteringPrefix.Kind.EXCL_START_BOUND,
+                                                Arrays.copyOf(components, cc));
+            default:
+                throw new AssertionError("Unexpected separator " + Integer.toHexString(sep) + " in ClusteringBound encoding");
+            }
+            ++cc;
+            sep = orderedBytes.next();
+        }
+    }
+
+    /**
+     * Produces a clustering boundary from the given byte-comparable value. The method will throw an exception if the
+     * value does not correctly encode a bound position of this type, including if it encodes an exact clustering.
+     *
+     * Note that the encoded clustering position cannot specify the type of bound (i.e. start/end/boundary) because to
+     * correctly compare clustering positions the encoding must be the same for the different types (e.g. the position
+     * for a exclusive end and an inclusive start is the same, before the exact clustering). The type must be supplied
+     * separately (in the bound... vs boundary... call and isEnd argument).
+     *
+     * @param accessor Accessor to use to construct components. Because this will be used to construct individual
+     *                 arrays/buffers for each component, it may be sensible to use an accessor that allocates larger
+     *                 buffers in advance.
+     * @param comparable The clustering position encoded as a byte-comparable sequence.
+     */
+    public <V> ClusteringBoundary<V> boundaryFromByteComparable(ValueAccessor<V> accessor,
+                                                                ByteComparable comparable)
+    {
+        ByteComparable.Version version = ByteComparable.Version.OSS41;
+        ByteSource.Peekable orderedBytes = ByteSource.peekable(comparable.asComparableBytes(version));
+        if (orderedBytes == null)
+            return null;
+
+        // First check for special cases (partition key only, static clustering) that can do without buffers.
+        int sep = orderedBytes.next();
+        int cc = 0;
+        V[] components = accessor.createArray(size());
+
+        while (true)
+        {
+            switch (sep)
+            {
+            case NEXT_COMPONENT_NULL:
+            case NEXT_COMPONENT_NULL_REVERSED:
+                components[cc] = accessor.empty();
+                break;
+            case NEXT_COMPONENT:
+                components[cc] = subtype(cc).fromComparableBytes(accessor, orderedBytes, version);
+                break;
+            case ByteSource.LT_NEXT_COMPONENT:
+                return accessor.factory().boundary(ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY,
+                                                   Arrays.copyOf(components, cc));
+            case ByteSource.GT_NEXT_COMPONENT:
+                return accessor.factory().boundary(ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY,
+                                                   Arrays.copyOf(components, cc));
+            default:
+                throw new AssertionError("Unexpected separator " + Integer.toHexString(sep) + " in ClusteringBoundary encoding");
+            }
+            ++cc;
+            sep = orderedBytes.next();
         }
     }
 

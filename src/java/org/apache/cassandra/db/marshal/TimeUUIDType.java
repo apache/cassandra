@@ -24,8 +24,9 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimeUUIDSerializer;
@@ -58,11 +59,11 @@ public class TimeUUIDType extends TemporalType<UUID>
 
         long msb1 = accessorL.getLong(left, 0);
         long msb2 = accessorR.getLong(right, 0);
+        verifyVersion(msb1);
+        verifyVersion(msb2);
+
         msb1 = reorderTimestampBytes(msb1);
         msb2 = reorderTimestampBytes(msb2);
-
-        assert (msb1 & topbyte(0xf0L)) == topbyte(0x10L);
-        assert (msb2 & topbyte(0xf0L)) == topbyte(0x10L);
 
         int c = Long.compare(msb1, msb2);
         if (c != 0)
@@ -76,19 +77,37 @@ public class TimeUUIDType extends TemporalType<UUID>
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer b, ByteComparable.Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
     {
-        if (!b.hasRemaining())
+        if (accessor.isEmpty(data))
             return null;
 
-        int s = b.position();
-        long msb = b.getLong(s);
-        assert ((msb >>> 12) & 0xf) == 1;
+        long hiBits = accessor.getLong(data, 0);
+        verifyVersion(hiBits);
         ByteBuffer swizzled = ByteBuffer.allocate(16);
-        swizzled.putLong(0, TimeUUIDType.reorderTimestampBytes(msb));
-        swizzled.putLong(8, b.getLong(s + 8) ^ 0x8080808080808080L);
+        swizzled.putLong(0, TimeUUIDType.reorderTimestampBytes(hiBits));
+        swizzled.putLong(8, accessor.getLong(data, 8) ^ 0x8080808080808080L);
 
         return ByteSource.fixedLength(swizzled);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        // Optional-style encoding of empty values as null sources
+        if (comparableBytes == null)
+            return accessor.empty();
+
+        // The non-lexical UUID bits are stored as an unsigned fixed-length 128-bit integer.
+        long hiBits = ByteSourceInverse.getUnsignedFixedLengthAsLong(comparableBytes, 8);
+        long loBits = ByteSourceInverse.getUnsignedFixedLengthAsLong(comparableBytes, 8);
+
+        hiBits = reorderBackTimestampBytes(hiBits);
+        verifyVersion(hiBits);
+        // In addition, TimeUUIDType also touches the low bits of the UUID (see CASSANDRA-8730 and DB-1758).
+        loBits ^= 0x8080808080808080L;
+
+        return UUIDType.makeUuidBytes(accessor, hiBits, loBits);
     }
 
     // takes as input 8 signed bytes in native machine order
@@ -99,16 +118,30 @@ public class TimeUUIDType extends TemporalType<UUID>
         return signedBytes ^ 0x0080808080808080L;
     }
 
-    private static long topbyte(long topbyte)
+    private void verifyVersion(long hiBits)
     {
-        return topbyte << 56;
+        long version = (hiBits >>> 12) & 0xf;
+        if (version != 1)
+            throw new MarshalException(String.format("Invalid UUID version %d for timeuuid",
+                                                     version));
     }
 
     protected static long reorderTimestampBytes(long input)
     {
-        return    (input <<  48)
-                  | ((input <<  16) & 0xFFFF00000000L)
-                  |  (input >>> 32);
+        return (input <<  48)
+               | ((input <<  16) & 0xFFFF00000000L)
+               |  (input >>> 32);
+    }
+
+    protected static long reorderBackTimestampBytes(long input)
+    {
+        // In a time-based UUID the high bits are significantly more shuffled than in other UUIDs - if [X] represents a
+        // 16-bit tuple, [1][2][3][4] should become [3][4][2][1].
+        // See the UUID Javadoc (and more specifically the high bits layout of a Leach-Salz UUID) to understand the
+        // reasoning behind this bit twiddling in the first place (in the context of comparisons).
+        return (input << 32)
+               | ((input >>> 16) & 0xFFFF0000L)
+               | (input >>> 48);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException

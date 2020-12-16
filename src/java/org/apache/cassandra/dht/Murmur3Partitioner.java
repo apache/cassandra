@@ -33,8 +33,9 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -324,6 +325,12 @@ public class Murmur3Partitioner implements IPartitioner
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
+        public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+        {
+            long tokenData = ByteSourceInverse.getSignedLong(comparableBytes);
+            return new LongToken(tokenData);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             LongToken longToken = (LongToken) token;

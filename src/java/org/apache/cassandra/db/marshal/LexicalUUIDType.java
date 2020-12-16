@@ -26,8 +26,9 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class LexicalUUIDType extends AbstractType<UUID>
 {
@@ -51,29 +52,43 @@ public class LexicalUUIDType extends AbstractType<UUID>
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer buf, ByteComparable.Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
     {
-        if (buf == null || buf.remaining() == 0)
+        if (data == null || accessor.isEmpty(data))
             return null;
 
         // fixed-length (hence prefix-free) representation, but
         // we have to sign-flip the highest bytes of the two longs
-        final int bufstart = buf.position();
         return new ByteSource()
         {
             int bufpos = 0;
 
             public int next()
             {
-                if (bufpos + bufstart >= buf.limit())
+                if (bufpos >= accessor.size(data))
                     return END_OF_STREAM;
-                int v = buf.get(bufpos + bufstart) & 0xFF;
+                int v = accessor.getByte(data, bufpos) & 0xFF;
                 if (bufpos == 0 || bufpos == 8)
                     v ^= 0x80;
                 ++bufpos;
                 return v;
             }
         };
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        // Optional-style encoding of empty values as null sources
+        if (comparableBytes == null)
+            return accessor.empty();
+
+        long hiBits = ByteSourceInverse.getSignedLong(comparableBytes);
+        long loBits = ByteSourceInverse.getSignedLong(comparableBytes);
+
+        // Lexical UUIDs are stored as just two signed longs. The decoding of these longs flips their sign bit back, so
+        // they can directly be used for constructing the original UUID.
+        return UUIDType.makeUuidBytes(accessor, hiBits, loBits);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
