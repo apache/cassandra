@@ -28,8 +28,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public class ReversedType<T> extends AbstractType<T>
 {
@@ -66,9 +66,9 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer b, ByteComparable.Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
     {
-        ByteSource src = baseType.asComparableBytes(b, version);
+        ByteSource src = baseType.asComparableBytes(accessor, data, version);
         if (src == null)    // Note: this will only compare correctly if used within a sequence
             return null;
         // Invert all bytes.
@@ -83,6 +83,12 @@ public class ReversedType<T> extends AbstractType<T>
                 return v;
             return v ^ 0xFF;
         };
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return baseType.fromComparableBytes(accessor, ReversedPeekableByteSource.of(comparableBytes), version);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)

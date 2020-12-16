@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
@@ -31,8 +32,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ByteComparable.Version;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
@@ -168,28 +170,33 @@ public class CompositeType extends AbstractCompositeType
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer byteBuffer, Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
     {
-        if (byteBuffer == null || byteBuffer.remaining() == 0)
+        if (data == null || accessor.isEmpty(data))
             return null;
 
         ByteSource[] srcs = new ByteSource[types.size() * 2 + 1];
-        ByteBuffer bb = byteBuffer.duplicate();
+        int length = accessor.size(data);
 
         // statics go first
-        boolean isStatic = readStatic(bb);
+        boolean isStatic = readIsStaticInternal(data, accessor);
+        int offset = startingOffsetInternal(isStatic);
         srcs[0] = isStatic ? null : ByteSource.EMPTY;
 
         int i = 0;
         byte lastEoc = 0;
-        while (bb.remaining() > 0)
+        while (offset < length)
         {
             // Only the end-of-component byte of the last component of this composite can be non-zero, so the
             // component before can't have a non-zero end-of-component byte.
             assert lastEoc == 0 : lastEoc;
 
-            srcs[i * 2 + 1] = types.get(i).asComparableBytes(ByteBufferUtil.readBytesWithShortLength(bb), version);
-            lastEoc = bb.get();
+            int componentLength = accessor.getUnsignedShort(data, offset);
+            offset += 2;
+            srcs[i * 2 + 1] = types.get(i).asComparableBytes(accessor, accessor.slice(data, offset, componentLength), version);
+            offset += componentLength;
+            lastEoc = accessor.getByte(data, offset);
+            offset += 1;
             srcs[i * 2 + 2] = ByteSource.oneByte(lastEoc & 0xFF ^ 0x80); // end-of-component also takes part in comparison as signed byte
             ++i;
         }
@@ -198,6 +205,46 @@ public class CompositeType extends AbstractCompositeType
 
         return ByteSource.withTerminator(version == Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR,
                                          srcs);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, Version version)
+    {
+        // For ByteComparable.Version.LEGACY the terminator byte is ByteSource.END_OF_STREAM. The latter means that it's
+        // indistinguishable from the END_OF_STREAM byte that gets returned _after_ the terminator byte has already
+        // been consumed, when the composite is part of a multi-component sequence. So if in such a scenario we consume
+        // the ByteSource.END_OF_STREAM terminator here, this will result in actually consuming the multi-component
+        // sequence separator after it and jumping directly into the bytes of the next component, when we try to
+        // consume the (already consumed) separator.
+        // Instead of trying to find a way around the situation, we can just take advantage of the fact that we don't
+        // need to decode from Version.LEGACY, assume that we never do that, and assert it here.
+        assert version != Version.LEGACY;
+
+        if (comparableBytes == null)
+            return accessor.empty();
+
+        int separator = comparableBytes.next();
+        boolean isStatic = ByteSourceInverse.nextComponentNull(separator);
+        int i = 0;
+        V[] buffers = accessor.createArray(types.size());
+        byte lastEoc = 0;
+
+        while ((separator = comparableBytes.next()) != ByteSource.TERMINATOR && i < types.size())
+        {
+            // Only the end-of-component byte of the last component of this composite can be non-zero, so the
+            // component before can't have a non-zero end-of-component byte.
+            assert lastEoc == 0 : lastEoc;
+
+            // Get the next type and decode its payload.
+            AbstractType<?> type = types.get(i);
+            V decoded = type.fromComparableBytes(accessor,
+                                                 ByteSourceInverse.nextComponentSource(comparableBytes, separator),
+                                                 version);
+            buffers[i++] = decoded;
+
+            lastEoc = ByteSourceInverse.getSignedByte(ByteSourceInverse.nextComponentSource(comparableBytes));
+        }
+        return build(accessor, isStatic, Arrays.copyOf(buffers, i), lastEoc);
     }
 
     protected ParsedComparator parseComparator(int i, String part)
@@ -425,27 +472,26 @@ public class CompositeType extends AbstractCompositeType
         return accessor.valueOf(out);
     }
 
-    public static ByteBuffer build(boolean isStatic, ByteBuffer[] buffers, byte lastEoc)
+    @VisibleForTesting
+    public static <V> V build(ValueAccessor<V> accessor, boolean isStatic, V[] values, byte lastEoc)
     {
         int totalLength = isStatic ? 2 : 0;
-        for (ByteBuffer bb : buffers)
-            totalLength += 2 + bb.remaining() + 1;
+        for (V v : values)
+            totalLength += 2 + accessor.size(v) + 1;
 
         ByteBuffer out = ByteBuffer.allocate(totalLength);
 
         if (isStatic)
             out.putShort((short)STATIC_MARKER);
 
-        for (int i = 0; i < buffers.length; ++i)
+        for (int i = 0; i < values.length; ++i)
         {
-            ByteBuffer bb = buffers[i];
-            ByteBufferUtil.writeShortLength(out, bb.remaining());
-            int toCopy = bb.remaining();
-            ByteBufferUtil.arrayCopy(bb, bb.position(), out, out.position(), toCopy);
-            out.position(out.position() + toCopy);
-            out.put(i != buffers.length - 1 ? (byte) 0 : lastEoc);
+            V v = values[i];
+            ByteBufferUtil.writeShortLength(out, accessor.size(v));
+            accessor.write(v, out);
+            out.put(i != values.length - 1 ? (byte) 0 : lastEoc);
         }
         out.flip();
-        return out;
+        return accessor.valueOf(out);
     }
 }

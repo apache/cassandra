@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.AbstractBufferClusteringPrefix;
 import org.apache.cassandra.db.BufferClustering;
 import org.apache.cassandra.db.BufferClusteringBound;
 import org.apache.cassandra.db.BufferClusteringBoundary;
@@ -31,24 +32,15 @@ import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 
 class ByteBufferObjectFactory implements ValueAccessor.ObjectFactory<ByteBuffer>
 {
-    /** Empty clustering for tables having no clustering columns. */
-    private static final Clustering<ByteBuffer> EMPTY_CLUSTERING = new BufferClustering()
-    {
-        @Override
-        public String toString(TableMetadata metadata)
-        {
-            return "EMPTY";
-        }
-    };
-
     /** The smallest start bound, i.e. the one that starts before any row. */
-    private static final BufferClusteringBound BOTTOM_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_START_BOUND, new ByteBuffer[0]);
+    private static final BufferClusteringBound BOTTOM_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_START_BOUND,
+                                                                                        AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY);
     /** The biggest end bound, i.e. the one that ends after any row. */
-    private static final BufferClusteringBound TOP_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND, new ByteBuffer[0]);
+    private static final BufferClusteringBound TOP_BOUND = new BufferClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND,
+                                                                                     AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY);
 
     static final ValueAccessor.ObjectFactory<ByteBuffer> instance = new ByteBufferObjectFactory();
 
@@ -66,7 +58,11 @@ class ByteBufferObjectFactory implements ValueAccessor.ObjectFactory<ByteBuffer>
 
     public Clustering<ByteBuffer> clustering()
     {
-        return EMPTY_CLUSTERING;
+        return Clustering.EMPTY;
+    }
+
+    public Clustering<ByteBuffer> staticClustering() {
+        return Clustering.STATIC_CLUSTERING;
     }
 
     public ClusteringBound<ByteBuffer> bound(ClusteringPrefix.Kind kind, ByteBuffer... values)

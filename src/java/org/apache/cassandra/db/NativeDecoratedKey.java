@@ -20,7 +20,11 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
@@ -41,8 +45,66 @@ public class NativeDecoratedKey extends DecoratedKey
         MemoryUtil.setBytes(peer + 4, key);
     }
 
+    public NativeDecoratedKey(Token token, NativeAllocator allocator, OpOrder.Group writeOp, byte[] keyBytes)
+    {
+        super(token);
+        assert keyBytes != null;
+
+        int size = keyBytes.length;
+        this.peer = allocator.allocate(4 + size, writeOp);
+        MemoryUtil.setInt(peer, size);
+        MemoryUtil.setBytes(peer + 4, keyBytes, 0, size);
+    }
+
+    @Inline
+    int length()
+    {
+        return MemoryUtil.getInt(peer);
+    }
+
+    @Inline
+    long address()
+    {
+        return this.peer + 4;
+    }
+
+    @Override
     public ByteBuffer getKey()
     {
         return MemoryUtil.getByteBuffer(peer + 4, MemoryUtil.getInt(peer), ByteOrder.BIG_ENDIAN);
+    }
+
+    @Override
+    protected ByteSource keyComparableBytes(Version version)
+    {
+        return ByteSource.of(address(), length(), version);
+    }
+
+    /**
+     * A factory method that translates the given byte-comparable representation to a {@link NativeDecoratedKey}
+     * instance. If the given byte comparable doesn't represent the encoding of a native decorated key, anything from a
+     * wide variety of throwables may be thrown (e.g. {@link AssertionError}, {@link IndexOutOfBoundsException},
+     * {@link IllegalStateException}, etc.).
+     *
+     * @param byteComparable A byte-comparable representation (presumably of a {@link NativeDecoratedKey} instance).
+     * @param version The encoding version used for the given byte comparable.
+     * @param partitioner The partitioner of the encoded decorated key. Needed in order to correctly decode the token
+     *                    bytes of the key.
+     * @param allocator The native allocator needed to copy the key contents to off-heap memory.
+     *
+     * @return A new {@link NativeDecoratedKey} instance, corresponding to the given byte-comparable representation. If
+     * we were to call {@link #asComparableBytes(Version)} on the returned object, we should get a {@link ByteSource}
+     * equal to the one of the input byte comparable.
+     */
+    public static NativeDecoratedKey fromByteComparable(ByteComparable byteComparable,
+                                                        ByteComparable.Version version,
+                                                        IPartitioner partitioner,
+                                                        NativeAllocator allocator,
+                                                        OpOrder.Group opGroup)
+    {
+        return DecoratedKey.fromByteComparable(byteComparable,
+                                               version,
+                                               partitioner,
+                                               (token, keyBytes) -> new NativeDecoratedKey(token, allocator, opGroup, keyBytes));
     }
 }

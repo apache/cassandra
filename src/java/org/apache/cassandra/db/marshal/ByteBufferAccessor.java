@@ -239,6 +239,13 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public int putByte(ByteBuffer dst, int offset, byte value)
+    {
+        dst.put(dst.position() + offset, value);
+        return TypeSizes.BYTE_SIZE;
+    }
+
+    @Override
     public int putShort(ByteBuffer dst, int offset, short value)
     {
         dst.putShort(dst.position() + offset, value);

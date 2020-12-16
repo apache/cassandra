@@ -22,15 +22,15 @@ import java.util.Iterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteComparable.Version;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.FBUtilities;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
@@ -98,8 +98,10 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer buf, Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
     {
+        // Partitioners work with ByteBuffers only.
+        ByteBuffer buf = ByteBufferAccessor.instance.convert(data, accessor);
         if (version != Version.LEGACY)
         {
             // For ByteComparable.Version.OSS41 and above we encode an empty key with a null byte source. This
@@ -110,6 +112,16 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
             return buf.hasRemaining() ? partitioner.decorateKey(buf).asComparableBytes(version) : null;
         }
         return PartitionPosition.ForKey.get(buf, partitioner).asComparableBytes(version);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        assert version != Version.LEGACY;
+        if (comparableBytes == null)
+            return accessor.empty();
+        byte[] keyBytes = DecoratedKey.keyFromByteComparable(v -> comparableBytes, version, partitioner);
+        return accessor.valueOf(keyBytes);
     }
 
     @Override

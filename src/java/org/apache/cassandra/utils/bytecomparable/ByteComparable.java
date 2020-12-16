@@ -16,11 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.bytecomparable;
 
 import java.nio.ByteBuffer;
-
-import static org.apache.cassandra.utils.ByteSource.END_OF_STREAM;
 
 /**
  * Interface indicating a value can be represented/identified by a comparable {@link ByteSource}.
@@ -54,7 +52,7 @@ public interface ByteComparable
         ByteSource stream = asComparableBytes(version);
         if (stream == null)
             return "null";
-        for (int b = stream.next(); b != END_OF_STREAM; b = stream.next())
+        for (int b = stream.next(); b != ByteSource.END_OF_STREAM; b = stream.next())
             builder.append(Integer.toHexString((b >> 4) & 0xF)).append(Integer.toHexString(b & 0xF));
         return builder.toString();
     }
@@ -119,7 +117,7 @@ public interface ByteComparable
     {
         int l = 0;
         ByteSource s = src.asComparableBytes(version);
-        while (s.next() != END_OF_STREAM)
+        while (s.next() != ByteSource.END_OF_STREAM)
             ++l;
         return l;
     }
@@ -159,7 +157,7 @@ public interface ByteComparable
         ByteSource s2 = bytes2.asComparableBytes(version);
         int pos = 1;
         int b;
-        while ((b = s1.next()) == s2.next() && b != END_OF_STREAM)
+        while ((b = s1.next()) == s2.next() && b != ByteSource.END_OF_STREAM)
             ++pos;
         return pos;
     }

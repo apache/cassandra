@@ -199,6 +199,56 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
+    public void testNullsInIntUDT() throws Throwable
+    {
+        String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a int)");
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">)");
+        execute("INSERT INTO %s (a, b) VALUES (1, ?)", userType("a", 1));
+
+        assertRows(execute("SELECT b.a FROM %s"), row(1));
+
+        flush();
+
+        schemaChange("ALTER TYPE " + myType + " ADD b int");
+        execute("INSERT INTO %s (a, b) VALUES (2, {a: 2, b: 2})");
+        execute("INSERT INTO %s (a, b) VALUES (3, {b: 3})");
+        execute("INSERT INTO %s (a, b) VALUES (4, {a: null, b: 4})");
+
+        beforeAndAfterFlush(() ->
+                            assertRows(execute("SELECT b.a, b.b FROM %s"),
+                                       row(1, null),
+                                       row(2, 2),
+                                       row(null, 3),
+                                       row(null, 4))
+        );
+    }
+
+    @Test
+    public void testNullsInTextUDT() throws Throwable
+    {
+        String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a text)");
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b frozen<" + myType + ">)");
+        execute("INSERT INTO %s (a, b) VALUES (1, {a: ''})");
+
+        assertRows(execute("SELECT b.a FROM %s"), row(""));
+
+        flush();
+
+        schemaChange("ALTER TYPE " + myType + " ADD b text");
+        execute("INSERT INTO %s (a, b) VALUES (2, {a: '', b: ''})");
+        execute("INSERT INTO %s (a, b) VALUES (3, {b: ''})");
+        execute("INSERT INTO %s (a, b) VALUES (4, {a: null, b: ''})");
+
+        beforeAndAfterFlush(() ->
+                            assertRows(execute("SELECT b.a, b.b FROM %s"),
+                                       row("", null),
+                                       row("", ""),
+                                       row(null, ""),
+                                       row(null, ""))
+        );
+    }
+
+    @Test
     public void testAlterNonFrozenUDT() throws Throwable
     {
         String myType = KEYSPACE + '.' + createType("CREATE TYPE %s (a int, b text)");
