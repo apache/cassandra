@@ -28,9 +28,10 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteComparable.Version;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 /**
  * Nanosecond resolution time values
@@ -46,12 +47,17 @@ public class TimeType extends TemporalType<Long>
     }
 
     @Override
-    public ByteSource asComparableBytes(ByteBuffer buf, Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
     {
         // While BYTE_ORDER would still work for this type, making use of the fixed length is more efficient.
-        return version == Version.LEGACY
-               ? ByteSource.fixedLength(buf)
-               : ByteSource.optionalFixedLength(buf);
+        // This type does not allow non-present values, but we do just to avoid future complexity.
+        return ByteSource.optionalFixedLength(accessor, data);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return ByteSourceInverse.getOptionalFixedLength(accessor, comparableBytes, 8);
     }
 
     @Override

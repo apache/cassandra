@@ -15,12 +15,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.utils.bytecomparable;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import org.apache.cassandra.utils.ByteComparable.Version;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -62,6 +64,19 @@ public interface ByteSource
     int LT_NEXT_COMPONENT = 0x20;
     int GT_NEXT_COMPONENT = 0x60;
 
+    // Special value for components that should be excluded from the normal min/max span. (static rows)
+    int EXCLUDED = 0x18;
+
+    /**
+     * Reinterprets a byte buffer as a byte-comparable source that has 0s escaped and finishes in an escape.
+     * This provides a weakly-prefix-free byte-comparable version of the content to use in sequences.
+     * (See ByteSource.BufferReinterpreter/Multi for explanation.)
+     */
+    static <V> ByteSource of(ValueAccessor<V> accessor, V data, Version version)
+    {
+        return new AccessorReinterpreter<>(accessor, data, version);
+    }
+
     /**
      * Reinterprets a byte buffer as a byte-comparable source that has 0s escaped and finishes in an escape.
      * This provides a weakly-prefix-free byte-comparable version of the content to use in sequences.
@@ -80,6 +95,16 @@ public interface ByteSource
     static ByteSource of(byte[] buf, Version version)
     {
         return new ReinterpreterArray(buf, version);
+    }
+
+    /**
+     * Reinterprets a memory range as a byte-comparable source that has 0s escaped and finishes in an escape.
+     * This provides a weakly-prefix-free byte-comparable version of the content to use in sequences.
+     * (See ByteSource.BufferReinterpreter/Multi for explanation.)
+     */
+    static ByteSource of(long address, int length, ByteComparable.Version version)
+    {
+        return new MemoryReinterpreter(address, length, version);
     }
 
     /**
@@ -114,9 +139,9 @@ public interface ByteSource
      * Presumes that the length of the buffer is always either 0 or constant for the type, which permits decoding and
      * ensures the representation is prefix-free.
      */
-    static ByteSource optionalSignedFixedLengthNumber(ByteBuffer b)
+    static <V> ByteSource optionalSignedFixedLengthNumber(ValueAccessor<V> accessor, V data)
     {
-        return b.hasRemaining() ? signedFixedLengthNumber(b) : null;
+        return !accessor.isEmpty(data) ? signedFixedLengthNumber(accessor, data) : null;
     }
 
     /**
@@ -124,9 +149,9 @@ public interface ByteSource
      * The first byte has its sign bit inverted, and the rest are passed unchanged.
      * Presumes that the length of the buffer is always constant for the type.
      */
-    static ByteSource signedFixedLengthNumber(ByteBuffer b)
+    static <V> ByteSource signedFixedLengthNumber(ValueAccessor<V> accessor, V data)
     {
-        return new SignedFixedLengthNumber(b);
+        return new SignedFixedLengthNumber<>(accessor, data);
     }
 
     /**
@@ -136,9 +161,9 @@ public interface ByteSource
      * Presumes that the length of the buffer is always either 0 or constant for the type, which permits decoding and
      * ensures the representation is prefix-free.
      */
-    static ByteSource optionalSignedFixedLengthFloat(ByteBuffer b)
+    static <V> ByteSource optionalSignedFixedLengthFloat(ValueAccessor<V> accessor, V data)
     {
-        return b.hasRemaining() ? signedFixedLengthFloat(b) : null;
+        return !accessor.isEmpty(data) ? signedFixedLengthFloat(accessor, data) : null;
     }
 
     /**
@@ -147,9 +172,9 @@ public interface ByteSource
      * (Sign of IEEE floats is the highest bit, the rest can be compared in magnitude by byte comparison.)
      * Presumes that the length of the buffer is always constant for the type.
      */
-    static ByteSource signedFixedLengthFloat(ByteBuffer b)
+    static <V> ByteSource signedFixedLengthFloat(ValueAccessor<V> accessor, V data)
     {
-        return new SignedFixedLengthFloat(b);
+        return new SignedFixedLengthFloat<>(accessor, data);
     }
 
     /**
@@ -235,31 +260,6 @@ public interface ByteSource
     }
 
 
-    static ByteSource MAX = new ByteSource()
-    {
-        public int next()
-        {
-            return 0xFF;
-        }
-
-        public String toString()
-        {
-            return "MAX";
-        }
-    };
-
-    /**
-     * Returns a maximal ByteSource, i.e. something that compares greater to any other byte source.
-     * This is an infinite sequence of 0xFF.
-     *
-     * Note that since the sequence is infinite, trying to calculate this item's length, copying it, trying
-     * to store it in a trie, or comparing it to another max will result in an infinite loop.
-     */
-    public static ByteSource max()
-    {
-        return MAX;
-    }
-
     /**
      * Variable-length encoding. Escapes 0s as ESCAPE + zero or more ESCAPED_0_CONT + ESCAPED_0_DONE.
      * Finishes with an escape value (to which Multi will add non-zero component separator)
@@ -276,7 +276,7 @@ public interface ByteSource
      * prefix-free. Additionally, any such prefix sequence will compare smaller than the value to which it is a prefix,
      * because any permitted separator byte will be smaller than the byte following the prefix.
      */
-    static abstract class AbstractReinterpreter implements ByteSource
+    abstract static class AbstractReinterpreter implements ByteSource
     {
         final Version version;
         int bufpos;
@@ -329,6 +329,29 @@ public interface ByteSource
         protected abstract int limit();
     }
 
+    static class AccessorReinterpreter<V> extends AbstractReinterpreter
+    {
+        private final V data;
+        private final ValueAccessor<V> accessor;
+
+        private AccessorReinterpreter(ValueAccessor<V> accessor, V data, Version version)
+        {
+            super(0, version);
+            this.accessor = accessor;
+            this.data = data;
+        }
+
+        protected int limit()
+        {
+            return accessor.size(data);
+        }
+
+        protected byte get(int index)
+        {
+            return accessor.getByte(data, index);
+        }
+    }
+
     static class BufferReinterpreter extends AbstractReinterpreter
     {
         final ByteBuffer buf;
@@ -373,27 +396,52 @@ public interface ByteSource
         }
     }
 
+    static class MemoryReinterpreter extends AbstractReinterpreter
+    {
+        final long address;
+        final int length;
+
+        MemoryReinterpreter(long address, int length, ByteComparable.Version version)
+        {
+            super(0, version);
+            this.address = address;
+            this.length = length;
+        }
+
+        protected byte get(int index)
+        {
+            return MemoryUtil.getByte(address + index);
+        }
+
+        protected int limit()
+        {
+            return length;
+        }
+    }
+
     /**
      * Fixed length signed number encoding. Inverts first bit (so that neg < pos), then just posts all bytes from the
      * buffer. Assumes buffer is of correct length.
      */
-    static class SignedFixedLengthNumber implements ByteSource
+    static class SignedFixedLengthNumber<V> implements ByteSource
     {
-        ByteBuffer buf;
+        final ValueAccessor<V> accessor;
+        final V data;
         int bufpos;
 
-        public SignedFixedLengthNumber(ByteBuffer buf)
+        public SignedFixedLengthNumber(ValueAccessor<V> accessor, V data)
         {
-            this.buf = buf;
-            bufpos = buf.position();
+            this.accessor = accessor;
+            this.data = data;
+            this.bufpos = 0;
         }
 
         public int next()
         {
-            if (bufpos >= buf.limit())
+            if (bufpos >= accessor.size(data))
                 return END_OF_STREAM;
-            int v = buf.get(bufpos) & 0xFF;
-            if (bufpos == buf.position())
+            int v = accessor.getByte(data, bufpos) & 0xFF;
+            if (bufpos == 0)
                 v ^= 0x80;
             ++bufpos;
             return v;
@@ -423,24 +471,26 @@ public interface ByteSource
      * Fixed length signed floating point number encoding. First bit is sign. If positive, add sign bit value to make
      * greater than all negatives. If not, invert all content to make negatives with bigger magnitude smaller.
      */
-    static class SignedFixedLengthFloat implements ByteSource
+    static class SignedFixedLengthFloat<V> implements ByteSource
     {
-        final ByteBuffer buf;
+        final ValueAccessor<V> accessor;
+        final V data;
         int bufpos;
         boolean invert;
 
-        public SignedFixedLengthFloat(ByteBuffer buf)
+        public SignedFixedLengthFloat(ValueAccessor<V> accessor, V data)
         {
-            this.buf = buf;
-            this.bufpos = buf.position();
+            this.accessor = accessor;
+            this.data = data;
+            this.bufpos = 0;
         }
 
         public int next()
         {
-            if (bufpos >= buf.limit())
+            if (bufpos >= accessor.size(data))
                 return END_OF_STREAM;
-            int v = buf.get(bufpos) & 0xFF;
-            if (bufpos == buf.position())
+            int v = accessor.getByte(data, bufpos) & 0xFF;
+            if (bufpos == 0)
             {
                 invert = v >= 0x80;
                 v |= 0x80;
@@ -459,12 +509,12 @@ public interface ByteSource
     {
         final ByteSource[] srcs;
         int srcnum = -1;
-        int terminator;
+        int sequenceTerminator;
 
-        Multi(ByteSource[] srcs, int terminator)
+        Multi(ByteSource[] srcs, int sequenceTerminator)
         {
             this.srcs = srcs;
-            this.terminator = terminator;
+            this.sequenceTerminator = sequenceTerminator;
         }
 
         public int next()
@@ -480,7 +530,7 @@ public interface ByteSource
 
             ++srcnum;
             if (srcnum == srcs.length)
-                return terminator;
+                return sequenceTerminator;
             if (srcs[srcnum] == null)
                 return NEXT_COMPONENT_NULL;
             return NEXT_COMPONENT;
@@ -522,9 +572,29 @@ public interface ByteSource
         }
     }
 
-    static ByteSource optionalFixedLength(ByteBuffer b)
+    static <V> ByteSource optionalFixedLength(ValueAccessor<V> accessor, V data)
     {
-        return b.hasRemaining() ? fixedLength(b) : null;
+        return !accessor.isEmpty(data) ? fixedLength(accessor, data) : null;
+    }
+
+    /**
+     * A byte source of the given bytes without any encoding.
+     * The resulting source is only guaranteed to give correct comparison results and be prefix-free if the
+     * underlying type has a fixed length.
+     * In tests, this method is also used to generate non-escaped test cases.
+     */
+    public static <V> ByteSource fixedLength(ValueAccessor<V> accessor, V data)
+    {
+        return new ByteSource()
+        {
+            int pos = -1;
+
+            @Override
+            public int next()
+            {
+                return ++pos < accessor.size(data) ? accessor.getByte(data, pos) & 0xFF : -1;
+            }
+        };
     }
 
     /**
@@ -571,84 +641,6 @@ public interface ByteSource
             public int next()
             {
                 return ++pos < offset + length ? b[pos] & 0xFF : END_OF_STREAM;
-            }
-        };
-    }
-
-    public static ByteSource fourBit(ByteSource s)
-    {
-        return new ByteSource()
-        {
-            int pos = 0;
-            int v = 0;
-
-            @Override
-            public int next()
-            {
-                if ((pos++ & 1) == 0)
-                {
-                    v = s.next();
-                    if (v == END_OF_STREAM)
-                        return END_OF_STREAM;
-                    return (v >> 4) & 0xF;
-                }
-                else
-                    return v & 0xF;
-            }
-        };
-    }
-
-    /**
-     * Splits each byte into portions of bitCount bits.
-     * @param s source
-     * @param bitCount number of bits to issue at a time, 1-4 make sense
-     */
-    public static ByteSource splitBytes(ByteSource s, int bitCount)
-    {
-        return new ByteSource()
-        {
-            int pos = 8;
-            int v = 0;
-            int mask = (1 << bitCount) - 1;
-
-            @Override
-            public int next()
-            {
-                if ((pos += bitCount) >= 8)
-                {
-                    pos = 0;
-                    v = s.next();
-                    if (v == END_OF_STREAM)
-                        return END_OF_STREAM;
-                }
-                v <<= bitCount;
-                return (v >> 8) & mask;
-            }
-        };
-    }
-
-    /**
-     * Returns the key that is immediately after src in the topology.
-     * @param src
-     * @return src with added 00 byte at the end
-     */
-    public static ByteSource nextKey(ByteSource src)
-    {
-        return new ByteSource()
-        {
-            boolean done = false;
-
-            @Override
-            public int next()
-            {
-                if (done)
-                    return END_OF_STREAM;
-                int n = src.next();
-                if (n != END_OF_STREAM)
-                    return n;
-
-                done = true;
-                return 0;
             }
         };
     }
