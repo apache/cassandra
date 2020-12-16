@@ -39,11 +39,11 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ByteComparable;
-import org.apache.cassandra.utils.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.github.jamm.Unmetered;
 
-import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.BYTE_ORDER;
 import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM;
 
 /**
@@ -608,17 +608,49 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * Depending on the type, this method can be called for null or empty input, in which case the output is allowed to
      * be null (the clustering/tuple encoding will accept and handle it).
      */
-    public ByteSource asComparableBytes(ByteBuffer byteBuffer, ByteComparable.Version version)
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V value, ByteComparable.Version version)
     {
-        if (comparisonType == BYTE_ORDER)
+        if (isByteOrderComparable)
         {
             // When a type is byte-ordered on its own, we only need to escape it, so that we can include it in
             // multi-component types and make the encoding weakly-prefix-free.
-            return ByteSource.of(byteBuffer, version);
+            return ByteSource.of(accessor, value, version);
         }
         else
             // default is only good for byte-comparables
             throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement asComparableBytes");
+    }
+
+    public final ByteSource asComparableBytes(ByteBuffer byteBuffer, ByteComparable.Version version)
+    {
+        return asComparableBytes(ByteBufferAccessor.instance, byteBuffer, version);
+    }
+
+    /**
+     * Translates the given byte-ordered representation to the common, non-byte-ordered binary representation of a
+     * payload for this abstract type (the latter, common binary representation is what we mostly work with in the
+     * storage engine internals). If the given bytes don't correspond to the encoding of some payload value for this
+     * abstract type, an {@link IllegalArgumentException} may be thrown.
+     *
+     * @param accessor value accessor used to construct the value.
+     * @param comparableBytes A byte-ordered representation (presumably of a payload for this abstract type).
+     * @param version The byte-comparable version used to construct the representation.
+     * @return A of a payload for this abstract type, corresponding to the given byte-ordered representation,
+     *         constructed using the supplied value accessor.
+     *
+     * @see #asComparableBytes
+     */
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        if (isByteOrderComparable)
+            return accessor.valueOf(ByteSourceInverse.getUnescapedBytes(comparableBytes));
+        else
+            throw new UnsupportedOperationException(getClass().getSimpleName() + " does not implement fromComparableBytes");
+    }
+
+    public final ByteBuffer fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version);
     }
 
     /**

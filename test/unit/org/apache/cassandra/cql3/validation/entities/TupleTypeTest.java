@@ -34,6 +34,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.SchemaCQLHelper;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
 import org.quicktheories.core.Gen;
@@ -267,7 +268,7 @@ public class TupleTypeTest extends CQLTester
             for (ByteBuffer value : testcase.uniqueRows)
             {
                 map.put(value, count);
-                ByteBuffer[] tupleBuffers = tupleType.split(value);
+                ByteBuffer[] tupleBuffers = tupleType.split(ByteBufferAccessor.instance, value);
 
                 // use cast to avoid warning
                 execute("INSERT INTO %s (id, value) VALUES (?, ?)", tuple((Object[]) tupleBuffers), count);
@@ -306,7 +307,7 @@ public class TupleTypeTest extends CQLTester
             for (ByteBuffer value : testcase.uniqueRows)
             {
                 map.put(value, count);
-                ByteBuffer[] tupleBuffers = tupleType.split(value);
+                ByteBuffer[] tupleBuffers = tupleType.split(ByteBufferAccessor.instance, value);
 
                 // use cast to avoid warning
                 execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, tuple((Object[]) tupleBuffers), count);
