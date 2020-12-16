@@ -1131,9 +1131,9 @@ class Shell(cmd.Cmd):
             while True:
                 # Always print for the first page even it is empty
                 if result.current_rows or isFirst:
-                    num_rows += len(result.current_rows)
                     with_header = isFirst or tty
-                    self.print_static_result(result, table_meta, with_header, tty)
+                    self.print_static_result(result, table_meta, with_header, tty, num_rows)
+                    num_rows += len(result.current_rows)
                 if result.has_more_pages:
                     if self.shunted_query_out is None and tty:
                         # Only pause when not capturing.
@@ -1156,7 +1156,7 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, result, table_meta, with_header, tty):
+    def print_static_result(self, result, table_meta, with_header, tty, row_count_offset=0):
         if not result.column_names and not table_meta:
             return
 
@@ -1176,7 +1176,7 @@ class Shell(cmd.Cmd):
         formatted_values = [list(map(self.myformat_value, [row[c] for c in column_names], cql_types)) for row in result.current_rows]
 
         if self.expand_enabled:
-            self.print_formatted_result_vertically(formatted_names, formatted_values)
+            self.print_formatted_result_vertically(formatted_names, formatted_values, row_count_offset)
         else:
             self.print_formatted_result(formatted_names, formatted_values, with_header, tty)
 
@@ -1207,13 +1207,13 @@ class Shell(cmd.Cmd):
         if tty:
             self.writeresult("")
 
-    def print_formatted_result_vertically(self, formatted_names, formatted_values):
+    def print_formatted_result_vertically(self, formatted_names, formatted_values, row_count_offset):
         max_col_width = max([n.displaywidth for n in formatted_names])
         max_val_width = max([n.displaywidth for row in formatted_values for n in row])
 
         # for each row returned, list all the column-value pairs
-        for row_id, row in enumerate(formatted_values):
-            self.writeresult("@ Row %d" % (row_id + 1))
+        for i, row in enumerate(formatted_values):
+            self.writeresult("@ Row %d" % (row_count_offset + i + 1))
             self.writeresult('-%s-' % '-+-'.join(['-' * max_col_width, '-' * max_val_width]))
             for field_id, field in enumerate(row):
                 column = formatted_names[field_id].ljust(max_col_width, color=self.color)

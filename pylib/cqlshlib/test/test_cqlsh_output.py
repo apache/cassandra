@@ -910,3 +910,13 @@ class TestCqlshOutput(BaseTestCase):
             nnnnnnnn
             """),
         ))
+
+    def test_expanded_output_counts_past_page(self):
+        query = "PAGING 5; EXPAND ON; SELECT * FROM twenty_rows_table;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        # format is "@ Row 1"
+        row_headers = [s for s in output.splitlines() if "@ Row" in s]
+        row_ids = [int(s.split(' ')[2]) for s in row_headers]
+        self.assertEqual([i for i in range(1, 21)], row_ids)
