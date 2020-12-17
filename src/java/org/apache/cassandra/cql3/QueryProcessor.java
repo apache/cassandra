@@ -163,6 +163,12 @@ public class QueryProcessor implements QueryHandler
     }
 
     @VisibleForTesting
+    public static ConcurrentMap<String, Prepared> getInternalStatements()
+    {
+        return internalStatements;
+    }
+
+    @VisibleForTesting
     public static QueryState internalQueryState()
     {
         return new QueryState(InternalStateInstance.INSTANCE.clientState);
