@@ -558,7 +558,8 @@ public class TableMetadata implements SchemaElement
             || !regularAndStaticColumns.equals(updated.regularAndStaticColumns)
             || !indexes.equals(updated.indexes)
             || params.defaultTimeToLive != updated.params.defaultTimeToLive
-            || params.gcGraceSeconds != updated.params.gcGraceSeconds;
+            || params.gcGraceSeconds != updated.params.gcGraceSeconds
+            || ( !Flag.isCQLTable(flags) && Flag.isCQLTable(updated.flags) );
     }
 
     /**
