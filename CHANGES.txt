@@ -1,4 +1,5 @@
 4.0-beta4
+ * Remove use of String.intern() (CASSANDRA-15810)
  * Fix the missing bb position in ByteBufferAccessor.getUnsignedShort (CASSANDRA-16249)
  * Make sure OOM errors are rethrown on truncation failure (CASSANDRA-16254)
  * Send back client warnings when creating too many tables/keyspaces (CASSANDRA-16309)
