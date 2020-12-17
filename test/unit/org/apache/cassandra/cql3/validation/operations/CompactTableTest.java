@@ -18,9 +18,19 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaChangeListener;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class CompactTableTest extends CQLTester
 {
@@ -44,6 +54,50 @@ public class CompactTableTest extends CQLTester
         alterTable("ALTER TABLE %s DROP COMPACT STORAGE");
         assertRows(execute( "SELECT * FROM %s"),
                    row(1, 1, 1));
+    }
+
+    @Test
+    public void dropCompactStorageShouldInvalidatePreparedStatements() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE;");
+        execute("INSERT INTO %s (pk, ck, v) VALUES (1, 1, 1)");
+        String templateSelect = "SELECT * FROM %s WHERE pk = 1";
+        assertRows(execute(templateSelect), row(1, 1, 1));
+
+        // Verify that the prepared statement has been added to the cache after our first query.
+        String formattedQuery = formatQuery(templateSelect);        
+        ConcurrentMap<String, QueryHandler.Prepared> original = QueryProcessor.getInternalStatements();
+        assertTrue(original.containsKey(formattedQuery));
+
+        // Verify that schema change listeners are told statements are affected with DROP COMPACT STORAGE.
+        SchemaChangeListener listener = new SchemaChangeListener()
+        {
+            public void onAlterTable(String keyspace, String table, boolean affectsStatements)
+            {
+                assertTrue(affectsStatements);
+            }
+        };
+        
+        Schema.instance.registerListener(listener);
+        
+        try
+        {
+            alterTable("ALTER TABLE %s DROP COMPACT STORAGE");
+            ConcurrentMap<String, QueryHandler.Prepared> postDrop = QueryProcessor.getInternalStatements();
+
+            // Verify that the prepared statement has been removed the cache after DROP COMPACT STORAGE.
+            assertFalse(postDrop.containsKey(formattedQuery));
+
+            // Verify that the prepared statement has been added back to the cache after our second query.
+            assertRows(execute(templateSelect), row(1, 1, 1));
+            ConcurrentMap<String, QueryHandler.Prepared> postQuery = QueryProcessor.getInternalStatements();
+            assertTrue(postQuery.containsKey(formattedQuery));
+        }
+        finally
+        {
+            // Clean up the listener so this doesn't fail other tests.
+            Schema.instance.unregisterListener(listener);
+        }
     }
 
     @Test

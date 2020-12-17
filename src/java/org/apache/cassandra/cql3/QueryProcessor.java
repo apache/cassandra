@@ -161,6 +161,12 @@ public class QueryProcessor implements QueryHandler
         if (!memoryOnly)
             SystemKeyspace.resetPreparedStatements();
     }
+    
+    @VisibleForTesting
+    public static ConcurrentMap<String, Prepared> getInternalStatements()
+    {
+        return internalStatements;
+    }
 
     @VisibleForTesting
     public static QueryState internalQueryState()
