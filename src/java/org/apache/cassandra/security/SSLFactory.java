@@ -175,8 +175,8 @@ public final class SSLFactory
         try
         {
             SSLContext ctx = SSLContext.getInstance("TLS");
-            ctx.getDefaultSSLParameters().setProtocols(options.acceptedProtocolsArray());
             ctx.init(kmf.getKeyManagers(), trustManagers, null);
+            ctx.getDefaultSSLParameters().setProtocols(options.acceptedProtocolsArray());
             return ctx;
         }
         catch (Exception e)
