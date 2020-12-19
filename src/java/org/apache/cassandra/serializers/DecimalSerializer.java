@@ -64,7 +64,7 @@ public class DecimalSerializer extends TypeSerializer<BigDecimal>
 
     public String toString(BigDecimal value)
     {
-        return value == null ? "" : value.toPlainString();
+        return value == null ? "" : value.toString();
     }
 
     public Class<BigDecimal> getType()
