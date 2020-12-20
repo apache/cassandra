@@ -100,6 +100,6 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                                                             "--truststore-password", validTrustStorePassword,
                                                             "test/data/legacy-sstables/na/legacy_tables/legacy_na_clust");
         assertNotEquals(0, tool.getExitCode());
-        assertTrue(tool.getStdout().contains("The client supported protocol versions [TLSv1] are not accepted by server preferences [TLS12]"));
+        assertTrue(tool.getStdout().contains("SSLHandshakeException"));
     }
 }
