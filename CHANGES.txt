@@ -1,4 +1,5 @@
 4.0-beta5
+ * Fix check for -Xlog in cassandra-env.sh (CASSANDRA-16279)
  * SSLFactory should initialize SSLContext before setting protocols (CASSANDRA-16362)
  * Restore sasi dependencies jflex, snowball-stemmer, and concurrent-trees, in the cassandra-all pom (CASSANDRA-16303)
  * Fix DecimalDeserializer#toString OOM (CASSANDRA-14925)
