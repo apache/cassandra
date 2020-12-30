@@ -1,5 +1,7 @@
-4.0-beta4
+4.0-beta5
  * Fix DecimalDeserializer#toString OOM (CASSANDRA-14925)
+
+4.0-beta4
  * DROP COMPACT STORAGE should invalidate prepared statements still using CompactTableMetadata (CASSANDRA-16361)
  * Update default num_tokens to 16 and allocate_tokens_for_local_replication_factor to 3 (CASSANDRA-13701)
  * Remove use of String.intern() (CASSANDRA-15810)
