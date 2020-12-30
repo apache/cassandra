@@ -1,4 +1,5 @@
 4.0-beta5
+ * Restore sasi dependencies jflex, snowball-stemmer, and concurrent-trees, in the cassandra-all pom (CASSANDRA-16303)
  * Fix DecimalDeserializer#toString OOM (CASSANDRA-14925)
 
 4.0-beta4
