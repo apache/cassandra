@@ -188,7 +188,7 @@ Update the codebase to point to the next development version::
     git checkout cassandra-<version-branch>
     edit build.xml          # update `<property name="base.version" value="…"/> `
     edit debian/changelog   # add entry for new version
-    edit CHANGES.txt        # add entry for new version
+    edit CHANGES.txt        # add entry for new version, move up any entries that were added after the release was cut and staged
     git commit -m "Increment version to <next-version>" build.xml debian/changelog CHANGES.txt
 
     # …and forward merge and push per normal procedure
@@ -245,7 +245,4 @@ As described in `When to Archive <http://www.apache.org/dev/release.html#when-to
 
 An example of removing old releases::
 
-    svn co https://dist.apache.org/repos/dist/release/cassandra/ cassandra-dist
-    svn rm <previous_version> debian/pool/main/c/cassandra/<previous_version>*
-    svn st
-    # check and commit
+    svn rm https://dist.apache.org/repos/dist/release/cassandra/<previous_version>
