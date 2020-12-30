@@ -237,4 +237,13 @@ public class NodetoolTableStatsTest extends CQLTester
         tool.assertCleanStdErr();
         assertEquals(1, tool.getExitCode());
     }
+
+    @Test
+    public void testStatusArg()
+    {
+        ToolResult tool = ToolRunner.invokeNodetool("status", "-r");
+        assertThat(tool.getStdout(), CoreMatchers.containsString("UN"));
+        tool.assertCleanStdErr();
+        assertEquals(0, tool.getExitCode());
+    }
 }
