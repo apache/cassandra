@@ -250,24 +250,6 @@ public class BulkLoader
         }
     }
 
-    private static String[] filterSupportedProtocols(SSLEngine engine, List<String> acceptedProtocols)
-    {
-        if (acceptedProtocols == null)
-            return null;
-
-        List<String> filteredProtocols = new ArrayList<>();
-        Set<String> supportedProtocols = Arrays.stream(engine.getSupportedProtocols()).collect(Collectors.toSet());
-        int i = 0;
-        for (String acceptedProtocol : acceptedProtocols)
-        {
-            if (supportedProtocols.contains(acceptedProtocol))
-                filteredProtocols.add(acceptedProtocol);
-            else
-                System.out.println("UNACCEPTABLE: " + acceptedProtocol);
-        }
-        return filteredProtocols.toArray(new String[0]);
-    }
-
     private static SSLOptions buildSSLOptions(EncryptionOptions clientEncryptionOptions)
     {
 
@@ -294,7 +276,7 @@ public class BulkLoader
             {
                 SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
 
-                String[] acceptedProtocols = filterSupportedProtocols(engine, clientEncryptionOptions.acceptedProtocols());
+                String[] acceptedProtocols = clientEncryptionOptions.acceptedProtocolsArray();
                 if (acceptedProtocols != null && acceptedProtocols.length > 0)
                     engine.setEnabledProtocols(acceptedProtocols);
 

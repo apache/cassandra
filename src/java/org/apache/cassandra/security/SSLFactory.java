@@ -161,6 +161,26 @@ public final class SSLFactory
         }
     }
 
+    /** Provides the list of protocols that would have been supported if "TLS" was selected as the
+     * protocol before the change for CASSANDRA-13325 that expects explicit protocol versions.
+     * @return list of enabled protocol names
+     */
+    public static List<String> tlsInstanceProtocolSubstitution()
+    {
+        try
+        {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, null, null);
+            SSLParameters params = ctx.getSupportedSSLParameters();
+            String[] protocols = params.getProtocols();
+            return Arrays.asList(protocols);
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Error finding supported TLS Protocols", e);
+        }
+    }
+
     /**
      * Create a JSSE {@link SSLContext}.
      */
