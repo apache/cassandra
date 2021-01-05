@@ -19,12 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
@@ -268,8 +263,8 @@ public class BulkLoader
             throw new RuntimeException("Could not create SSL Context.", e);
         }
 
-        // Temporarily override newSSLEngine to set accepted protocols until it is added to JdkSSLOptions
-        // See CASSANDRA-13325 and CASSANDRA-16362
+        // Temporarily override newSSLEngine to set accepted protocols until it is added to
+        // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
         RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
         {
             protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)

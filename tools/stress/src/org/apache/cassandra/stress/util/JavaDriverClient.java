@@ -146,8 +146,8 @@ public class JavaDriverClient
             SSLContext sslContext;
             sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
 
-            // Temporarily override newSSLEngine to set accepted protocols until it is added to JdkSSLOptions
-            // See CASSANDRA-13325 and CASSANDRA-16362
+            // Temporarily override newSSLEngine to set accepted protocols until it is added to
+            // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
             RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
             {
                 protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)

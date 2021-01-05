@@ -38,15 +38,15 @@ import static org.junit.Assert.assertTrue;
 
 public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
-    static Cluster cluster;
-    static String nodes;
-    static int nativePort;
-    static int storagePort;
+    static Cluster CLUSTER;
+    static String NODES;
+    static int NATIVE_PORT;
+    static int STORAGE_PORT;
 
     @BeforeClass
     public static void setupCluster() throws IOException
     {
-        cluster = Cluster.build().withNodes(1).withConfig(c -> {
+        CLUSTER = Cluster.build().withNodes(1).withConfig(c -> {
             c.with(Feature.NATIVE_PROTOCOL, Feature.NETWORK, Feature.GOSSIP); // need gossip to get hostid for java driver
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
@@ -60,23 +60,24 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
                               .put("accepted_protocols", Collections.singletonList("TLSv1.2"))
                               .build());
         }).start();
-        nodes = cluster.get(1).config().broadcastAddress().getHostString();
-        nativePort = cluster.get(1).callOnInstance(DatabaseDescriptor::getNativeTransportPort);
-        storagePort = cluster.get(1).callOnInstance(DatabaseDescriptor::getStoragePort);
+        NODES = CLUSTER.get(1).config().broadcastAddress().getHostString();
+        NATIVE_PORT = CLUSTER.get(1).callOnInstance(DatabaseDescriptor::getNativeTransportPort);
+        STORAGE_PORT = CLUSTER.get(1).callOnInstance(DatabaseDescriptor::getStoragePort);
     }
 
     @AfterClass
     public static void tearDownCluster()
     {
-        cluster.close();
+        if (CLUSTER != null)
+            CLUSTER.close();
     }
     @Test
     public void bulkLoaderSuccessfullyConnectsOverSsl() throws Throwable
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
-                                                            "--nodes", nodes,
-                                                            "--port", Integer.toString(nativePort),
-                                                            "--storage-port", Integer.toString(storagePort),
+                                                            "--nodes", NODES,
+                                                            "--port", Integer.toString(NATIVE_PORT),
+                                                            "--storage-port", Integer.toString(STORAGE_PORT),
                                                             "--keystore", validKeyStorePath,
                                                             "--keystore-password", validKeyStorePassword,
                                                             "--truststore", validTrustStorePath,
@@ -91,9 +92,9 @@ public class SSTableLoaderEncryptionOptionsTest extends AbstractEncryptionOption
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
                                                             "--ssl-protocol", "TLSv1",
-                                                            "--nodes", nodes,
-                                                            "--port", Integer.toString(nativePort),
-                                                            "--storage-port", Integer.toString(storagePort),
+                                                            "--nodes", NODES,
+                                                            "--port", Integer.toString(NATIVE_PORT),
+                                                            "--storage-port", Integer.toString(STORAGE_PORT),
                                                             "--keystore", validKeyStorePath,
                                                             "--keystore-password", validKeyStorePassword,
                                                             "--truststore", validTrustStorePath,
