@@ -19,7 +19,12 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 
@@ -245,6 +250,24 @@ public class BulkLoader
         }
     }
 
+    private static String[] filterSupportedProtocols(SSLEngine engine, List<String> acceptedProtocols)
+    {
+        if (acceptedProtocols == null)
+            return null;
+
+        List<String> filteredProtocols = new ArrayList<>();
+        Set<String> supportedProtocols = Arrays.stream(engine.getSupportedProtocols()).collect(Collectors.toSet());
+        int i = 0;
+        for (String acceptedProtocol : acceptedProtocols)
+        {
+            if (supportedProtocols.contains(acceptedProtocol))
+                filteredProtocols.add(acceptedProtocol);
+            else
+                System.out.println("UNACCEPTABLE: " + acceptedProtocol);
+        }
+        return filteredProtocols.toArray(new String[0]);
+    }
+
     private static SSLOptions buildSSLOptions(EncryptionOptions clientEncryptionOptions)
     {
 
@@ -271,7 +294,7 @@ public class BulkLoader
             {
                 SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
 
-                String[] acceptedProtocols = clientEncryptionOptions.acceptedProtocolsArray();
+                String[] acceptedProtocols = filterSupportedProtocols(engine, clientEncryptionOptions.acceptedProtocols());
                 if (acceptedProtocols != null && acceptedProtocols.length > 0)
                     engine.setEnabledProtocols(acceptedProtocols);
 
