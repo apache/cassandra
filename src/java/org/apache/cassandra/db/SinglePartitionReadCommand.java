@@ -27,8 +27,6 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -1004,14 +1002,14 @@ public class SinglePartitionReadCommand extends ReadCommand
         if (!columns.statics.isEmpty())
         {
             Row staticRow = searchIter.next(Clustering.STATIC_CLUSTERING);
-            removeStatic = staticRow != null && canRemoveRow(staticRow, columns.statics, sstableTimestamp);
+            removeStatic = staticRow != null && isRowComplete(staticRow, columns.statics, sstableTimestamp);
         }
 
         NavigableSet<Clustering> toRemove = null;
         for (Clustering clustering : clusterings)
         {
             Row row = searchIter.next(clustering);
-            if (row == null || !canRemoveRow(row, columns.regulars, sstableTimestamp))
+            if (row == null || !isRowComplete(row, columns.regulars, sstableTimestamp))
                 continue;
 
             if (toRemove == null)
@@ -1037,21 +1035,40 @@ public class SinglePartitionReadCommand extends ReadCommand
         return new ClusteringIndexNamesFilter(clusterings, filter.isReversed());
     }
 
-    private boolean canRemoveRow(Row row, Columns requestedColumns, long sstableTimestamp)
+    /**
+     * We can stop reading row data from disk if what we've already read is more recent than the max timestamp 
+     * of the next newest SSTable that might have data for the query. We care about 1.) the row timestamp (since 
+     * every query cares if the row exists or not), 2.) the timestamps of the requested cells, and 3.) whether or
+     * not any of the cells we've read have actual data.
+     * 
+     * @param row a potentially incomplete {@link Row}
+     * @param requestedColumns the columns requested by the query
+     * @param sstableTimestamp the max timestamp of the next newest SSTable to read 
+     * 
+     * @return true if the supplied {@link Row} is complete and its data more recent than the supplied timestamp
+     */
+    private boolean isRowComplete(Row row, Columns requestedColumns, long sstableTimestamp)
     {
-        // We can remove a row if it has data that is more recent that the next sstable to consider for the data that the query
-        // cares about. And the data we care about is 1) the row timestamp (since every query cares if the row exists or not)
-        // and 2) the requested columns.
-        if (row.primaryKeyLivenessInfo().isEmpty() || row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp)
+        // Note that compact tables will always have an empty primary key liveness info. 
+        if (!row.primaryKeyLivenessInfo().isEmpty() && row.primaryKeyLivenessInfo().timestamp() <= sstableTimestamp)
             return false;
-
+        
+        boolean hasLiveCell = false;
+        
         for (ColumnDefinition column : requestedColumns)
         {
             Cell cell = row.getCell(column);
+            
             if (cell == null || cell.timestamp() <= sstableTimestamp)
                 return false;
+            
+            if (!cell.isTombstone()) 
+                hasLiveCell = true;
         }
-        return true;
+
+        // If we've gotten here w/ a compact table or at least one non-tombstone cell, the row is considered
+        // complete and we can avoid any further searching of older SSTables.
+        return hasLiveCell || !metadata().isCQLTable();
     }
 
     @Override
