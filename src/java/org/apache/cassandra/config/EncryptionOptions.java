@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.SSLFactory;
 
 public class EncryptionOptions
 {
@@ -236,10 +237,9 @@ public class EncryptionOptions
     }
 
     /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
-     * it is not a 'default' list or 'support protocol versions' list.  It is just an attempt to preserve the
-     * original intent for the user configuration
+     * by extracting it from the default "TLS" SSL Context instance
      */
-    private final List<String> TLS_PROTOCOL_SUBSTITUTION = ImmutableList.of("TLSv1.3", "TLSv1.2", "TLSv1.1", "TLSv1");
+    static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
 
     /**
      * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
