@@ -36,6 +36,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.security.SSLFactory;
 
 public class SettingsTableTest extends CQLTester
 {
@@ -154,7 +155,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "protocol", "[TLSv5]");
 
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
-        check(pre + "protocol", "[TLSv1.3, TLSv1.2, TLSv1.1, TLSv1]");
+        check(pre + "protocol", SSLFactory.tlsInstanceProtocolSubstitution().toString());
 
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
         config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
