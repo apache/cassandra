@@ -1,7 +1,10 @@
 4.0-beta5
+ * SSLFactory should initialize SSLContext before setting protocols (CASSANDRA-16362)
  * Restore sasi dependencies jflex, snowball-stemmer, and concurrent-trees, in the cassandra-all pom (CASSANDRA-16303)
  * Fix DecimalDeserializer#toString OOM (CASSANDRA-14925)
- * SSLFactory should initialize SSLContext before setting protocols (CASSANDRA-16362)
+Merged from 3.11:
+Merged from 3.0:
+ * Fix skipping on pre-3.0 created compact storage sstables due to missing primary key liveness (CASSANDRA-16226)
 
 4.0-beta4
  * DROP COMPACT STORAGE should invalidate prepared statements still using CompactTableMetadata (CASSANDRA-16361)
