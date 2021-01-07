@@ -3,6 +3,7 @@
  * Rate limit validation compactions using compaction_throughput_mb_per_sec (CASSANDRA-16161)
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
+ * Fix skipping on pre-3.0 created compact storage sstables due to missing primary key liveness (CASSANDRA-16226)
  * Extend the exclusion of replica filtering protection to other indices instead of just SASI (CASSANDRA-16311)
  * Synchronize transaction logs for JBOD (CASSANDRA-16225)
  * Fix the counting of cells per partition (CASSANDRA-16259)
