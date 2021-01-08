@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.Versions;
@@ -27,6 +28,40 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
 public class UpgradeTest extends UpgradeTestBase
 {
+    public static void truncateWriteReadTest(UpgradeableCluster cluster, int instanceNum)
+    {
+        truncateWriteReadTest(cluster);
+    }
+    public static void truncateWriteReadTest(UpgradeableCluster cluster)
+    {
+        cluster.forEach(truncateInstance -> {
+
+            final int truncateInstanceNum = truncateInstance.config().num();
+            truncateInstance.coordinator().execute("TRUNCATE " + KEYSPACE + ".tbl", ConsistencyLevel.ALL);
+
+            cluster.forEach(coordInstance -> {
+                final int coordInstanceNum = coordInstance.config().num();
+                coordInstance.coordinator().execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
+                                                    ConsistencyLevel.ALL,
+                                                    truncateInstanceNum, coordInstanceNum, coordInstanceNum);
+            });
+
+            Object[][] expected = new Object[cluster.size()][3];
+            for (int rowNum = 0; rowNum < cluster.size(); rowNum++)
+                expected[rowNum] = row(truncateInstanceNum, rowNum + 1, rowNum + 1);
+
+            cluster.forEach(coordInstance -> {
+                assertRows(coordInstance.coordinator().execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+                                                               ConsistencyLevel.ALL, truncateInstanceNum),
+                           expected);
+
+                // Check the truncate removed previous rows
+                assertRows(coordInstance.coordinator().execute("SELECT * FROM " + KEYSPACE + ".tbl",
+                                                               ConsistencyLevel.ALL),
+                           expected);
+            });
+        });
+    }
 
     @Test
     public void upgradeTest() throws Throwable
@@ -37,21 +72,10 @@ public class UpgradeTest extends UpgradeTestBase
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
-            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, 2)");
-            cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, 3)");
+            truncateWriteReadTest(cluster);
         })
-        .runAfterNodeUpgrade((cluster, node) -> {
-            for (int i = 1; i <= cluster.size(); i++)
-            {
-                assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
-                                                          ConsistencyLevel.ALL,
-                                                          1),
-                           row(1, 1, 1),
-                           row(1, 2, 2),
-                           row(1, 3, 3));
-            }
-        }).run();
+        .runAfterNodeUpgrade(UpgradeTest::truncateWriteReadTest)
+        .run();
     }
     
     @Test
