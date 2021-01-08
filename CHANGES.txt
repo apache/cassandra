@@ -1,4 +1,5 @@
 2.2.20
+ * Remove OpenJDK log warning (CASSANDRA-15563)
  * Fix the histogram merge of the table metrics (CASSANDRA-16259)
 
 2.2.19
