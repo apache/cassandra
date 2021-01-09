@@ -45,7 +45,7 @@ from util import profile_on, profile_off
 
 from cassandra import OperationTimedOut
 from cassandra.cluster import Cluster, DefaultConnection
-from cassandra.cqltypes import ReversedType, UserType
+from cassandra.cqltypes import ReversedType, UserType, VarcharType
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRoundRobinPolicy, FallthroughRetryPolicy
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
@@ -1841,7 +1841,9 @@ class ImportConversion(object):
 
         def convert_mandatory(t, v):
             v = unprotect(v)
-            if v == self.nullval:
+            # we can't distinguish between empty strings and null values in csv. Null values are not supported in
+            # collections, so it must be an empty string.
+            if v == self.nullval and not issubclass(t, VarcharType):
                 raise ParseError('Empty values are not allowed')
             return converters.get(t.typename, convert_unknown)(v, ct=t)
 
