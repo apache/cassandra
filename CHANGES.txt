@@ -1,4 +1,5 @@
 3.0.24:
+ * Allow empty string in collections with COPY FROM in cqlsh (CASSANDRA-16372)
  * Fix skipping on pre-3.0 created compact storage sstables due to missing primary key liveness (CASSANDRA-16226)
  * Fix DecimalDeserializer#toString OOM (CASSANDRA-14925)
  * Extend the exclusion of replica filtering protection to other indices instead of just SASI (CASSANDRA-16311)
