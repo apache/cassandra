@@ -272,7 +272,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             if (from == null)
                 return false;
             int fromNum = from.config().num();
-            int toNum = config.num(); // since this instance is reciving the message, to will always be this instance
+            int toNum = config.num(); // since this instance is receiving the message, to will always be this instance
             return cluster.filters().permitInbound(fromNum, toNum, serialized);
         });
     }
@@ -282,13 +282,13 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         MessagingService.instance().outboundSink.add((message, to) -> {
             if (isShutdown())
                 return false;
-            IMessage serialzied = serializeMessage(message.from(), to, message);
+            IMessage serialized = serializeMessage(message.from(), to, message);
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
             IInstance toInstance = cluster.get(fromCassandraInetAddressAndPort(to));
             if (toInstance == null)
                 return false;
             int toNum = toInstance.config().num();
-            return cluster.filters().permitOutbound(fromNum, toNum, serialzied);
+            return cluster.filters().permitOutbound(fromNum, toNum, serialized);
         });
     }
 

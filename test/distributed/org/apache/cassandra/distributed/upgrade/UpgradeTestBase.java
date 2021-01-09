@@ -29,6 +29,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.distributed.UpgradeableCluster;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.Instance;
@@ -177,6 +178,10 @@ public class UpgradeTestBase extends DistributedTestBase
                             cluster.get(n).shutdown().get();
                             cluster.get(n).setVersion(version);
                             cluster.get(n).startup();
+                            // If using in-jvm Dtest networking, update the messaging versions
+                            // so that message filters are able to serialize/deserialize correctly.
+                            if (!cluster.get(n).config().has(Feature.NETWORK))
+                                cluster.updateMessagingVersions();
                             runAfterNodeUpgrade.run(cluster, n);
                         }
 

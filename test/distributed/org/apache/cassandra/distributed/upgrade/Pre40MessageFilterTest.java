@@ -25,6 +25,9 @@ import org.apache.cassandra.distributed.shared.Versions;
 
 public class Pre40MessageFilterTest extends UpgradeTestBase
 {
+    // To support version independent message filtering, the inbound/outbound filters serialize
+    // all messages they receive before passing through the dtest message filtering. This test validates
+    // the correct serializer is selected for pre-4.0 request_response messages.
     @Test
     public void reserializePre40RequestPaxosTest() throws Throwable
     {

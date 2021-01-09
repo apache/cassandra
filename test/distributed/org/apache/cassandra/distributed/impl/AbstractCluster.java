@@ -638,7 +638,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         get(instance).schemaChangeInternal(statement);
     }
 
-    private void updateMessagingVersions()
+    public void updateMessagingVersions()
     {
         for (IInstance reportTo : instances)
         {

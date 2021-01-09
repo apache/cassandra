@@ -757,7 +757,11 @@ public class Message<T>
         {
             serializeHeaderPost40(message.header, out, version);
             out.writeUnsignedVInt(message.payloadSize(version));
-            message.verb().serializer().serialize(message.payload, out, version);
+            IVersionedAsymmetricSerializer<T,T> payloadSerializer = message.header.verb.serializer();
+            // per-response serializers are only required for in-jvm dtests for message filtering
+            if (null == payloadSerializer)
+                payloadSerializer = instance().callbacks.get(message.header.id, message.header.from).responseVerb.serializer();
+            payloadSerializer.serialize(message.payload, out, version);
         }
 
         private <T> Message<T> deserializePost40(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
@@ -914,9 +918,14 @@ public class Message<T>
 
             if (message.payload != null && message.payload != NoPayload.noPayload)
             {
+                IVersionedAsymmetricSerializer<T,T> payloadSerializer = message.header.verb.serializer();
+                // per-response serializers are only required for in-jvm dtests for message filtering
+                if (null == payloadSerializer)
+                    payloadSerializer = instance().callbacks.get(message.header.id, message.header.from).responseVerb.serializer();
+
                 int payloadSize = message.payloadSize(version);
                 out.writeInt(payloadSize);
-                message.verb().serializer().serialize(message.payload, out, version);
+                payloadSerializer.serialize(message.payload, out, version);
             }
             else
             {
@@ -1285,10 +1294,18 @@ public class Message<T>
 
         private <T> int payloadSize(Message<T> message, int version)
         {
-            long payloadSize = message.payload != null && message.payload != NoPayload.noPayload
-                             ? message.verb().serializer().serializedSize(message.payload, version)
-                             : 0;
-            return Ints.checkedCast(payloadSize);
+            if (message.payload != null && message.payload != NoPayload.noPayload)
+            {
+                IVersionedAsymmetricSerializer<T,T> payloadSerializer = message.verb().serializer();
+                if (null == payloadSerializer) // per-response serializers are only required for in-jvm dtests for message filtering
+                    payloadSerializer = instance().callbacks.get(message.header.id, message.header.from).responseVerb.serializer();
+                long payloadSize = payloadSerializer.serializedSize(message.payload, version);
+                return Ints.checkedCast(payloadSize);
+            }
+            else
+            {
+                return 0;
+            }
         }
     }
 
