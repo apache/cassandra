@@ -29,10 +29,16 @@ import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import javax.crypto.Cipher;
+
 import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
 
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
@@ -41,6 +47,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -61,6 +68,7 @@ import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.security.CipherFactory;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.service.StorageService;
@@ -79,6 +87,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -105,15 +114,25 @@ public abstract class CommitLogTest
     }
 
     @Parameters()
-    public static Collection<Object[]> generateData()
+    public static Collection<Object[]> generateData() throws Exception
     {
-        return Arrays.asList(new Object[][]{
-            {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
-            {null, EncryptionContextGenerator.createContext(true)}, // Encryption
-            {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-            {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+        return Arrays.asList(new Object[][]
+        {
+            { null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
+            { null, newEncryptionContext() }, // Encryption
+            { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext() },
+            { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            { new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}
+        });
+    }
+
+    private static EncryptionContext newEncryptionContext() throws Exception
+    {
+        EncryptionContext context = EncryptionContextGenerator.createContext(true);
+        CipherFactory cipherFactory = new CipherFactory(context.getTransparentDataEncryptionOptions());
+        Cipher cipher = cipherFactory.getEncryptor(context.getTransparentDataEncryptionOptions().cipher, context.getTransparentDataEncryptionOptions().key_alias);
+        return EncryptionContextGenerator.createContext(cipher.getIV(), true);
     }
 
     public static void beforeClass() throws ConfigurationException
@@ -167,6 +186,7 @@ public abstract class CommitLogTest
     @After
     public void afterTest()
     {
+        CommitLogSegmentReader.setAllowSkipSyncMarkerCrc(false);
         testKiller.reset();
     }
 
@@ -174,10 +194,8 @@ public abstract class CommitLogTest
     public void testRecoveryWithEmptyLog() throws Exception
     {
         runExpecting(() -> {
-            CommitLog.instance.recoverFiles(new File[]{
-            tmpFile(CommitLogDescriptor.current_version),
-            tmpFile(CommitLogDescriptor.current_version)
-            });
+            CommitLog.instance.recoverFiles(tmpFile(CommitLogDescriptor.current_version),
+                                            tmpFile(CommitLogDescriptor.current_version));
             return null;
         }, CommitLogReplayException.class);
     }
@@ -196,6 +214,8 @@ public abstract class CommitLogTest
     @Test
     public void testHeaderOnlyFileFiltering() throws Exception
     {
+        Assume.assumeTrue(!DatabaseDescriptor.getEncryptionContext().isEnabled());
+        
         File directory = Files.createTempDir();
 
         CommitLogDescriptor desc1 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, null, DatabaseDescriptor.getEncryptionContext());
@@ -470,7 +490,7 @@ public abstract class CommitLogTest
         }
         catch (MutationExceededMaxSizeException e)
         {
-            Assert.assertEquals(cnt + 1, CommitLog.instance.metrics.oversizedMutations.getCount());
+            assertEquals(cnt + 1, CommitLog.instance.metrics.oversizedMutations.getCount());
             throw e;
         }
         throw new AssertionError("mutation larger than limit was accepted");
@@ -655,20 +675,18 @@ public abstract class CommitLogTest
             caught = t;
         }
         if (expected != null && caught == null)
-            Assert.fail("Expected exception " + expected + " but call completed successfully.");
+            fail("Expected exception " + expected + " but call completed successfully.");
 
         assertEquals("JVM kill state doesn't match expectation.", expected != null, testKiller.wasKilled());
     }
 
     protected void testRecovery(final byte[] logData, Class<?> expected) throws Exception
     {
-        ParameterizedClass commitLogCompression = DatabaseDescriptor.getCommitLogCompression();
-        EncryptionContext encryptionContext = DatabaseDescriptor.getEncryptionContext();
         runExpecting(() -> testRecovery(logData, CommitLogDescriptor.current_version), expected);
     }
 
     @Test
-    public void testTruncateWithoutSnapshot() throws ExecutionException, InterruptedException, IOException
+    public void testTruncateWithoutSnapshot()
     {
         boolean originalState = DatabaseDescriptor.isAutoSnapshot();
         try
@@ -762,6 +780,74 @@ public abstract class CommitLogTest
         replayer.replayFiles(files);
 
         assertEquals(cellCount, replayer.cells);
+    }
+
+    @Test
+    public void replayWithBadSyncMarkerCRC() throws IOException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
+
+        Mutation rm2 = new RowUpdateBuilder(cfs.metadata(), 0, "k2").clustering("bytes")
+                                                                    .add("val", bytes("this is a string"))
+                                                                    .build();
+        CommitLog.instance.add(rm2);
+        CommitLog.instance.sync(true);
+
+        List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
+        assertFalse(activeSegments.isEmpty());
+
+        File directory = new File(CommitLog.instance.segmentManager.storageDirectory);
+        File firstActiveFile = Objects.requireNonNull(directory.listFiles((file, name) -> activeSegments.contains(name)))[0];
+        zeroFirstSyncMarkerCRC(firstActiveFile);
+
+        CommitLogSegmentReader.setAllowSkipSyncMarkerCrc(true);
+
+        if (DatabaseDescriptor.getCommitLogCompression() != null || DatabaseDescriptor.getEncryptionContext().isEnabled())
+        {
+            // If compression or encryption are enabled, expect an error, and do not attempt to replay using only mutation CRCs.
+            runExpecting(() ->
+                         {
+                             CommitLog.instance.recoverFiles(firstActiveFile);
+                             return null;
+                         },
+                         CommitLogReplayException.class);
+        }
+        else
+        {
+            SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata());
+            replayer.replayPath(firstActiveFile, false);
+            assertEquals(1, replayer.cells);
+        }
+    }
+
+    private void zeroFirstSyncMarkerCRC(File file) throws IOException
+    {
+        // Get the position of the first sync marker...
+        int firstSyncMarkerPosition = -1;
+
+        try (RandomAccessReader reader = RandomAccessReader.open(file))
+        {
+            CommitLogDescriptor.readHeader(reader, DatabaseDescriptor.getEncryptionContext());
+            firstSyncMarkerPosition = (int) reader.getFilePointer();
+        }
+
+        // ...buffer the file into memory...
+        ByteBuffer buffer = ByteBuffer.allocate((int) file.length());
+
+        try (RandomAccessReader reader = RandomAccessReader.open(file))
+        {
+            reader.readFully(buffer);
+        }
+
+        // ...overwrite the sync marker CRC with zero...
+        buffer.position(firstSyncMarkerPosition + 4);
+        buffer.putInt(0);
+
+        // ...and write the file back out.
+        try (OutputStream out = new FileOutputStream(file))
+        {
+            out.write(buffer.array());
+        }
     }
 
     @Test
@@ -886,7 +972,7 @@ public abstract class CommitLogTest
         System.setProperty("cassandra.replayList", KEYSPACE1 + "." + STANDARD1);
         // Currently we don't attempt to re-flush a memtable that failed, thus make sure data is replayed by commitlog.
         // If retries work subsequent flushes should clear up error and this should change to expect 0.
-        Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        assertEquals(1, CommitLog.instance.resetUnsafe(false));
         System.clearProperty("cassandra.replayList");
     }
 
@@ -921,7 +1007,7 @@ public abstract class CommitLogTest
         // In the absence of error, this should be 0 because forceBlockingFlush/forceRecycleAllSegments would have
         // persisted all data in the commit log. Because we know there was an error, there must be something left to
         // replay.
-        Assert.assertEquals(1, CommitLog.instance.resetUnsafe(false));
+        assertEquals(1, CommitLog.instance.resetUnsafe(false));
         System.clearProperty("cassandra.replayList");
     }
 
@@ -1000,7 +1086,7 @@ public abstract class CommitLogTest
             System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
         }
 
-        Assert.assertEquals(replayed, 1);
+        assertEquals(replayed, 1);
     }
 }
 
