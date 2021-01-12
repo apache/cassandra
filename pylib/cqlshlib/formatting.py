@@ -147,12 +147,14 @@ def formatter_for(typname):
         return f
     return registrator
 
+
 class BlobType(object):
     def __init__(self, val):
         self.val = val
 
     def __str__(self):
         return str(self.val)
+
 
 @formatter_for('BlobType')
 def format_value_blob(val, colormap, **_):
