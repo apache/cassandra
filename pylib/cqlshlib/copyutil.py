@@ -51,7 +51,7 @@ from six.moves.queue import Queue
 
 from cassandra import OperationTimedOut
 from cassandra.cluster import Cluster, DefaultConnection
-from cassandra.cqltypes import ReversedType, UserType, BytesType
+from cassandra.cqltypes import ReversedType, UserType, BytesType, VarcharType
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRoundRobinPolicy, FallthroughRetryPolicy
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
@@ -1254,7 +1254,7 @@ class ImportTask(CopyTask):
             attempts -= 1
 
         self.printmsg("\n%d rows imported from %d files in %s (%d skipped)." %
-                      (self.receive_meter.get_total_records(),
+                      (self.receive_meter.get_total_records() - self.error_handler.num_rows_failed,
                        self.feeding_result.num_sources if self.feeding_result else 0,
                        self.describe_interval(time.time() - self.time_start),
                        self.feeding_result.skip_rows if self.feeding_result else 0))
@@ -1913,7 +1913,9 @@ class ImportConversion(object):
 
         def convert_mandatory(t, v):
             v = unprotect(v)
-            if v == self.nullval:
+            # we can't distinguish between empty strings and null values in csv. Null values are not supported in
+            # collections, so it must be an empty string.
+            if v == self.nullval and not issubclass(t, VarcharType):
                 raise ParseError('Empty values are not allowed')
             return converters.get(t.typename, convert_unknown)(v, ct=t)
 

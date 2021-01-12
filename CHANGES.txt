@@ -6,6 +6,7 @@
 Merged from 3.11:
 Merged from 3.0:
  * Fix skipping on pre-3.0 created compact storage sstables due to missing primary key liveness (CASSANDRA-16226)
+ * Allow empty string in collections with COPY FROM in cqlsh (CASSANDRA-16372
 
 4.0-beta4
  * DROP COMPACT STORAGE should invalidate prepared statements still using CompactTableMetadata (CASSANDRA-16361)
