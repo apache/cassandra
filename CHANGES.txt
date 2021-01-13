@@ -6,7 +6,6 @@
 Merged from 3.11:
 Merged from 3.0:
  * Prevent unbounded number of pending flushing tasks (CASSANDRA-16261)
- * Allow empty string in collections with COPY FROM in cqlsh (CASSANDRA-16372)
  * Fix skipping on pre-3.0 created compact storage sstables due to missing primary key liveness (CASSANDRA-16226)
  * Allow empty string in collections with COPY FROM in cqlsh (CASSANDRA-16372
 
