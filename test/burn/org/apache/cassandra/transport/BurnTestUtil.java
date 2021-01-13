@@ -62,7 +62,7 @@ public class BurnTestUtil
         for (int i = 0; i < sizeCaps.columnCountCap; i++)
             values[i] = bytes(rnd, sizeCaps.valueMinSize, sizeCaps.valueMaxSize);
 
-        return new SimpleStatement(Integer.toString(idx), values);
+        return new SimpleStatement(Integer.toString(idx), (Object[]) values);
     }
 
     public static QueryMessage generateQueryMessage(int idx, SizeCaps sizeCaps)
