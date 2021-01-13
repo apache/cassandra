@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -200,7 +201,8 @@ public class SimpleClient implements Closeable
         responseHandler.eventHandler = eventHandler;
     }
 
-    protected void establishConnection() throws IOException
+    @VisibleForTesting
+    void establishConnection() throws IOException
     {
         // Configure the client.
         bootstrap = new Bootstrap()

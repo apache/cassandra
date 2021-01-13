@@ -18,16 +18,35 @@
 
 package org.apache.cassandra.transport;
 
+import java.io.IOException;
+import java.util.Random;
+
+import com.google.common.collect.ImmutableMap;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
 
+import static com.datastax.driver.core.ProtocolVersion.NEWEST_BETA;
+import static com.datastax.driver.core.ProtocolVersion.NEWEST_SUPPORTED;
+import static com.datastax.driver.core.ProtocolVersion.V1;
+import static com.datastax.driver.core.ProtocolVersion.V2;
+import static com.datastax.driver.core.ProtocolVersion.V3;
+import static com.datastax.driver.core.ProtocolVersion.V4;
+import static com.datastax.driver.core.ProtocolVersion.V5;
+import static org.apache.cassandra.transport.messages.StartupMessage.CQL_VERSION;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+
 
 public class ProtocolNegotiationTest extends CQLTester
 {
@@ -40,33 +59,93 @@ public class ProtocolNegotiationTest extends CQLTester
         requireNetwork();
     }
 
+    @Before
+    public void initNetwork()
+    {
+        reinitializeNetwork();
+    }
+
     @Test
     public void serverSupportsV3AndV4ByDefault()
     {
-        reinitializeNetwork();
         // client can explicitly request either V3 or V4
-        testConnection(ProtocolVersion.V3, ProtocolVersion.V3);
-        testConnection(ProtocolVersion.V4, ProtocolVersion.V4);
+        testConnection(V3, V3);
+        testConnection(V4, V4);
 
         // if not specified, V4 is the default
-        testConnection(null, ProtocolVersion.V4);
-        testConnection(ProtocolVersion.NEWEST_SUPPORTED, ProtocolVersion.V4);
+        testConnection(null, V4);
+        testConnection(NEWEST_SUPPORTED, V4);
     }
 
     @Test
     public void supportV5ConnectionWithBetaOption()
     {
-        reinitializeNetwork();
-        testConnection(ProtocolVersion.V5, ProtocolVersion.V5);
-        testConnection(ProtocolVersion.NEWEST_BETA, ProtocolVersion.V5);
+        testConnection(V5, V5);
+        testConnection(NEWEST_BETA, V5);
     }
 
     @Test
     public void olderVersionsAreUnsupported()
     {
+        testConnection(V1, V4);
+        testConnection(V2, V4);
+    }
+
+    @Test
+    public void preNegotiationResponsesHaveCorrectStreamId()
+    {
+        ProtocolVersion.SUPPORTED.forEach(this::testStreamIdsAcrossNegotiation);
+    }
+
+    private void testStreamIdsAcrossNegotiation(ProtocolVersion version)
+    {
+        long seed = System.currentTimeMillis();
+        Random random = new Random(seed);
         reinitializeNetwork();
-        testConnection(ProtocolVersion.V1, ProtocolVersion.V4);
-        testConnection(ProtocolVersion.V2, ProtocolVersion.V4);
+        SimpleClient.Builder builder = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort);
+        if (version.isBeta())
+            builder.useBeta();
+        else
+            builder.protocolVersion(version);
+
+        try (SimpleClient client = builder.build())
+        {
+            client.establishConnection();
+            // Before STARTUP the client hasn't yet negotiated a protocol version.
+            // All OPTIONS messages are received by the intial connection handler.
+            OptionsMessage options = new OptionsMessage();
+            for (int i = 0; i < 100; i++)
+            {
+                int streamId = random.nextInt(254) + 1;
+                options.setStreamId(streamId);
+                Message.Response response = client.execute(options);
+                assertEquals(String.format("StreamId mismatch; version: %s, seed: %s, iter: %s, expected: %s, actual: %s",
+                                           version, seed, i, streamId, response.getStreamId()),
+                             streamId, response.getStreamId());
+            }
+
+            int streamId = random.nextInt(254) + 1;
+            // STARTUP messages are handled by the initial connection handler
+            StartupMessage startup = new StartupMessage(ImmutableMap.of(CQL_VERSION, QueryProcessor.CQL_VERSION.toString()));
+            startup.setStreamId(streamId);
+            Message.Response response = client.execute(startup);
+            assertEquals(String.format("StreamId mismatch after negotiation; version: %s, expected: %s, actual %s",
+                                       version, streamId, response.getStreamId()),
+                         streamId, response.getStreamId());
+
+            // Following STARTUP, the version specific handlers are fully responsible for processing messages
+            QueryMessage query = new QueryMessage("SELECT * FROM system.local", QueryOptions.DEFAULT);
+            query.setStreamId(streamId);
+            response = client.execute(query);
+            assertEquals(String.format("StreamId mismatch after negotiation; version: %s, expected: %s, actual %s",
+                                       version, streamId, response.getStreamId()),
+                         streamId, response.getStreamId());
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            fail("Error establishing connection");
+        }
     }
 
     private void testConnection(com.datastax.driver.core.ProtocolVersion requestedVersion,

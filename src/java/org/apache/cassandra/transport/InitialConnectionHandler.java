@@ -89,6 +89,7 @@ public class InitialConnectionHandler extends ByteToMessageDecoder
                     supportedOptions.put(StartupMessage.COMPRESSION, compressions);
                     supportedOptions.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
                     SupportedMessage supported = new SupportedMessage(supportedOptions);
+                    supported.setStreamId(inbound.header.streamId);
                     outbound = supported.encode(inbound.header.version);
                     ctx.writeAndFlush(outbound);
                     break;
