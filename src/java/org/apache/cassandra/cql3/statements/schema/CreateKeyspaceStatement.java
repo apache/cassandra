@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -26,7 +27,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -37,6 +41,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
@@ -46,6 +51,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
+    private final HashSet<String> clientWarnings = new HashSet<>();
 
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
@@ -56,6 +62,10 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
+        if (ClientWarn.instance.get() == null)
+            ClientWarn.instance.captureWarnings();
+        int previousNumWarnings = ClientWarn.instance.numWarnings();
+
         attrs.validate();
 
         if (!attrs.hasOption(Option.REPLICATION))
@@ -75,8 +85,13 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
         keyspace.params.validate(keyspaceName);
+        Keyspaces keyspaces = schema.withAddedOrUpdated(keyspace);
 
-        return schema.withAddedOrUpdated(keyspace);
+        int newNumWarnings = ClientWarn.instance.numWarnings();
+        if (newNumWarnings > previousNumWarnings)
+            clientWarnings.addAll(ClientWarn.instance.getWarnings().subList(previousNumWarnings, newNumWarnings));
+
+        return keyspaces;
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -115,9 +130,10 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             String msg = String.format("Cluster already contains %d keyspaces. Having a large number of keyspaces will significantly slow down schema dependent cluster operations.",
                                        keyspaceCount);
             logger.warn(msg);
-            return ImmutableSet.of(msg);
+            clientWarnings.add(msg);
         }
-        return ImmutableSet.of();
+
+        return clientWarnings;
     }
 
     public static final class Raw extends CQLStatement.Raw

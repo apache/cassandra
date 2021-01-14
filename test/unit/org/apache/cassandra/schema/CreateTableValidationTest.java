@@ -19,6 +19,7 @@
 package org.apache.cassandra.schema;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
@@ -26,20 +27,16 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class CreateTableValidationTest extends CQLTester
 {
-    private static final String KEYSPACE1 = "CreateTableValidationTest";
-
     @Test
     public void testInvalidBloomFilterFPRatio() throws Throwable
     {
@@ -75,18 +72,25 @@ public class CreateTableValidationTest extends CQLTester
             String createKeyspace = "CREATE KEYSPACE createkswarning%d WITH REPLICATION={'class':'org.apache.cassandra.locator.NetworkTopologyStrategy','datacenter1':'2'}";
             QueryMessage query = new QueryMessage(String.format(createKeyspace, 1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
-            assertTrue(resp.getWarnings().size() > 0);
-            assertTrue(resp.getWarnings().get(0).contains("Having a large number of keyspaces will significantly"));
+            List<String> warns = resp.getWarnings();
+            warns.removeIf(w -> w.contains("is higher than the number of nodes"));
+            assertTrue(warns.size() > 0);
+            assertTrue(warns.get(0).contains("Having a large number of keyspaces will significantly"));
 
-            DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size() + 1);
+            DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size() + 2);
             query = new QueryMessage(String.format(createKeyspace, 2), QueryOptions.DEFAULT);
             resp = client.execute(query);
-            assertTrue(resp.getWarnings() == null || resp.getWarnings().isEmpty());
+            warns = resp.getWarnings();
+            if (warns != null)
+                warns.removeIf(w -> w.contains("is higher than the number of nodes"));
+            assertTrue(warns == null || warns.isEmpty());
 
             query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test1"), QueryOptions.DEFAULT);
             resp = client.execute(query);
-            assertTrue(resp.getWarnings().size() > 0);
-            assertTrue(resp.getWarnings().get(0).contains("Having a large number of tables"));
+            warns = resp.getWarnings();
+            warns.removeIf(w -> w.contains("is higher than the number of nodes"));
+            assertTrue(warns.size() > 0);
+            assertTrue(warns.get(0).contains("Having a large number of tables"));
 
             DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables() + 1);
             query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test2"), QueryOptions.DEFAULT);
