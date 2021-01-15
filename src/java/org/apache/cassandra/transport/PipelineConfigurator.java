@@ -283,6 +283,7 @@ public class PipelineConfigurator
         CQLMessageHandler.MessageConsumer<Message.Request> messageConsumer = messageConsumer();
         CQLMessageHandler<Message.Request> processor =
             new CQLMessageHandler<>(ctx.channel(),
+                                    version,
                                     frameDecoder,
                                     envelopeDecoder,
                                     messageDecoder,
