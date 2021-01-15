@@ -472,6 +472,7 @@ public class SimpleClient implements Closeable
 
             CQLMessageHandler<Message.Response> processor =
                 new CQLMessageHandler<Message.Response>(ctx.channel(),
+                                        version,
                                         frameDecoder,
                                         envelopeDecoder,
                                         messageDecoder,

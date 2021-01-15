@@ -180,6 +180,14 @@ public class PreV5Handlers
         {
             try
             {
+                ProtocolVersion version = getConnectionVersion(ctx);
+                if (source.header.version != version)
+                {
+                    throw new ProtocolException(
+                        String.format("Invalid message version. Got %s but previous " +
+                                      "messages on this connection had version %s",
+                                      source.header.version, version));
+                }
                 results.add(Message.Decoder.decodeMessage(ctx.channel(), source));
             }
             catch (Throwable ex)
@@ -199,12 +207,9 @@ public class PreV5Handlers
     {
         public static final ProtocolEncoder instance = new ProtocolEncoder();
         private ProtocolEncoder(){}
-
         public void encode(ChannelHandlerContext ctx, Message source, List results)
         {
-            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
-            // The only case the connection can be null is when we send the initial STARTUP message (client side thus)
-            ProtocolVersion version = connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
+            ProtocolVersion version = getConnectionVersion(ctx);
             results.add(source.encode(version));
         }
     }
@@ -227,7 +232,7 @@ public class PreV5Handlers
             ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
             if (ctx.channel().isOpen())
             {
-                ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(ProtocolVersion.CURRENT));
+                ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(getConnectionVersion(ctx)));
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (cause instanceof ProtocolException)
                     future.addListener((ChannelFutureListener) f -> ctx.close());
@@ -235,4 +240,12 @@ public class PreV5Handlers
             JVMStabilityInspector.inspectThrowable(cause);
         }
     }
+
+    private static ProtocolVersion getConnectionVersion(ChannelHandlerContext ctx)
+    {
+        Connection connection = ctx.channel().attr(Connection.attributeKey).get();
+        // The only case the connection can be null is when we send the initial STARTUP message
+        return connection == null ? ProtocolVersion.CURRENT : connection.getVersion();
+    }
+
 }

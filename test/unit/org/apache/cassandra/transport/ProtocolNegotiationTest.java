@@ -31,6 +31,7 @@ import com.datastax.driver.core.Session;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.exceptions.TransportException;
 import org.apache.cassandra.transport.messages.OptionsMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.StartupMessage;
@@ -97,11 +98,16 @@ public class ProtocolNegotiationTest extends CQLTester
         ProtocolVersion.SUPPORTED.forEach(this::testStreamIdsAcrossNegotiation);
     }
 
+    @Test
+    public void validateReceivedMessageVersionMatchesNegotiated()
+    {
+        ProtocolVersion.SUPPORTED.forEach(this::validateMessageVersion);
+    }
+
     private void testStreamIdsAcrossNegotiation(ProtocolVersion version)
     {
         long seed = System.currentTimeMillis();
         Random random = new Random(seed);
-        reinitializeNetwork();
         SimpleClient.Builder builder = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort);
         if (version.isBeta())
             builder.useBeta();
@@ -185,4 +191,46 @@ public class ProtocolNegotiationTest extends CQLTester
         }
     }
 
+    private void validateMessageVersion(ProtocolVersion version)
+    {
+        SimpleClient.Builder builder = SimpleClient.builder(nativeAddr.getHostAddress(), nativePort)
+                                                   .protocolVersion(version);
+        if (version.isBeta())
+            builder.useBeta();
+
+        Random r = new Random();
+        ProtocolVersion wrongVersion = version;
+        while (wrongVersion.isSmallerThan(ProtocolVersion.MIN_SUPPORTED_VERSION) || wrongVersion == version)
+            wrongVersion = ProtocolVersion.values()[r.nextInt(ProtocolVersion.values().length - 1)];
+
+        try (SimpleClient client = builder.build().connect(false))
+        {
+            // The connection has been negotiated to use $version. Force the next message to be
+            // encoded with a different version and it should trigger a ProtocolException
+            final ProtocolVersion v = wrongVersion;
+            QueryMessage query = new QueryMessage("SELECT * FROM system.local", QueryOptions.DEFAULT)
+            {
+                @Override
+                public Envelope encode(ProtocolVersion originalVersion)
+                {
+                    return super.encode(v);
+                }
+            };
+            try
+            {
+                client.execute(query);
+                fail("Expected a protocol exception");
+            }
+            catch (RuntimeException e)
+            {
+                assertTrue(e.getCause() instanceof TransportException);
+                assertTrue(e.getCause().getMessage().startsWith("Invalid message version"));
+            }
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            fail("Error establishing connection");
+        }
+    }
 }

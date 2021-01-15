@@ -58,9 +58,7 @@ import static org.apache.cassandra.utils.MonotonicClock.approxTime;
  * frames on the event loop thread and pass them on to the same consumer.
  *
  * # Flow control (backpressure)
- *
  * The size of an incoming message is explicit in the {@link Envelope.Header}.
- * {@link org.apache.cassandra.net.Message.Serializer#inferMessageSize(ByteBuffer, int, int, int)}.
  *
  * By default, every connection has 1MiB of exlusive permits available before needing to access the per-endpoint
  * and global reserves. By default, those reserves are sized proportionally to the heap - 2.5% of heap per-endpoint
@@ -68,6 +66,10 @@ import static org.apache.cassandra.utils.MonotonicClock.approxTime;
  *
  * Permits are held while CQL messages are processed and released after the response has been encoded into the
  * buffers of the response frame.
+ *
+ * A connection level option (THROW_ON_OVERLOAD) allows clients to choose the backpressure strategy when a connection
+ * has exceeded the maximum number of allowed permits. The choices are to either pause reads from the incoming socket
+ * and allow TCP backpressure to do the work, or to throw an explict exception and rely on the client to back off.
  */
 public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 {
@@ -82,6 +84,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     private final MessageConsumer<M> dispatcher;
     private final ErrorHandler errorHandler;
     private final boolean throwOnOverload;
+    private final ProtocolVersion version;
 
     long channelPayloadBytesInFlight;
 
@@ -96,6 +99,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     }
 
     CQLMessageHandler(Channel channel,
+                      ProtocolVersion version,
                       FrameDecoder decoder,
                       Envelope.Decoder envelopeDecoder,
                       Message.Decoder<M> messageDecoder,
@@ -122,11 +126,12 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         this.dispatcher         = dispatcher;
         this.errorHandler       = errorHandler;
         this.throwOnOverload    = throwOnOverload;
+        this.version            = version;
     }
 
     protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve)
     {
-        Envelope.Header header = extractHeader(bytes);
+        Envelope.Header header = extractHeader(bytes.get());
         // null indicates a failure to extract the CQL message header.
         // This will trigger a protocol exception and closing of the connection.
         if (null == header)
@@ -182,11 +187,17 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ClientMessageSizeMetrics.bytesReceivedPerRequest.update(messageSize + Envelope.Header.LENGTH);
     }
 
-    private Envelope.Header extractHeader(ShareableBytes bytes)
+    private Envelope.Header extractHeader(ByteBuffer buf)
     {
         try
         {
-            return envelopeDecoder.extractHeader(bytes.get());
+            Envelope.Header header = envelopeDecoder.extractHeader(buf);
+            if (header.version != version)
+                handleError(new ProtocolException(String.format("Invalid message version. Got %s but previous" +
+                                                                "messages on this connection had version %s",
+                                                                header.version, version)));
+
+            return header;
         }
         catch (Throwable t)
         {
@@ -319,7 +330,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ByteBuffer buf = bytes.get();
         try
         {
-            Envelope.Header header = envelopeDecoder.extractHeader(buf);
+            Envelope.Header header = extractHeader(buf);
             // max CQL message size defaults to 256mb, so should be safe to downcast
             int messageSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedBytes += buf.remaining();
