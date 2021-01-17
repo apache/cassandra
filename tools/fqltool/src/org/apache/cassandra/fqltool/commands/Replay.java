@@ -34,7 +34,7 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import org.apache.cassandra.fqltool.FQLQuery;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.QueryReplayer;
@@ -119,7 +119,7 @@ public class Replay implements Runnable
 
         try
         {
-            readQueues = arguments.stream().map(s -> ChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
+            readQueues = arguments.stream().map(s -> SingleChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             iterators = readQueues.stream().map(ChronicleQueue::createTailer).map(tailer -> new FQLQueryIterator(tailer, readAhead)).collect(Collectors.toList());
             try (MergeIterator<FQLQuery, List<FQLQuery>> iter = MergeIterator.get(iterators, FQLQuery::compareTo, new Reducer());
                  QueryReplayer replayer = new QueryReplayer(iter, targetHosts, resultPaths, filters, queryStorePath))

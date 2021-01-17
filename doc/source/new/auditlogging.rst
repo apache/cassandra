@@ -395,7 +395,7 @@ List the files/directories and some ``.cq4`` files should get listed. These are 
  total 28
  -rw-rw-r--. 1 ec2-user ec2-user 83886080 Aug  2 03:01 20190802-02.cq4
  -rw-rw-r--. 1 ec2-user ec2-user 83886080 Aug  2 03:01 20190802-03.cq4
- -rw-rw-r--. 1 ec2-user ec2-user    65536 Aug  2 03:01 directory-listing.cq4t
+ -rw-rw-r--. 1 ec2-user ec2-user    65536 Aug  2 03:01 metadata.cq4t
 
 The ``auditlogviewer`` tool is used to dump audit logs. Run the ``auditlogviewer`` tool. Audit log files directory path is a required argument. The output should be similar to the following output.
 
