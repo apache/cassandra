@@ -36,7 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
@@ -123,7 +123,7 @@ public class BinLog implements Runnable
         Preconditions.checkNotNull(path, "path was null");
         Preconditions.checkNotNull(options.roll_cycle, "roll_cycle was null");
         Preconditions.checkArgument(options.max_queue_weight > 0, "max_queue_weight must be > 0");
-        ChronicleQueueBuilder builder = ChronicleQueueBuilder.single(path.toFile());
+        SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile());
         builder.rollCycle(RollCycles.valueOf(options.roll_cycle));
 
         sampleQueue = new WeightedQueue<>(options.max_queue_weight);
