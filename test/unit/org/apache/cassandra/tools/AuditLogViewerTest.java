@@ -37,7 +37,7 @@ import org.junit.Test;
 
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
@@ -161,7 +161,7 @@ public class AuditLogViewerTest
         records.add("Test foo bar 1");
         records.add("Test foo bar 2");
 
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
 
@@ -179,7 +179,7 @@ public class AuditLogViewerTest
     @Test (expected = IORuntimeException.class)
     public void testRejectFutureVersionRecord()
     {
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
             appender.writeDocument(createFutureRecord());
@@ -200,7 +200,7 @@ public class AuditLogViewerTest
         records.add("Test foo bar 1");
         records.add("Test foo bar 2");
 
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
 
@@ -222,7 +222,7 @@ public class AuditLogViewerTest
     @Test (expected = IORuntimeException.class)
     public void testRejectUnknownTypeRecord()
     {
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
             appender.writeDocument(createUnknownTypeRecord());
@@ -243,7 +243,7 @@ public class AuditLogViewerTest
         records.add("Test foo bar 1");
         records.add("Test foo bar 2");
 
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
 

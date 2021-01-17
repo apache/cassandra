@@ -34,7 +34,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
@@ -473,7 +473,7 @@ public class BinLogTest
     List<String> readBinLogRecords(Path path)
     {
         List<String> records = new ArrayList<String>();
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             while (true)

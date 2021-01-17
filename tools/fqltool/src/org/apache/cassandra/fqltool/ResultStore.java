@@ -31,7 +31,7 @@ import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.wire.ReadMarshallable;
 import net.openhft.chronicle.wire.ValueIn;
@@ -105,9 +105,9 @@ public class ResultStore
 
     public ResultStore(List<File> resultPaths, File queryFilePath)
     {
-        queues = resultPaths.stream().map(path -> ChronicleQueueBuilder.single(path).build()).collect(Collectors.toList());
+        queues = resultPaths.stream().map(path -> SingleChronicleQueueBuilder.single(path).build()).collect(Collectors.toList());
         appenders = queues.stream().map(ChronicleQueue::acquireAppender).collect(Collectors.toList());
-        queryStoreQueue = queryFilePath != null ? ChronicleQueueBuilder.single(queryFilePath).build() : null;
+        queryStoreQueue = queryFilePath != null ? SingleChronicleQueueBuilder.single(queryFilePath).build() : null;
         queryStoreAppender = queryStoreQueue != null ? queryStoreQueue.acquireAppender() : null;
     }
 
