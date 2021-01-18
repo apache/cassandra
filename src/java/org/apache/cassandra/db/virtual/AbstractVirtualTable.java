@@ -38,6 +38,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * An abstract virtual table implementation that builds the resultset on demand.
  */
@@ -81,7 +83,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
         if (null == partition)
             return EmptyIterators.unfilteredPartition(metadata);
 
-        long now = System.currentTimeMillis();
+        long now = currentTimeMillis();
         UnfilteredRowIterator rowIterator = partition.toRowIterator(metadata(), clusteringIndexFilter, columnFilter, now);
         return new SingletonUnfilteredPartitionIterator(rowIterator);
     }
@@ -96,7 +98,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
 
         Iterator<Partition> iterator = data.getPartitions(dataRange);
 
-        long now = System.currentTimeMillis();
+        long now = currentTimeMillis();
 
         return new AbstractUnfilteredPartitionIterator()
         {

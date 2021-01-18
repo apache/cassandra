@@ -22,6 +22,7 @@ import java.security.SecureRandom;
 import java.util.Random;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_EGD;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class GuidGenerator
 {
@@ -90,7 +91,7 @@ public class GuidGenerator
 
     public static ByteBuffer guidAsBytes()
     {
-        return guidAsBytes(myRand, s_id, System.currentTimeMillis());
+        return guidAsBytes(myRand, s_id, currentTimeMillis());
     }
 
     /*

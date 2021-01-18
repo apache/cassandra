@@ -50,6 +50,8 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.StatusLogger;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class GCInspector implements NotificationListener, GCInspectorMXBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.service:type=GCInspector";
@@ -113,7 +115,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         State()
         {
             count = maxRealTimeElapsed = sumSquaresRealTimeElapsed = totalRealTimeElapsed = totalBytesReclaimed = 0;
-            startNanos = System.nanoTime();
+            startNanos = nanoTime();
         }
     }
 
@@ -318,7 +320,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     {
         State state = getTotalSinceLastCheck();
         double[] r = new double[7];
-        r[0] = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - state.startNanos);
+        r[0] = TimeUnit.NANOSECONDS.toMillis(nanoTime() - state.startNanos);
         r[1] = state.maxRealTimeElapsed;
         r[2] = state.totalRealTimeElapsed;
         r[3] = state.sumSquaresRealTimeElapsed;

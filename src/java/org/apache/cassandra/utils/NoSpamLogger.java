@@ -25,6 +25,8 @@ import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import static org.apache.cassandra.utils.Clock.Global;
+
 /**
  * Logging that limits each log statement to firing based on time since the statement last fired.
  *
@@ -58,7 +60,7 @@ public class NoSpamLogger
     {
         public long nanoTime()
         {
-            return System.nanoTime();
+            return Global.nanoTime();
         }
     };
 

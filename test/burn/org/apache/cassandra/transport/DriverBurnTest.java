@@ -45,6 +45,7 @@ import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryStatement;
 import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class DriverBurnTest extends CQLTester
@@ -385,10 +386,10 @@ public class DriverBurnTest extends CQLTester
 
                         for (int j = 0; j < perThread; j++)
                         {
-                            long startNanos = System.nanoTime();
+                            long startNanos = nanoTime();
                             ResultSetFuture future = session.executeAsync(request);
                             future.addListener(() -> {
-                                long diff = System.nanoTime() - startNanos;
+                                long diff = nanoTime() - startNanos;
                                 if (measure.get())
                                 {
                                     lock.lock();

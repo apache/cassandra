@@ -64,6 +64,7 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import static java.lang.Math.min;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
@@ -259,7 +260,7 @@ public class ConnectionBurnTest
             Reporters reporters = new Reporters(endpoints, connections);
             try
             {
-                long deadline = System.nanoTime() + runForNanos;
+                long deadline = nanoTime() + runForNanos;
                 Verb._TEST_2.unsafeSetHandler(() -> message -> {});
                 Verb._TEST_2.unsafeSetSerializer(() -> serializer);
                 inbound.sockets.open().get();
@@ -345,7 +346,7 @@ public class ConnectionBurnTest
                 executor.execute(() -> {
                     Thread.currentThread().setName("Test-Reconnect");
                     ThreadLocalRandom random = ThreadLocalRandom.current();
-                    while (deadline > System.nanoTime())
+                    while (deadline > nanoTime())
                     {
                         try
                         {
@@ -411,7 +412,7 @@ public class ConnectionBurnTest
                     };
 
                     int count = 0;
-                    while (deadline > System.nanoTime())
+                    while (deadline > nanoTime())
                     {
 
                         try
@@ -465,7 +466,7 @@ public class ConnectionBurnTest
                     }
                 });
 
-                while (deadline > System.nanoTime() && failed.getCount() > 0)
+                while (deadline > nanoTime() && failed.getCount() > 0)
                 {
                     reporters.update();
                     reporters.print();

@@ -54,7 +54,7 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.hadoop.*;
 import org.apache.cassandra.utils.*;
 
-import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Hadoop InputFormat allowing map/reduce against Cassandra rows within one ColumnFamily.
@@ -242,7 +242,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         }
 
         assert splits.size() > 0;
-        Collections.shuffle(splits, new Random(System.nanoTime()));
+        Collections.shuffle(splits, new Random(nanoTime()));
         return splits;
     }
 

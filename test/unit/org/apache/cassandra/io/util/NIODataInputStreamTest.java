@@ -41,6 +41,7 @@ import com.google.common.primitives.UnsignedBytes;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 public class NIODataInputStreamTest
@@ -51,7 +52,7 @@ public class NIODataInputStreamTest
 
     void init()
     {
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         //seed = 365238103404423L;
         System.out.println("Seed " + seed);
         r = new Random(seed);

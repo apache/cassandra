@@ -68,6 +68,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
@@ -80,6 +81,7 @@ import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 import static org.apache.cassandra.net.OutboundConnectionSettings.Framing.LZ4;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class ConnectionTest
@@ -336,7 +338,7 @@ public class ConnectionTest
             });
             unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
             Message<?> message = Message.builder(Verb._TEST_1, new Object())
-                                        .withExpiresAt(System.nanoTime() + SECONDS.toNanos(30L))
+                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
                                         .build();
             for (int i = 0 ; i < count ; ++i)
                 outbound.enqueue(message);
@@ -444,7 +446,7 @@ public class ConnectionTest
 
             AtomicInteger serialized = new AtomicInteger();
             Message<?> message = Message.builder(Verb._TEST_1, new Object())
-                                        .withExpiresAt(System.nanoTime() + SECONDS.toNanos(30L))
+                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
                                         .build();
             unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
             {
@@ -663,7 +665,7 @@ public class ConnectionTest
     {
         testManual((settings, inbound, outbound, endpoint) -> {
             Message<?> message = Message.builder(Verb._TEST_1, noPayload)
-                                        .withExpiresAt(System.nanoTime() + SECONDS.toNanos(30L))
+                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
                                         .build();
 
             for (int i = 0 ; i < 1000 ; ++i)
@@ -683,12 +685,12 @@ public class ConnectionTest
                     for (int i = 0; i < 5; i++)
                     {
                         Message<?> message = Message.builder(Verb._TEST_1, noPayload)
-                                                    .withExpiresAt(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(50L))
+                                                    .withExpiresAt(nanoTime() + MILLISECONDS.toNanos(50L))
                                                     .build();
                         OutboundMessageQueue queue = outbound.queue;
                         while (true)
                         {
-                            try (OutboundMessageQueue.WithLock withLock = queue.lockOrCallback(System.nanoTime(), null))
+                            try (OutboundMessageQueue.WithLock withLock = queue.lockOrCallback(nanoTime(), null))
                             {
                                 if (withLock != null)
                                 {

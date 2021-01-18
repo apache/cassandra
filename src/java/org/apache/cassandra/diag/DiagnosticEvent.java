@@ -20,6 +20,8 @@ package org.apache.cassandra.diag;
 import java.io.Serializable;
 import java.util.Map;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * Base class for internally emitted events used for diagnostics and testing.
  */
@@ -28,7 +30,7 @@ public abstract class DiagnosticEvent
     /**
      * Event creation time.
      */
-    public final long timestamp = System.currentTimeMillis();
+    public final long timestamp = currentTimeMillis();
 
     /**
      * Name of allocating thread.

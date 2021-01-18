@@ -30,12 +30,14 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 class Reporters
 {
     final Collection<InetAddressAndPort> endpoints;
     final Connection[] connections;
     final List<Reporter> reporters;
-    final long start = System.nanoTime();
+    final long start = nanoTime();
 
     Reporters(Collection<InetAddressAndPort> endpoints, Connection[] connections)
     {
@@ -66,7 +68,7 @@ class Reporters
 
     void print()
     {
-        System.out.println("==" + prettyPrintElapsed(System.nanoTime() - start) + "==\n");
+        System.out.println("==" + prettyPrintElapsed(nanoTime() - start) + "==\n");
 
         for (Reporter reporter : reporters)
         {

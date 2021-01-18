@@ -49,6 +49,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class QueryController
 {
     private final long executionQuota;
@@ -65,7 +67,7 @@ public class QueryController
         this.command = command;
         this.range = command.dataRange();
         this.executionQuota = TimeUnit.MILLISECONDS.toNanos(timeQuotaMs);
-        this.executionStart = System.nanoTime();
+        this.executionStart = nanoTime();
     }
 
     public TableMetadata metadata()
@@ -154,7 +156,7 @@ public class QueryController
 
     public void checkpoint()
     {
-	long executionTime = (System.nanoTime() - executionStart);
+	long executionTime = (nanoTime() - executionStart);
 
         if (executionTime >= executionQuota)
             throw new TimeQuotaExceededException(

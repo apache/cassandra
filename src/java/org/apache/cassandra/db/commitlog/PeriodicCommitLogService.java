@@ -21,6 +21,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 class PeriodicCommitLogService extends AbstractCommitLogService
 {
     private static final long blockWhenSyncLagsNanos = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getPeriodicCommitLogSyncBlock());
@@ -33,7 +35,7 @@ class PeriodicCommitLogService extends AbstractCommitLogService
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
     {
-        long expectedSyncTime = System.nanoTime() - blockWhenSyncLagsNanos;
+        long expectedSyncTime = nanoTime() - blockWhenSyncLagsNanos;
         if (lastSyncedAt < expectedSyncTime)
         {
             pending.incrementAndGet();

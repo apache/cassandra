@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Throwables.merge;
 
 /**
@@ -274,12 +275,12 @@ final class LogFile implements AutoCloseable
 
     void commit()
     {
-        addRecord(LogRecord.makeCommit(System.currentTimeMillis()));
+        addRecord(LogRecord.makeCommit(currentTimeMillis()));
     }
 
     void abort()
     {
-        addRecord(LogRecord.makeAbort(System.currentTimeMillis()));
+        addRecord(LogRecord.makeAbort(currentTimeMillis()));
     }
 
     private boolean isLastRecordValidWithType(Type type)

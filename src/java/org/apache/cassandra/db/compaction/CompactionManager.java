@@ -86,6 +86,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * <p>
@@ -1267,7 +1268,7 @@ public class CompactionManager implements CompactionManagerMBean
             return;
         }
 
-        long start = System.nanoTime();
+        long start = nanoTime();
 
         long totalkeysWritten = 0;
 
@@ -1325,7 +1326,7 @@ public class CompactionManager implements CompactionManagerMBean
         if (!finished.isEmpty())
         {
             String format = "Cleaned up to %s.  %s to %s (~%d%% of original) for %,d keys.  Time: %,dms.";
-            long dTime = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            long dTime = TimeUnit.NANOSECONDS.toMillis(nanoTime() - start);
             long startsize = sstable.onDiskLength();
             long endsize = 0;
             for (SSTableReader newSstable : finished)
@@ -2247,10 +2248,10 @@ public class CompactionManager implements CompactionManagerMBean
 
     public void waitForCessation(Iterable<ColumnFamilyStore> cfss, Predicate<SSTableReader> sstablePredicate)
     {
-        long start = System.nanoTime();
+        long start = nanoTime();
         long delay = TimeUnit.MINUTES.toNanos(1);
 
-        while (System.nanoTime() - start < delay)
+        while (nanoTime() - start < delay)
         {
             if (CompactionManager.instance.isCompacting(cfss, sstablePredicate))
                 Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);

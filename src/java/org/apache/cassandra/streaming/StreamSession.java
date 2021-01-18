@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Handles the streaming a one or more streams to and from a specific remote node.
@@ -790,14 +791,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // send back file received message
         messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
-        long receivedStartNanos = System.nanoTime();
+        long receivedStartNanos = nanoTime();
         try
         {
             receivers.get(message.header.tableId).received(message.stream);
         }
         finally
         {
-            long latencyNanos = System.nanoTime() - receivedStartNanos;
+            long latencyNanos = nanoTime() - receivedStartNanos;
             metrics.incomingProcessTime.update(latencyNanos, TimeUnit.NANOSECONDS);
             long latencyMs = TimeUnit.NANOSECONDS.toMillis(latencyNanos);
             int timeout = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();

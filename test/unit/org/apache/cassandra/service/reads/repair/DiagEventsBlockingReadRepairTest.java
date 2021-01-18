@@ -49,6 +49,9 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * Variation of {@link BlockingReadRepair} using diagnostic events instead of instrumentation for test validation.
  */
@@ -110,7 +113,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
     private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)
     {
-        return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
+        return handler.awaitRepairsUntil(nanoTime(), NANOSECONDS);
     }
 
     public InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, long queryStartNanoTime)

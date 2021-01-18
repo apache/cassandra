@@ -65,6 +65,7 @@ import static org.apache.cassandra.net.Verifier.EventType.SEND_FRAME;
 import static org.apache.cassandra.net.Verifier.EventType.SENT_FRAME;
 import static org.apache.cassandra.net.Verifier.EventType.SERIALIZE;
 import static org.apache.cassandra.net.Verifier.ExpiredMessageEvent.ExpirationType.ON_SENT;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 /**
@@ -1110,7 +1111,7 @@ public class Verifier
                                 throw new IllegalStateException();
                         }
 
-                        now = System.nanoTime();
+                        now = nanoTime();
                         if (m.expiresAtNanos > now)
                         {
                             // we fix the conversion AlmostSameTime for an entire run, which should suffice to guarantee these comparisons
@@ -1356,7 +1357,7 @@ public class Verifier
 
         public Event await(long id, long timeout, TimeUnit unit) throws InterruptedException
         {
-            return await(id, System.nanoTime() + unit.toNanos(timeout));
+            return await(id, nanoTime() + unit.toNanos(timeout));
         }
 
         public Event await(long id, long deadlineNanos) throws InterruptedException
@@ -1370,7 +1371,7 @@ public class Verifier
             readerWaiting = Thread.currentThread();
             while (null == (result = chunk.get(id)))
             {
-                long waitNanos = deadlineNanos - System.nanoTime();
+                long waitNanos = deadlineNanos - nanoTime();
                 if (waitNanos <= 0)
                     return null;
                 LockSupport.parkNanos(waitNanos);

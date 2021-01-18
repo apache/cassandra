@@ -40,6 +40,8 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 
 public class LongCompactionsTest
@@ -122,7 +124,7 @@ public class LongCompactionsTest
         // give garbage collection a bit of time to catch up
         Thread.sleep(1000);
 
-        long start = System.nanoTime();
+        long start = nanoTime();
         final int gcBefore = (int) (System.currentTimeMillis() / 1000) - Schema.instance.getTableMetadata(KEYSPACE1, "Standard1").params.gcGraceSeconds;
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.COMPACTION))
         {
@@ -134,7 +136,7 @@ public class LongCompactionsTest
                                          sstableCount,
                                          partitionsPerSSTable,
                                          rowsPerPartition,
-                                         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)));
+                                         TimeUnit.NANOSECONDS.toMillis(nanoTime() - start)));
     }
 
     @Test

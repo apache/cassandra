@@ -52,6 +52,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeCommandIterator.class);
@@ -90,7 +92,7 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
         this.totalRangeCount = totalRangeCount;
         this.queryStartNanoTime = queryStartNanoTime;
 
-        startTime = System.nanoTime();
+        startTime = nanoTime();
         enforceStrictLiveness = command.metadata().enforceStrictLiveness();
     }
 
@@ -262,7 +264,7 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
         }
         finally
         {
-            long latency = System.nanoTime() - startTime;
+            long latency = nanoTime() - startTime;
             rangeMetrics.addNano(latency);
             Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
         }

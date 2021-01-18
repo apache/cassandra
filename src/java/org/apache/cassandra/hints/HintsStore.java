@@ -38,6 +38,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.SyncUtil;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * Encapsulates the state of a peer's hints: the queue of hints files for dispatch, and the current writer (if any).
  *
@@ -247,7 +249,7 @@ final class HintsStore
 
     private HintsWriter openWriter()
     {
-        lastUsedTimestamp = Math.max(System.currentTimeMillis(), lastUsedTimestamp + 1);
+        lastUsedTimestamp = Math.max(currentTimeMillis(), lastUsedTimestamp + 1);
         HintsDescriptor descriptor = new HintsDescriptor(hostId, lastUsedTimestamp, writerParams);
 
         try

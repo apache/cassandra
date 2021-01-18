@@ -80,6 +80,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.ReplicaUtils.FULL_RANGE;
 import static org.apache.cassandra.net.Verb.INTERNAL_RSP;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 @Ignore
 public abstract  class AbstractReadRepairTest
@@ -98,7 +99,7 @@ public abstract  class AbstractReadRepairTest
     static EndpointsForRange replicas;
     static ReplicaPlan.ForRead<?> replicaPlan;
 
-    static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
+    static long now = TimeUnit.NANOSECONDS.toMicros(nanoTime());
     static DecoratedKey key;
     static Cell<?> cell1;
     static Cell<?> cell2;
@@ -320,7 +321,7 @@ public abstract  class AbstractReadRepairTest
 
     public InstrumentedReadRepair createInstrumentedReadRepair(ReplicaPlan.Shared<?, ?> replicaPlan)
     {
-        return createInstrumentedReadRepair(command, replicaPlan, System.nanoTime());
+        return createInstrumentedReadRepair(command, replicaPlan, nanoTime());
 
     }
 

@@ -47,6 +47,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.*;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -95,7 +96,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
         maxValueSize = DatabaseDescriptor.getMaxValueSize();
         DatabaseDescriptor.setMaxValueSize(1024 * 1024);
 
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         logger.info("Seed {}", seed);
         random = new Random(seed);
 

@@ -39,6 +39,10 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import static java.util.Collections.singletonList;
+import static org.apache.cassandra.db.ConsistencyLevel.ANY;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * ThreadLocal state for a tracing session. The presence of an instance of this class as a ThreadLocal denotes that an
  * operation is being traced.
@@ -118,7 +122,7 @@ public class TraceStateImpl extends TraceState
     {
         try
         {
-            StorageProxy.mutate(Collections.singletonList(mutation), ConsistencyLevel.ANY, System.nanoTime());
+            StorageProxy.mutate(singletonList(mutation), ANY, nanoTime());
         }
         catch (OverloadedException e)
         {

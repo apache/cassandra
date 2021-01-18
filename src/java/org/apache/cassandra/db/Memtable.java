@@ -75,6 +75,8 @@ import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class Memtable implements Comparable<Memtable>
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
@@ -137,7 +139,7 @@ public class Memtable implements Comparable<Memtable>
     // actually only store DecoratedKey.
     private final ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> partitions = new ConcurrentSkipListMap<>();
     public final ColumnFamilyStore cfs;
-    private final long creationNano = System.nanoTime();
+    private final long creationNano = nanoTime();
 
     // The smallest timestamp for all partitions stored in this memtable
     private long minTimestamp = Long.MAX_VALUE;
@@ -261,7 +263,7 @@ public class Memtable implements Comparable<Memtable>
     public boolean isExpired()
     {
         int period = cfs.metadata().params.memtableFlushPeriodInMs;
-        return period > 0 && (System.nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
+        return period > 0 && (nanoTime() - creationNano >= TimeUnit.MILLISECONDS.toNanos(period));
     }
 
     /**

@@ -35,6 +35,8 @@ import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class RepairRunner extends JMXNotificationProgressListener
 {
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -189,6 +191,6 @@ public class RepairRunner extends JMXNotificationProgressListener
 
     private void printMessage(String message)
     {
-        out.println(String.format("[%s] %s", this.format.format(System.currentTimeMillis()), message));
+        out.println(String.format("[%s] %s", this.format.format(currentTimeMillis()), message));
     }
 }

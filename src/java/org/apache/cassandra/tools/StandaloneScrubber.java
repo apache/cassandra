@@ -55,6 +55,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class StandaloneScrubber
 {
     public static final String REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION = "Rewrites rows with overflowed expiration date affected by CASSANDRA-14092 with " +
@@ -108,7 +110,7 @@ public class StandaloneScrubber
                                                                   options.keyspaceName,
                                                                   options.cfName));
 
-            String snapshotName = "pre-scrub-" + System.currentTimeMillis();
+            String snapshotName = "pre-scrub-" + currentTimeMillis();
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);

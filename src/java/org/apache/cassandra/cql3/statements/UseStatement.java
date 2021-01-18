@@ -29,6 +29,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class UseStatement extends CQLStatement.Raw implements CQLStatement
 {
     private final String keyspace;
@@ -62,7 +64,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
     {
         // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
-        return execute(state, options, System.nanoTime());
+        return execute(state, options, nanoTime());
     }
     
     @Override

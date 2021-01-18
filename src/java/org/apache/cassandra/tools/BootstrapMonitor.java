@@ -27,6 +27,8 @@ import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class BootstrapMonitor extends JMXNotificationProgressListener
 {
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -74,7 +76,7 @@ public class BootstrapMonitor extends JMXNotificationProgressListener
     public void progress(String tag, ProgressEvent event)
     {
         ProgressEventType type = event.getType();
-        String message = String.format("[%s] %s", format.format(System.currentTimeMillis()), event.getMessage());
+        String message = String.format("[%s] %s", format.format(currentTimeMillis()), event.getMessage());
         if (type == ProgressEventType.PROGRESS)
         {
             message = message + " (progress: " + (int)event.getProgressPercentage() + "%)";

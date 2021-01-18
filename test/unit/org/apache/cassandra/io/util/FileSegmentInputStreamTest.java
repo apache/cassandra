@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -38,7 +39,7 @@ public class FileSegmentInputStreamTest
     private ByteBuffer allocateBuffer(int size)
     {
         ByteBuffer ret = ByteBuffer.allocate(Ints.checkedCast(size));
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         //seed = 365238103404423L;
         System.out.println("Seed " + seed);
 

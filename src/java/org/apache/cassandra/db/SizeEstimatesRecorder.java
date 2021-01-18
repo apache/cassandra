@@ -37,6 +37,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * A very simplistic/crude partition count/size estimator.
  *
@@ -89,7 +91,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
             boolean rangesAreEqual = primaryRanges.equals(localPrimaryRanges);
             for (ColumnFamilyStore table : keyspace.getColumnFamilyStores())
             {
-                long start = System.nanoTime();
+                long start = nanoTime();
 
                 // compute estimates for primary ranges for backwards compatability
                 Map<Range<Token>, Pair<Long, Long>> estimates = computeSizeEstimates(table, primaryRanges);
@@ -103,7 +105,7 @@ public class SizeEstimatesRecorder extends SchemaChangeListener implements Runna
                 }
                 SystemKeyspace.updateTableEstimates(table.metadata.keyspace, table.metadata.name, SystemKeyspace.TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, estimates);
 
-                long passed = System.nanoTime() - start;
+                long passed = nanoTime() - start;
                 if (logger.isTraceEnabled())
                     logger.trace("Spent {} milliseconds on estimating {}.{} size",
                                  TimeUnit.NANOSECONDS.toMillis(passed),

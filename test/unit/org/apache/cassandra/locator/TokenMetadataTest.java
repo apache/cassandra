@@ -64,7 +64,7 @@ public class TokenMetadataTest
     @Before
     public void before() throws Throwable
     {
-        tmd = StorageService.instance.getTokenMetadata();
+        tmd = new TokenMetadata();
         tmd.updateNormalToken(token(ONE), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(token(SIX), InetAddressAndPort.getByName("127.0.0.6"));
     }

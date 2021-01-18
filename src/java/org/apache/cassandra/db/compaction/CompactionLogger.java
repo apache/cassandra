@@ -45,6 +45,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class CompactionLogger
 {
     public interface Strategy
@@ -220,7 +222,7 @@ public class CompactionLogger
             return;
         node.put("keyspace", cfs.keyspace.getName());
         node.put("table", cfs.getTableName());
-        node.put("time", System.currentTimeMillis());
+        node.put("time", currentTimeMillis());
     }
 
     private JsonNode startStrategies()

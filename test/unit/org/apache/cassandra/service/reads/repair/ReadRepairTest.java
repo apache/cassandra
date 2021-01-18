@@ -58,7 +58,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class ReadRepairTest
 {
@@ -86,7 +88,7 @@ public class ReadRepairTest
         }
     }
 
-    static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
+    static long now = TimeUnit.NANOSECONDS.toMicros(nanoTime());
     static DecoratedKey key;
     static Cell<?> cell1;
     static Cell<?> cell2;
@@ -348,6 +350,6 @@ public class ReadRepairTest
 
     private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)
     {
-        return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
+        return handler.awaitRepairsUntil(nanoTime(), NANOSECONDS);
     }
 }

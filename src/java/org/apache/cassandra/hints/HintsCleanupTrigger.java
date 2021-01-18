@@ -25,6 +25,8 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * Delete the expired orphaned hints files.
  * An orphaned file is considered as no associating endpoint with its host ID.
@@ -62,7 +64,7 @@ final class HintsCleanupTrigger implements Runnable
 
         // Interrupt the dispatch if any. At this step, it is certain that the hintsStore is orphaned.
         dispatchExecutor.interruptDispatch(hintsStore.hostId);
-        Runnable cleanup = () -> hintsStore.deleteExpiredHints(System.currentTimeMillis());
+        Runnable cleanup = () -> hintsStore.deleteExpiredHints(currentTimeMillis());
         ScheduledExecutors.optionalTasks.execute(cleanup);
     }
 }

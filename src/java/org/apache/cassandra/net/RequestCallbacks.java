@@ -48,6 +48,7 @@ import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.INTERNAL_RESPONSE;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
 /**
@@ -199,7 +200,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
     {
         if (!executor.isTerminated())
         {
-            long wait = deadlineNanos - System.nanoTime();
+            long wait = deadlineNanos - nanoTime();
             if (wait <= 0 || !executor.awaitTermination(wait, NANOSECONDS))
                 throw new TimeoutException();
         }

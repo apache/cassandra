@@ -39,6 +39,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * A thread-safe and atomic Partition implementation.
  *
@@ -305,7 +307,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             while (TRACKER_PESSIMISTIC_LOCKING != (oldTrackerValue = wasteTracker))
             {
                 // Note this time value has an arbitrary offset, but is a constant rate 32 bit counter (that may wrap)
-                int time = (int) (System.nanoTime() >>> CLOCK_SHIFT);
+                int time = (int) (nanoTime() >>> CLOCK_SHIFT);
                 int delta = oldTrackerValue - time;
                 if (oldTrackerValue == TRACKER_NEVER_WASTED || delta >= 0 || delta < -EXCESS_WASTE_OFFSET)
                     delta = -EXCESS_WASTE_OFFSET;

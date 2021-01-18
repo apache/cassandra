@@ -35,6 +35,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runnable
 {
     private static Logger logger = LoggerFactory.getLogger(SyncTask.class);
@@ -70,7 +72,7 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
      */
     public final void run()
     {
-        startTime = System.currentTimeMillis();
+        startTime = currentTimeMillis();
 
 
         // choose a repair method based on the significance of the difference
@@ -97,6 +99,6 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
     protected void finished()
     {
         if (startTime != Long.MIN_VALUE)
-            Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.repairSyncTime.update(System.currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
+            Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.repairSyncTime.update(currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
 }

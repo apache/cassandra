@@ -39,6 +39,7 @@ import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Encapsulates the hinted mutation, its creation time, and the gc grace seconds param for each table involved.
@@ -135,7 +136,7 @@ public final class Hint
      */
     public boolean isLive()
     {
-        return isLive(creationTime, System.currentTimeMillis(), ttl());
+        return isLive(creationTime, currentTimeMillis(), ttl());
     }
 
     static boolean isLive(long creationTime, long now, int hintTTL)

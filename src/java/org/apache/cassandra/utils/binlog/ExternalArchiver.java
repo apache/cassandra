@@ -40,6 +40,9 @@ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * Archives binary log files immediately when they are rolled using a configure archive command.
  *
@@ -184,12 +187,12 @@ public class ExternalArchiver implements BinLogArchiver
         public DelayFile(File file, long delay, TimeUnit delayUnit, int retries)
         {
             this.file = file;
-            this.delayTime = System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(delay, delayUnit);
+            this.delayTime = currentTimeMillis() + MILLISECONDS.convert(delay, delayUnit);
             this.retries = retries;
         }
         public long getDelay(TimeUnit unit)
         {
-            return unit.convert(delayTime - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
+            return unit.convert(delayTime - currentTimeMillis(), TimeUnit.MILLISECONDS);
         }
 
         public int compareTo(Delayed o)

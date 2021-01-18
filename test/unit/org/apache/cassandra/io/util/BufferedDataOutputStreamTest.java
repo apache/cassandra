@@ -44,6 +44,7 @@ import com.google.common.primitives.UnsignedBytes;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
 import static org.junit.Assert.*;
 
@@ -171,7 +172,7 @@ public class BufferedDataOutputStreamTest
 
     static Field baos_bytes;
     static {
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         //seed = 210187780999648L;
         System.out.println("Seed " + seed);
         r = new Random(seed);

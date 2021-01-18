@@ -52,6 +52,8 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class PerSSTableIndexWriter implements SSTableFlushObserver
 {
     private static final Logger logger = LoggerFactory.getLogger(PerSSTableIndexWriter.class);
@@ -251,7 +253,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             final String segmentFile = filename(isFinal);
 
             return () -> {
-                long start = System.nanoTime();
+                long start = nanoTime();
 
                 try
                 {
@@ -266,7 +268,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                 finally
                 {
                     if (!isFinal)
-                        logger.info("Flushed index segment {}, took {} ms.", segmentFile, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                        logger.info("Flushed index segment {}, took {} ms.", segmentFile, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
                 }
             };
         }
@@ -276,7 +278,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             logger.info("Scheduling index flush to {}", outputFile);
 
             getExecutor().submit((Runnable) () -> {
-                long start1 = System.nanoTime();
+                long start1 = nanoTime();
 
                 OnDiskIndex[] parts = new OnDiskIndex[segments.size() + 1];
 
@@ -324,7 +326,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                 }
                 finally
                 {
-                    logger.info("Index flush to {} took {} ms.", outputFile, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start1));
+                    logger.info("Index flush to {} took {} ms.", outputFile, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start1));
 
                     for (int segment = 0; segment < segmentNumber; segment++)
                     {

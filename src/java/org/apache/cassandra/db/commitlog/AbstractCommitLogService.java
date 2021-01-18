@@ -33,6 +33,9 @@ import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public abstract class AbstractCommitLogService
 {
     /**
@@ -45,7 +48,7 @@ public abstract class AbstractCommitLogService
     private volatile boolean shutdown = false;
 
     // all Allocations written before this time will be synced
-    protected volatile long lastSyncedAt = System.currentTimeMillis();
+    protected volatile long lastSyncedAt = currentTimeMillis();
 
     // counts of total written, and pending, log messages
     private final AtomicLong written = new AtomicLong(0);
@@ -292,7 +295,7 @@ public abstract class AbstractCommitLogService
      */
     public void syncBlocking()
     {
-        long requestTime = System.nanoTime();
+        long requestTime = nanoTime();
         requestExtraSync();
         awaitSyncAt(requestTime, null);
     }

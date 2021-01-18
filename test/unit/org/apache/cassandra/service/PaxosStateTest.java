@@ -39,6 +39,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 public class PaxosStateTest
@@ -60,7 +61,7 @@ public class PaxosStateTest
     public void testCommittingAfterTruncation() throws Exception
     {
         ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
-        String key = "key" + System.nanoTime();
+        String key = "key" + nanoTime();
         ByteBuffer value = ByteBufferUtil.bytes(0);
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
         builder.clustering("a").add("val", value);
@@ -108,7 +109,7 @@ public class PaxosStateTest
     public void testPrepareProposePaxos() throws Throwable
     {
         ColumnFamilyStore cfs = Keyspace.open("PaxosStateTestKeyspace1").getColumnFamilyStore("Standard1");
-        String key = "key" + System.nanoTime();
+        String key = "key" + nanoTime();
         ByteBuffer value = ByteBufferUtil.bytes(0);
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
         builder.clustering("a").add("val", value);

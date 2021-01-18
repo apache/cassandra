@@ -47,6 +47,9 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class CompactionTask extends AbstractCompactionTask
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
@@ -117,10 +120,10 @@ public class CompactionTask extends AbstractCompactionTask
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
         {
-            Instant creationTime = Instant.now();
-            cfs.snapshotWithoutFlush(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
+            long epochMilli = currentTimeMillis();
+            Instant creationTime = Instant.ofEpochMilli(epochMilli);
+            cfs.snapshotWithoutFlush(epochMilli + "-compact-" + cfs.name, creationTime);
         }
-
 
         try (CompactionController controller = getCompactionController(transaction.originals()))
         {
@@ -155,8 +158,8 @@ public class CompactionTask extends AbstractCompactionTask
             logger.info("Compacting ({}) {}", taskId, ssTableLoggerMsg);
 
             RateLimiter limiter = CompactionManager.instance.getRateLimiter();
-            long start = System.nanoTime();
-            long startTime = System.currentTimeMillis();
+            long start = nanoTime();
+            long startTime = currentTimeMillis();
             long totalKeysWritten = 0;
             long estimatedKeys = 0;
             long inputSizeBytes;
@@ -206,10 +209,10 @@ public class CompactionTask extends AbstractCompactionTask
 
                         lastBytesScanned = bytesScanned;
 
-                        if (System.nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
+                        if (nanoTime() - lastCheckObsoletion > TimeUnit.MINUTES.toNanos(1L))
                         {
                             controller.maybeRefreshOverlaps();
-                            lastCheckObsoletion = System.nanoTime();
+                            lastCheckObsoletion = nanoTime();
                         }
                     }
 
@@ -232,7 +235,7 @@ public class CompactionTask extends AbstractCompactionTask
             {
                 // log a bunch of statistics about the result and save to system table compaction_history
 
-                long durationInNano = System.nanoTime() - start;
+                long durationInNano = nanoTime() - start;
                 long dTime = TimeUnit.NANOSECONDS.toMillis(durationInNano);
                 long startsize = inputSizeBytes;
                 long endsize = SSTableReader.getTotalBytes(newSStables);
@@ -267,7 +270,7 @@ public class CompactionTask extends AbstractCompactionTask
                     logger.trace("CF Total Bytes Compacted: {}", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize)));
                     logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
                 }
-                cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), System.currentTimeMillis(), newSStables);
+                cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), currentTimeMillis(), newSStables);
 
                 // update the metrics
                 cfs.metric.compactionBytesWritten.inc(endsize);
@@ -298,7 +301,7 @@ public class CompactionTask extends AbstractCompactionTask
             mergeSummary.append(String.format("%d:%d, ", rows, count));
             mergedRows.put(rows, count);
         }
-        SystemKeyspace.updateCompactionHistory(keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
+        SystemKeyspace.updateCompactionHistory(keyspaceName, columnFamilyName, currentTimeMillis(), startSize, endSize, mergedRows);
         return mergeSummary.toString();
     }
 

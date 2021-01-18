@@ -35,6 +35,9 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.service.QueryState.forInternalCalls;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class CassandraNetworkAuthorizer implements INetworkAuthorizer
 {
     private SelectStatement authorizeUserStatement = null;
@@ -50,7 +53,7 @@ public class CassandraNetworkAuthorizer implements INetworkAuthorizer
     @VisibleForTesting
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+        return statement.execute(forInternalCalls(), options, nanoTime());
     }
 
     @VisibleForTesting

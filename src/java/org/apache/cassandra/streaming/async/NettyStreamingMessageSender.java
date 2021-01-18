@@ -63,6 +63,8 @@ import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * Responsible for sending {@link StreamMessage}s to a given peer. We manage an array of netty {@link Channel}s
  * for sending {@link OutgoingStreamMessage} instances; all other {@link StreamMessage} types are sent via
@@ -377,7 +379,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         boolean acquirePermit(int logInterval)
         {
             long logIntervalNanos = TimeUnit.MINUTES.toNanos(logInterval);
-            long timeOfLastLogging = System.nanoTime();
+            long timeOfLastLogging = nanoTime();
             while (true)
             {
                 if (closed)
@@ -388,7 +390,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                         return true;
 
                     // log a helpful message to operators in case they are wondering why a given session might not be making progress.
-                    long now = System.nanoTime();
+                    long now = nanoTime();
                     if (now - timeOfLastLogging > logIntervalNanos)
                     {
                         timeOfLastLogging = now;

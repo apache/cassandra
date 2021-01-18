@@ -46,6 +46,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * RepairJob runs repair on given ColumnFamily.
  */
@@ -207,7 +209,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
     {
-        long startedAt = System.currentTimeMillis();
+        long startedAt = currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
         for (int i = 0; i < trees.size() - 1; ++i)
@@ -262,7 +264,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
         trees.get(trees.size() - 1).trees.release();
         logger.info("Created {} sync tasks based on {} merkle tree responses for {} (took: {}ms)",
-                    syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
+                    syncTasks.size(), trees.size(), desc.parentSessionId, currentTimeMillis() - startedAt);
         return syncTasks;
     }
 
@@ -302,7 +304,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                                                           boolean isIncremental,
                                                           PreviewKind previewKind)
     {
-        long startedAt = System.currentTimeMillis();
+        long startedAt = currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
         DifferenceHolder diffHolder = new DifferenceHolder(trees);
@@ -353,7 +355,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
         }
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
-                    syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
+                    syncTasks.size(), trees.size(), desc.parentSessionId, currentTimeMillis() - startedAt);
         logger.trace("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
         return syncTasks;
     }

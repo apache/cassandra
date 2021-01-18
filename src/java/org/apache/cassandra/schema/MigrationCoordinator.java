@@ -61,6 +61,8 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
@@ -581,7 +583,7 @@ public class MigrationCoordinator
                 signal = WaitQueue.all(signals);
             }
 
-            return signal.awaitUntil(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis));
+            return signal.awaitUntil(nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis));
         }
         catch (InterruptedException e)
         {

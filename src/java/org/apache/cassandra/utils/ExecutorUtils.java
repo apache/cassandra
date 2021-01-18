@@ -27,6 +27,7 @@ import java.util.concurrent.TimeoutException;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class ExecutorUtils
 {
@@ -92,7 +93,7 @@ public class ExecutorUtils
 
     public static void awaitTermination(long timeout, TimeUnit unit, Collection<?> executors) throws InterruptedException, TimeoutException
     {
-        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        long deadline = nanoTime() + unit.toNanos(timeout);
         awaitTerminationUntil(deadline, executors);
     }
 
@@ -100,7 +101,7 @@ public class ExecutorUtils
     {
         for (Object executor : executors)
         {
-            long wait = deadline - System.nanoTime();
+            long wait = deadline - nanoTime();
             if (executor instanceof ExecutorService)
             {
                 if (wait <= 0 || !((ExecutorService)executor).awaitTermination(wait, NANOSECONDS))

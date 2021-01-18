@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 /**
@@ -285,7 +286,7 @@ public class Keyspace
      */
     public static String getTimestampedSnapshotName(String clientSuppliedName)
     {
-        String snapshotName = Long.toString(System.currentTimeMillis());
+        String snapshotName = Long.toString(currentTimeMillis());
         if (clientSuppliedName != null && !clientSuppliedName.equals(""))
         {
             snapshotName = snapshotName + "-" + clientSuppliedName;
@@ -547,7 +548,7 @@ public class Keyspace
 
         if (requiresViewUpdate)
         {
-            mutation.viewLockAcquireStart.compareAndSet(0L, System.currentTimeMillis());
+            mutation.viewLockAcquireStart.compareAndSet(0L, currentTimeMillis());
 
             // the order of lock acquisition doesn't matter (from a deadlock perspective) because we only use tryLock()
             Collection<TableId> tableIds = mutation.getTableIds();
@@ -625,7 +626,7 @@ public class Keyspace
                 }
             }
 
-            long acquireTime = System.currentTimeMillis() - mutation.viewLockAcquireStart.get();
+            long acquireTime = currentTimeMillis() - mutation.viewLockAcquireStart.get();
             // Metrics are only collected for droppable write operations
             // Bulk non-droppable operations (e.g. commitlog replay, hint delivery) are not measured
             if (isDroppable)
@@ -669,7 +670,7 @@ public class Keyspace
                 cfs.getWriteHandler().write(upd, ctx, indexTransaction);
 
                 if (requiresViewUpdate)
-                    baseComplete.set(System.currentTimeMillis());
+                    baseComplete.set(currentTimeMillis());
             }
 
             if (future != null) {

@@ -29,6 +29,8 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.service.ClientState;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * {@code QueryPager} that takes care of fetching the pages for aggregation queries.
  * <p>
@@ -71,9 +73,9 @@ public final class AggregationQueryPager implements QueryPager
     public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController)
     {
         if (limits.isGroupByLimit())
-            return new GroupByPartitionIterator(pageSize, executionController, System.nanoTime());
+            return new GroupByPartitionIterator(pageSize, executionController, nanoTime());
 
-        return new AggregationPartitionIterator(pageSize, executionController, System.nanoTime());
+        return new AggregationPartitionIterator(pageSize, executionController, nanoTime());
     }
 
     @Override

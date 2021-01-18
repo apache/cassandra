@@ -36,6 +36,7 @@ import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertFalse;
 
 public class AsyncStreamingInputPlusTest
@@ -263,7 +264,7 @@ public class AsyncStreamingInputPlusTest
         long timeoutMillis = 1000;
         inputPlus = new AsyncStreamingInputPlus(channel, timeoutMillis, TimeUnit.MILLISECONDS);
 
-        long startNanos = System.nanoTime();
+        long startNanos = nanoTime();
         try
         {
             inputPlus.readInt();
@@ -274,7 +275,7 @@ public class AsyncStreamingInputPlusTest
             // this is the success case, and is expected. any other exception is a failure.
         }
 
-        long durationNanos = System.nanoTime() - startNanos;
+        long durationNanos = nanoTime() - startNanos;
         Assert.assertTrue(TimeUnit.MILLISECONDS.toNanos(timeoutMillis) <= durationNanos);
     }
 }

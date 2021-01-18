@@ -21,6 +21,7 @@ import static org.apache.cassandra.tools.Util.BLUE;
 import static org.apache.cassandra.tools.Util.CYAN;
 import static org.apache.cassandra.tools.Util.RESET;
 import static org.apache.cassandra.tools.Util.WHITE;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
 import java.io.DataInputStream;
@@ -232,9 +233,9 @@ public class SSTableMetadataViewer
                                     cellCount++;
                                     double percentComplete = Math.min(1.0, cellCount / totalCells);
                                     if (lastPercent != (int) (percentComplete * 100) &&
-                                        (System.currentTimeMillis() - lastPercentTime) > 1000)
+                                        (currentTimeMillis() - lastPercentTime) > 1000)
                                     {
-                                        lastPercentTime = System.currentTimeMillis();
+                                        lastPercentTime = currentTimeMillis();
                                         lastPercent = (int) (percentComplete * 100);
                                         if (color)
                                             out.printf("\r%sAnalyzing SSTable...  %s%s %s(%%%s)", BLUE, CYAN,
@@ -371,7 +372,7 @@ public class SSTableMetadataViewer
                 field("maxClusteringValues", Arrays.toString(maxValues));
             }
             field("Estimated droppable tombstones",
-                  stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - this.gc));
+                  stats.getEstimatedDroppableTombstoneRatio((int) (currentTimeMillis() / 1000) - this.gc));
             field("SSTable Level", stats.sstableLevel);
             field("Repaired at", stats.repairedAt, toDateString(stats.repairedAt, TimeUnit.MILLISECONDS));
             field("Pending repair", stats.pendingRepair);

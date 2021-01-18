@@ -26,6 +26,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 {
     public static final CounterMutationVerbHandler instance = new CounterMutationVerbHandler();
@@ -34,7 +36,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 
     public void doVerb(final Message<CounterMutation> message)
     {
-        long queryStartNanoTime = System.nanoTime();
+        long queryStartNanoTime = nanoTime();
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
 
