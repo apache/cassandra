@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 import org.quicktheories.core.Gen;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -143,7 +144,7 @@ public class DecayingEstimatedHistogramReservoirTest
                                                                                            nStripes,
                                                                                            clock);
 
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         System.out.println("DecayingEstimatedHistogramReservoirTest#testStriping.seed = " + seed);
         Random valGen = new Random(seed);
         ExecutorService executors = Executors.newFixedThreadPool(nStripes * 2);

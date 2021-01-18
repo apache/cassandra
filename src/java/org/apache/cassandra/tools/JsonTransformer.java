@@ -58,6 +58,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public final class JsonTransformer
 {
 
@@ -282,7 +284,7 @@ public final class JsonTransformer
                     json.writeFieldName("expires_at");
                     json.writeString(dateString(TimeUnit.SECONDS, liveInfo.localExpirationTime()));
                     json.writeFieldName("expired");
-                    json.writeBoolean(liveInfo.localExpirationTime() < (System.currentTimeMillis() / 1000));
+                    json.writeBoolean(liveInfo.localExpirationTime() < (currentTimeMillis() / 1000));
                 }
                 json.writeEndObject();
                 objectIndenter.setCompact(false);
@@ -497,7 +499,7 @@ public final class JsonTransformer
                 json.writeFieldName("expires_at");
                 json.writeString(dateString(TimeUnit.SECONDS, cell.localDeletionTime()));
                 json.writeFieldName("expired");
-                json.writeBoolean(!cell.isLive((int) (System.currentTimeMillis() / 1000)));
+                json.writeBoolean(!cell.isLive((int) (currentTimeMillis() / 1000)));
             }
             json.writeEndObject();
             objectIndenter.setCompact(false);

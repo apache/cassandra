@@ -63,6 +63,7 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 
 @BenchmarkMode(Mode.Throughput)
@@ -87,7 +88,7 @@ public class BatchStatementBench
     String table = "tbl";
 
     int nowInSec = FBUtilities.nowInSeconds();
-    long queryStartTime = System.nanoTime();
+    long queryStartTime = nanoTime();
     BatchStatement bs;
     BatchQueryOptions bqo;
 

@@ -43,6 +43,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -428,7 +429,7 @@ public class RandomAccessReaderTest
         final File f = FileUtils.createTempFile("testMark", "1");
         final byte[] expected = new byte[1 << 16];
 
-        long seed = System.nanoTime();
+        long seed = nanoTime();
         //seed = 365238103404423L;
         logger.info("Seed {}", seed);
         Random r = new Random(seed);

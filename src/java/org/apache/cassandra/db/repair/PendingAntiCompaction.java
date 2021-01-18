@@ -57,6 +57,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Performs an anti compaction on a set of tables and token ranges, isolating the unrepaired sstables
@@ -218,7 +219,7 @@ public class PendingAntiCompaction
             logger.debug("acquiring sstables for pending anti compaction on session {}", sessionID);
             // try to modify after cancelling running compactions. This will attempt to cancel in flight compactions including the given sstables for
             // up to a minute, after which point, null will be returned
-            long start = System.currentTimeMillis();
+            long start = currentTimeMillis();
             long delay = TimeUnit.SECONDS.toMillis(acquireRetrySeconds);
             // Note that it is `predicate` throwing SSTableAcquisitionException if it finds a conflicting sstable
             // and we only retry when runWithCompactionsDisabled throws when uses the predicate, not when acquireTuple is.
@@ -238,10 +239,10 @@ public class PendingAntiCompaction
                                 sessionID,
                                 e.getMessage(),
                                 acquireSleepMillis,
-                                TimeUnit.SECONDS.convert(delay + start - System.currentTimeMillis(), TimeUnit.MILLISECONDS));
+                                TimeUnit.SECONDS.convert(delay + start - currentTimeMillis(), TimeUnit.MILLISECONDS));
                     Uninterruptibles.sleepUninterruptibly(acquireSleepMillis, TimeUnit.MILLISECONDS);
 
-                    if (System.currentTimeMillis() - start > delay)
+                    if (currentTimeMillis() - start > delay)
                         logger.warn("{} Timed out waiting to acquire sstables", sessionID, e);
 
                 }
@@ -250,7 +251,7 @@ public class PendingAntiCompaction
                     logger.error("Got exception disabling compactions for session {}", sessionID, t);
                     throw t;
                 }
-            } while (System.currentTimeMillis() - start < delay);
+            } while (currentTimeMillis() - start < delay);
             return null;
         }
     }

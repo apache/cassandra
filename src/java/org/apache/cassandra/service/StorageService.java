@@ -134,6 +134,8 @@ import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFami
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -392,7 +394,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 setGossipTokens(tokens);
 
             Gossiper.instance.forceNewerGeneration();
-            Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
+            Gossiper.instance.start((int) (currentTimeMillis() / 1000));
             gossipActive = true;
         }
     }
@@ -725,7 +727,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         initialized = true;
         gossipActive = true;
         Gossiper.instance.register(this);
-        Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
+        Gossiper.instance.start((int) (currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         MessagingService.instance().listen();
     }
@@ -1703,7 +1705,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     if (existing != null)
                     {
                         long nanoDelay = schemaDelay * 1000000L;
-                        if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (System.nanoTime() - nanoDelay))
+                        if (Gossiper.instance.getEndpointStateForEndpoint(existing).getUpdateTimestamp() > (nanoTime() - nanoDelay))
                             throw new UnsupportedOperationException("Cannot replace a live node... ");
                         collisions.add(existing);
                     }

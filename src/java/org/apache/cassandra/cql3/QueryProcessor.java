@@ -58,6 +58,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class QueryProcessor implements QueryHandler
 {
@@ -274,7 +275,7 @@ public class QueryProcessor implements QueryHandler
         QueryState queryState = QueryState.forInternalCalls();
         QueryOptions options = QueryOptions.forInternalCalls(cl, values);
         CQLStatement statement = instance.parse(query, queryState, options);
-        ResultMessage result = instance.process(statement, queryState, options, System.nanoTime());
+        ResultMessage result = instance.process(statement, queryState, options, nanoTime());
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
@@ -339,7 +340,7 @@ public class QueryProcessor implements QueryHandler
         try
         {
             Prepared prepared = prepareInternal(query);
-            ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), System.nanoTime());
+            ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), nanoTime());
             if (result instanceof ResultMessage.Rows)
                 return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else

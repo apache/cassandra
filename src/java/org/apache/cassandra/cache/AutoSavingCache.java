@@ -53,6 +53,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K, V>
 {
     public interface IStreamFactory
@@ -158,7 +160,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     public ListenableFuture<Integer> loadSavedAsync()
     {
         final ListeningExecutorService es = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
-        final long start = System.nanoTime();
+        final long start = nanoTime();
 
         ListenableFuture<Integer> cacheLoad = es.submit(new Callable<Integer>()
         {
@@ -175,7 +177,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             {
                 if (size() > 0)
                     logger.info("Completed loading ({} ms; {} keys) {} cache",
-                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
+                            TimeUnit.NANOSECONDS.toMillis(nanoTime() - start),
                             CacheService.instance.keyCache.size(),
                             cacheType);
                 es.shutdown();
@@ -188,7 +190,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     public int loadSaved()
     {
         int count = 0;
-        long start = System.nanoTime();
+        long start = nanoTime();
 
         // modern format, allows both key and value (so key cache load can be purely sequential)
         File dataPath = getCacheDataPath(CURRENT_VERSION);
@@ -276,7 +278,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
         if (logger.isTraceEnabled())
             logger.trace("completed reading ({} ms; {} keys) saved cache {}",
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), count, dataPath);
+                    TimeUnit.NANOSECONDS.toMillis(nanoTime() - start), count, dataPath);
         return count;
     }
 
@@ -347,7 +349,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 return;
             }
 
-            long start = System.nanoTime();
+            long start = nanoTime();
 
             Pair<File, File> cacheFilePaths = tempCacheFiles();
             try (WrappedDataOutputStreamPlus writer = new WrappedDataOutputStreamPlus(streamFactory.getOutputStream(cacheFilePaths.left, cacheFilePaths.right)))
@@ -401,7 +403,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             if (!cacheFilePaths.right.renameTo(crcFile))
                 logger.error("Unable to rename {} to {}", cacheFilePaths.right, crcFile);
 
-            logger.info("Saved {} ({} items) in {} ms", cacheType, keysWritten, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+            logger.info("Saved {} ({} items) in {} ms", cacheType, keysWritten, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
         }
 
         private Pair<File, File> tempCacheFiles()

@@ -47,6 +47,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.net.Verb.PING_REQ;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class StartupClusterConnectivityChecker
 {
@@ -125,7 +126,7 @@ public class StartupClusterConnectivityChecker
                                    new CountDownLatch(Math.max(datacenterToPeers.get(datacenter).size() - 1, 0)));
         }
 
-        long startNanos = System.nanoTime();
+        long startNanos = nanoTime();
 
         // set up a listener to react to new nodes becoming alive (in gossip), and account for all the nodes that are already alive
         Set<InetAddressAndPort> alivePeers = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -150,7 +151,7 @@ public class StartupClusterConnectivityChecker
         boolean succeeded = true;
         for (CountDownLatch countDownLatch : dcToRemainingPeers.values())
         {
-            long remainingNanos = Math.max(1, timeoutNanos - (System.nanoTime() - startNanos));
+            long remainingNanos = Math.max(1, timeoutNanos - (nanoTime() - startNanos));
             //noinspection UnstableApiUsage
             succeeded &= Uninterruptibles.awaitUninterruptibly(countDownLatch, remainingNanos, TimeUnit.NANOSECONDS);
         }
@@ -164,12 +165,12 @@ public class StartupClusterConnectivityChecker
         if (succeeded)
         {
             logger.info("Ensured sufficient healthy connections with {} after {} milliseconds",
-                        numDown.keySet(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
+                        numDown.keySet(), TimeUnit.NANOSECONDS.toMillis(nanoTime() - startNanos));
         }
         else
         {
             logger.warn("Timed out after {} milliseconds, was waiting for remaining peers to connect: {}",
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos), numDown);
+                        TimeUnit.NANOSECONDS.toMillis(nanoTime() - startNanos), numDown);
         }
 
         return succeeded;

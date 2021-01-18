@@ -33,6 +33,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.CassandraVersion;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndpointState
  * instance. Any state for a given endpoint can be retrieved from this instance.
@@ -66,7 +68,7 @@ public class EndpointState
     {
         hbState = initialHbState;
         applicationState = new AtomicReference<Map<ApplicationState, VersionedValue>>(new EnumMap<>(states));
-        updateTimestamp = System.nanoTime();
+        updateTimestamp = nanoTime();
         isAlive = true;
     }
 
@@ -173,7 +175,7 @@ public class EndpointState
 
     void updateTimestamp()
     {
-        updateTimestamp = System.nanoTime();
+        updateTimestamp = nanoTime();
     }
 
     public boolean isAlive()

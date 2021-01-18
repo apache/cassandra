@@ -38,6 +38,7 @@ import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterables.any;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> extends ResponseResolver<E, P>
 {
@@ -102,7 +103,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
     public boolean responsesMatch()
     {
-        long start = System.nanoTime();
+        long start = nanoTime();
 
         // validate digests against each other; return false immediately on mismatch.
         ByteBuffer digest = null;
@@ -126,7 +127,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         }
 
         if (logger.isTraceEnabled())
-            logger.trace("responsesMatch: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+            logger.trace("responsesMatch: {} ms.", TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
 
         return true;
     }

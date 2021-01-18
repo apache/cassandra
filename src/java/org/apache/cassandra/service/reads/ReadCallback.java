@@ -48,6 +48,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements RequestCallback<ReadResponse>
 {
@@ -91,7 +92,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public boolean await(long timePastStart, TimeUnit unit)
     {
-        long time = unit.toNanos(timePastStart) - (System.nanoTime() - queryStartNanoTime);
+        long time = unit.toNanos(timePastStart) - (nanoTime() - queryStartNanoTime);
         try
         {
             return condition.await(time, TimeUnit.NANOSECONDS);

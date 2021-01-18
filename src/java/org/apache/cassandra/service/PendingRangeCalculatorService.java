@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class PendingRangeCalculatorService
 {
     public static final PendingRangeCalculatorService instance = new PendingRangeCalculatorService();
@@ -71,12 +73,12 @@ public class PendingRangeCalculatorService
             try
             {
                 PendingRangeCalculatorServiceDiagnostics.taskStarted(instance, updateJobs);
-                long start = System.currentTimeMillis();
+                long start = currentTimeMillis();
                 List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
                 for (String keyspaceName : keyspaces)
                     calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
                 if (logger.isTraceEnabled())
-                    logger.trace("Finished PendingRangeTask for {} keyspaces in {}ms", keyspaces.size(), System.currentTimeMillis() - start);
+                    logger.trace("Finished PendingRangeTask for {} keyspaces in {}ms", keyspaces.size(), currentTimeMillis() - start);
                 PendingRangeCalculatorServiceDiagnostics.taskFinished(instance, updateJobs);
             }
             finally

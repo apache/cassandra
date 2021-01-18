@@ -36,6 +36,7 @@ import io.netty.util.internal.ThrowableUtil;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static java.util.concurrent.atomic.AtomicReferenceFieldUpdater.*;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Netty's DefaultPromise uses a mutex to coordinate notifiers AND waiters between the eventLoop and the other threads.
@@ -406,7 +407,7 @@ public class AsyncPromise<V> implements Promise<V>
     public boolean await(long timeout, TimeUnit unit) throws InterruptedException
     {
         return await(unit.toNanos(timeout),
-                     (signal, nanos) -> signal.awaitUntil(nanos + System.nanoTime()));
+                     (signal, nanos) -> signal.awaitUntil(nanos + nanoTime()));
     }
 
     public boolean await(long timeoutMillis) throws InterruptedException
@@ -417,7 +418,7 @@ public class AsyncPromise<V> implements Promise<V>
     public boolean awaitUninterruptibly(long timeout, TimeUnit unit)
     {
         return await(unit.toNanos(timeout),
-                     (signal, nanos) -> signal.awaitUntilUninterruptibly(nanos + System.nanoTime()));
+                     (signal, nanos) -> signal.awaitUntilUninterruptibly(nanos + nanoTime()));
     }
 
     public boolean awaitUninterruptibly(long timeoutMillis)

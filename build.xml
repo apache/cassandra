@@ -534,6 +534,7 @@
           </dependency>
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.9" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
+          <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" version="8.40" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
             <exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
             <exclusion groupId="commons-logging" artifactId="commons-logging"/>
@@ -718,6 +719,7 @@
         <dependency groupId="junit" artifactId="junit"/>
         <dependency groupId="commons-io" artifactId="commons-io"/>
         <dependency groupId="org.mockito" artifactId="mockito-core"/>
+        <dependency groupId="com.puppycrawl.tools" artifactId="checkstyle" scope="test"/>
         <dependency groupId="org.quicktheories" artifactId="quicktheories"/>
         <dependency groupId="org.reflections" artifactId="reflections"/>
         <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}"/>
@@ -869,7 +871,7 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
+    <target name="build" depends="resolver-retrieve-build,build-project,checkstyle" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -2098,6 +2100,32 @@
             <arg value="${toString:cassandra.classpath}" />
             <arg value="${build.src.java}" />
         </java>
+  </target>
+
+  <target name="init-checkstyle" depends="maven-ant-tasks-retrieve-build,build-project">
+      <path id="checkstyle.lib.path">
+          <fileset dir="${test.lib}/jars" includes="*.jar"/>
+      </path>
+      <!-- Sevntu custom checks are retrieved by Ivy into lib folder
+         and will be accessible to checkstyle-->
+      <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
+               classpathref="checkstyle.lib.path"/>
+  </target>
+
+  <target name="checkstyle" depends="init-checkstyle,maven-ant-tasks-retrieve-build,build-project" description="Run custom checkstyle code analysis" if="java.version.8">
+      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
+      <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
+      <mkdir  dir="${checkstyle.log.dir}" />
+
+      <property name="checkstyle.properties" value="${basedir}/checkstyle.xml" />
+      <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
+      <checkstyle config="${checkstyle.properties}"
+                  failureProperty="checkstyle.failure"
+                  failOnViolation="true">
+          <formatter type="plain"/>
+          <formatter type="xml" tofile="${checkstyle.report.file}"/>
+          <fileset dir="${build.src.java}" includes="**/*.java"/>
+      </checkstyle>
   </target>
 
 

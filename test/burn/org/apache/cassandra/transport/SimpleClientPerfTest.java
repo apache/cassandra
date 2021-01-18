@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.Throwables;
 import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
 import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 @RunWith(Parameterized.class)
 public class SimpleClientPerfTest
@@ -219,9 +220,9 @@ public class SimpleClientPerfTest
                                 try
                                 {
                                     limiter.acquire();
-                                    long nanoStart = System.nanoTime();
+                                    long nanoStart = nanoTime();
                                     client.execute(messages);
-                                    long elapsed = System.nanoTime() - nanoStart;
+                                    long elapsed = nanoTime() - nanoStart;
 
                                     lock.lock();
                                     try

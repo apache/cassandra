@@ -39,6 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.DynamicList;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.*;
 
 /**
@@ -186,7 +187,7 @@ public class LongBufferPoolTest
             this.threadCount = threadCount;
             this.duration = duration;
             this.poolSize = Math.toIntExact(poolSize);
-            until = System.nanoTime() + duration;
+            until = nanoTime() + duration;
             latch = new CountDownLatch(threadCount);
             sharedRecycle = new SPSCQueue[threadCount];
             makingProgress = new AtomicBoolean[threadCount];
@@ -348,7 +349,7 @@ public class LongBufferPoolTest
                         }
                         else if (!recycleFromNeighbour())
                         {
-                            if (++spinCount > 1000 && System.nanoTime() > until)
+                            if (++spinCount > 1000 && nanoTime() > until)
                                 return;
                             // otherwise, free one of our other neighbour's buffers if can; and otherwise yield
                             Thread.yield();
@@ -568,7 +569,7 @@ public class LongBufferPoolTest
         {
             try
             {
-                while (System.nanoTime() < until)
+                while (nanoTime() < until)
                 {
                     checkpoint();
                     for (int i = 0 ; i < 100 ; i++)

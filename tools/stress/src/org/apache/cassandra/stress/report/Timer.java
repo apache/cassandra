@@ -23,6 +23,8 @@ package org.apache.cassandra.stress.report;
 
 import org.apache.cassandra.stress.StressAction.MeasurementSink;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 // a timer - this timer must be used by a single thread, and co-ordinates with other timers by
 public final class Timer
 {
@@ -42,7 +44,7 @@ public final class Timer
 
     public void stop(long partitionCount, long rowCount, boolean error)
     {
-        sink.record(opType, intendedTimeNs, startTimeNs, System.nanoTime(), rowCount, partitionCount, error);
+        sink.record(opType, intendedTimeNs, startTimeNs, nanoTime(), rowCount, partitionCount, error);
         resetTimes();
     }
 
@@ -58,6 +60,6 @@ public final class Timer
 
     public void start()
     {
-        startTimeNs = System.nanoTime();
+        startTimeNs = nanoTime();
     }
 }

@@ -96,6 +96,10 @@ import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 
+import static org.apache.cassandra.service.QueryState.forInternalCalls;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class RepairRunnable implements Runnable, ProgressEventNotifier
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairRunnable.class);
@@ -109,7 +113,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private final AtomicInteger progressCounter = new AtomicInteger();
     private final int totalProgress;
 
-    private final long creationTimeMillis = System.currentTimeMillis();
+    private final long creationTimeMillis = currentTimeMillis();
     private final UUID parentSession = UUIDGen.getTimeUUID();
 
     private final List<ProgressListener> listeners = new ArrayList<>();
@@ -217,7 +221,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     private void complete(String msg)
     {
-        long durationMillis = System.currentTimeMillis() - creationTimeMillis;
+        long durationMillis = currentTimeMillis() - creationTimeMillis;
         if (msg == null)
         {
             String duration = DurationFormatUtils.formatDurationWords(durationMillis, true, true);
@@ -804,7 +808,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 int si = 0;
                 UUID uuid;
 
-                long tlast = System.currentTimeMillis(), tcur;
+                long tlast = currentTimeMillis(), tcur;
 
                 TraceState.Status status;
                 long minWaitMillis = 125;
@@ -825,11 +829,11 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                         shouldDouble = false;
                     }
                     ByteBuffer tminBytes = ByteBufferUtil.bytes(UUIDGen.minTimeUUID(tlast - 1000));
-                    ByteBuffer tmaxBytes = ByteBufferUtil.bytes(UUIDGen.maxTimeUUID(tcur = System.currentTimeMillis()));
+                    ByteBuffer tmaxBytes = ByteBufferUtil.bytes(UUIDGen.maxTimeUUID(tcur = currentTimeMillis()));
                     QueryOptions options = QueryOptions.forInternalCalls(ConsistencyLevel.ONE, Lists.newArrayList(sessionIdBytes,
                                                                                                                   tminBytes,
                                                                                                                   tmaxBytes));
-                    ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+                    ResultMessage.Rows rows = statement.execute(forInternalCalls(), options, nanoTime());
                     UntypedResultSet result = UntypedResultSet.create(rows.result);
 
                     for (UntypedResultSet.Row r : result)

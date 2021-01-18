@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 
 public abstract class AbstractWriteResponseHandler<T> implements RequestCallback<T>
@@ -130,7 +131,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         long requestTimeout = writeType == WriteType.COUNTER
                               ? DatabaseDescriptor.getCounterWriteRpcTimeout(NANOSECONDS)
                               : DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
-        return requestTimeout - (System.nanoTime() - queryStartNanoTime);
+        return requestTimeout - (nanoTime() - queryStartNanoTime);
     }
 
     /**
@@ -287,7 +288,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
             }
             else
             {
-                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(System.nanoTime() - queryStartNanoTime);
+                replicaPlan.keyspace().metric.idealCLWriteLatency.addNano(nanoTime() - queryStartNanoTime);
             }
         }
     }

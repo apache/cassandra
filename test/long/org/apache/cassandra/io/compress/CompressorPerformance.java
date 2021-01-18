@@ -26,6 +26,8 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class CompressorPerformance
 {
 
@@ -71,7 +73,7 @@ public class CompressorPerformance
         int checksum = 0;
         int count = 100;
 
-        long time = System.nanoTime();
+        long time = nanoTime();
         long uncompressedBytes = 0;
         long compressedBytes = 0;
         for (int i=0; i<count; ++i)
@@ -85,12 +87,12 @@ public class CompressorPerformance
             checksum += output.get(ThreadLocalRandom.current().nextInt(output.position()));
             dataSource.rewind();
         }
-        long timec = System.nanoTime() - time;
+        long timec = nanoTime() - time;
         output.flip();
         input.put(output);
         input.flip();
 
-        time = System.nanoTime();
+        time = nanoTime();
         for (int i=0; i<count; ++i)
         {
             output.clear();
@@ -99,7 +101,7 @@ public class CompressorPerformance
             checksum += output.get(ThreadLocalRandom.current().nextInt(output.position()));
             input.rewind();
         }
-        long timed = System.nanoTime() - time;
+        long timed = nanoTime() - time;
         System.out.format("Compressor %s %s->%s compress %.3f ns/b %.3f mb/s uncompress %.3f ns/b %.3f mb/s ratio %.2f:1.%s\n",
                           compressor.getClass().getSimpleName(),
                           in,

@@ -39,6 +39,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Base class for user-defined-aggregates.
@@ -182,7 +183,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
             {
                 maybeInit(protocolVersion);
 
-                long startTime = System.nanoTime();
+                long startTime = nanoTime();
                 stateFunctionCount++;
                 if (stateFunction instanceof UDFunction)
                 {
@@ -194,7 +195,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction, 
                 {
                     throw new UnsupportedOperationException("UDAs only support UDFs");
                 }
-                stateFunctionDuration += (System.nanoTime() - startTime) / 1000;
+                stateFunctionDuration += (nanoTime() - startTime) / 1000;
             }
 
             private void maybeInit(ProtocolVersion protocolVersion)

@@ -43,6 +43,9 @@ import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class BlockingReadRepairTest extends AbstractReadRepairTest
 {
     private static class InstrumentedReadRepairHandler
@@ -287,6 +290,6 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
 
     private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)
     {
-        return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
+        return handler.awaitRepairsUntil(nanoTime(), NANOSECONDS);
     }
 }

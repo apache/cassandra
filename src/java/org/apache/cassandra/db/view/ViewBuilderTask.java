@@ -63,6 +63,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<Long>
 {
     private static final Logger logger = LoggerFactory.getLogger(ViewBuilderTask.class);
@@ -115,7 +117,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
                                                        .generateViewUpdates(Collections.singleton(view), data, empty, nowInSec, true);
 
             AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
-            mutations.forEachRemaining(m -> StorageProxy.mutateMV(key.getKey(), m, true, noBase, System.nanoTime()));
+            mutations.forEachRemaining(m -> StorageProxy.mutateMV(key.getKey(), m, true, noBase, nanoTime()));
         }
     }
 

@@ -60,6 +60,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Verifies that the system and environment is in a fit state to be started.
@@ -169,7 +170,7 @@ public class StartupChecks
         private static final long EARLIEST_LAUNCH_DATE = 1215820800000L;
         public void execute() throws StartupException
         {
-            long now = System.currentTimeMillis();
+            long now = currentTimeMillis();
             if (now < EARLIEST_LAUNCH_DATE)
                 throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
                                            String.format("current machine time is %s, but that is seemingly incorrect. exiting now.",

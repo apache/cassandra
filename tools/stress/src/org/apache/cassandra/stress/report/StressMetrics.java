@@ -54,7 +54,10 @@ import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.Uncertainty;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class StressMetrics implements MeasurementSink
 {
@@ -65,8 +68,8 @@ public class StressMetrics implements MeasurementSink
     private final CountDownLatch stopped = new CountDownLatch(1);
     private final Callable<JmxCollector.GcStats> gcStatsCollector;
     private final HistogramLogWriter histogramWriter;
-    private final long epochNs = System.nanoTime();
-    private final long epochMs = System.currentTimeMillis();
+    private final long epochNs = nanoTime();
+    private final long epochMs = currentTimeMillis();
 
     private volatile JmxCollector.GcStats totalGcStats = new GcStats(0);
 
@@ -159,10 +162,10 @@ public class StressMetrics implements MeasurementSink
     private void reportingLoop(final long logIntervalMillis)
     {
         // align report timing to the nearest second
-        final long currentTimeMs = System.currentTimeMillis();
+        final long currentTimeMs = currentTimeMillis();
         final long startTimeMs = currentTimeMs - (currentTimeMs % 1000);
         // reporting interval starts rounded to the second
-        long reportingStartNs = (System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(currentTimeMs - startTimeMs));
+        long reportingStartNs = (nanoTime() - MILLISECONDS.toNanos(currentTimeMs - startTimeMs));
         final long parkIntervalNs = TimeUnit.MILLISECONDS.toNanos(logIntervalMillis);
         try
         {
@@ -178,7 +181,7 @@ public class StressMetrics implements MeasurementSink
                 reportingStartNs += parkIntervalNs;
             }
 
-            final long end = System.nanoTime();
+            final long end = nanoTime();
             recordInterval(end, end - reportingStartNs);
         }
         catch (Exception e)
@@ -198,7 +201,7 @@ public class StressMetrics implements MeasurementSink
     {
         long parkFor;
         while (!stop &&
-               (parkFor = until - System.nanoTime()) > 0)
+               (parkFor = until - nanoTime()) > 0)
         {
             LockSupport.parkNanos(parkFor);
         }

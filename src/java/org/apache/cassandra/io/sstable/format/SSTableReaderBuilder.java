@@ -47,6 +47,10 @@ import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.apache.cassandra.io.sstable.format.SSTableReader.OpenReason.NORMAL;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public abstract class SSTableReaderBuilder
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReaderBuilder.class);
@@ -270,7 +274,7 @@ public abstract class SSTableReaderBuilder
                         StatsMetadata statsMetadata,
                         SerializationHeader header)
         {
-            super(descriptor, metadataRef, System.currentTimeMillis(), components, statsMetadata, SSTableReader.OpenReason.NORMAL, header);
+            super(descriptor, metadataRef, currentTimeMillis(), components, statsMetadata, NORMAL, header);
         }
 
         @Override
@@ -338,7 +342,7 @@ public abstract class SSTableReaderBuilder
                        StatsMetadata statsMetadata,
                        SerializationHeader header)
         {
-            super(descriptor, metadataRef, System.currentTimeMillis(), components, statsMetadata, SSTableReader.OpenReason.NORMAL, header);
+            super(descriptor, metadataRef, currentTimeMillis(), components, statsMetadata, NORMAL, header);
             this.validationMetadata = validationMetadata;
             this.isOffline = isOffline;
         }
@@ -353,9 +357,9 @@ public abstract class SSTableReaderBuilder
             try
             {
                 // load index and filter
-                long start = System.nanoTime();
+                long start = nanoTime();
                 load(validationMetadata, isOffline, components, DatabaseDescriptor.getDiskOptimizationStrategy(), statsMetadata);
-                logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+                logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(nanoTime() - start));
             }
             catch (IOException t)
             {

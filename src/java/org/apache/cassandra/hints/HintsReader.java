@@ -36,6 +36,8 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * A paged non-compressed hints reader that provides two iterators:
  * - a 'raw' ByteBuffer iterator that doesn't deserialize the hints, but returns the pre-encoded hints verbatim
@@ -164,7 +166,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
     final class HintsIterator extends AbstractIterator<Hint>
     {
         private final InputPosition offset;
-        private final long now = System.currentTimeMillis();
+        private final long now = currentTimeMillis();
 
         HintsIterator(InputPosition offset)
         {
@@ -270,7 +272,7 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
     final class BuffersIterator extends AbstractIterator<ByteBuffer>
     {
         private final InputPosition offset;
-        private final long now = System.currentTimeMillis();
+        private final long now = currentTimeMillis();
 
         BuffersIterator(InputPosition offset)
         {

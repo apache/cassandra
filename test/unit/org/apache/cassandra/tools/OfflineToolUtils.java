@@ -66,7 +66,7 @@ public abstract class OfflineToolUtils
     "ScheduledTasks:[1-9]",
     "OptionalTasks:[1-9]",
     "Reference-Reaper:[1-9]",
-    "LocalPool-Cleaner:[1-9]",
+    "LocalPool-Cleaner(-networking|-chunk-cache)?:[1-9]",
     "CacheCleanupExecutor:[1-9]",
     "CompactionExecutor:[1-9]",
     "ValidationExecutor:[1-9]",
@@ -76,6 +76,9 @@ public abstract class OfflineToolUtils
     "Strong-Reference-Leak-Detector:[1-9]",
     "Background_Reporter:[1-9]",
     "EXPIRING-MAP-REAPER:[1-9]",
+    "ObjectCleanerThread",
+    "process reaper"   // spawned by the jvm when executing external processes
+                       // and may still be active when we check
     };
 
     public void assertNoUnexpectedThreadsStarted(String[] expectedThreadNames, String[] optionalThreadNames)

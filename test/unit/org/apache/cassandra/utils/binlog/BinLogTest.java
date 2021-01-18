@@ -40,6 +40,7 @@ import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -50,7 +51,7 @@ public class BinLogTest
 {
     public static Path tempDir() throws Exception
     {
-        return Files.createTempDirectory("binlogtest" + System.nanoTime());
+        return Files.createTempDirectory("binlogtest" + nanoTime());
     }
 
     private static final String testString = "ry@nlikestheyankees";

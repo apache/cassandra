@@ -40,6 +40,11 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.cql3.BatchQueryOptions.withoutPerStatementVariables;
+import static org.apache.cassandra.cql3.QueryOptions.DEFAULT;
+import static org.apache.cassandra.service.QueryState.forInternalCalls;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * CassandraAuthorizer is an IAuthorizer implementation that keeps
  * user permissions internally in C* using the system_auth.role_permissions
@@ -352,7 +357,7 @@ public class CassandraAuthorizer implements IAuthorizer
 
     ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
+        return statement.execute(QueryState.forInternalCalls(), options, nanoTime());
     }
 
     UntypedResultSet process(String query, ConsistencyLevel cl) throws RequestExecutionException
@@ -366,7 +371,7 @@ public class CassandraAuthorizer implements IAuthorizer
         QueryProcessor.instance.processBatch(statement,
                                              QueryState.forInternalCalls(),
                                              BatchQueryOptions.withoutPerStatementVariables(options),
-                                             System.nanoTime());
+                                             nanoTime());
     }
 
     public static ConsistencyLevel authWriteConsistencyLevel()

@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * A pool of worker threads that are shared between all Executors created with it. Each executor is treated as a distinct
@@ -128,10 +129,10 @@ public class SharedExecutorPool
 
         terminateWorkers();
 
-        long until = System.nanoTime() + unit.toNanos(timeout);
+        long until = nanoTime() + unit.toNanos(timeout);
         for (SEPExecutor executor : executors)
         {
-            executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
+            executor.shutdown.await(until - nanoTime(), TimeUnit.NANOSECONDS);
             if (!executor.isTerminated())
                 throw new TimeoutException(executor.name + " not terminated");
         }

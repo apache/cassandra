@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 /**
@@ -449,7 +450,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(true));
 
-            long deadline = System.nanoTime() + units.toNanos(timeout);
+            long deadline = nanoTime() + units.toNanos(timeout);
             maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
                       () -> {
                           List<ExecutorService> inboundExecutors = new ArrayList<>();
@@ -473,7 +474,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
             for (OutboundConnections pool : channelManagers.values())
                 closing.add(pool.close(false));
 
-            long deadline = System.nanoTime() + units.toNanos(timeout);
+            long deadline = nanoTime() + units.toNanos(timeout);
             maybeFail(() -> new FutureCombiner(closing).get(timeout, units),
                       () -> {
                           if (shutdownExecutors)

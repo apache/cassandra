@@ -34,6 +34,8 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getTruncateRpcTimeout;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class TruncateResponseHandler implements RequestCallback<TruncateResponse>
 {
@@ -51,12 +53,12 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
         assert 1 <= responseCount: "invalid response count " + responseCount;
 
         this.responseCount = responseCount;
-        start = System.nanoTime();
+        start = nanoTime();
     }
 
     public void get() throws TimeoutException
     {
-        long timeoutNanos = DatabaseDescriptor.getTruncateRpcTimeout(NANOSECONDS) - (System.nanoTime() - start);
+        long timeoutNanos = getTruncateRpcTimeout(NANOSECONDS) - (nanoTime() - start);
         boolean completedInTime;
         try
         {

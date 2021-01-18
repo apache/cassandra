@@ -59,6 +59,7 @@ import static java.lang.String.format;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -114,7 +115,7 @@ public class SecondaryIndexTest extends CQLTester
                              "CREATE INDEX " + indexName + " ON %s(b)");
 
         // IF NOT EXISTS should apply in cases where the new index differs from an existing one in name only
-        String otherIndexName = "index_" + System.nanoTime();
+        String otherIndexName = "index_" + nanoTime();
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());
         createIndex("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
         assertEquals(1, getCurrentColumnFamilyStore().metadata().indexes.size());

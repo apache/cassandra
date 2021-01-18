@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.utils;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.junit.Assert.*;
 
@@ -27,7 +28,7 @@ public class MonotonicClockTest
     @Test
     public void testTimestampOrdering() throws Exception
     {
-        long nowNanos = System.nanoTime();
+        long nowNanos = nanoTime();
         long now = System.currentTimeMillis();
         long lastConverted = 0;
         for (long ii = 0; ii < 10000000; ii++)
@@ -39,7 +40,7 @@ public class MonotonicClockTest
                 Thread.sleep(1);
             }
 
-            nowNanos = Math.max(nowNanos, System.nanoTime());
+            nowNanos = Math.max(nowNanos, nanoTime());
             long convertedNow = approxTime.translate().toMillisSinceEpoch(nowNanos);
 
             int maxDiff = FBUtilities.isWindows ? 15 : 1;

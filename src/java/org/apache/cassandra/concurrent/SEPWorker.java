@@ -30,6 +30,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
@@ -257,7 +258,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         sleep *= ThreadLocalRandom.current().nextDouble();
         sleep = Math.max(10000, sleep);
 
-        long start = System.nanoTime();
+        long start = nanoTime();
 
         // place ourselves in the spinning collection; if we clash with another thread just exit
         Long target = start + sleep;
@@ -269,7 +270,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
         pool.spinning.remove(target, this);
 
         // finish timing and grab spinningTime (before we finish timing so it is under rather than overestimated)
-        long end = System.nanoTime();
+        long end = nanoTime();
         long spin = end - start;
         long stopCheck = pool.stopCheck.addAndGet(spin);
         maybeStop(stopCheck, end);

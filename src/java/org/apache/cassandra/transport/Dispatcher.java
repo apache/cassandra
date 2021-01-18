@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class Dispatcher
 {
@@ -85,7 +86,7 @@ public class Dispatcher
      */
     static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
     {
-        long queryStartNanoTime = System.nanoTime();
+        long queryStartNanoTime = nanoTime();
         if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
             ClientWarn.instance.captureWarnings();
 

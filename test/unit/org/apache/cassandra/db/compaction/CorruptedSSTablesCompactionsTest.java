@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -71,7 +72,7 @@ public class CorruptedSSTablesCompactionsTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        long seed = System.nanoTime();
+        long seed = nanoTime();
 
         //long seed = 754271160974509L; // CASSANDRA-9530: use this seed to reproduce compaction failures if reading empty rows
         //long seed = 2080431860597L; // CASSANDRA-12359: use this seed to reproduce undetected corruptions

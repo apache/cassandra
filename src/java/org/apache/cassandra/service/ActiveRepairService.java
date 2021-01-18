@@ -96,6 +96,7 @@ import org.apache.cassandra.utils.UUIDGen;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.net.Verb.PREPARE_MSG;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -511,7 +512,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         // end up skipping replicas
         if (options.isIncremental() && options.isGlobal() && ! force)
         {
-            return System.currentTimeMillis();
+            return currentTimeMillis();
         }
         else
         {

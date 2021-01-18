@@ -69,6 +69,8 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 
 public class FBUtilities
@@ -426,12 +428,12 @@ public class FBUtilities
     {
         // we use microsecond resolution for compatibility with other client libraries, even though
         // we can't actually get microsecond precision.
-        return System.currentTimeMillis() * 1000;
+        return currentTimeMillis() * 1000;
     }
 
     public static int nowInSeconds()
     {
-        return (int) (System.currentTimeMillis() / 1000);
+        return (int) (currentTimeMillis() / 1000);
     }
 
     public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
@@ -451,7 +453,7 @@ public class FBUtilities
     {
         long endNanos = 0;
         if (timeout > 0)
-            endNanos = System.nanoTime() + units.toNanos(timeout);
+            endNanos = nanoTime() + units.toNanos(timeout);
         List<T> results = new ArrayList<>();
         Throwable fail = null;
         for (Future<? extends T> f : futures)
@@ -464,7 +466,7 @@ public class FBUtilities
                 }
                 else
                 {
-                    long waitFor = Math.max(1, endNanos - System.nanoTime());
+                    long waitFor = Math.max(1, endNanos - nanoTime());
                     results.add(f.get(waitFor, TimeUnit.NANOSECONDS));
                 }
             }
@@ -556,10 +558,10 @@ public class FBUtilities
             public List get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
             {
                 List result = new ArrayList<>(futures.size());
-                long deadline = System.nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, unit);
+                long deadline = nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, unit);
                 for (Future current : futures)
                 {
-                    long remaining = deadline - System.nanoTime();
+                    long remaining = deadline - nanoTime();
                     if (remaining <= 0)
                         throw new TimeoutException();
 

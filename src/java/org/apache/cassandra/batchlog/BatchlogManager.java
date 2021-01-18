@@ -83,6 +83,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithPaging;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BatchlogManager implements BatchlogManagerMBean
 {
@@ -213,7 +215,7 @@ public class BatchlogManager implements BatchlogManagerMBean
         }
         setRate(DatabaseDescriptor.getBatchlogReplayThrottleInKB());
 
-        UUID limitUuid = UUIDGen.maxTimeUUID(System.currentTimeMillis() - getBatchlogTimeout());
+        UUID limitUuid = UUIDGen.maxTimeUUID(currentTimeMillis() - getBatchlogTimeout());
         ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
         int pageSize = calculatePageSize(store);
         // There cannot be any live content where token(id) <= token(lastReplayedUuid) as every processed batch is
@@ -491,7 +493,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
             ReplicaPlan.ForTokenWrite replicaPlan = new ReplicaPlan.ForTokenWrite(keyspace, liveAndDown.replicationStrategy(),
                     ConsistencyLevel.ONE, liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
-            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, System.nanoTime());
+            ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, nanoTime());
             Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
             for (Replica replica : liveRemoteOnly.all())
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler, false);

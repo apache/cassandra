@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.net.Verb.*;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BlockingPartitionRepair
         extends AbstractFuture<Object> implements RequestCallback<Object>
@@ -146,7 +147,7 @@ public class BlockingPartitionRepair
 
     public void sendInitialRepairs()
     {
-        mutationsSentTime = System.nanoTime();
+        mutationsSentTime = nanoTime();
         Replicas.assertFull(pendingRepairs.keySet());
 
         for (Map.Entry<Replica, Mutation> entry: pendingRepairs.entrySet())
@@ -177,7 +178,7 @@ public class BlockingPartitionRepair
     public boolean awaitRepairsUntil(long timeoutAt, TimeUnit timeUnit)
     {
         long timeoutAtNanos = timeUnit.toNanos(timeoutAt);
-        long remaining = timeoutAtNanos - System.nanoTime();
+        long remaining = timeoutAtNanos - nanoTime();
         try
         {
             return latch.await(remaining, TimeUnit.NANOSECONDS);

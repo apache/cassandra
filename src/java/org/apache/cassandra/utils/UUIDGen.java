@@ -43,6 +43,8 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
  */
@@ -323,7 +325,7 @@ public class UUIDGen
         while (true)
         {
             //Generate a candidate value for new lastNanos
-            newLastNanos = (System.currentTimeMillis() - START_EPOCH) * 10000;
+            newLastNanos = (currentTimeMillis() - START_EPOCH) * 10000;
             long originalLastNanos = lastNanos.get();
             if (newLastNanos > originalLastNanos)
             {
@@ -402,7 +404,7 @@ public class UUIDGen
         // Identify the process on the load: we use both the PID and class loader hash.
         long pid = NativeLibrary.getProcessID();
         if (pid < 0)
-            pid = new Random(System.currentTimeMillis()).nextLong();
+            pid = new Random(currentTimeMillis()).nextLong();
         updateWithLong(hasher, pid);
 
         ClassLoader loader = UUIDGen.class.getClassLoader();

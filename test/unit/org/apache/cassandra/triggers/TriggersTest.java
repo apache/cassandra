@@ -38,6 +38,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.toInt;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -123,7 +124,7 @@ public class TriggersTest
     @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
     public void onCqlUpdateWithConditionsRejectGeneratedUpdatesForDifferentPartition() throws Exception
     {
-        String cf = "cf" + System.nanoTime();
+        String cf = "cf" + nanoTime();
         try
         {
             setupTableWithTrigger(cf, CrossPartitionTrigger.class);
@@ -139,7 +140,7 @@ public class TriggersTest
     @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
     public void onCqlUpdateWithConditionsRejectGeneratedUpdatesForDifferentTable() throws Exception
     {
-        String cf = "cf" + System.nanoTime();
+        String cf = "cf" + nanoTime();
         try
         {
             setupTableWithTrigger(cf, CrossTableTrigger.class);
@@ -155,7 +156,7 @@ public class TriggersTest
     @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
     public void ifTriggerThrowsErrorNoMutationsAreApplied() throws Exception
     {
-        String cf = "cf" + System.nanoTime();
+        String cf = "cf" + nanoTime();
         try
         {
             setupTableWithTrigger(cf, ErrorTrigger.class);

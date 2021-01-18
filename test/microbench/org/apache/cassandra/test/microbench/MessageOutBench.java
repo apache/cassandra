@@ -50,6 +50,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 @State(Scope.Thread)
 @Warmup(iterations = 4, time = 1, timeUnit = TimeUnit.SECONDS)
@@ -96,7 +97,7 @@ public class MessageOutBench
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            Message.serializer.serialize(Message.builder(msgOut).withCreatedAt(System.nanoTime()).withId(42).build(),
+            Message.serializer.serialize(Message.builder(msgOut).withCreatedAt(nanoTime()).withId(42).build(),
                                          out, messagingVersion);
             DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
             Message.serializer.deserialize(in, addr, messagingVersion);

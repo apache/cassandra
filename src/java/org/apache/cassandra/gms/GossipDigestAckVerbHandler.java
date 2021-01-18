@@ -29,6 +29,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK2;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAck>
 {
@@ -68,7 +69,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             // Ignore any GossipDigestAck messages that we handle before a regular GossipDigestSyn has been send.
             // This will prevent Acks from leaking over from the shadow round that are not actual part of
             // the regular gossip conversation.
-            if ((System.nanoTime() - Gossiper.instance.firstSynSendAt) < 0 || Gossiper.instance.firstSynSendAt == 0)
+            if ((nanoTime() - Gossiper.instance.firstSynSendAt) < 0 || Gossiper.instance.firstSynSendAt == 0)
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Ignoring unrequested GossipDigestAck from {}", from);

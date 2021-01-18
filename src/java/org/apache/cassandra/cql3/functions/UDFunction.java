@@ -61,6 +61,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Base class for User Defined Functions.
@@ -356,7 +357,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         if (!isCallableWrtNullable(parameters))
             return null;
 
-        long tStart = System.nanoTime();
+        long tStart = nanoTime();
         parameters = makeEmptyParametersNull(parameters);
 
         try
@@ -366,7 +367,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                 ? executeAsync(protocolVersion, parameters)
                                 : executeUserDefined(protocolVersion, parameters);
 
-            Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (System.nanoTime() - tStart) / 1000);
+            Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (nanoTime() - tStart) / 1000);
             return result;
         }
         catch (InvalidRequestException e)
@@ -395,7 +396,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         if (!calledOnNullInput && firstParam == null || !isCallableWrtNullable(parameters))
             return null;
 
-        long tStart = System.nanoTime();
+        long tStart = nanoTime();
         parameters = makeEmptyParametersNull(parameters);
 
         try
@@ -404,7 +405,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             Object result = DatabaseDescriptor.enableUserDefinedFunctionsThreads()
                                 ? executeAggregateAsync(protocolVersion, firstParam, parameters)
                                 : executeAggregateUserDefined(protocolVersion, firstParam, parameters);
-            Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (System.nanoTime() - tStart) / 1000);
+            Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (nanoTime() - tStart) / 1000);
             return result;
         }
         catch (InvalidRequestException e)

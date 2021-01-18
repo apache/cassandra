@@ -48,6 +48,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class CachingBench extends CQLTester
@@ -183,9 +184,9 @@ public class CachingBench extends CQLTester
             if (ii % (FLUSH_FREQ * 10) == 0)
             {
                 System.out.println("C");
-                long startTime = System.nanoTime();
+                long startTime = nanoTime();
                 getCurrentColumnFamilyStore().enableAutoCompaction(!CONCURRENT_COMPACTIONS);
-                long endTime = System.nanoTime();
+                long endTime = nanoTime();
                 compactionTimeNanos += endTime - startTime;
                 getCurrentColumnFamilyStore().disableAutoCompaction();
             }

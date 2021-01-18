@@ -49,6 +49,11 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.lang.Integer.MAX_VALUE;
+import static org.apache.cassandra.cql3.QueryOptions.create;
+import static org.apache.cassandra.service.QueryState.forInternalCalls;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 public class Coordinator implements ICoordinator
 {
     final Instance instance;
@@ -156,7 +161,7 @@ public class Coordinator implements ICoordinator
             prepared.validate(clientState);
             assert prepared instanceof SelectStatement : "Only SELECT statements can be executed with paging";
 
-            long nanoTime = System.nanoTime();
+            long nanoTime = nanoTime();
             SelectStatement selectStatement = (SelectStatement) prepared;
 
             QueryState queryState = new QueryState(clientState);

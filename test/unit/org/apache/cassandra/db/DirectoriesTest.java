@@ -62,6 +62,7 @@ import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -511,7 +512,7 @@ public class DirectoriesTest
         {
             final Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
-            final String n = Long.toString(System.nanoTime());
+            final String n = Long.toString(nanoTime());
             Callable<File> directoryGetter = new Callable<File>() {
                 public File call() throws Exception {
                     Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, 1, SSTableFormat.Type.BIG);

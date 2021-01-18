@@ -26,6 +26,8 @@ import java.util.function.BooleanSupplier;
 
 import com.codahale.metrics.Timer;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+
 /**
  * <p>A relatively easy to use utility for general purpose thread signalling.</p>
  * <p>Usage on a thread awaiting a state change using a WaitQueue q is:</p>
@@ -258,7 +260,7 @@ public final class WaitQueue
          * isSignalled() will be true on exit, and the method will return true; if timedout, the method will return
          * false and isCancelled() will be true; if interrupted an InterruptedException will be thrown and isCancelled()
          * will be true.
-         * @param nanos System.nanoTime() to wait until
+         * @param nanos nanoTime() to wait until
          * @return true if signalled, false if timed out
          * @throws InterruptedException
          */
@@ -268,7 +270,7 @@ public final class WaitQueue
          * Wait until signalled, or the provided time is reached, or the thread is interrupted. If signalled,
          * isSignalled() will be true on exit, and the method will return true; if timedout, the method will return
          * false and isCancelled() will be true
-         * @param nanos System.nanoTime() to wait until
+         * @param nanos nanoTime() to wait until
          * @return true if signalled, false if timed out
          */
         public boolean awaitUntilUninterruptibly(long nanos);
@@ -306,7 +308,7 @@ public final class WaitQueue
         public boolean awaitUntil(long until) throws InterruptedException
         {
             long now;
-            while (until > (now = System.nanoTime()) && !isSignalled())
+            while (until > (now = nanoTime()) && !isSignalled())
             {
                 checkInterrupted();
                 long delta = until - now;
@@ -318,7 +320,7 @@ public final class WaitQueue
         public boolean awaitUntilUninterruptibly(long until)
         {
             long now;
-            while (until > (now = System.nanoTime()) && !isSignalled())
+            while (until > (now = nanoTime()) && !isSignalled())
             {
                 long delta = until - now;
                 LockSupport.parkNanos(delta);

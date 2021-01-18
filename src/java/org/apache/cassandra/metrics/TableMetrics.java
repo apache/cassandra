@@ -18,6 +18,7 @@
 package org.apache.cassandra.metrics;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -1291,12 +1292,12 @@ public class TableMetrics
             private Context(Timer [] all)
             {
                 this.all = all;
-                start = System.nanoTime();
+                start = nanoTime();
             }
 
             public void close()
             {
-                long duration = System.nanoTime() - start;
+                long duration = nanoTime() - start;
                 for (Timer t : all)
                     t.update(duration, TimeUnit.NANOSECONDS);
             }
