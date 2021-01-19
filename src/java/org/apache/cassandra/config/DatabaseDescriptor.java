@@ -271,8 +271,8 @@ public class DatabaseDescriptor
 
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
-                                   ? new YamlConfigurationLoader()
-                                   : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
+                                     ? new YamlConfigurationLoader()
+                                     : FBUtilities.construct(loaderClass, "configuration loading");
         Config config = loader.loadConfig();
 
         if (!hasLoggedConfig)
@@ -513,7 +513,7 @@ public class DatabaseDescriptor
         if (conf.cdc_total_space_in_mb == 0)
         {
             int preferredSize = 4096;
-            int minSize = 0;
+            int minSize;
             try
             {
                 // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
@@ -827,7 +827,7 @@ public class DatabaseDescriptor
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown listen_address '" + config.listen_address + "'", false);
+                throw new ConfigurationException("Unknown listen_address '" + config.listen_address + '\'', false);
             }
 
             if (listenAddress.isAnyLocalAddress())
@@ -847,7 +847,7 @@ public class DatabaseDescriptor
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown broadcast_address '" + config.broadcast_address + "'", false);
+                throw new ConfigurationException("Unknown broadcast_address '" + config.broadcast_address + '\'', false);
             }
 
             if (broadcastAddress.isAnyLocalAddress())
@@ -888,7 +888,7 @@ public class DatabaseDescriptor
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown broadcast_rpc_address '" + config.broadcast_rpc_address + "'", false);
+                throw new ConfigurationException("Unknown broadcast_rpc_address '" + config.broadcast_rpc_address + '\'', false);
             }
 
             if (broadcastRpcAddress.isAnyLocalAddress())
@@ -1030,18 +1030,14 @@ public class DatabaseDescriptor
         EndpointSnitchInfo.create();
 
         localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
-        localComparator = new Comparator<InetAddress>()
-        {
-            public int compare(InetAddress endpoint1, InetAddress endpoint2)
-            {
-                boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
-                boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
-                if (local1 && !local2)
-                    return -1;
-                if (local2 && !local1)
-                    return 1;
-                return 0;
-            }
+        localComparator = (endpoint1, endpoint2) -> {
+            boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
+            boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
+            if (local1 && !local2)
+                return -1;
+            if (local2 && !local1)
+                return 1;
+            return 0;
         };
     }
 
@@ -1395,7 +1391,7 @@ public class DatabaseDescriptor
 
     public static Collection<String> tokensFromString(String tokenString)
     {
-        List<String> tokens = new ArrayList<String>();
+        List<String> tokens = new ArrayList<>();
         if (tokenString != null)
             for (String token : StringUtils.split(tokenString, ','))
                 tokens.add(token.trim());
@@ -2076,7 +2072,7 @@ public class DatabaseDescriptor
     public static File getSerializedCachePath(CacheType cacheType, String version, String extension)
     {
         String name = cacheType.toString()
-                + (version == null ? "" : "-" + version + "." + extension);
+                + (version == null ? "" : '-' + version + '.' + extension);
         return new File(conf.saved_caches_directory, name);
     }
 

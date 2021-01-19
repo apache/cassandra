@@ -3,6 +3,7 @@
  * Rate limit validation compactions using compaction_throughput_mb_per_sec (CASSANDRA-16161)
  * SASI's `max_compaction_flush_memory_in_mb` settings over 100GB revert to default of 1GB (CASSANDRA-16071)
 Merged from 3.0:
+ * Prevent unbounded number of pending flushing tasks (CASSANDRA-16261)
  * Improve empty hint file handling during startup (CASSANDRA-16162)
  * Allow empty string in collections with COPY FROM in cqlsh (CASSANDRA-16372)
  * Fix skipping on pre-3.0 created compact storage sstables due to missing primary key liveness (CASSANDRA-16226)
