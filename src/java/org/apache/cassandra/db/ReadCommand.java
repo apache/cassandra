@@ -618,7 +618,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                         liveRows, tombstones,
                         (warnTombstones ? " (see tombstone_warn_threshold)" : ""));
             }
-        };
+        }
 
         return Transformation.apply(iter, new MetricRecording());
     }
