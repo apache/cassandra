@@ -26,7 +26,6 @@ import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -477,16 +476,9 @@ public abstract class CQLTester
 
     public void compact()
     {
-        try
-        {
-            ColumnFamilyStore store = getCurrentColumnFamilyStore();
-            if (store != null)
-                store.forceMajorCompaction();
-        }
-        catch (InterruptedException | ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+         ColumnFamilyStore store = getCurrentColumnFamilyStore();
+         if (store != null)
+             store.forceMajorCompaction();
     }
 
     public void disableCompaction()

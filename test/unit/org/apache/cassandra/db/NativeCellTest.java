@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -44,7 +44,11 @@ public class NativeCellTest
 {
 
     private static final Logger logger = LoggerFactory.getLogger(NativeCellTest.class);
-    private static final NativeAllocator nativeAllocator = new NativePool(Integer.MAX_VALUE, Integer.MAX_VALUE, 1f, null).newAllocator();
+    private static final NativeAllocator nativeAllocator = new NativePool(Integer.MAX_VALUE,
+                                                                          Integer.MAX_VALUE,
+                                                                          1f,
+                                                                          () -> CompletableFuture.completedFuture(true)).newAllocator();
+    @SuppressWarnings("resource")
     private static final OpOrder.Group group = new OpOrder().start();
     private static Random rand;
 
@@ -57,7 +61,7 @@ public class NativeCellTest
     }
 
     @Test
-    public void testCells() throws IOException
+    public void testCells()
     {
         for (int run = 0 ; run < 1000 ; run++)
         {
@@ -158,9 +162,9 @@ public class NativeCellTest
         Assert.assertEquals(nrow.clustering(), brow.clustering());
 
         ClusteringComparator comparator = new ClusteringComparator(UTF8Type.instance);
-        Assert.assertTrue(comparator.compare(row.clustering(), nrow.clustering()) == 0);
-        Assert.assertTrue(comparator.compare(row.clustering(), brow.clustering()) == 0);
-        Assert.assertTrue(comparator.compare(nrow.clustering(), brow.clustering()) == 0);
+        Assert.assertEquals(0, comparator.compare(row.clustering(), nrow.clustering()));
+        Assert.assertEquals(0, comparator.compare(row.clustering(), brow.clustering()));
+        Assert.assertEquals(0, comparator.compare(nrow.clustering(), brow.clustering()));
     }
 
     private static Row clone(Row row, Row.Builder builder)

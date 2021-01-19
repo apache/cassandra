@@ -580,7 +580,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                         liveRows, tombstones,
                         (warnTombstones ? " (see tombstone_warn_threshold)" : ""));
             }
-        };
+        }
 
         return Transformation.apply(iter, new MetricRecording());
     }
