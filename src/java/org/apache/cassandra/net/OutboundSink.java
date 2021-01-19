@@ -38,12 +38,17 @@ public class OutboundSink
         void accept(Message<?> message, InetAddressAndPort to, ConnectionType connectionType);
     }
 
+    public interface Filter
+    {
+        public boolean test(Message<?> message, InetAddressAndPort to, ConnectionType type);
+    }
+
     private static class Filtered implements Sink
     {
-        final BiPredicate<Message<?>, InetAddressAndPort> condition;
+        final Filter condition;
         final Sink next;
 
-        private Filtered(BiPredicate<Message<?>, InetAddressAndPort> condition, Sink next)
+        private Filtered(Filter condition, Sink next)
         {
             this.condition = condition;
             this.next = next;
@@ -51,7 +56,7 @@ public class OutboundSink
 
         public void accept(Message<?> message, InetAddressAndPort to, ConnectionType connectionType)
         {
-            if (condition.test(message, to))
+            if (condition.test(message, to, connectionType))
                 next.accept(message, to, connectionType);
         }
     }
@@ -70,12 +75,12 @@ public class OutboundSink
         sink.accept(message, to, connectionType);
     }
 
-    public void add(BiPredicate<Message<?>, InetAddressAndPort> allow)
+    public void add(Filter allow)
     {
         sinkUpdater.updateAndGet(this, sink -> new Filtered(allow, sink));
     }
 
-    public void remove(BiPredicate<Message<?>, InetAddressAndPort> allow)
+    public void remove(Filter allow)
     {
         sinkUpdater.updateAndGet(this, sink -> without(sink, allow));
     }
@@ -92,7 +97,7 @@ public class OutboundSink
         return sink;
     }
 
-    private static Sink without(Sink sink, BiPredicate<Message<?>, InetAddressAndPort> condition)
+    private static Sink without(Sink sink, Filter condition)
     {
         if (!(sink instanceof Filtered))
             return sink;

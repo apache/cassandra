@@ -78,8 +78,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.exceptions.ExceptionSerializer;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundSink;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -1098,7 +1100,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         return (AccordService) AccordService.instance();
     }
 
-    private static class AccordMsgFilter implements BiPredicate<Message<?>, InetAddressAndPort>
+    private static class AccordMsgFilter implements OutboundSink.Filter
     {
         volatile Condition preAccept = Condition.newOneTimeCondition();
         volatile Condition commit = Condition.newOneTimeCondition();
@@ -1123,7 +1125,7 @@ public class AccordDebugKeyspaceTest extends CQLTester
         }
 
         @Override
-        public boolean test(Message<?> msg, InetAddressAndPort to)
+        public boolean test(Message<?> msg, InetAddressAndPort to, ConnectionType type)
         {
             if (!msg.verb().name().startsWith("ACCORD_"))
                 return true;

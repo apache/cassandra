@@ -121,6 +121,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.ThreadLocalMetrics;
+import org.apache.cassandra.net.ArtificialLatency;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -374,7 +375,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     protected void registerMockMessaging(ICluster<?> cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (!internodeMessagingStarted)
             {
                 inInstancelogger.debug("Dropping outbound message {} to {} as internode messaging has not been started yet",
@@ -405,7 +406,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     protected void registerOutboundFilter(ICluster cluster)
     {
-        MessagingService.instance().outboundSink.add((message, to) -> {
+        MessagingService.instance().outboundSink.add((message, to, type) -> {
             if (isShutdown())
                 return false; // TODO: Simulator needs this to trigger a failure
             int fromNum = config.num(); // since this instance is sending the message, from will always be this instance
@@ -678,6 +679,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     partialStartup(cluster);
                 }
+                ArtificialLatency.touch();
             }
             catch (Throwable t)
             {

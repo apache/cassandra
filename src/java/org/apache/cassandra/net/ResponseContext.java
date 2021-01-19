@@ -17,9 +17,17 @@
  */
 package org.apache.cassandra.net;
 
+import java.util.concurrent.TimeUnit;
+
+import accord.api.MessageSink;
+import accord.local.Node;
+import accord.messages.Reply;
 import accord.messages.ReplyContext;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.accord.AccordMessageSink;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public interface ResponseContext extends ReplyContext
 {
@@ -27,4 +35,17 @@ public interface ResponseContext extends ReplyContext
     InetAddressAndPort from();
     Verb verb();
     long expiresAtNanos();
+    boolean hasFlag(MessageFlag flag);
+
+    @Override
+    default long expiresAt(TimeUnit units)
+    {
+        return units.convert(expiresAtNanos(), NANOSECONDS);
+    }
+
+    @Override
+    default void reply(Node.Id to, MessageSink sink, Reply success, Throwable failure)
+    {
+        ((AccordMessageSink)sink).reply(to, this, success, failure);
+    }
 }

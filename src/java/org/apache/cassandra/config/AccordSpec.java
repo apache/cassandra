@@ -22,6 +22,11 @@ import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import accord.api.ProtocolModifiers.CleanCfkBefore;
+import accord.api.ProtocolModifiers.CoordinatorBacklogExecution;
+import accord.api.ProtocolModifiers.FastExecution;
+import accord.api.ProtocolModifiers.ReplicaExecution;
+import accord.api.ProtocolModifiers.SendStableMessages;
 import accord.utils.Invariants;
 
 import org.apache.cassandra.journal.Params;
@@ -195,7 +200,18 @@ public class AccordSpec
      * default transactional mode for tables created by this node when no transactional mode has been specified in the DDL
      */
     public TransactionalMode default_transactional_mode = TransactionalMode.off;
-    public boolean ephemeralReadEnabled = true;
+
+    // TODO (expected): move to a "ProtocolModifiers" namespace
+    public CoordinatorBacklogExecution coordinator_backlog_execution;
+    public Boolean always_inform_durable_single_key;
+    public ReplicaExecution replica_execution;
+    public Float replica_execution_distributed_persist_chance;
+    public FastExecution fast_write_execution;
+    public FastExecution fast_read_execution;
+    public CleanCfkBefore clean_cfk_before;
+    public SendStableMessages send_stable;
+
+    public boolean ephemeral_reads = true;
     public boolean state_cache_listener_jfr_enabled = false;
 
     public float hard_reject_ratio = 0.5f;
