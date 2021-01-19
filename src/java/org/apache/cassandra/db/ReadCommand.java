@@ -925,12 +925,12 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public Message<ReadCommand> createMessage(boolean trackRepairedData, Dispatcher.RequestTime requestTime)
     {
-        List<MessageFlag> flags = new ArrayList<>(3);
-        flags.add(MessageFlag.CALL_BACK_ON_FAILURE);
+        int flags = MessageFlag.CALL_BACK_ON_FAILURE.addTo(0);
+
         if (trackWarnings)
-            flags.add(MessageFlag.TRACK_WARNINGS);
+            flags = MessageFlag.TRACK_WARNINGS.addTo(flags);
         if (trackRepairedData)
-            flags.add(MessageFlag.TRACK_REPAIRED_DATA);
+            flags = MessageFlag.TRACK_REPAIRED_DATA.addTo(flags);
 
         return Message.outWithFlags(verb(),
                                     this,

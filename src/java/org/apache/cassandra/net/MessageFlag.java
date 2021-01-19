@@ -25,15 +25,16 @@ import static java.lang.Math.max;
 public enum MessageFlag
 {
     /** a failure response should be sent back in case of failure */
-    CALL_BACK_ON_FAILURE (0),
+    CALL_BACK_ON_FAILURE(0),
     /** track repaired data - see CASSANDRA-14145 */
-    TRACK_REPAIRED_DATA  (1),
+    TRACK_REPAIRED_DATA (1),
     /** allow creating warnings or aborting queries based off query - see CASSANDRA-16850 */
-    TRACK_WARNINGS(2),
+    TRACK_WARNINGS      (2),
     /** whether this message should be sent on an URGENT channel despite its Verb default priority */
-    URGENT(3),
+    URGENT              (3),
     /** Allow a single callback to receive multiple responses until a final response is received **/
-    NOT_FINAL(4)
+    NOT_FINAL           (4),
+    ARTIFICIAL_LATENCY  (5)
     ;
 
     private final int id;
@@ -54,7 +55,7 @@ public enum MessageFlag
     /**
      * @return new flags value with this flag added
      */
-    int addTo(int flags)
+    public int addTo(int flags)
     {
         return flags | (1 << id);
     }

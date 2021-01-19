@@ -505,7 +505,7 @@ public class CompactionIteratorTest extends CQLTester
         TableMetadata metadata = getCurrentColumnFamilyStore().metadata();
 
         final HashMap<InetAddressAndPort, Message<?>> sentMessages = new HashMap<>();
-        MessagingService.instance().outboundSink.add((message, to) -> { sentMessages.put(to, message); return false;});
+        MessagingService.instance().outboundSink.add((message, to, type) -> { sentMessages.put(to, message); return false;});
 
         // no duplicates
         sentMessages.clear();

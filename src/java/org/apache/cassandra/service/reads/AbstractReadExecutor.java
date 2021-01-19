@@ -361,7 +361,6 @@ public abstract class AbstractReadExecutor
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
-
                 MessagingService.instance().sendWithCallback(retryCommand.createMessage(false, requestTime), extraReplica.endpoint(), handler);
             }
         }

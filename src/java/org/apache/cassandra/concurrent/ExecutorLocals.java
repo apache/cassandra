@@ -33,7 +33,7 @@ import io.netty.util.concurrent.FastThreadLocal;
  */
 public class ExecutorLocals implements WithResources, Closeable
 {
-    private static final ExecutorLocals none = new ExecutorLocals(null, null);
+    private static final ExecutorLocals none = new ExecutorLocals(null, null, false);
     private static final FastThreadLocal<ExecutorLocals> locals = new FastThreadLocal<ExecutorLocals>()
     {
         @Override
@@ -45,20 +45,23 @@ public class ExecutorLocals implements WithResources, Closeable
 
     public static class Impl
     {
-        protected static void set(TraceState traceState, ClientWarn.State clientWarnState)
+        @SuppressWarnings("resource")
+        protected static void set(TraceState traceState, ClientWarn.State clientWarnState, boolean eligibleForArtificialLatency)
         {
-            if (traceState == null && clientWarnState == null) locals.set(none);
-            else locals.set(new ExecutorLocals(traceState, clientWarnState));
+            if (traceState == null && clientWarnState == null && !eligibleForArtificialLatency) locals.set(none);
+            else locals.set(new ExecutorLocals(traceState, clientWarnState, eligibleForArtificialLatency));
         }
     }
 
     public final TraceState traceState;
     public final ClientWarn.State clientWarnState;
+    public final boolean eligibleForArtificialLatency;
 
-    protected ExecutorLocals(TraceState traceState, ClientWarn.State clientWarnState)
+    protected ExecutorLocals(TraceState traceState, ClientWarn.State clientWarnState, boolean eligibleForArtificialLatency)
     {
         this.traceState = traceState;
         this.clientWarnState = clientWarnState;
+        this.eligibleForArtificialLatency = eligibleForArtificialLatency;
     }
 
     /**
@@ -82,7 +85,7 @@ public class ExecutorLocals implements WithResources, Closeable
     public static ExecutorLocals create(TraceState traceState)
     {
         ExecutorLocals current = locals.get();
-        return current.traceState == traceState ? current : new ExecutorLocals(traceState, current.clientWarnState);
+        return current.traceState == traceState ? current : new ExecutorLocals(traceState, current.clientWarnState, current.eligibleForArtificialLatency);
     }
 
     public static void clear()

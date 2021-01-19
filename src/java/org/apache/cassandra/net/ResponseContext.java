@@ -27,4 +27,5 @@ public interface ResponseContext extends ReplyContext
     InetAddressAndPort from();
     Verb verb();
     long expiresAtNanos();
+    boolean hasFlag(MessageFlag flag);
 }

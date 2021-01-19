@@ -42,6 +42,7 @@ import org.apache.cassandra.net.MessagingService.Version;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FreeRunningClock;
 import org.apache.cassandra.utils.TimeUUID;
@@ -55,6 +56,7 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.ParamType.TRACE_SESSION;
 import static org.apache.cassandra.net.ParamType.TRACE_TYPE;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
@@ -193,7 +195,7 @@ public class MessageTest
     {
         testCycle(Message.out(Verb._TEST_2, 42));
         testCycle(Message.outWithFlag(Verb._TEST_2, 42, MessageFlag.CALL_BACK_ON_FAILURE));
-        testCycle(Message.outWithFlags(Verb._TEST_2, 42, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA));
+        testCycle(Message.outWithFlags(Verb._TEST_2, 42, new Dispatcher.RequestTime(nanoTime()), MessageFlag.CALL_BACK_ON_FAILURE.addTo(MessageFlag.TRACK_REPAIRED_DATA.addTo(0))));
         testCycle(Message.outWithParam(1, Verb._TEST_2, 42, RESPOND_TO, FBUtilities.getBroadcastAddressAndPort()));
     }
 
