@@ -159,7 +159,7 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
     {
         node.runOnInstance(() -> {
             ColumnFamilyStore cf = Keyspace.open(keyspace).getColumnFamilyStore(table);
-            cf.forceBlockingFlush();
+            cf.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             Set<SSTableReader> remove = cf.getLiveSSTables();
             Set<SSTableReader> replace = new HashSet<>();

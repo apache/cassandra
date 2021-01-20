@@ -139,6 +139,6 @@ public class AbstractCompactionStrategyTest
         .add("val", "val")
         .build()
         .applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 }

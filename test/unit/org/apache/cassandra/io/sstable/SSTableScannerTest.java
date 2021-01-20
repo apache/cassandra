@@ -215,7 +215,7 @@ public class SSTableScannerTest
 
         for (int i = 2; i < 10; i++)
             insertRowWithKey(store.metadata(), i);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
@@ -321,7 +321,7 @@ public class SSTableScannerTest
         for (int i = 0; i < 3; i++)
             for (int j = 2; j < 10; j++)
                 insertRowWithKey(store.metadata(), i * 100 + j);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
@@ -441,7 +441,7 @@ public class SSTableScannerTest
         store.disableAutoCompaction();
 
         insertRowWithKey(store.metadata(), 205);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();

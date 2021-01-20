@@ -101,7 +101,7 @@ public class ClientWarningsTest extends CQLTester
                 client.execute(query);
             }
             ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             for (int i = 0; i < iterations; i++)
             {
@@ -111,7 +111,7 @@ public class ClientWarningsTest extends CQLTester
                                                                     i), QueryOptions.DEFAULT);
                 client.execute(query);
             }
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             {
                 QueryMessage query = new QueryMessage(String.format("SELECT * FROM %s.%s WHERE pk = 1",

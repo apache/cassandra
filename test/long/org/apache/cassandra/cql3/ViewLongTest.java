@@ -36,6 +36,7 @@ import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import com.datastax.driver.core.exceptions.WriteTimeoutException;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
@@ -377,7 +378,7 @@ public class ViewLongTest extends CQLTester
 
             updateViewWithFlush("UPDATE %s USING TTL 90  SET b = null WHERE k = 1 AND c = 2", flush);
             if (flush)
-                FBUtilities.waitOnFutures(Keyspace.open(keyspace()).flush());
+                FBUtilities.waitOnFutures(Keyspace.open(keyspace()).flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
             assertRows(execute("select k,c,a,b from %s"));
             assertRows(execute("select k,c,a from mv"));
 
@@ -422,6 +423,6 @@ public class ViewLongTest extends CQLTester
             Thread.sleep(1);
         }
         if (flush)
-            Keyspace.open(keyspace()).flush();
+            Keyspace.open(keyspace()).flush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 }

@@ -72,13 +72,13 @@ public class NeverPurgeTest extends CQLTester
             {
                 execute("INSERT INTO %s (a, b, c) VALUES (" + j + ", 2, '3')");
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
         execute("UPDATE %s SET c = null WHERE a=1 AND b=2");
         execute("DELETE FROM %s WHERE a=2 AND b=2");
         execute("DELETE FROM %s WHERE a=3");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         cfs.enableAutoCompaction();
         while (cfs.getLiveSSTables().size() > 1 || !cfs.getTracker().getCompacting().isEmpty())
             Thread.sleep(100);
@@ -92,7 +92,7 @@ public class NeverPurgeTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (1, 2, '3')");
         execute(deletionStatement);
         Thread.sleep(1000);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         cfs.forceMajorCompaction();
         verifyContainsTombstones(cfs.getLiveSSTables(), 1);
     }

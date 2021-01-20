@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.db;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -46,8 +50,7 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
             CommitLogPosition position = null;
             if (makeDurable)
             {
-                Tracing.trace("Appending to commitlog");
-                position = CommitLog.instance.add(mutation);
+                position = addToCommitLog(mutation);
             }
             return new CassandraWriteContext(group, position);
         }
@@ -59,6 +62,43 @@ public class CassandraKeyspaceWriteHandler implements KeyspaceWriteHandler
             }
             throw t;
         }
+    }
+
+    private CommitLogPosition addToCommitLog(Mutation mutation)
+    {
+        CommitLogPosition position;
+        // Usually one of these will be true, so first check if that's the case.
+        boolean allSkipCommitlog = true;
+        boolean noneSkipCommitlog = true;
+        for (TableId id : mutation.getTableIds())
+        {
+            if (keyspace.getColumnFamilyStore(id).writesShouldSkipCommitLog())
+                noneSkipCommitlog = false;
+            else
+                allSkipCommitlog = false;
+        }
+
+        if (!noneSkipCommitlog)
+        {
+            if (allSkipCommitlog)
+                return null;
+            else
+            {
+                Set<TableId> ids = new HashSet<>();
+                for (TableId id : mutation.getTableIds())
+                {
+                    if (keyspace.getColumnFamilyStore(id).writesShouldSkipCommitLog())
+                        ids.add(id);
+                }
+                mutation = mutation.without(ids);
+            }
+        }
+        // Note: It may be a good idea to precalculate none/all for the set of all tables in the keyspace,
+        // or memoize the mutation.getTableIds()->ids map (needs invalidation on schema version change).
+
+        Tracing.trace("Appending to commitlog");
+        position = CommitLog.instance.add(mutation);
+        return position;
     }
 
     @SuppressWarnings("resource") // group is closed when CassandraWriteContext is closed

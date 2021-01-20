@@ -558,7 +558,7 @@ public abstract class CQLTester
     {
         ColumnFamilyStore store = getColumnFamilyStore(keyspace, table);
         if (store != null)
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     public void disableCompaction(String keyspace)

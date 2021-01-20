@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
@@ -93,16 +92,16 @@ public class TableViews extends AbstractCollection<View>
         return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name()));
     }
 
-    public void forceBlockingFlush()
+    public void forceBlockingFlush(ColumnFamilyStore.FlushReason reason)
     {
         for (ColumnFamilyStore viewCfs : allViewsCfs())
-            viewCfs.forceBlockingFlush();
+            viewCfs.forceBlockingFlush(reason);
     }
 
-    public void dumpMemtables()
+    public void dumpMemtables(ColumnFamilyStore.FlushReason reason)
     {
         for (ColumnFamilyStore viewCfs : allViewsCfs())
-            viewCfs.dumpMemtable();
+            viewCfs.dumpMemtable(reason);
     }
 
     public void truncateBlocking(CommitLogPosition replayAfter, long truncatedAt)

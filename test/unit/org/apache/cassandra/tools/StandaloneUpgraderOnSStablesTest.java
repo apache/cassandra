@@ -139,7 +139,7 @@ public class StandaloneUpgraderOnSStablesTest
     private List<String> getSStableFiles(String ks, String table) throws StartupException
     {
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(table);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         ColumnFamilyStore.scrubDataDirectories(cfs.metadata());
 
         Set<SSTableReader> sstables = cfs.getLiveSSTables();

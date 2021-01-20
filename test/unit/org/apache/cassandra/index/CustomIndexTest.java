@@ -38,6 +38,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -645,7 +646,7 @@ public class CustomIndexTest extends CQLTester
 
         try
         {
-            getCurrentColumnFamilyStore().forceBlockingFlush();
+            flush();
             fail("Exception should have been propagated");
         }
         catch (Throwable t)
@@ -667,7 +668,7 @@ public class CustomIndexTest extends CQLTester
         // Insert a single wide partition to be indexed
         for (int i = 0; i < totalRows; i++)
             execute("INSERT INTO %s (k, c, v) VALUES (0, ?, ?)", i, i);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // Create the index, which won't automatically start building
         String indexName = "build_single_partition_idx";
@@ -724,7 +725,7 @@ public class CustomIndexTest extends CQLTester
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 5, 3, 3);
         execute("DELETE FROM %s WHERE k = ?", 5);
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         String indexName = "partition_index_test_idx";
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v) USING '%s'",
@@ -786,7 +787,7 @@ public class CustomIndexTest extends CQLTester
         // Insert a single row partition to be indexed
         for (int i = 0; i < totalRows; i++)
             execute("INSERT INTO %s (k, c, v) VALUES (0, ?, ?)", i, i);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // Create the index, which won't automatically start building
         String indexName = "partition_overindex_test_idx";
@@ -812,7 +813,7 @@ public class CustomIndexTest extends CQLTester
 
         // Insert a single range tombstone
         execute("DELETE FROM %s WHERE k=1 and c > 2");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // Create the index, which won't automatically start building
         String indexName = "range_tombstone_idx";
@@ -1168,7 +1169,7 @@ public class CustomIndexTest extends CQLTester
         assertEquals(0, index.flushedUnfiltereds.get());
         assertEquals(0, index.completeFlushCalls.get());
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(1, index.beginFlushCalls.get());
         assertEquals(2, index.flushedPartitions.get());
@@ -1180,7 +1181,7 @@ public class CustomIndexTest extends CQLTester
         execute("DELETE FROM %s WHERE k=?", 0);
         execute("DELETE FROM %s WHERE k=? AND c>=?", 1, 1);
         index.reset();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         assertEquals(1, index.beginFlushCalls.get());
         assertEquals(2, index.flushedPartitions.get());
@@ -1338,7 +1339,7 @@ public class CustomIndexTest extends CQLTester
         assertEquals(10, index2.finishCalls);
 
         // flush the previous data to get rid of it, reset the group counters and flush a new memtable
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         group.reset();
         execute("INSERT INTO %s (k, s) VALUES (?, ?)", 1, 0);
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 1, 0, 0);
@@ -1348,7 +1349,7 @@ public class CustomIndexTest extends CQLTester
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 2, 2, 0);
         execute("DELETE FROM %s WHERE k=? AND c=?", 2, 3);
         execute("DELETE FROM %s WHERE k=?", 3);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // verify that the flush observer calls get only once to the group
         assertEquals(1, group.beginFlushCalls.get());

@@ -93,7 +93,7 @@ public class CompactionManagerGetSSTablesForValidationTest
         for (int i=0; i<3; i++)
         {
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES(?, ?)", ks, tbl), i, i);
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
         Assert.assertEquals(3, cfs.getLiveSSTables().size());
 

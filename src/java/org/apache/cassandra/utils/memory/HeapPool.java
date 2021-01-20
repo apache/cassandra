@@ -36,7 +36,6 @@ public class HeapPool extends MemtablePool
 
     private static class Allocator extends MemtableBufferAllocator
     {
-        private static final EnsureOnHeap ENSURE_NOOP = new EnsureOnHeap.NoOp();
         Allocator(HeapPool pool)
         {
             super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
@@ -50,7 +49,7 @@ public class HeapPool extends MemtablePool
 
         public EnsureOnHeap ensureOnHeap()
         {
-            return ENSURE_NOOP;
+            return EnsureOnHeap.NOOP;
         }
     }
 }
