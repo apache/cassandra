@@ -710,16 +710,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         assassinateEndpoint(address);
     }
 
-    @VisibleForTesting
-    public void unsafeAnulEndpoint(InetAddressAndPort endpoint)
-    {
-        removeEndpoint(endpoint);
-        justRemovedEndpoints.remove(endpoint);
-        endpointStateMap.remove(endpoint);
-        expireTimeEndpointMap.remove(endpoint);
-        unreachableEndpoints.remove(endpoint);
-    }
-
     /**
      * Do not call this method unless you know what you are doing.
      * It will try extremely hard to obliterate any endpoint from the ring,

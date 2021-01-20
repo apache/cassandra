@@ -603,9 +603,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.onChange(addressAndPort,
                         ApplicationState.STATUS,
                         new VersionedValue.VersionedValueFactory(partitioner).left(Collections.singleton(token), 0L));
-                Gossiper.instance.removeEndpoint(addressAndPort);
             });
-            PendingRangeCalculatorService.instance.blockUntilFinished();
         }
         catch (Throwable e) // UnknownHostException
         {

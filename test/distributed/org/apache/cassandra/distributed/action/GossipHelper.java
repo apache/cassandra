@@ -399,12 +399,6 @@ public class GossipHelper
                 VersionedValue vv = toVersionedValue(newState);
                 currentState.addApplicationState(as, vv);
                 StorageService.instance.onChange(endpoint, as, vv);
-
-                // remove from gossip
-                Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.unsafeAnulEndpoint(endpoint));
-                SystemKeyspace.removeEndpoint(endpoint);
-                PendingRangeCalculatorService.instance.update();
-                PendingRangeCalculatorService.instance.blockUntilFinished();
             });
         };
     }
