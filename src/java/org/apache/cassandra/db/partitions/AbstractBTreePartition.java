@@ -22,14 +22,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NavigableSet;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 
@@ -37,42 +35,14 @@ import static org.apache.cassandra.utils.btree.BTree.Dir.desc;
 
 public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 {
-    protected static final Holder EMPTY = new Holder(RegularAndStaticColumns.NONE, BTree.empty(), DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
-    public static final long HOLDER_UNSHARED_HEAP_SIZE = ObjectSizes.measure(EMPTY);
-
     protected final DecoratedKey partitionKey;
 
-    protected abstract Holder holder();
+    protected abstract BTreePartitionData holder();
     protected abstract boolean canHaveShadowedData();
 
     protected AbstractBTreePartition(DecoratedKey partitionKey)
     {
         this.partitionKey = partitionKey;
-    }
-
-    @VisibleForTesting
-    public static final class Holder
-    {
-        public final RegularAndStaticColumns columns;
-        public final DeletionInfo deletionInfo;
-        // the btree of rows
-        public final Object[] tree;
-        public final Row staticRow;
-        public final EncodingStats stats;
-
-        Holder(RegularAndStaticColumns columns, Object[] tree, DeletionInfo deletionInfo, Row staticRow, EncodingStats stats)
-        {
-            this.columns = columns;
-            this.tree = tree;
-            this.deletionInfo = deletionInfo;
-            this.staticRow = staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
-            this.stats = stats;
-        }
-
-        protected Holder withColumns(RegularAndStaticColumns columns)
-        {
-            return new Holder(columns, this.tree, this.deletionInfo, this.staticRow, this.stats);
-        }
     }
 
     public DeletionInfo deletionInfo()
@@ -87,13 +57,13 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     public boolean isEmpty()
     {
-        Holder holder = holder();
+        BTreePartitionData holder = holder();
         return holder.deletionInfo.isLive() && BTree.isEmpty(holder.tree) && holder.staticRow.isEmpty();
     }
 
     public boolean hasRows()
     {
-        Holder holder = holder();
+        BTreePartitionData holder = holder();
         return !BTree.isEmpty(holder.tree);
     }
 
@@ -122,7 +92,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
     public Row getRow(Clustering<?> clustering)
     {
         ColumnFilter columns = ColumnFilter.selection(columns());
-        Holder holder = holder();
+        BTreePartitionData holder = holder();
 
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
@@ -152,7 +122,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         return row.filter(columns, activeDeletion, true, metadata());
     }
 
-    private Row staticRow(Holder current, ColumnFilter columns, boolean setActiveDeletionToRow)
+    private Row staticRow(BTreePartitionData current, ColumnFilter columns, boolean setActiveDeletionToRow)
     {
         DeletionTime partitionDeletion = current.deletionInfo.getPartitionDeletion();
         if (columns.fetchedColumns().statics.isEmpty() || (current.staticRow.isEmpty() && partitionDeletion.isLive()))
@@ -185,7 +155,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         return unfilteredIterator(holder(), selection, slices, reversed);
     }
 
-    public UnfilteredRowIterator unfilteredIterator(Holder current, ColumnFilter selection, Slices slices, boolean reversed)
+    public UnfilteredRowIterator unfilteredIterator(BTreePartitionData current, ColumnFilter selection, Slices slices, boolean reversed)
     {
         Row staticRow = staticRow(current, selection, false);
         if (slices.size() == 0)
@@ -199,7 +169,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
                : new SlicesIterator(selection, slices, reversed, current, staticRow);
     }
 
-    private UnfilteredRowIterator sliceIterator(ColumnFilter selection, Slice slice, boolean reversed, Holder current, Row staticRow)
+    private UnfilteredRowIterator sliceIterator(ColumnFilter selection, Slice slice, boolean reversed, BTreePartitionData current, Row staticRow)
     {
         ClusteringBound<?> start = slice.start().isBottom() ? null : slice.start();
         ClusteringBound<?> end = slice.end().isTop() ? null : slice.end();
@@ -209,7 +179,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
     }
 
     private RowAndDeletionMergeIterator merge(Iterator<Row> rowIter, Iterator<RangeTombstone> deleteIter,
-                                              ColumnFilter selection, boolean reversed, Holder current, Row staticRow)
+                                              ColumnFilter selection, boolean reversed, BTreePartitionData current, Row staticRow)
     {
         return new RowAndDeletionMergeIterator(metadata(), partitionKey(), current.deletionInfo.getPartitionDeletion(),
                                                selection, staticRow, reversed, current.stats,
@@ -219,10 +189,10 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     private abstract class AbstractIterator extends AbstractUnfilteredRowIterator
     {
-        final Holder current;
+        final BTreePartitionData current;
         final ColumnFilter selection;
 
-        private AbstractIterator(Holder current, Row staticRow, ColumnFilter selection, boolean isReversed)
+        private AbstractIterator(BTreePartitionData current, Row staticRow, ColumnFilter selection, boolean isReversed)
         {
             super(AbstractBTreePartition.this.metadata(),
                   AbstractBTreePartition.this.partitionKey(),
@@ -245,7 +215,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         private int idx;
         private Iterator<Unfiltered> currentSlice;
 
-        private SlicesIterator(ColumnFilter selection, Slices slices, boolean isReversed, Holder current, Row staticRow)
+        private SlicesIterator(ColumnFilter selection, Slices slices, boolean isReversed, BTreePartitionData current, Row staticRow)
         {
             super(current, staticRow, selection, isReversed);
             this.slices = slices;
@@ -283,7 +253,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         private ClusteringsIterator(ColumnFilter selection,
                                     NavigableSet<Clustering<?>> clusteringsInQueryOrder,
                                     boolean isReversed,
-                                    Holder current,
+                                    BTreePartitionData current,
                                     Row staticRow)
         {
             super(current, staticRow, selection, isReversed);
@@ -326,12 +296,12 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         }
     }
 
-    protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity)
+    protected static BTreePartitionData build(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
         return build(iterator, initialRowCapacity, true);
     }
 
-    protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered)
+    protected static BTreePartitionData build(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered)
     {
         TableMetadata metadata = iterator.metadata();
         RegularAndStaticColumns columns = iterator.columns();
@@ -353,12 +323,12 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         if (reversed)
             builder.reverse();
 
-        return new Holder(columns, builder.build(), deletionBuilder.build(), iterator.staticRow(), iterator.stats());
+        return new BTreePartitionData(columns, builder.build(), deletionBuilder.build(), iterator.staticRow(), iterator.stats());
     }
 
     // Note that when building with a RowIterator, deletion will generally be LIVE, but we allow to pass it nonetheless because PartitionUpdate
     // passes a MutableDeletionInfo that it mutates later.
-    protected static Holder build(RowIterator rows, DeletionInfo deletion, boolean buildEncodingStats)
+    protected static BTreePartitionData build(RowIterator rows, DeletionInfo deletion, boolean buildEncodingStats)
     {
         RegularAndStaticColumns columns = rows.columns();
         boolean reversed = rows.isReverseOrder();
@@ -375,7 +345,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             Row staticRow = rows.staticRow();
             EncodingStats stats = buildEncodingStats ? EncodingStats.Collector.collect(staticRow, BTree.iterator(tree), deletion)
                                                      : EncodingStats.NO_STATS;
-            return new Holder(columns, tree, deletion, staticRow, stats);
+            return new BTreePartitionData(columns, tree, deletion, staticRow, stats);
         }
     }
 
@@ -420,7 +390,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             return false;
 
         PartitionUpdate that = (PartitionUpdate) obj;
-        Holder a = this.holder(), b = that.holder();
+        BTreePartitionData a = this.holder(), b = that.holder();
         return partitionKey.equals(that.partitionKey)
                && metadata().id.equals(that.metadata().id)
                && a.deletionInfo.equals(b.deletionInfo)
@@ -445,17 +415,5 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             return null;
 
         return BTree.findByIndex(tree, BTree.size(tree) - 1);
-    }
-
-    @VisibleForTesting
-    public static Holder unsafeGetEmptyHolder()
-    {
-        return EMPTY;
-    }
-
-    @VisibleForTesting
-    public static Holder unsafeConstructHolder(RegularAndStaticColumns columns, Object[] tree, DeletionInfo deletionInfo, Row staticRow, EncodingStats stats)
-    {
-        return new Holder(columns, tree, deletionInfo, staticRow, stats);
     }
 }

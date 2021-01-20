@@ -22,7 +22,6 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Token;
@@ -83,7 +82,7 @@ public class ShardBoundaries
         if (boundaries.length == 0)
             return 0;
 
-        assert (key.getPartitioner() == DatabaseDescriptor.getPartitioner());
+        assert (key.getPartitioner() == boundaries[0].getPartitioner());
         return getShardForToken(key.getToken());
     }
 

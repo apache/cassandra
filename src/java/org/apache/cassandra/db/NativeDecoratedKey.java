@@ -73,6 +73,12 @@ public class NativeDecoratedKey extends DecoratedKey
     }
 
     @Override
+    public int getKeyLength()
+    {
+        return MemoryUtil.getInt(peer);
+    }
+
+    @Override
     protected ByteSource keyComparableBytes(Version version)
     {
         return ByteSource.ofMemory(address(), length(), version);

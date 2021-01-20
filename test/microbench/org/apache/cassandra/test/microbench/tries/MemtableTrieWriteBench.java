@@ -45,7 +45,7 @@ public class MemtableTrieWriteBench
     @Param({"8"})
     int keyLength = 8;
 
-    final static MemtableTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> x;
+    final static MemtableTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> y;
 
     // Set this to true to print the trie sizes after insertions for sanity checking.
     // This might affect the timings, do not commit with this set to true.

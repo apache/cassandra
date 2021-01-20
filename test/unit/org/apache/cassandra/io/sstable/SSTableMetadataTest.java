@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SSTableMetadataTest
@@ -218,9 +220,9 @@ public class SSTableMetadataTest
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "7col149");
-            // make sure the clustering values are minimised
-            assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
-            assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
+            // make sure stats don't reference native or off-heap data
+            assertBuffersAreRetainable(sstable.getSSTableMetadata().minClusteringValues);
+            assertBuffersAreRetainable(sstable.getSSTableMetadata().maxClusteringValues);
         }
         String key = "row2";
 
@@ -240,9 +242,39 @@ public class SSTableMetadataTest
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "9col298");
-            // and make sure the clustering values are still minimised after compaction
-            assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
-            assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
+            // make sure stats don't reference native or off-heap data
+            assertBuffersAreRetainable(sstable.getSSTableMetadata().minClusteringValues);
+            assertBuffersAreRetainable(sstable.getSSTableMetadata().maxClusteringValues);
+        }
+
+        key = "row3";
+        new RowUpdateBuilder(store.metadata(), System.currentTimeMillis(), key)
+            .addRangeTombstone("0", "7")
+            .build()
+            .apply();
+
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        store.forceMajorCompaction();
+        assertEquals(1, store.getLiveSSTables().size());
+        for (SSTableReader sstable : store.getLiveSSTables())
+        {
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0");
+            assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "9col298");
+            // make sure stats don't reference native or off-heap data
+            assertBuffersAreRetainable(sstable.getSSTableMetadata().minClusteringValues);
+            assertBuffersAreRetainable(sstable.getSSTableMetadata().maxClusteringValues);
+        }
+    }
+
+    public static void assertBuffersAreRetainable(List<ByteBuffer> buffers)
+    {
+        for (ByteBuffer b : buffers)
+        {
+            assertFalse(b.isDirect());
+            assertTrue(b.hasArray());
+            assertEquals(b.capacity(), b.remaining());
+            assertEquals(0, b.arrayOffset());
+            assertEquals(b.capacity(), b.array().length);
         }
     }
 
