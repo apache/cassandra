@@ -57,7 +57,8 @@ public class MemtableQuickTest extends CQLTester
     {
         return ImmutableList.of("skiplist",
                                 "skiplist_sharded",
-                                "skiplist_sharded_locking");
+                                "skiplist_sharded_locking",
+                                "trie");
     }
 
     @BeforeClass

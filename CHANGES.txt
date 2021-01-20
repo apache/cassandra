@@ -1,4 +1,6 @@
 4.2
+ * Adds a trie-based memtable implementation (CASSANDRA-17240)
+ * Further improves precision of memtable heap tracking (CASSANDRA-17240)
  * Fix formatting of metrics documentation (CASSANDRA-17961)
  * Keep sstable level when streaming for decommission and move (CASSANDRA-17969)
  * Add Unavailables metric for CASWrite in the docs (CASSANDRA-16357)

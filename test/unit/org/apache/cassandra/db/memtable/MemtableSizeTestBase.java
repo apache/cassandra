@@ -21,10 +21,10 @@ package org.apache.cassandra.db.memtable;
 import java.lang.reflect.Field;
 import java.util.List;
 
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.slf4j.Logger;
@@ -41,6 +41,7 @@ import org.github.jamm.MemoryMeter;
 
 // Note: This test can be run in idea with the allocation type configured in the test yaml and memtable using the
 // value memtableClass is initialized with.
+@RunWith(Parameterized.class)
 public class MemtableSizeTestBase extends CQLTester
 {
     // Note: To see a printout of the usage for each object, add .enableDebug() here (most useful with smaller number of
@@ -63,7 +64,8 @@ public class MemtableSizeTestBase extends CQLTester
     public static List<Object> parameters()
     {
         return ImmutableList.of("skiplist",
-                                "skiplist_sharded");
+                                "skiplist_sharded",
+                                "trie");
     }
 
     // Must be within 3% of the real usage. We are actually more precise than this, but the threshold is set higher to
@@ -84,7 +86,7 @@ public class MemtableSizeTestBase extends CQLTester
         }
         catch (NoSuchFieldException | IllegalAccessException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
 
         CQLTester.setUpClass();
@@ -165,10 +167,15 @@ public class MemtableSizeTestBase extends CQLTester
 
             long expectedHeap = deepSizeAfter - deepSizeBefore;
             long max_difference = MAX_DIFFERENCE_PERCENT * expectedHeap / 100;
+            long trie_overhead = memtable instanceof TrieMemtable ? ((TrieMemtable) memtable).unusedReservedMemory() : 0;
             switch (DatabaseDescriptor.getMemtableAllocationType())
             {
                 case heap_buffers:
                     max_difference += SLAB_OVERHEAD;
+                    actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
+                    break;
+                case unslabbed_heap_buffers:
+                    actualHeap += trie_overhead;    // adjust trie memory with unused buffer space if on-heap
                     break;
             }
             String message = String.format("Expected heap usage close to %s, got %s, %s difference.\n",

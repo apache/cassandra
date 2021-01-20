@@ -668,6 +668,7 @@ Examples:
 |-8.1e-2000 | 999  | -0.0810|. -09 90  |    42·03 E7·77 DA·00
 |8.1e-2000  | -999 | 0.0810 |.  08 10  |    BE·FC 19·88 8A·00
 |8.1e2000   | 1001 | 0.0810 |.  08 10  |    C2·03 E9·88 8A·00
+
 (mexp stands for “modulated exponent”, i.e. exponent * sign)
 
 The values are prefix-free, because no exponent’s encoding can be a prefix of another, and the mantissas can never have

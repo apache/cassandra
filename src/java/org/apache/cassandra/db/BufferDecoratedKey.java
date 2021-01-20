@@ -39,6 +39,12 @@ public class BufferDecoratedKey extends DecoratedKey
         return key;
     }
 
+    @Override
+    public int getKeyLength()
+    {
+        return key.remaining();
+    }
+
     /**
      * A factory method that translates the given byte-comparable representation to a {@link BufferDecoratedKey}
      * instance. If the given byte comparable doesn't represent the encoding of a buffer decorated key, anything from a

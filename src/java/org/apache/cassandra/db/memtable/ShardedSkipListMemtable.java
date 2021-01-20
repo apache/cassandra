@@ -41,6 +41,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.AtomicBTreePartition;
+import org.apache.cassandra.db.partitions.BTreePartitionUpdater;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -54,7 +55,6 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
@@ -72,46 +72,26 @@ import org.github.jamm.Unmetered;
  *
  * Also see Memtable_API.md.
  */
-public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
+public class ShardedSkipListMemtable extends AbstractShardedMemtable
 {
     private static final Logger logger = LoggerFactory.getLogger(ShardedSkipListMemtable.class);
 
-    public static final String SHARDS_OPTION = "shards";
     public static final String LOCKING_OPTION = "serialize_writes";
 
-    // The boundaries for the keyspace as they were calculated when the memtable is created.
-    // The boundaries will be NONE for system keyspaces or if StorageService is not yet initialized.
-    // The fact this is fixed for the duration of the memtable lifetime, guarantees we'll always pick the same shard
-    // for a given key, even if we race with the StorageService initialization or with topology changes.
-    @Unmetered
-    final ShardBoundaries boundaries;
-
     /**
-     * Core-specific memtable regions. All writes must go through the specific core. The data structures used
-     * are concurrent-read safe, thus reads can be carried out from any thread.
+     * Sharded memtable sections. Each is responsible for a contiguous range of the token space (between boundaries[i]
+     * and boundaries[i+1]) and is written to by one thread at a time, while reads are carried out concurrently
+     * (including with any write).
      */
     final MemtableShard[] shards;
 
-    @VisibleForTesting
-    public static final String SHARD_COUNT_PROPERTY = "cassandra.memtable.shard.count";
-
-    // default shard count, used when a specific number of shards is not specified in the parameters
-    private static final int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
-
-    private final Factory factory;
-
-    // only to be used by init(), to setup the very first memtable for the cfs
     ShardedSkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound,
                             TableMetadataRef metadataRef,
                             Owner owner,
-                            Integer shardCountOption,
-                            Factory factory)
+                            Integer shardCountOption)
     {
-        super(commitLogLowerBound, metadataRef, owner);
-        int shardCount = shardCountOption != null ? shardCountOption : SHARD_COUNT;
-        this.boundaries = owner.localRangeSplits(shardCount);
+        super(commitLogLowerBound, metadataRef, owner, shardCountOption);
         this.shards = generatePartitionShards(boundaries.shardCount(), allocator, metadataRef);
-        this.factory = factory;
     }
 
     private static MemtableShard[] generatePartitionShards(int splits,
@@ -128,15 +108,9 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
     public boolean isClean()
     {
         for (MemtableShard shard : shards)
-            if (!shard.isEmpty())
+            if (!shard.isClean())
                 return false;
         return true;
-    }
-
-    @Override
-    protected Memtable.Factory factory()
-    {
-        return factory;
     }
 
     /**
@@ -389,14 +363,14 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
                 }
             }
 
-            long[] pair = previous.addAllWithSizeDelta(update, cloner, opGroup, indexer);
+            BTreePartitionUpdater updater = previous.addAll(update, cloner, opGroup, indexer);
             updateMin(minTimestamp, update.stats().minTimestamp);
             updateMin(minLocalDeletionTime, update.stats().minLocalDeletionTime);
-            liveDataSize.addAndGet(initialSize + pair[0]);
+            liveDataSize.addAndGet(initialSize + updater.dataSize);
             columnsCollector.update(update.columns());
             statsCollector.update(update.stats());
             currentOperations.addAndGet(update.operationCount());
-            return pair[1];
+            return updater.colUpdateTimeDelta;
         }
 
         private Map<PartitionPosition, AtomicBTreePartition> getPartitionsSubMap(PartitionPosition left,
@@ -425,7 +399,7 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
             }
         }
 
-        public boolean isEmpty()
+        public boolean isClean()
         {
             return partitions.isEmpty();
         }
@@ -493,9 +467,9 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
 
     static class Locking extends ShardedSkipListMemtable
     {
-        Locking(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, Integer shardCountOption, Factory factory)
+        Locking(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner, Integer shardCountOption)
         {
-            super(commitLogLowerBound, metadataRef, owner, shardCountOption, factory);
+            super(commitLogLowerBound, metadataRef, owner, shardCountOption);
         }
 
         /**
@@ -540,8 +514,8 @@ public class ShardedSkipListMemtable extends AbstractAllocatorMemtable
                                Owner owner)
         {
             return isLocking
-                   ? new Locking(commitLogLowerBound, metadataRef, owner, shardCount, this)
-                   : new ShardedSkipListMemtable(commitLogLowerBound, metadataRef, owner, shardCount, this);
+                   ? new Locking(commitLogLowerBound, metadataRef, owner, shardCount)
+                   : new ShardedSkipListMemtable(commitLogLowerBound, metadataRef, owner, shardCount);
         }
 
         public boolean equals(Object o)

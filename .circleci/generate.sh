@@ -259,6 +259,7 @@ if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS=" )); then
   delete_job "j8_unit_tests_repeat"
   delete_job "j11_unit_tests_repeat"
   delete_job "utests_compression_repeat"
+  delete_job "utests_trie_repeat"
   delete_job "utests_system_keyspace_directory_repeat"
 fi
 if (! (echo "$env_vars" | grep -q "REPEATED_UTESTS_LONG=")); then

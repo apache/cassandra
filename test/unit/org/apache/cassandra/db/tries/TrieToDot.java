@@ -22,7 +22,7 @@ import java.util.function.Function;
 import org.agrona.DirectBuffer;
 
 /**
- * Simple utility class for dumping the structure of a trie to string.
+ * A class for dumping the structure of a trie to a graphviz/dot representation for making trie graphs.
  */
 class TrieToDot<T> extends TriePathReconstructor implements Trie.Walker<T, String>
 {

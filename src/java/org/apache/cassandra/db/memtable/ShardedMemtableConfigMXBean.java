@@ -16,28 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.memtable;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-public class ClusteringBoundTest
+public interface ShardedMemtableConfigMXBean
 {
-    @Test
-    public void arrayTopAndBottom()
-    {
-        Assert.assertTrue(ArrayClusteringBound.BOTTOM.isBottom());
-        Assert.assertFalse(ArrayClusteringBound.BOTTOM.isTop());
-        Assert.assertTrue(ArrayClusteringBound.TOP.isTop());
-        Assert.assertFalse(ArrayClusteringBound.TOP.isBottom());
-    }
+    /**
+     * Adjust the shard count for sharded memtables that do not specify it explicitly in the memtable options.
+     * Changes will apply on the next memtable flush.
+     */
+    public void setDefaultShardCount(String numShards);
 
-    @Test
-    public void bufferTopAndBottom()
-    {
-        Assert.assertTrue(BufferClusteringBound.BOTTOM.isBottom());
-        Assert.assertFalse(BufferClusteringBound.BOTTOM.isTop());
-        Assert.assertTrue(BufferClusteringBound.TOP.isTop());
-        Assert.assertFalse(BufferClusteringBound.TOP.isBottom());
-    }
+    /**
+     * Returns the shard count for sharded memtables that do not specify it explicitly in the memtable options.
+     */
+    public String getDefaultShardCount();
 }

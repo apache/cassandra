@@ -1451,39 +1451,61 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     @Override
     public ShardBoundaries localRangeSplits(int shardCount)
     {
-        if (shardCount == 1 || !getPartitioner().splitter().isPresent() || SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
+        if (shardCount == 1 || !getPartitioner().splitter().isPresent())
             return ShardBoundaries.NONE;
 
         ShardBoundaries shardBoundaries = cachedShardBoundaries;
+
         if (shardBoundaries == null ||
             shardBoundaries.shardCount() != shardCount ||
-            shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion())
+            shardBoundaries.ringVersion != -1 && shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion())
         {
-            DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
-            Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
             List<Splitter.WeightedRange> weightedRanges;
-            if (localRanges.isEmpty())
-                weightedRanges = ImmutableList.of(new Splitter.WeightedRange(1.0, new Range<>(getPartitioner().getMinimumToken(), getPartitioner().getMaximumToken())));
+            long ringVersion;
+            if (!SchemaConstants.isLocalSystemKeyspace(keyspace.getName())
+                && getPartitioner() == StorageService.instance.getTokenMetadata().partitioner)
+            {
+                DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
+                Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
+                ringVersion = versionedLocalRanges.ringVersion;
+
+                if (!localRanges.isEmpty())
+                {
+                    weightedRanges = new ArrayList<>(localRanges.size());
+                    for (Range<Token> r : localRanges)
+                    {
+                        // WeightedRange supports only unwrapped ranges as it relies
+                        // on right - left == num tokens equality
+                        for (Range<Token> u: r.unwrap())
+                            weightedRanges.add(new Splitter.WeightedRange(1.0, u));
+                    }
+                    weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));
+                }
+                else
+                {
+                    weightedRanges = fullWeightedRange();
+                }
+            }
             else
             {
-                weightedRanges = new ArrayList<>(localRanges.size());
-                for (Range<Token> r : localRanges)
-                {
-                    // WeightedRange supports only unwrapped ranges as it relies
-                    // on right - left == num tokens equality
-                    for (Range<Token> u: r.unwrap())
-                        weightedRanges.add(new Splitter.WeightedRange(1.0, u));
-                }
-                weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));
+                // Local tables need to cover the full token range and don't care about ring changes.
+                // We also end up here if the table's partitioner is not the database's, which can happen in tests.
+                weightedRanges = fullWeightedRange();
+                ringVersion = -1;
             }
 
             List<Token> boundaries = getPartitioner().splitter().get().splitOwnedRanges(shardCount, weightedRanges, false);
             shardBoundaries = new ShardBoundaries(boundaries.subList(0, boundaries.size() - 1),
-                                                  versionedLocalRanges.ringVersion);
+                                                  ringVersion);
             cachedShardBoundaries = shardBoundaries;
             logger.debug("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), boundaries);
         }
         return shardBoundaries;
+    }
+
+    private ImmutableList<Splitter.WeightedRange> fullWeightedRange()
+    {
+        return ImmutableList.of(new Splitter.WeightedRange(1.0, new Range<>(getPartitioner().getMinimumToken(), getPartitioner().getMaximumToken())));
     }
 
     /**
