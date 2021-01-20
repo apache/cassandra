@@ -29,6 +29,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -52,14 +53,18 @@ public class NodeNotInRingTest extends TestBaseImpl
                    .drop()
                    .on();
             cluster.run(GossipHelper.removeFromRing(cluster.get(3)), 1, 2);
+            cluster.run(inst -> inst.runsOnInstance(() -> {
+                Assert.assertEquals("There should be 2 remaining nodes in ring",
+                                    2, StorageService.instance.effectiveOwnershipWithPort(KEYSPACE).size());
+            }), 1, 2);
 
             populate(cluster, 0, 50, 1, ConsistencyLevel.ALL);
             populate(cluster, 50, 100, 2, ConsistencyLevel.ALL);
 
             Map<Integer, Long> counts = BootstrapTest.count(cluster);
-            Assert.assertEquals(counts.get(1).longValue(), 100L);
-            Assert.assertEquals(counts.get(2).longValue(), 100L);
-            Assert.assertEquals(counts.get(3).longValue(), 0L);
+            Assert.assertEquals(0L, counts.get(3).longValue());
+            Assert.assertEquals(100L, counts.get(2).longValue());
+            Assert.assertEquals(100L, counts.get(1).longValue());
         }
     }
 
