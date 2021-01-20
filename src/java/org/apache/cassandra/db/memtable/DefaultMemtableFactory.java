@@ -15,16 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+package org.apache.cassandra.db.memtable;
 
-public class MemtableRenewedNotification implements INotification
+/**
+ * This class exists solely to avoid initialization of the default memtable class.
+ * Some tests want to setup table parameters before initializing DatabaseDescriptor -- this allows them to do so.
+ */
+public class DefaultMemtableFactory
 {
-    public final Memtable renewed;
-
-    public MemtableRenewedNotification(Memtable renewed)
-    {
-        this.renewed = renewed;
-    }
+    // We can't use SkipListMemtable.FACTORY as that requires DatabaseDescriptor to have been initialized.
+    public static final Memtable.Factory INSTANCE = SkipListMemtable::new;
 }

@@ -15,16 +15,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.memtable.Memtable;
+package org.apache.cassandra.db.memtable;
 
-public class MemtableRenewedNotification implements INotification
+import java.util.Map;
+
+import org.apache.cassandra.exceptions.ConfigurationException;
+
+public class TestMemtable
 {
-    public final Memtable renewed;
-
-    public MemtableRenewedNotification(Memtable renewed)
+    public static Memtable.Factory factory(Map<String, String> options)
     {
-        this.renewed = renewed;
+        String skiplist = options.remove("skiplist");
+        if (!options.isEmpty())
+            throw new ConfigurationException("Options " + options + " not expected.");
+        if (Boolean.parseBoolean(skiplist))
+            return SkipListMemtable.FACTORY;
+        else
+            return FACTORY;
     }
+
+    public static Memtable.Factory FACTORY =
+        (commitLogLowerBound, metadaRef, owner) -> new SkipListMemtable(commitLogLowerBound, metadaRef, owner);
 }

@@ -491,7 +491,7 @@ public class ColumnFamilyStoreTest
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         String snapshotName = "newSnapshot";
-        cfs.snapshotWithoutFlush(snapshotName);
+        cfs.snapshotWithoutMemtable(snapshotName);
 
         File snapshotManifestFile = cfs.getDirectories().getSnapshotManifestFile(snapshotName);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(snapshotManifestFile);

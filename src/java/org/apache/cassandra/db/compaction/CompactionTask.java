@@ -122,7 +122,7 @@ public class CompactionTask extends AbstractCompactionTask
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
         {
             Instant creationTime = now();
-            cfs.snapshotWithoutFlush(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
+            cfs.snapshotWithoutMemtable(creationTime.toEpochMilli() + "-compact-" + cfs.name, creationTime);
         }
 
         try (CompactionController controller = getCompactionController(transaction.originals()))

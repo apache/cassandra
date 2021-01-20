@@ -42,6 +42,7 @@ import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 
 import org.apache.cassandra.utils.TimeUUID;

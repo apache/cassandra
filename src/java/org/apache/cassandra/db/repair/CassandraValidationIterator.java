@@ -29,6 +29,7 @@ import java.util.function.LongPredicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
@@ -201,7 +202,13 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             sstables = getSSTablesToValidate(cfs, ranges, parentId, isIncremental);
         }
 
+        // Persistent memtables will not flush or snapshot to sstables, make an sstable with their data.
+        cfs.writeAndAddMemtableRanges(parentId,
+                                      () -> Collections2.transform(Range.normalize(ranges), Range::makeRowRange),
+                                      sstables);
+
         Preconditions.checkArgument(sstables != null);
+
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentId);
         logger.info("{}, parentSessionId={}: Performing validation compaction on {} sstables in {}.{}",
                     prs.previewKind.logPrefix(sessionID),

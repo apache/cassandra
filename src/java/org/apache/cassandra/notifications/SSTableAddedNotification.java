@@ -21,7 +21,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**

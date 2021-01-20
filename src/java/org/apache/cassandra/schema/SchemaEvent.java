@@ -219,6 +219,7 @@ public final class SchemaEvent extends DiagnosticEvent
         ret.put("caching", repr(params.caching));
         ret.put("compaction", repr(params.compaction));
         ret.put("compression", repr(params.compression));
+        ret.put("memtable", repr(params.memtable));
         if (params.speculativeRetry != null) ret.put("speculativeRetry", params.speculativeRetry.kind().name());
         return ret;
     }
@@ -244,6 +245,14 @@ public final class SchemaEvent extends DiagnosticEvent
         HashMap<String, Serializable> ret = new HashMap<>();
         if (compr == null) return ret;
         ret.putAll(compr.asMap());
+        return ret;
+    }
+
+    private HashMap<String, Serializable> repr(MemtableParams params)
+    {
+        HashMap<String, Serializable> ret = new HashMap<>();
+        if (params == null) return ret;
+        ret.putAll(params.asMap());
         return ret;
     }
 
