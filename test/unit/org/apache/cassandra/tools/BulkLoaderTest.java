@@ -39,7 +39,8 @@ public class BulkLoaderTest extends OfflineToolUtils
         
         assertNoUnexpectedThreadsStarted(new String[] { "ObjectCleanerThread",
                                                         "Shutdown-checker",
-                                                        "cluster[0-9]-connection-reaper-[0-9]" });
+                                                        "cluster[0-9]-connection-reaper-[0-9]" },
+                                         false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -67,7 +68,8 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                         "Shutdown-checker",
                                                         "cluster[0-9]-connection-reaper-[0-9]",
                                                         "Attach Listener",
-                                                        "process reaper"});
+                                                        "process reaper"},
+                                         false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -97,7 +99,8 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                         "Shutdown-checker",
                                                         "cluster[0-9]-connection-reaper-[0-9]",
                                                         "Attach Listener",
-                                                        "process reaper"});
+                                                        "process reaper"},
+                                         false);
     assertSchemaNotLoaded();
     assertCLSMNotLoaded();
     assertSystemKSNotLoaded();
@@ -127,7 +130,8 @@ public class BulkLoaderTest extends OfflineToolUtils
                                                         "Shutdown-checker",
                                                         "cluster[0-9]-connection-reaper-[0-9]",
                                                         "Attach Listener",
-                                                        "process reaper"});
+                                                        "process reaper"},
+                                         false);
     assertSchemaNotLoaded();
     assertCLSMNotLoaded();
     assertSystemKSNotLoaded();

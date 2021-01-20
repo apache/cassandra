@@ -176,9 +176,6 @@ public class MemtableReadTrie<T> extends Trie<T>
     // Offset of the next pointer in a non-shared prefix node
     static final int PREFIX_POINTER_OFFSET = LAST_POINTER_OFFSET - PREFIX_OFFSET;
 
-    // Initial capacity for the node data buffer.
-    static final int INITIAL_BUFFER_CAPACITY = 256;
-
     /**
      * Value used as null for node pointers.
      * No node can use this address (we enforce this by not allowing chain nodes to grow to position 0).
@@ -213,6 +210,11 @@ public class MemtableReadTrie<T> extends Trie<T>
 
     static final int CONTENTS_START_SHIFT = 4;
     static final int CONTENTS_START_SIZE = 1 << CONTENTS_START_SHIFT;
+
+    static
+    {
+        assert BUF_START_SIZE % BLOCK_SIZE == 0 : "Initial buffer size must fit a full block.";
+    }
 
     final UnsafeBuffer[] buffers;
     final AtomicReferenceArray<T>[] contentArrays;
