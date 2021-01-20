@@ -33,3 +33,4 @@ HIGHRES files, read below for details how to do it manually;
    `circleci config process config-2_1.yml.HIGHRES > config.yml.HIGHRES`
 1. and remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
 
+## Note: build
