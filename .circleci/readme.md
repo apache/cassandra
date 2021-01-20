@@ -34,3 +34,4 @@ HIGHRES files, read below for details how to do it manually;
 1. and remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
 
 ## Note: build
+- next try
