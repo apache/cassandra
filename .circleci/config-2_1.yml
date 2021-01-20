@@ -127,6 +127,7 @@ default_env_vars: &default_env_vars
     # REPEATED_ANT_TEST_TARGET: test-jvm-dtest-some
     # REPEATED_ANT_TEST_TARGET: test-cdc
     # REPEATED_ANT_TEST_TARGET: test-compression
+    # REPEATED_ANT_TEST_TARGET: test-trie
     # REPEATED_ANT_TEST_TARGET: test-system-keyspace-directory
     REPEATED_ANT_TEST_TARGET: testsome
     # The name of JUnit class to be run multiple times, for example:
@@ -322,6 +323,18 @@ j8_separate_jobs: &j8_separate_jobs
     - utests_compression_repeat:
         requires:
           - start_utests_compression_repeat
+          - j8_build
+    - start_utests_trie:
+        type: approval
+    - utests_trie:
+        requires:
+          - start_utests_trie
+          - j8_build
+    - start_utests_trie_repeat:
+        type: approval
+    - utests_trie_repeat:
+        requires:
+          - start_utests_trie_repeat
           - j8_build
     - start_utests_stress:
         type: approval
@@ -558,6 +571,16 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - utests_compression_repeat:
         requires:
           - start_utests_compression
+          - j8_build
+    - start_utests_trie:
+        type: approval
+    - utests_trie:
+        requires:
+          - start_utests_trie
+          - j8_build
+    - utests_trie_repeat:
+        requires:
+          - start_utests_trie
           - j8_build
     - start_utests_stress:
         type: approval
@@ -1018,6 +1041,16 @@ jobs:
       - run_parallel_junit_tests:
           target: testclasslist-compression
 
+  utests_trie:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-trie
+
   utests_stress:
     <<: *j8_seq_executor
     steps:
@@ -1263,6 +1296,14 @@ jobs:
           at: /home/cassandra
       - log_environment
       - run_utests_compression_repeat
+
+  utests_trie_repeat:
+    <<: *j8_repeated_utest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_utests_trie_repeat
 
   utests_system_keyspace_directory_repeat:
     <<: *j8_repeated_utest_executor
@@ -1843,6 +1884,14 @@ commands:
           count: ${REPEATED_UTESTS_COUNT}
           stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
 
+  run_utests_trie_repeat:
+    steps:
+      - run_repeated_utests:
+          target: test-trie
+          tests: ${REPEATED_UTESTS}
+          count: ${REPEATED_UTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+
   run_utests_system_keyspace_directory_repeat:
     steps:
       - run_repeated_utests:
@@ -2097,6 +2146,7 @@ commands:
                 if [[ $target == "test" || \
                       $target == "test-cdc" || \
                       $target == "test-compression" || \
+                      $target == "test-trie" || \
                       $target == "test-system-keyspace-directory" || \
                       $target == "fqltool-test" || \
                       $target == "long-test" || \

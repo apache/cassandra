@@ -67,6 +67,9 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     // memtable was created with the new or old comparator.
     @Unmetered
     protected final ClusteringComparator initialComparator;
+    // As above, used to determine if the memtable needs to be flushed on schema change.
+    @Unmetered
+    public final Factory initialFactory;
 
     private final long creationNano = Clock.Global.nanoTime();
 
@@ -104,6 +107,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         super(metadataRef, commitLogLowerBound);
         this.allocator = MEMORY_POOL.newAllocator(metadataRef.toString());
         this.initialComparator = metadata.get().comparator;
+        this.initialFactory = metadata().params.memtable.factory();
         this.owner = owner;
         scheduleFlush();
     }
@@ -120,7 +124,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         {
         case SCHEMA_CHANGE:
             return initialComparator != metadata().comparator // If the CF comparator has changed, because our partitions reference the old one
-                   || metadata().params.memtable.factory() != factory(); // If a different type of memtable is requested
+                   || !initialFactory.equals(metadata().params.memtable.factory()); // If a different type of memtable is requested
         case OWNED_RANGES_CHANGE:
             return false; // by default we don't use the local ranges, thus this has no effect
         default:
@@ -144,8 +148,6 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     {
         throw new AssertionError("performSnapshot must be implemented if shouldSwitch(SNAPSHOT) can return false.");
     }
-
-    protected abstract Factory factory();
 
     public void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
     {

@@ -75,7 +75,7 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
     // constants for space calculations
     private static final long EMPTY_SIZE_ON_HEAP;
     private static final long EMPTY_SIZE_OFF_HEAP;
-    private static final long REFERENCE_ARRAY_ON_HEAP_SIZE = ObjectSizes.measureDeep(new AtomicReferenceArray(0));
+    private static final long REFERENCE_ARRAY_ON_HEAP_SIZE = ObjectSizes.measureDeep(new AtomicReferenceArray<>(0));
 
     static
     {
@@ -91,7 +91,6 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
               new AtomicReferenceArray[29 - CONTENTS_START_SHIFT],  // takes at least 4 bytes to write pointer to one content -> 4 times smaller than buffers
               NONE);
         this.bufferType = bufferType;
-        assert INITIAL_BUFFER_CAPACITY % BLOCK_SIZE == 0;
     }
 
     // Buffer, content list and block management
@@ -115,11 +114,6 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
     final void putInt(int pos, int value)
     {
         getChunk(pos).putInt(inChunkPointer(pos), value);
-    }
-
-    final void putIntOrdered(int pos, int value)
-    {
-        getChunk(pos).putIntOrdered(inChunkPointer(pos), value);
     }
 
     final void putIntVolatile(int pos, int value)
@@ -149,20 +143,16 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
         // close to the 2G limit.
         int v = allocatedPos;
         if (inChunkPointer(v) == 0)
-            {
+        {
             int leadBit = getChunkIdx(v, BUF_START_SHIFT, BUF_START_SIZE);
-            if (leadBit == 31)
-                        throw new SpaceExhaustedException();
+            if (leadBit + BUF_START_SHIFT == 31)
+                throw new SpaceExhaustedException();
 
-            assert buffers[leadBit] == null;
             ByteBuffer newBuffer = bufferType.allocate(BUF_START_SIZE << leadBit);
             buffers[leadBit] = new UnsafeBuffer(newBuffer);
-            // The above does not contain any happens-before enforcing writes, thus at this point the new buffer may be
-            // invisible to any concurrent readers. Touching the volatile root pointer (which any new read must go
-            // through) enforces a happens-before that makes it visible to all new reads (note: when the write completes
-            // it must do some volatile write, but that will be in the new buffer and without the line below could
-            // remain unreachable by other cores).
-            root = root;
+            // Note: Since we are not moving existing data to a new buffer, we are okay with no happens-before enforcing
+            // writes. Any reader that sees a pointer in the new buffer may only do so after reading the volatile write
+            // that attached the new path.
         }
 
         allocatedPos += BLOCK_SIZE;
@@ -177,11 +167,11 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
         AtomicReferenceArray<T> array = contentArrays[leadBit];
         if (array == null)
         {
-            assert ofs == 0;
+            assert ofs == 0 : "Error in content arrays configuration.";
             contentArrays[leadBit] = array = new AtomicReferenceArray<>(CONTENTS_START_SIZE << leadBit);
         }
         array.lazySet(ofs, value); // no need for a volatile set here; at this point the item is not referenced
-                                            // by any node in the trie, and a volatile set will be made to reference it.
+                                   // by any node in the trie, and a volatile set will be made to reference it.
         return index;
     }
 

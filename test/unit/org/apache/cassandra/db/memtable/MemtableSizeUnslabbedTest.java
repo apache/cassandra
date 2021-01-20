@@ -20,14 +20,11 @@ package org.apache.cassandra.db.memtable;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.MemtablePool;
 
-@RunWith(Parameterized.class)
 public class MemtableSizeUnslabbedTest extends MemtableSizeTestBase
 {
     // Overrides CQLTester.setUpClass to run before it

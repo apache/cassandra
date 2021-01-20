@@ -1187,7 +1187,27 @@
     </sequential>
   </macrodef>
 
-  <macrodef name="testlist-system-keyspace-directory">
+    <macrodef name="testlist-trie">
+        <attribute name="test.file.list" />
+        <sequential>
+            <property name="trie_yaml" value="${build.test.dir}/cassandra.trie.yaml"/>
+            <concat destfile="${trie_yaml}">
+                <fileset file="${test.conf}/cassandra.yaml"/>
+                <fileset file="${test.conf}/trie_memtable.yaml"/>
+            </concat>
+            <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
+                             exclude="**/*.java" timeout="${test.timeout}" testtag="trie">
+                <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+                <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+                <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+                <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+                <jvmarg value="-Dcassandra.config=file:///${trie_yaml}"/>
+                <jvmarg value="-Dcassandra.skip_sync=true" />
+            </testmacrohelper>
+        </sequential>
+    </macrodef>
+
+    <macrodef name="testlist-system-keyspace-directory">
     <attribute name="test.file.list" />
     <sequential>
       <property name="system_keyspaces_directory_yaml" value="${build.test.dir}/cassandra.system.yaml"/>
@@ -1293,6 +1313,14 @@
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testhelper testdelegate="testlist-cdc" />
+  </target>
+
+  <target name="test-trie" depends="build-test" description="Execute unit tests with trie memtables">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-trie" />
   </target>
 
   <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
@@ -1541,6 +1569,13 @@
       </path>
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testhelper testdelegate="testlist-compression"/>
+  </target>
+  <target name="testclasslist-trie" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+    <path id="all-test-classes-path">
+        <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-trie"/>
   </target>
   <target name="testclasslist-cdc" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">

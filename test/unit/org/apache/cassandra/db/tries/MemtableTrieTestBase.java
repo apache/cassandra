@@ -313,6 +313,8 @@ public abstract class MemtableTrieTestBase
 
         assertSameContent(trie, content);
         checkGet(trie, content);
+
+        trie.discardBuffers();
     }
 
     @Test

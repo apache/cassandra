@@ -118,7 +118,6 @@ class MergeTrie<T> extends Trie<T>
             int c2trans = c2.incomingTransition();
             atC1 = c1trans <= c2trans;
             atC2 = c1trans >= c2trans;
-            assert atC1 | atC2;
             return c1depth;
         }
 

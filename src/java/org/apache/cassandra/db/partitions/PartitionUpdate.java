@@ -67,7 +67,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
     public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer();
 
-    private final Holder holder;
+    private final BTreePartitionData holder;
     private final DeletionInfo deletionInfo;
     private final TableMetadata metadata;
 
@@ -75,7 +75,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
     private PartitionUpdate(TableMetadata metadata,
                             DecoratedKey key,
-                            Holder holder,
+                            BTreePartitionData holder,
                             MutableDeletionInfo deletionInfo,
                             boolean canHaveShadowedData)
     {
@@ -97,7 +97,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public static PartitionUpdate emptyUpdate(TableMetadata metadata, DecoratedKey key)
     {
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
-        Holder holder = new Holder(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
+        BTreePartitionData holder = new BTreePartitionData(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
         return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
     }
 
@@ -114,7 +114,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public static PartitionUpdate fullPartitionDelete(TableMetadata metadata, DecoratedKey key, long timestamp, int nowInSec)
     {
         MutableDeletionInfo deletionInfo = new MutableDeletionInfo(timestamp, nowInSec);
-        Holder holder = new Holder(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
+        BTreePartitionData holder = new BTreePartitionData(RegularAndStaticColumns.NONE, BTree.empty(), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
         return new PartitionUpdate(metadata, key, holder, deletionInfo, false);
     }
 
@@ -131,7 +131,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public static PartitionUpdate singleRowUpdate(TableMetadata metadata, DecoratedKey key, Row row, Row staticRow)
     {
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
-        Holder holder = new Holder(
+        BTreePartitionData holder = new BTreePartitionData(
             new RegularAndStaticColumns(
                 staticRow == null ? Columns.NONE : Columns.from(staticRow),
                 row == null ? Columns.NONE : Columns.from(row)
@@ -187,7 +187,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public static PartitionUpdate fromIterator(UnfilteredRowIterator iterator, ColumnFilter filter)
     {
         iterator = UnfilteredRowIterators.withOnlyQueriedData(iterator, filter);
-        Holder holder = build(iterator, 16);
+        BTreePartitionData holder = build(iterator, 16);
         MutableDeletionInfo deletionInfo = (MutableDeletionInfo) holder.deletionInfo;
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
@@ -208,7 +208,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     {
         iterator = RowIterators.withOnlyQueriedData(iterator, filter);
         MutableDeletionInfo deletionInfo = MutableDeletionInfo.live();
-        Holder holder = build(iterator, deletionInfo, true);
+        BTreePartitionData holder = build(iterator, deletionInfo, true);
         return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false);
     }
 
@@ -373,7 +373,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         return holder.columns;
     }
 
-    protected Holder holder()
+    protected BTreePartitionData holder()
     {
         return holder;
     }
@@ -494,7 +494,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     @VisibleForTesting
     public static PartitionUpdate unsafeConstruct(TableMetadata metadata,
                                                   DecoratedKey key,
-                                                  Holder holder,
+                                                  BTreePartitionData holder,
                                                   MutableDeletionInfo deletionInfo,
                                                   boolean canHaveShadowedData)
     {
@@ -690,7 +690,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             MutableDeletionInfo deletionInfo = deletionBuilder.build();
             return new PartitionUpdate(metadata,
                                        header.key,
-                                       new Holder(header.sHeader.columns(), rows, deletionInfo, header.staticRow, header.sHeader.stats()),
+                                       new BTreePartitionData(header.sHeader.columns(), rows, deletionInfo, header.staticRow, header.sHeader.stats()),
                                        deletionInfo,
                                        false);
         }
@@ -800,7 +800,7 @@ public class PartitionUpdate extends AbstractBTreePartition
                        RegularAndStaticColumns columns,
                        int initialRowCapacity,
                        boolean canHaveShadowedData,
-                       Holder holder)
+                       BTreePartitionData holder)
         {
             this(metadata, key, columns, initialRowCapacity, canHaveShadowedData, holder.staticRow, holder.deletionInfo, holder.tree);
         }
@@ -909,11 +909,11 @@ public class PartitionUpdate extends AbstractBTreePartition
             isBuilt = true;
             return new PartitionUpdate(metadata,
                                        partitionKey(),
-                                       new Holder(columns,
-                                                  merged,
-                                                  deletionInfo,
-                                                  staticRow,
-                                                  newStats),
+                                       new BTreePartitionData(columns,
+                                                              merged,
+                                                              deletionInfo,
+                                                              staticRow,
+                                                              newStats),
                                        deletionInfo,
                                        canHaveShadowedData);
         }

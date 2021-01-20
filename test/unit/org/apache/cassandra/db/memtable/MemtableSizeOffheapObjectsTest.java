@@ -20,14 +20,11 @@ package org.apache.cassandra.db.memtable;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 
-@RunWith(Parameterized.class)
 public class MemtableSizeOffheapObjectsTest extends MemtableSizeTestBase
 {
     // Overrides CQLTester.setUpClass to run before it
@@ -41,7 +38,7 @@ public class MemtableSizeOffheapObjectsTest extends MemtableSizeTestBase
     void checkMemtablePool()
     {
         MemtablePool memoryPool = AbstractAllocatorMemtable.MEMORY_POOL;
-        System.out.println("Memtable pool " + memoryPool + " off-heap limit " + memoryPool.offHeap.limit);
+        logger.info("Memtable pool {} off-heap limit {}", memoryPool, memoryPool.offHeap.limit);
         Assert.assertTrue(memoryPool instanceof NativePool);
     }
 }

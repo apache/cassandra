@@ -30,8 +30,6 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 public class HeapPool extends MemtablePool
 {
-    private static final EnsureOnHeap ENSURE_NOOP = new EnsureOnHeap.NoOp();
-
     public HeapPool(long maxOnHeapMemory, float cleanupThreshold, MemtableCleaner cleaner)
     {
         super(maxOnHeapMemory, 0, cleanupThreshold, cleaner);
@@ -59,7 +57,7 @@ public class HeapPool extends MemtablePool
 
         public EnsureOnHeap ensureOnHeap()
         {
-            return ENSURE_NOOP;
+            return EnsureOnHeap.NOOP;
         }
 
         public Cloner cloner(OpOrder.Group opGroup)
@@ -124,7 +122,7 @@ public class HeapPool extends MemtablePool
             @Override
             public EnsureOnHeap ensureOnHeap()
             {
-                return ENSURE_NOOP;
+                return EnsureOnHeap.NOOP;
             }
 
             public Cloner cloner(OpOrder.Group opGroup)

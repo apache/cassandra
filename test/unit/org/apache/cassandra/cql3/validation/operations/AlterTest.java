@@ -22,6 +22,7 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -29,7 +30,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -268,9 +268,9 @@ public class AlterTest extends CQLTester
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
         metadata.updateHostId(UUID.randomUUID(), local);
-        metadata.updateNormalToken(new OrderPreservingPartitioner.StringToken("A"), local);
+        metadata.updateNormalToken(Util.token("A"), local);
         metadata.updateHostId(UUID.randomUUID(), remote);
-        metadata.updateNormalToken(new OrderPreservingPartitioner.StringToken("B"), remote);
+        metadata.updateNormalToken(Util.token("B"), remote);
 
         // With two datacenters we should respect anything passed in as a manual override
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1, '" + DATA_CENTER_REMOTE + "': 3}");
@@ -326,9 +326,9 @@ public class AlterTest extends CQLTester
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
         metadata.updateHostId(UUID.randomUUID(), local);
-        metadata.updateNormalToken(new OrderPreservingPartitioner.StringToken("A"), local);
+        metadata.updateNormalToken(Util.token("A"), local);
         metadata.updateHostId(UUID.randomUUID(), remote);
-        metadata.updateNormalToken(new OrderPreservingPartitioner.StringToken("B"), remote);
+        metadata.updateNormalToken(Util.token("B"), remote);
 
         // Let's create a keyspace first with SimpleStrategy
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 2}");
@@ -363,9 +363,9 @@ public class AlterTest extends CQLTester
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.4");
         metadata.updateHostId(UUID.randomUUID(), local);
-        metadata.updateNormalToken(new OrderPreservingPartitioner.StringToken("A"), local);
+        metadata.updateNormalToken(Util.token("A"), local);
         metadata.updateHostId(UUID.randomUUID(), remote);
-        metadata.updateNormalToken(new OrderPreservingPartitioner.StringToken("B"), remote);
+        metadata.updateNormalToken(Util.token("B"), remote);
 
         DatabaseDescriptor.setDefaultKeyspaceRF(3);
 
@@ -560,6 +560,7 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         assertSchemaOption("memtable", null);
+        Class<? extends Memtable> defaultClass = getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable().getClass();
 
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
@@ -570,7 +571,7 @@ public class AlterTest extends CQLTester
                    + " WITH compression = {'class': 'LZ4Compressor'};");
         assertSchemaOption("memtable", "test_shortname");
 
-        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
+        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), defaultClass);
 
 
         assertAlterTableThrowsException(ConfigurationException.class,

@@ -1,6 +1,6 @@
---- config-2_1.yml	2022-10-15 12:44:53.884924328 +0100
-+++ config-2_1.yml.MIDRES	2022-10-15 12:45:37.963422950 +0100
-@@ -148,14 +148,14 @@
+--- config-2_1.yml	2022-10-19 18:01:31.517748550 +0300
++++ config-2_1.yml.MIDRES	2022-10-19 18:06:26.777068521 +0300
+@@ -149,14 +149,14 @@
  j8_par_executor: &j8_par_executor
    executor:
      name: java8-executor
@@ -19,7 +19,7 @@
  
  j8_small_executor: &j8_small_executor
    executor:
-@@ -163,29 +163,41 @@
+@@ -164,29 +164,41 @@
      exec_resource_class: medium
    parallelism: 1
  
@@ -68,7 +68,7 @@
  
  j11_small_executor: &j11_small_executor
    executor:
-@@ -193,35 +205,47 @@
+@@ -194,35 +206,47 @@
      #exec_resource_class: medium
    parallelism: 1
  
@@ -122,7 +122,7 @@
  
  j8_separate_jobs: &j8_separate_jobs
    jobs:
-@@ -1045,7 +1069,7 @@
+@@ -1078,7 +1102,7 @@
            target: testclasslist-system-keyspace-directory
  
    j8_dtests_vnode:
@@ -131,7 +131,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1059,7 +1083,7 @@
+@@ -1092,7 +1116,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
  
    j11_dtests_vnode:
@@ -140,7 +140,7 @@
      steps:
      - attach_workspace:
          at: /home/cassandra
-@@ -1074,7 +1098,7 @@
+@@ -1107,7 +1131,7 @@
          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
  
    j8_dtests:
@@ -149,7 +149,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1088,7 +1112,7 @@
+@@ -1121,7 +1145,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
  
    j11_dtests:
@@ -158,7 +158,7 @@
      steps:
      - attach_workspace:
          at: /home/cassandra
-@@ -1103,7 +1127,7 @@
+@@ -1136,7 +1160,7 @@
          pytest_extra_args: '--skip-resource-intensive-tests'
  
    j8_upgrade_dtests:
@@ -167,7 +167,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1117,7 +1141,7 @@
+@@ -1150,7 +1174,7 @@
            pytest_extra_args: '--execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all'
  
    j8_cqlsh_dtests_py3_vnode:
@@ -176,7 +176,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1132,7 +1156,7 @@
+@@ -1165,7 +1189,7 @@
            extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
  
    j8_cqlsh_dtests_py38_vnode:
@@ -185,7 +185,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1150,7 +1174,7 @@
+@@ -1183,7 +1207,7 @@
            python_version: '3.8'
  
    j8_cqlsh_dtests_py3:
@@ -194,7 +194,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1165,7 +1189,7 @@
+@@ -1198,7 +1222,7 @@
            extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
  
    j8_cqlsh_dtests_py38:
@@ -203,7 +203,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1183,7 +1207,7 @@
+@@ -1216,7 +1240,7 @@
            python_version: '3.8'
  
    j11_cqlsh_dtests_py3_vnode:
@@ -212,7 +212,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1198,7 +1222,7 @@
+@@ -1231,7 +1255,7 @@
            extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
  
    j11_cqlsh_dtests_py38_vnode:
@@ -221,7 +221,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1216,7 +1240,7 @@
+@@ -1249,7 +1273,7 @@
            python_version: '3.8'
  
    j11_cqlsh_dtests_py3:
@@ -230,7 +230,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -1231,7 +1255,7 @@
+@@ -1264,7 +1288,7 @@
            extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
  
    j11_cqlsh_dtests_py38:

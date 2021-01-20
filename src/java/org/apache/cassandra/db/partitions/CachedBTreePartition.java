@@ -40,7 +40,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
 
     private CachedBTreePartition(TableMetadata metadata,
                                  DecoratedKey partitionKey,
-                                 Holder holder,
+                                 BTreePartitionData holder,
                                  int createdAtInSec,
                                  int cachedLiveRows,
                                  int rowsWithNonExpiringCells)
@@ -80,7 +80,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
      */
     public static CachedBTreePartition create(UnfilteredRowIterator iterator, int initialRowCapacity, int nowInSec)
     {
-        Holder holder = ImmutableBTreePartition.build(iterator, initialRowCapacity);
+        BTreePartitionData holder = ImmutableBTreePartition.build(iterator, initialRowCapacity);
 
         int cachedLiveRows = 0;
         int rowsWithNonExpiringCells = 0;
@@ -180,7 +180,7 @@ public class CachedBTreePartition extends ImmutableBTreePartition implements Cac
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, DeserializationHelper.Flag.LOCAL);
             assert !header.isReversed && header.rowEstimate >= 0;
 
-            Holder holder;
+            BTreePartitionData holder;
             try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, DeserializationHelper.Flag.LOCAL, header))
             {
                 holder = ImmutableBTreePartition.build(partition, header.rowEstimate);

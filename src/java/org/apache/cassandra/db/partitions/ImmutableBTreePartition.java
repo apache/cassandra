@@ -27,7 +27,7 @@ import org.apache.cassandra.db.rows.*;
 public class ImmutableBTreePartition extends AbstractBTreePartition
 {
 
-    protected final Holder holder;
+    protected final BTreePartitionData holder;
     protected final TableMetadata metadata;
 
     public ImmutableBTreePartition(TableMetadata metadata,
@@ -40,12 +40,12 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
     {
         super(partitionKey);
         this.metadata = metadata;
-        this.holder = new Holder(columns, tree, deletionInfo, staticRow, stats);
+        this.holder = new BTreePartitionData(columns, tree, deletionInfo, staticRow, stats);
     }
 
     protected ImmutableBTreePartition(TableMetadata metadata,
                                       DecoratedKey partitionKey,
-                                      Holder holder)
+                                      BTreePartitionData holder)
     {
         super(partitionKey);
         this.metadata = metadata;
@@ -119,7 +119,7 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
         return metadata;
     }
 
-    protected Holder holder()
+    protected BTreePartitionData holder()
     {
         return holder;
     }
