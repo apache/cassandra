@@ -149,11 +149,6 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     @Override
     public boolean hasSlice()
     {
-        for (SingleRestriction restriction : restrictions)
-        {
-            if (restriction.isSlice())
-                return true;
-        }
-        return false;
+        return restrictions.hasSlice();
     }
 }
