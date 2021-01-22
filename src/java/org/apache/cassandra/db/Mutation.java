@@ -65,20 +65,29 @@ public class Mutation implements IMutation
 
     public Mutation(PartitionUpdate update)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now());
+        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
     }
 
     public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
     {
+        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()));
+    }
+
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled)
+    {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
-
-        boolean cdc = false;
-        for (PartitionUpdate pu : modifications.values())
-            cdc |= pu.metadata().params.cdc;
-        this.cdcEnabled = cdc;
+        this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
+    }
+
+    private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
+    {
+        boolean cdc = false;
+        for (PartitionUpdate pu : modifications)
+            cdc |= pu.metadata().params.cdc;
+        return cdc;
     }
 
     public Mutation without(Set<TableId> tableIds)
