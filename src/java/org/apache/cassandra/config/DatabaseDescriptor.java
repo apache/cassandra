@@ -271,8 +271,8 @@ public class DatabaseDescriptor
 
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
-                                   ? new YamlConfigurationLoader()
-                                   : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
+                                     ? new YamlConfigurationLoader()
+                                     : FBUtilities.construct(loaderClass, "configuration loading");
         Config config = loader.loadConfig();
 
         if (!hasLoggedConfig)
@@ -333,7 +333,7 @@ public class DatabaseDescriptor
 
         applyRequestScheduler();
 
-        applyInitialTokens();
+        applyTokensConfig();
 
         applySeedProvider();
 
@@ -513,7 +513,7 @@ public class DatabaseDescriptor
         if (conf.cdc_total_space_in_mb == 0)
         {
             int preferredSize = 4096;
-            int minSize = 0;
+            int minSize;
             try
             {
                 // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
@@ -616,7 +616,7 @@ public class DatabaseDescriptor
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
-        if (conf.num_tokens > MAX_NUM_TOKENS)
+        if (conf.num_tokens != null && conf.num_tokens > MAX_NUM_TOKENS)
             throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS), false);
 
         try
@@ -827,7 +827,7 @@ public class DatabaseDescriptor
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown listen_address '" + config.listen_address + "'", false);
+                throw new ConfigurationException("Unknown listen_address '" + config.listen_address + '\'', false);
             }
 
             if (listenAddress.isAnyLocalAddress())
@@ -847,7 +847,7 @@ public class DatabaseDescriptor
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown broadcast_address '" + config.broadcast_address + "'", false);
+                throw new ConfigurationException("Unknown broadcast_address '" + config.broadcast_address + '\'', false);
             }
 
             if (broadcastAddress.isAnyLocalAddress())
@@ -888,7 +888,7 @@ public class DatabaseDescriptor
             }
             catch (UnknownHostException e)
             {
-                throw new ConfigurationException("Unknown broadcast_rpc_address '" + config.broadcast_rpc_address + "'", false);
+                throw new ConfigurationException("Unknown broadcast_rpc_address '" + config.broadcast_rpc_address + '\'', false);
             }
 
             if (broadcastRpcAddress.isAnyLocalAddress())
@@ -942,16 +942,38 @@ public class DatabaseDescriptor
             throw new ConfigurationException("The seed provider lists no seeds.", false);
     }
 
-    public static void applyInitialTokens()
+    public static void applyTokensConfig()
+    {
+        applyTokensConfig(conf);
+    }
+
+    static void applyTokensConfig(Config conf)
     {
         if (conf.initial_token != null)
         {
             Collection<String> tokens = tokensFromString(conf.initial_token);
+            if (conf.num_tokens == null)
+            {
+                if (tokens.size() == 1)
+                    conf.num_tokens = 1;
+                else
+                    throw new ConfigurationException("initial_token was set but num_tokens is not!", false);
+            }
+
             if (tokens.size() != conf.num_tokens)
-                throw new ConfigurationException("The number of initial tokens (by initial_token) specified is different from num_tokens value", false);
+            {
+                throw new ConfigurationException(String.format("The number of initial tokens (by initial_token) specified (%s) is different from num_tokens value (%s)",
+                                                               tokens.size(),
+                                                               conf.num_tokens),
+                                                 false);
+            }
 
             for (String token : tokens)
                 partitioner.getTokenFactory().validate(token);
+        }
+        else if (conf.num_tokens == null)
+        {
+            conf.num_tokens = 1;
         }
     }
 
@@ -1008,18 +1030,14 @@ public class DatabaseDescriptor
         EndpointSnitchInfo.create();
 
         localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
-        localComparator = new Comparator<InetAddress>()
-        {
-            public int compare(InetAddress endpoint1, InetAddress endpoint2)
-            {
-                boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
-                boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
-                if (local1 && !local2)
-                    return -1;
-                if (local2 && !local1)
-                    return 1;
-                return 0;
-            }
+        localComparator = (endpoint1, endpoint2) -> {
+            boolean local1 = localDC.equals(snitch.getDatacenter(endpoint1));
+            boolean local2 = localDC.equals(snitch.getDatacenter(endpoint2));
+            if (local1 && !local2)
+                return -1;
+            if (local2 && !local1)
+                return 1;
+            return 0;
         };
     }
 
@@ -1373,7 +1391,7 @@ public class DatabaseDescriptor
 
     public static Collection<String> tokensFromString(String tokenString)
     {
-        List<String> tokens = new ArrayList<String>();
+        List<String> tokens = new ArrayList<>();
         if (tokenString != null)
             for (String token : StringUtils.split(tokenString, ','))
                 tokens.add(token.trim());
@@ -2054,7 +2072,7 @@ public class DatabaseDescriptor
     public static File getSerializedCachePath(CacheType cacheType, String version, String extension)
     {
         String name = cacheType.toString()
-                + (version == null ? "" : "-" + version + "." + extension);
+                + (version == null ? "" : '-' + version + '.' + extension);
         return new File(conf.saved_caches_directory, name);
     }
 

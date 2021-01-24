@@ -47,6 +47,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
@@ -65,6 +66,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
 import org.apache.cassandra.distributed.shared.MessageFilters;
+import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
@@ -226,6 +228,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             throw new IllegalStateException("Cannot get live member count on shutdown instance");
         }
 
+        public Metrics metrics()
+        {
+            if (isShutdown)
+                throw new IllegalStateException();
+
+            return delegate.metrics();
+        }
+
         public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
         {
             return delegate().nodetoolResult(withNotifications, commandAndArgs);
@@ -331,7 +341,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         NetworkTopology topology = NetworkTopology.build(ipPrefix, broadcastPort, nodeIdTopology);
 
         InstanceConfig config = InstanceConfig.generate(nodeNum, ipAddress, topology, root, String.valueOf(token), seedIp, datadirCount);
-        config.set("dtest.api.cluster_id", clusterId.toString());
+        config.set(Constants.KEY_DTEST_API_CLUSTER_ID, clusterId.toString());
         if (configUpdater != null)
             configUpdater.accept(config);
 

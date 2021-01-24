@@ -25,7 +25,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="3.11.9"/>
+    <property name="base.version" value="3.11.10"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -424,7 +424,7 @@
           </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.6" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.6" />
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7" />
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
              <exclusion groupId="commons-lang" artifactId="commons-lang"/>
@@ -501,6 +501,7 @@
         <developer id="dbrosius" name="David Brosiusd"/>
         <developer id="dikang" name="Dikang Gu"/>
         <developer id="eevans" name="Eric Evans"/>
+        <developer id="edimitrova" name="Ekaterina Dimitrova"/>
         <developer id="gdusbabek" name="Gary Dusbabek"/>
         <developer id="goffinet" name="Chris Goffinet"/>
         <developer id="ifesdjeen" name="Alex Petrov"/>

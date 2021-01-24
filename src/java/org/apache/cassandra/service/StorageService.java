@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nullable;
@@ -116,6 +117,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
+    public static final int SCHEMA_DELAY_MILLIS = getSchemaDelay();
+
+    private static final boolean REQUIRE_SCHEMAS = !Boolean.getBoolean("cassandra.skip_schema_check");
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
@@ -138,6 +142,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
             return 30 * 1000;
+    }
+
+    private static int getSchemaDelay()
+    {
+        String newdelay = System.getProperty("cassandra.schema_delay_ms");
+        if (newdelay != null)
+        {
+            logger.info("Overriding SCHEMA_DELAY_MILLIS to {}ms", newdelay);
+            return Integer.parseInt(newdelay);
+        }
+        else
+        {
+            return 30 * 1000;
+        }
     }
 
     /* This abstraction maintains the token/endpoint metadata information */
@@ -329,6 +347,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (gossipActive)
         {
+            if (!isNormal())
+                throw new IllegalStateException("Unable to stop gossip because the node is not in the normal state. Try to stop the node instead.");
+
             logger.warn("Stopping gossip by operator request");
 
             if (isNativeTransportRunning())
@@ -809,6 +830,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting
     public void prepareToJoin() throws ConfigurationException
     {
+        MigrationCoordinator.instance.start();
         if (!joined)
         {
             Map<ApplicationState, VersionedValue> appStates = new EnumMap<>(ApplicationState.class);
@@ -896,32 +918,38 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+
     public void waitForSchema(int delay)
     {
         // first sleep the delay to make sure we see all our peers
-        for (int i = 0; i < delay; i += 1000)
+        for (long i = 0; i < delay; i += 1000)
         {
             // if we see schema, we can proceed to the next check directly
-            if (!Schema.instance.getVersion().equals(SchemaConstants.emptyVersion))
+            if (!Schema.instance.isEmpty())
             {
-                logger.debug("got schema: {}", Schema.instance.getVersion());
+                logger.debug("current schema version: {}", Schema.instance.getVersion());
                 break;
             }
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
         }
-        // if our schema hasn't matched yet, wait until it has
-        // we do this by waiting for all in-flight migration requests and responses to complete
-        // (post CASSANDRA-1391 we don't expect this to be necessary very often, but it doesn't hurt to be careful)
-        if (!MigrationManager.isReadyForBootstrap())
-        {
-            setMode(Mode.JOINING, "waiting for schema information to complete", true);
-            MigrationManager.waitUntilReadyForBootstrap();
-        }
+
+        boolean schemasReceived = MigrationCoordinator.instance.awaitSchemaRequests(SCHEMA_DELAY_MILLIS);
+
+        if (schemasReceived)
+            return;
+
+        logger.warn(String.format("There are nodes in the cluster with a different schema version than us we did not merged schemas from, " +
+                                  "our version : (%s), outstanding versions -> endpoints : %s",
+                                  Schema.instance.getVersion(),
+                                  MigrationCoordinator.instance.outstandingVersions()));
+
+        if (REQUIRE_SCHEMAS)
+            throw new RuntimeException("Didn't receive schemas for all known versions within the timeout");
     }
 
     @VisibleForTesting
-    public void joinTokenRing(int delay) throws ConfigurationException
-{
+    private void joinTokenRing(int delay) throws ConfigurationException
+    {
         joined = true;
 
         // We bootstrap if we haven't successfully bootstrapped before, as long as we are not a seed.
@@ -1477,6 +1505,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setIncrementalBackupsEnabled(boolean value)
     {
         DatabaseDescriptor.setIncrementalBackupsEnabled(value);
+    }
+
+    @VisibleForTesting // only used by test
+    public void setMovingModeUnsafe()
+    {
+        setMode(Mode.MOVING, true);
+    }
+
+    /**
+     * Only used in jvm dtest when not using GOSSIP.
+     * See org.apache.cassandra.distributed.impl.Instance#initializeRing(org.apache.cassandra.distributed.api.ICluster)
+     */
+    @VisibleForTesting
+    public void setNormalModeUnsafe()
+    {
+        setMode(Mode.NORMAL, true);
     }
 
     private void setMode(Mode m, boolean log)
@@ -2061,7 +2105,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         break;
                     case SCHEMA:
                         SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(value.value), executor);
-                        MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
+                        MigrationCoordinator.instance.reportEndpointVersion(endpoint, UUID.fromString(value.value));
                         break;
                     case HOST_ID:
                         SystemKeyspace.updatePeerInfo(endpoint, "host_id", UUID.fromString(value.value), executor);
@@ -2822,13 +2866,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
-        MigrationManager.instance.scheduleSchemaPull(endpoint, epState);
+        MigrationCoordinator.instance.reportEndpointVersion(endpoint, epState);
     }
 
     public void onAlive(InetAddress endpoint, EndpointState state)
     {
-        MigrationManager.instance.scheduleSchemaPull(endpoint, state);
-
         if (tokenMetadata.isMember(endpoint))
             notifyUp(endpoint);
     }
@@ -4521,6 +4563,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return operationMode == Mode.DRAINING;
     }
 
+    public boolean isNormal()
+    {
+        return operationMode == Mode.NORMAL;
+    }
+
     public String getDrainProgress()
     {
         return String.format("Drained %s/%s ColumnFamilies", remainingCFs, totalCFs);
@@ -4740,6 +4787,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (isShutdown()) // do not rely on operationMode in case it gets changed to decomissioned or other
             throw new IllegalStateException(String.format("Unable to start %s because the node was drained.", service));
+
+        if (!isNormal())
+            throw new IllegalStateException(String.format("Unable to start %s because the node is not in the normal state.", service));
     }
 
     // Never ever do this at home. Used by tests.
@@ -5328,5 +5378,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
         }
+    }
+
+    @Override
+    public Map<String, Set<InetAddress>> getOutstandingSchemaVersions()
+    {
+        Map<UUID, Set<InetAddress>> outstanding = MigrationCoordinator.instance.outstandingVersions();
+        return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), Entry::getValue));
     }
 }

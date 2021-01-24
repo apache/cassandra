@@ -42,6 +42,27 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.11.10
+=====
+Upgrading
+---------
+    - This release fix a correctness issue with SERIAL reads, and LWT writes that do not apply.
+      Unfortunately, this fix has a performance impact on read performance at the SERIAL or
+      LOCAL_SERIAL consistency levels. For heavy users of such SERIAL reads, the performance
+      impact may be noticeable and may also result in an increased of timeouts. For that
+      reason, a opt-in system property has been added to disable the fix:
+        -Dcassandra.unsafe.disable-serial-reads-linearizability=true
+      Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
+      previous versions. See CASSANDRA-12126 for details.
+    - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
+      If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
+      the node will not start. See CASSANDRA-14477 for details.
+    - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
+      it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
+      lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
+      logged, and the setting reverted to the default value of 1GB. It is up to the user to correct the setting
+      after an upgrade, via dropping and recreating the index. See CASSANDRA-16071 for details.
+
 3.11.9
 ======
 Upgrading
@@ -57,6 +78,7 @@ Upgrading
 ---------
     - Nothing specific to this release, but please see previous upgrading sections,
       especially if you are upgrading from 3.0.
+
 
 3.11.6
 ======

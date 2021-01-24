@@ -60,7 +60,7 @@ public class SEPExecutorTest
 
         for (int idx = 0; idx < 20; idx++)
         {
-            ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), Integer.MAX_VALUE, "STAGE", run + MAGIC + idx);
+            ExecutorService es = sharedPool.newExecutor(FBUtilities.getAvailableProcessors(), "STAGE", run + MAGIC + idx);
             // Write to black hole
             es.execute(() -> nullPrintSteam.println("TEST" + es));
         }

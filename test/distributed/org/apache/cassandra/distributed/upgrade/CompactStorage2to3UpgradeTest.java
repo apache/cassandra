@@ -29,7 +29,10 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.Versions;
-import static org.apache.cassandra.distributed.shared.AssertUtils.*;
+
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.junit.Assert.assertEquals;
 
 public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 {
@@ -313,7 +316,6 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
             recorder.validateResults(cluster, 2);
         }).run();
     }
-
 
     private void runQueries(ICoordinator coordinator, ResultsRecorder helper, String[] queries)
     {
