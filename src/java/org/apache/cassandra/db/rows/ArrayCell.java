@@ -20,19 +20,19 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
+import static org.apache.cassandra.utils.ByteArrayUtil.EMPTY_BYTE_ARRAY;
+
 public class ArrayCell extends AbstractCell<byte[]>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, ByteArrayUtil.EMPTY_BYTE_ARRAY, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ArrayCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, EMPTY_BYTE_ARRAY, null));
 
     private final long timestamp;
     private final int ttl;
@@ -94,6 +94,12 @@ public class ArrayCell extends AbstractCell<byte[]>
     public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
         return new ArrayCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);
+    }
+
+    @Override
+    public Cell<?> withSkippedValue()
+    {
+        return new ArrayCell(column, timestamp, ttl, localDeletionTime, EMPTY_BYTE_ARRAY, path);
     }
 
     public Cell<?> copy(AbstractAllocator allocator)

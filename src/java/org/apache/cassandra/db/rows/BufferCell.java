@@ -127,6 +127,11 @@ public class BufferCell extends AbstractCell<ByteBuffer>
         return new BufferCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);
     }
 
+    public Cell<?> withSkippedValue()
+    {
+        return withUpdatedValue(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    }
+
     public Cell<?> copy(AbstractAllocator allocator)
     {
         if (!value.hasRemaining())
