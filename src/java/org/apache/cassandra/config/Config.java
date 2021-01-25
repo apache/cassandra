@@ -466,6 +466,7 @@ public class Config
     private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
         add("client_encryption_options");
         add("server_encryption_options");
+        add("encryption_options");
     }};
 
     public static void log(Config config)
