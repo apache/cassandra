@@ -124,10 +124,16 @@ New features
 
 Upgrading
 ---------
+    - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request
+      verb were introduced and verbs were renamed. DroppedMessageMetrics pre-4.0 are now available with _REQ suffix. As
+      part of CASSANDRA-16083, we added DroppedMessageMetrics backward compatibility layer which exposes the metrics with
+      their old names too. Only the value for verbs READ and RANGE_SLICE will differ from the same metrics in 3.11 as it
+      does not include anymore the responses dropped, only the requests. After being deprecated in 3.11 PAGED_RANGE was
+      fully removed in 4.0. ConditionNotMet metric has been moved under scope CASClientWriteRequestMetrtic but as part of
+      CASSANDRA-16083, backward compatibility layer was added so it can be still exposed under the old 3.11 scope.
     - Native protocol v5 is promoted from beta in this release. The wire format has changed
       significantly and users should take care to ensure client drivers are upgraded to a version
       with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299)
-
     - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
       replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.

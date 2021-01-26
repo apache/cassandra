@@ -121,10 +121,9 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff311() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=ThreadPools.*",
+        List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=ThreadPools.*", //lazy initialization in 4.0
                                                     "org.apache.cassandra.internal:.*",
-                                                    "org.apache.cassandra.metrics:type=DroppedMessage.*",
-                                                    "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
+                                                    "org.apache.cassandra.metrics:type=DroppedMessage,scope=PAGED_RANGE.*", //it was deprecated in the previous major version
                                                     "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
                                                     "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
                                                     "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939

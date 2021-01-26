@@ -43,7 +43,7 @@ public class LatencyMetrics
 
     /** parent metrics to replicate any updates to **/
     private List<LatencyMetrics> parents = Lists.newArrayList();
-    private List<LatencyMetrics> children = Lists.newArrayList();
+    private final List<LatencyMetrics> children = Lists.newArrayList();
 
     protected final MetricNameFactory factory;
     protected final MetricNameFactory aliasFactory;
