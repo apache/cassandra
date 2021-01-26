@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.upgrade;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -31,36 +32,37 @@ import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertNotEquals;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.distributed.shared.ClusterUtils.awaitRingJoin;
 import static org.apache.cassandra.distributed.shared.Versions.Major;
 
-/**
- * Tests that repair only works on mixed mode clusters if there isn't a major upgrade. Otherwise, repair attempts will
- * be rejected with an informative message.
- */
 public class MixedModeRepairTest extends UpgradeTestBase
 {
+    public static final int UPGRADED_NODE = 1;
     public static final String CREATE_TABLE = withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c))");
     public static final String INSERT = withKeyspace("INSERT INTO %s.t (k, c, v) VALUES (?, ?, ?)");
     public static final String SELECT = withKeyspace("SELECT * FROM %s.t WHERE k=?");
 
+    /**
+     * Test that repairs fail during a major upgrade. If the repaired node is >= 4.0 thanks to CASSANDRA-13944 there
+     * will be an informative message. Otherwise, if the repaired node is below 4.0, there won't be such an informative
+     * message and the repair will take very long to timeout.
+     */
     @Test
-    public void testMixedModeRepair() throws Throwable
+    public void testRepairDuringMajorUpgrade() throws Throwable
     {
         new UpgradeTestBase.TestCase()
         .nodes(2)
-        .nodesToUpgrade(2)
+        .nodesToUpgrade(UPGRADED_NODE)
         .upgrade(Major.v30, Major.v4)
         .upgrade(Major.v3X, Major.v4)
         .withConfig(config -> config.with(NETWORK, GOSSIP))
-        .setup(cluster -> cluster.schemaChange(withKeyspace(CREATE_TABLE)))
+        .setup(cluster -> {
+            cluster.schemaChange(CREATE_TABLE);
+            cluster.setUncaughtExceptionsFilter(throwable -> throwable instanceof RejectedExecutionException);
+        })
         .runAfterNodeUpgrade((cluster, node) -> {
-
-            awaitRingJoin(cluster.get(1), cluster.get(2));
 
             // run the repair scenario in both the upgraded and the not upgraded node
             for (int repairedNode = 1; repairedNode <= cluster.size(); repairedNode++)
@@ -77,24 +79,35 @@ public class MixedModeRepairTest extends UpgradeTestBase
                 cluster.get(2).executeInternal(INSERT, row2);
                 cluster.get(2).flush(KEYSPACE);
 
-                // in case of a major upgrade repair should be rejected and the data should remain unrepaired
-                try
+                // in case of repairing the upgraded node the repair should be rejected with a decriptive error in both
+                // nodetool output and logs (see CASSANDRA-13944)
+                if (repairedNode == UPGRADED_NODE)
                 {
-                    IUpgradeableInstance instance = cluster.get(repairedNode);
                     String errorMessage = "Repair is not supported in mixed major version clusters";
-                    CompletableFuture.supplyAsync(() -> instance.nodetoolResult("repair", "--full", KEYSPACE)
-                                                                .asserts()
-                                                                .errorContains(errorMessage))
-                                     .get(10, TimeUnit.SECONDS);
-                    assertEquals("Repair should cleanly fail in the upgraded node", node, repairedNode);
-                    assertLogHas(cluster, 2, errorMessage);
+                    cluster.get(repairedNode)
+                           .nodetoolResult("repair", "--full", KEYSPACE)
+                           .asserts()
+                           .errorContains(errorMessage);
+                    assertLogHas(cluster, repairedNode, errorMessage);
                 }
                 // if the node issuing the repair is the not updated node we don't have specific error management,
-                // and nodetool repair doesn't end waiting
-                catch (TimeoutException e)
+                // so the repair will produce a failure in the upgraded node, and it will take one hour to time out in
+                // the not upgraded node. Since we don't want to wait that long, we only wait a few seconds for the
+                // repair before verifying the "unknown verb id" error in the upgraded node.
+                else
                 {
-                    assertNotEquals("Repair should time out in the not upgraded node", node, repairedNode);
-                    assertLogHas(cluster, 2, "unexpected exception caught while processing inbound messages");
+                    try
+                    {
+                        IUpgradeableInstance instance = cluster.get(repairedNode);
+                        CompletableFuture.supplyAsync(() -> instance.nodetoolResult("repair", "--full", KEYSPACE))
+                                         .get(10, TimeUnit.SECONDS);
+                        fail("Repair in the not upgraded node should have timed out");
+                    }
+                    catch (TimeoutException e)
+                    {
+                        assertLogHas(cluster, UPGRADED_NODE, "unexpected exception caught while processing inbound messages");
+                        assertLogHas(cluster, UPGRADED_NODE, "java.lang.IllegalArgumentException: Unknown verb id");
+                    }
                 }
 
                 // verify that the previous failed repair hasn't repaired the data
