@@ -496,10 +496,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         instance.sync(() -> {
             try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
             {
-                // execute the schema change
-                instance.coordinator().execute(query, ConsistencyLevel.ALL);
                 if (ignoreStoppedInstances)
                     monitor.ignoreStoppedInstances();
+                monitor.startPolling();
+
+                // execute the schema change
+                instance.coordinator().execute(query, ConsistencyLevel.ALL);
                 monitor.waitForCompletion();
             }
         }).run();
@@ -535,7 +537,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         private final long timeOut;
         private final TimeUnit timeoutUnit;
         protected Predicate<IInstance> instanceFilter;
-        volatile boolean changed;
+        volatile boolean initialized;
 
         public ChangeMonitor(long timeOut, TimeUnit timeoutUnit)
         {
@@ -553,7 +555,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         protected void signal()
         {
-            if (changed && isCompleted())
+            if (initialized && !completed.isSignaled() && isCompleted())
                 completed.signalAll();
         }
 
@@ -566,21 +568,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         public void waitForCompletion()
         {
-            startPolling();
-            changed = true;
+            initialized = true;
             signal();
             try
             {
                 if (!completed.await(timeOut, timeoutUnit))
-                    throw new InterruptedException();
+                    throw new IllegalStateException(getMonitorTimeoutMessage());
             }
             catch (InterruptedException e)
             {
-                throw new IllegalStateException(getMonitorTimeoutMessage());
+                throw new IllegalStateException("Caught exception while waiting for completion", e);
             }
         }
 
-        private void startPolling()
+        protected void startPolling()
         {
             instances.stream().filter(instanceFilter).forEach(instance -> cleanup.add(startPolling(instance)));
         }
@@ -622,7 +623,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         protected String getMonitorTimeoutMessage()
         {
-            return "Schema agreement not reached";
+            return String.format("Schema agreement not reached. Schema versions of the instances: %s",
+                                 instances.stream().map(IInstance::schemaVersion).collect(Collectors.toList()));
         }
     }
 
@@ -655,6 +657,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         Thread.setDefaultUncaughtExceptionHandler(this::uncaughtExceptions);
         try (AllMembersAliveMonitor monitor = new AllMembersAliveMonitor())
         {
+            monitor.startPolling();
+
             // Start any instances with auto_bootstrap enabled first, and in series to avoid issues
             // with multiple nodes bootstrapping with consistent range movement enabled,
             // and then start any instances with it disabled in parallel.
