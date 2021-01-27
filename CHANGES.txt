@@ -1,4 +1,5 @@
 4.0-beta5
+ * Move excessive repair debug loggings to trace level (CASSANDRA-16406)
  * Restore validation of each message's protocol version (CASSANDRA-16374)
  * Upgrade netty and chronicle-queue dependencies to get Auditing and native library loading working on arm64 architectures (CASSANDRA-16384,CASSANDRA-16392)
  * Release StreamingTombstoneHistogramBuilder spool when switching writers (CASSANDRA-14834)

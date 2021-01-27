@@ -300,7 +300,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         // We need to difference all trees one against another
         DifferenceHolder diffHolder = new DifferenceHolder(trees);
 
-        logger.debug("diffs = {}", diffHolder);
+        logger.trace("diffs = {}", diffHolder);
         PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
                                                 candidates.stream()
                                                           .filter(node -> getDC.apply(streaming)
@@ -325,7 +325,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     List<Range<Token>> toFetch = new ArrayList<>(streamsFor.get(fetchFrom));
                     assert !toFetch.isEmpty();
 
-                    logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
+                    logger.trace("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
                     SyncTask task;
                     if (address.equals(local))
                     {
@@ -342,12 +342,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
             else
             {
-                logger.debug("Node {} has nothing to stream", address);
+                logger.trace("Node {} has nothing to stream", address);
             }
         }
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
                     syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
-        logger.debug("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
+        logger.trace("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
         return syncTasks;
     }
 
