@@ -52,7 +52,7 @@ class CqlshCompletionCase(BaseTestCase):
         remove_db()
 
     def setUp(self):
-        env = os.environ
+        env = os.environ.copy()
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
              env['LC_CTYPE'] = 'en_US.utf8'
