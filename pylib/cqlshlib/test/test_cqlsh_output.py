@@ -47,7 +47,7 @@ class TestCqlshOutput(BaseTestCase):
         remove_db()
 
     def setUp(self):
-        env = os.environ
+        env = os.environ.copy()
         env['COLUMNS'] = '100000'
         # carry forward or override locale LC_CTYPE for UTF-8 encoding
         if (locale.getpreferredencoding() != 'UTF-8'):
