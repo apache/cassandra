@@ -139,6 +139,7 @@ import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCass
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
     public final IInstanceConfig config;
+    private volatile boolean initialized = false;
     private final long startedAt = System.nanoTime();
 
     // should never be invoked directly, so that it is instantiated on other class loader;
@@ -533,6 +534,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 throw new RuntimeException(t);
             }
         }).run();
+
+        initialized = true;
     }
 
 
@@ -697,6 +700,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public int liveMemberCount()
     {
+        if (!initialized || isShutdown())
+            return 0;
+
         return sync(() -> {
             if (!DatabaseDescriptor.isDaemonInitialized() || !Gossiper.instance.isEnabled())
                 return 0;
