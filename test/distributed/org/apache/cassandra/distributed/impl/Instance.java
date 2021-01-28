@@ -129,6 +129,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 public class Instance extends IsolatedExecutor implements IInvokableInstance
 {
     public final IInstanceConfig config;
+    private volatile boolean initialized = false;
 
     // should never be invoked directly, so that it is instantiated on other class loader;
     // only visible for inheritance
@@ -629,6 +630,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 throw new RuntimeException(t);
             }
         }).run();
+
+        initialized = true;
     }
 
     private void mkdirs()
@@ -796,6 +799,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public int liveMemberCount()
     {
+        if (!initialized || isShutdown())
+            return 0;
+
         return sync(() -> {
             if (!DatabaseDescriptor.isDaemonInitialized() || !Gossiper.instance.isEnabled())
                 return 0;
