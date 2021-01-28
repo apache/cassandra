@@ -152,7 +152,7 @@ ReadRepairRequests                              Meter          Throughput for mu
 ShortReadProtectionRequests                     Meter          Throughput for requests to get extra rows during short read protection.
 ReplicaFilteringProtectionRequests              Meter          Throughput for row completion requests during replica filtering protection.
 ReplicaFilteringProtectionRowsCachedPerQuery    Histogram      Histogram of the number of rows cached per query when replica filtering protection is engaged.
-============================================    ============== ===========
+=============================================== ============== ===========
 
 Keyspace Metrics
 ^^^^^^^^^^^^^^^^
