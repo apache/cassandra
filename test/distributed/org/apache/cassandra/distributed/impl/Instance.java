@@ -269,7 +269,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 return false;
             IVersionedAsymmetricSerializer payloadSerializer = message.header.verb.serializer();
             if (null == payloadSerializer)
-                payloadSerializer = MessagingService.instance().callbacks.getResponseSerializer(message.header.id, message.header.from);
+                payloadSerializer = MessagingService.instance().callbacks.responseSerializer(message.header.id, message.header.from);
 
             IMessage serialized = serializeMessage(message.from(), toCassandraInetAddressAndPort(broadcastAddress()), message);
             IInstance from = cluster.get(serialized.from());
@@ -322,7 +322,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         {
             IVersionedAsymmetricSerializer<?,?> payloadSerializer = messageOut.header.verb.serializer();
             if (null == payloadSerializer)
-                payloadSerializer = MessagingService.instance().callbacks.getResponseSerializer(messageOut.header.id, messageOut.header.from);
+                payloadSerializer = MessagingService.instance().callbacks.responseSerializer(messageOut.header.id, messageOut.header.from);
 
             Message.serializer.serialize(messageOut, out, toVersion, (IVersionedAsymmetricSerializer) payloadSerializer);
             byte[] bytes = out.toByteArray();

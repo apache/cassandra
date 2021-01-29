@@ -615,7 +615,7 @@ public class Message<T>
         public <T> void serialize(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
             if (version >= VERSION_40)
-                serializePost40(message, out, version);
+                serializePost40(message, out, version, message.header.verb.serializer());
             else
                 serializePre40(message, out, version);
         }
@@ -759,11 +759,6 @@ public class Message<T>
             long expiresAtNanos = getExpiresAtNanos(createdAtNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(expiresInMillis));
 
             return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
-        }
-
-        private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version) throws IOException
-        {
-            serializePost40(message, out, version, message.header.verb.serializer());
         }
 
         private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer) throws IOException
