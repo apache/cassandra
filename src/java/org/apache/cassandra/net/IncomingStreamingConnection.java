@@ -19,8 +19,11 @@ package org.apache.cassandra.net;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Set;
+
+import javax.net.ssl.SSLSocket;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +68,13 @@ public class IncomingStreamingConnection extends Thread implements Closeable
             DataInputPlus input = new DataInputStreamPlus(socket.getInputStream());
             StreamInitMessage init = StreamInitMessage.serializer.deserialize(input, version);
 
+            if (isEncryptionRequired(init.from) && !isEncrypted())
+            {
+                logger.warn("Peer {} attempted to establish an unencrypted streaming connection (broadcast address {})",
+                            socket.getRemoteSocketAddress(), init.from);
+                throw new IOException("Peer " + init.from + " attempted an unencrypted streaming connection");
+            }
+
             //Set SO_TIMEOUT on follower side
             if (!init.isForOutgoing)
                 socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
@@ -100,5 +110,15 @@ public class IncomingStreamingConnection extends Thread implements Closeable
         {
             group.remove(this);
         }
+    }
+
+    private boolean isEncryptionRequired(InetAddress peer)
+    {
+        return DatabaseDescriptor.getServerEncryptionOptions().shouldEncrypt(peer);
+    }
+
+    private boolean isEncrypted()
+    {
+        return socket instanceof SSLSocket;
     }
 }
