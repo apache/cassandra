@@ -244,6 +244,14 @@ public class InboundConnectionInitiator
                 return;
 
             logger.trace("Received handshake initiation message from peer {}, message = {}", ctx.channel().remoteAddress(), initiate);
+
+            if (isEncryptionRequired(initiate.from) && !isChannelEncrypted(ctx))
+            {
+                logger.warn("peer {} attempted to establish an unencrypted connection (broadcast address {})",
+                            ctx.channel().remoteAddress(), initiate.from);
+                failHandshake(ctx);
+            }
+
             if (initiate.acceptVersions != null)
             {
                 logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
@@ -314,6 +322,16 @@ public class InboundConnectionInitiator
                     // we don't setup the messaging pipeline here, as the legacy messaging handshake requires one more message to finish
                 }
             }
+        }
+
+        private boolean isEncryptionRequired(InetAddressAndPort peer)
+        {
+            return !settings.encryption.isExplicitlyOptional() && settings.encryption.shouldEncrypt(peer);
+        }
+
+        private boolean isChannelEncrypted(ChannelHandlerContext ctx)
+        {
+            return ctx.pipeline().get(SslHandler.class) != null;
         }
 
         /**
