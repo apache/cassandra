@@ -26,6 +26,9 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.zip.Checksum;
 import java.util.Set;
 
+import javax.net.ssl.SSLServerSocket;
+import javax.net.ssl.SSLSocket;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +39,7 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.xerial.snappy.SnappyInputStream;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
@@ -151,6 +155,14 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
         DataInputPlus in = new DataInputStreamPlus(socket.getInputStream());
         int maxVersion = in.readInt();
         from = CompactEndpointSerializationHelper.deserialize(in);
+
+        if (isEncryptionRequired(from) && !isEncrypted())
+        {
+            logger.warn("Peer {} attempted to establish an unencrypted connection (broadcast address {})",
+                        socket.getRemoteSocketAddress(), from);
+            throw new IOException("Peer " + from + " attempted an unencrypted connection");
+        }
+
         // record the (true) version of the endpoint
         MessagingService.instance().setVersion(from, maxVersion);
         logger.trace("Set version for {} to {} (will use {})", from, maxVersion, MessagingService.instance().getVersion(from));
@@ -207,5 +219,15 @@ public class IncomingTcpConnection extends FastThreadLocalThread implements Clos
             logger.trace("Received connection from newer protocol version {}. Ignoring message", version);
         }
         return message.from;
+    }
+
+    private boolean isEncryptionRequired(InetAddress peer)
+    {
+        return DatabaseDescriptor.getServerEncryptionOptions().shouldEncrypt(peer);
+    }
+
+    private boolean isEncrypted()
+    {
+        return socket instanceof SSLSocket;
     }
 }

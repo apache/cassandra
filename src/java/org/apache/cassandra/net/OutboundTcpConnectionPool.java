@@ -29,7 +29,6 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.FBUtilities;
@@ -136,7 +135,7 @@ public class OutboundTcpConnectionPool
     public static Socket newSocket(InetAddress endpoint) throws IOException
     {
         // zero means 'bind on any available port.'
-        if (isEncryptedChannel(endpoint))
+        if (DatabaseDescriptor.getServerEncryptionOptions().shouldEncrypt(endpoint))
         {
             return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endpoint, DatabaseDescriptor.getSSLStoragePort());
         }
@@ -153,29 +152,6 @@ public class OutboundTcpConnectionPool
         if (id.equals(FBUtilities.getBroadcastAddress()))
             return FBUtilities.getLocalAddress();
         return resetEndpoint;
-    }
-
-    public static boolean isEncryptedChannel(InetAddress address)
-    {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        switch (DatabaseDescriptor.getServerEncryptionOptions().internode_encryption)
-        {
-            case none:
-                return false; // if nothing needs to be encrypted then return immediately.
-            case all:
-                break;
-            case dc:
-                if (snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddress())))
-                    return false;
-                break;
-            case rack:
-                // for rack then check if the DC's are the same.
-                if (snitch.getRack(address).equals(snitch.getRack(FBUtilities.getBroadcastAddress()))
-                        && snitch.getDatacenter(address).equals(snitch.getDatacenter(FBUtilities.getBroadcastAddress())))
-                    return false;
-                break;
-        }
-        return true;
     }
 
     public void start()

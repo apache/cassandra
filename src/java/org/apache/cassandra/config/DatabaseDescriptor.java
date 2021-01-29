@@ -695,12 +695,14 @@ public class DatabaseDescriptor
         if (conf.index_interval != null)
             logger.warn("index_interval has been deprecated and should be removed from cassandra.yaml");
 
-        if(conf.encryption_options != null)
+        if (conf.encryption_options != null)
         {
             logger.warn("Please rename encryption_options as server_encryption_options in the yaml");
             //operate under the assumption that server_encryption_options is not set in yaml rather than both
             conf.server_encryption_options = conf.encryption_options;
         }
+
+        conf.server_encryption_options.validate();
 
         if (conf.user_defined_function_fail_timeout < 0)
             throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
