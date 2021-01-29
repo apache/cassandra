@@ -267,6 +267,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         MessagingService.instance().inboundSink.add(message -> {
             if (isShutdown())
                 return false;
+            IVersionedAsymmetricSerializer payloadSerializer = message.header.verb.serializer();
+            if (null == payloadSerializer)
+                payloadSerializer = MessagingService.instance().callbacks.getResponseSerializer(message.header.id, message.header.from);
+
             IMessage serialized = serializeMessage(message.from(), toCassandraInetAddressAndPort(broadcastAddress()), message);
             IInstance from = cluster.get(serialized.from());
             if (from == null)
@@ -316,7 +320,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            Message.serializer.serialize(messageOut, out, toVersion);
+            IVersionedAsymmetricSerializer<?,?> payloadSerializer = messageOut.header.verb.serializer();
+            if (null == payloadSerializer)
+                payloadSerializer = MessagingService.instance().callbacks.getResponseSerializer(messageOut.header.id, messageOut.header.from);
+
+            Message.serializer.serialize(messageOut, out, toVersion, (IVersionedAsymmetricSerializer) payloadSerializer);
             byte[] bytes = out.toByteArray();
             if (messageOut.serializedSize(toVersion) != bytes.length)
                 throw new AssertionError(String.format("Message serializedSize(%s) does not match what was written with serialize(out, %s) for verb %s and serializer %s; " +

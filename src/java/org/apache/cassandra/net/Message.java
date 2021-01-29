@@ -619,6 +619,14 @@ public class Message<T>
             else
                 serializePre40(message, out, version);
         }
+        @VisibleForTesting
+        public <T> void serialize(Message<T> message, DataOutputPlus out, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer) throws IOException
+        {
+            if (version >= VERSION_40)
+                serializePost40(message, out, version, payloadSerializer);
+            else
+                serializePre40(message, out, version);
+        }
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
         {
@@ -755,12 +763,13 @@ public class Message<T>
 
         private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version) throws IOException
         {
+            serializePost40(message, out, version, message.header.verb.serializer());
+        }
+
+        private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer) throws IOException
+        {
             serializeHeaderPost40(message.header, out, version);
             out.writeUnsignedVInt(message.payloadSize(version));
-            IVersionedAsymmetricSerializer<T,T> payloadSerializer = message.header.verb.serializer();
-            // per-response serializers are only required for in-jvm dtests for message filtering
-            if (null == payloadSerializer)
-                payloadSerializer = instance().callbacks.get(message.header.id, message.header.from).responseVerb.serializer();
             payloadSerializer.serialize(message.payload, out, version);
         }
 

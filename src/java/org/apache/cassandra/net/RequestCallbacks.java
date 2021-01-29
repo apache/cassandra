@@ -93,6 +93,14 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         return callbacks.remove(key(id, peer));
     }
 
+    @Deprecated // for 3.0 compatibility purposes only
+    @VisibleForTesting
+    public IVersionedAsymmetricSerializer getResponseSerializer(long id, InetAddressAndPort peer)
+    {
+        CallbackInfo callbackInfo = get(id, peer);
+        return callbackInfo == null ? null : callbackInfo.responseVerb.serializer();
+    }
+
     /**
      * Register the provided {@link RequestCallback}, inferring expiry and id from the provided {@link Message}.
      */
