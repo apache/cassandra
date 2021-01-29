@@ -1,8 +1,8 @@
-cassandra (3.0.24) UNRELEASED; urgency=medium
+cassandra (3.0.24) unstable; urgency=medium
 
   * New release
 
- -- Mick Semb Wever <mck@apache.org>  Thu, 29 Oct 2020 12:03:40 +0100
+ -- Alex Petrov <ifesdjeen@apache.org>  Fri, 29 Jan 2021 12:21:05 +0100
 
 cassandra (3.0.23) unstable; urgency=medium
 
