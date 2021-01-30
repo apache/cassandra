@@ -617,7 +617,7 @@ public class Message<T>
             if (version >= VERSION_40)
                 serializePost40(message, out, version, message.header.verb.serializer());
             else
-                serializePre40(message, out, version);
+                serializePre40(message, out, version, message.header.verb.serializer());
         }
         @VisibleForTesting
         public <T> void serialize(Message<T> message, DataOutputPlus out, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer) throws IOException
@@ -625,7 +625,7 @@ public class Message<T>
             if (version >= VERSION_40)
                 serializePost40(message, out, version, payloadSerializer);
             else
-                serializePre40(message, out, version);
+                serializePre40(message, out, version, payloadSerializer);
         }
 
         public <T> Message<T> deserialize(DataInputPlus in, InetAddressAndPort peer, int version) throws IOException
@@ -643,9 +643,9 @@ public class Message<T>
             return version >= VERSION_40 ? deserializePost40(in, header, version) : deserializePre40(in, header, version);
         }
 
-        private <T> int serializedSize(Message<T> message, int version)
+        private <T> int serializedSize(Message<T> message, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer)
         {
-            return version >= VERSION_40 ? serializedSizePost40(message, version) : serializedSizePre40(message, version);
+            return version >= VERSION_40 ? serializedSizePost40(message, version, payloadSerializer) : serializedSizePre40(message, version, payloadSerializer);
         }
 
         /**
@@ -764,7 +764,7 @@ public class Message<T>
         private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer) throws IOException
         {
             serializeHeaderPost40(message.header, out, version);
-            out.writeUnsignedVInt(message.payloadSize(version));
+            out.writeUnsignedVInt(message.payloadSize(version, payloadSerializer));
             payloadSerializer.serialize(message.payload, out, version);
         }
 
@@ -784,11 +784,11 @@ public class Message<T>
             return new Message<>(header, payload);
         }
 
-        private <T> int serializedSizePost40(Message<T> message, int version)
+        private <T> int serializedSizePost40(Message<T> message, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer)
         {
             long size = 0;
             size += serializedHeaderSizePost40(message.header, version);
-            int payloadSize = message.payloadSize(version);
+            int payloadSize = message.payloadSize(version, payloadSerializer);
             size += sizeofUnsignedVInt(payloadSize) + payloadSize;
             return Ints.checkedCast(size);
         }
@@ -913,7 +913,7 @@ public class Message<T>
             return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
-        private <T> void serializePre40(Message<T> message, DataOutputPlus out, int version) throws IOException
+        private <T> void serializePre40(Message<T> message, DataOutputPlus out, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer) throws IOException
         {
             if (message.isFailureResponse())
                 message = toPre40FailureResponse(message);
@@ -922,12 +922,7 @@ public class Message<T>
 
             if (message.payload != null && message.payload != NoPayload.noPayload)
             {
-                IVersionedAsymmetricSerializer<T,T> payloadSerializer = message.header.verb.serializer();
-                // per-response serializers are only required for in-jvm dtests for message filtering
-                if (null == payloadSerializer)
-                    payloadSerializer = instance().callbacks.get(message.header.id, message.header.from).responseVerb.serializer();
-
-                int payloadSize = message.payloadSize(version);
+                int payloadSize = message.payloadSize(version, payloadSerializer);
                 out.writeInt(payloadSize);
                 payloadSerializer.serialize(message.payload, out, version);
             }
@@ -979,14 +974,14 @@ public class Message<T>
             return serializer.deserialize(in, version);
         }
 
-        private <T> int serializedSizePre40(Message<T> message, int version)
+        private <T> int serializedSizePre40(Message<T> message, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer)
         {
             if (message.isFailureResponse())
                 message = toPre40FailureResponse(message);
 
             long size = 0;
             size += serializedHeaderSizePre40(message.header, version);
-            int payloadSize = message.payloadSize(version);
+            int payloadSize = message.payloadSize(version, payloadSerializer);
             size += sizeof(payloadSize);
             size += payloadSize;
             return Ints.checkedCast(size);
@@ -1296,20 +1291,12 @@ public class Message<T>
             return index - readerIndex;
         }
 
-        private <T> int payloadSize(Message<T> message, int version)
+        private <T> int payloadSize(Message<T> message, int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer)
         {
-            if (message.payload != null && message.payload != NoPayload.noPayload)
-            {
-                IVersionedAsymmetricSerializer<T,T> payloadSerializer = message.verb().serializer();
-                if (null == payloadSerializer) // per-response serializers are only required for in-jvm dtests for message filtering
-                    payloadSerializer = instance().callbacks.get(message.header.id, message.header.from).responseVerb.serializer();
-                long payloadSize = payloadSerializer.serializedSize(message.payload, version);
-                return Ints.checkedCast(payloadSize);
-            }
-            else
-            {
-                return 0;
-            }
+            long payloadSize = message.payload != null && message.payload != NoPayload.noPayload
+                               ? payloadSerializer.serializedSize(message.payload, version)
+                               : 0;
+            return Ints.checkedCast(payloadSize);
         }
     }
 
@@ -1317,24 +1304,30 @@ public class Message<T>
     private int serializedSize3014;
     private int serializedSize40;
 
+    public int serializedSize(int version)
+    {
+        return serializedSize(version, verb().serializer());
+    }
+
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
      */
-    public int serializedSize(int version)
+    @VisibleForTesting
+    public int serializedSize(int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer)
     {
         switch (version)
         {
             case VERSION_30:
                 if (serializedSize30 == 0)
-                    serializedSize30 = serializer.serializedSize(this, VERSION_30);
+                    serializedSize30 = serializer.serializedSize(this, VERSION_30, payloadSerializer);
                 return serializedSize30;
             case VERSION_3014:
                 if (serializedSize3014 == 0)
-                    serializedSize3014 = serializer.serializedSize(this, VERSION_3014);
+                    serializedSize3014 = serializer.serializedSize(this, VERSION_3014, payloadSerializer);
                 return serializedSize3014;
             case VERSION_40:
                 if (serializedSize40 == 0)
-                    serializedSize40 = serializer.serializedSize(this, VERSION_40);
+                    serializedSize40 = serializer.serializedSize(this, VERSION_40, payloadSerializer);
                 return serializedSize40;
             default:
                 throw new IllegalStateException();
@@ -1345,21 +1338,21 @@ public class Message<T>
     private int payloadSize3014 = -1;
     private int payloadSize40   = -1;
 
-    private int payloadSize(int version)
+    private int payloadSize(int version, IVersionedAsymmetricSerializer<T, T> payloadSerializer)
     {
         switch (version)
         {
             case VERSION_30:
                 if (payloadSize30 < 0)
-                    payloadSize30 = serializer.payloadSize(this, VERSION_30);
+                    payloadSize30 = serializer.payloadSize(this, VERSION_30, payloadSerializer);
                 return payloadSize30;
             case VERSION_3014:
                 if (payloadSize3014 < 0)
-                    payloadSize3014 = serializer.payloadSize(this, VERSION_3014);
+                    payloadSize3014 = serializer.payloadSize(this, VERSION_3014, payloadSerializer);
                 return payloadSize3014;
             case VERSION_40:
                 if (payloadSize40 < 0)
-                    payloadSize40 = serializer.payloadSize(this, VERSION_40);
+                    payloadSize40 = serializer.payloadSize(this, VERSION_40, payloadSerializer);
                 return payloadSize40;
             default:
                 throw new IllegalStateException();
