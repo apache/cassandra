@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.SortedMap;
 
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -149,27 +150,32 @@ public class Status extends NodeToolCmd
     private void addNode(String endpoint, Float owns, String epDns, String token, int size, boolean hasEffectiveOwns,
                            TableBuilder tableBuilder)
     {
-        String status, state, load, strOwns, hostID, rack;
-        if (liveNodes.contains(endpoint)) status = "U";
-        else if (unreachableNodes.contains(endpoint)) status = "D";
-        else status = "?";
-        if (joiningNodes.contains(endpoint)) state = "J";
-        else if (leavingNodes.contains(endpoint)) state = "L";
-        else if (movingNodes.contains(endpoint)) state = "M";
-        else state = "N";
-
-        String statusAndState = status.concat(state);
-        load = loadMap.getOrDefault(endpoint, "?");
-        strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";
-        hostID = hostIDMap.get(endpoint);
+        String status, state, load, strOwns, hostID, rack, endpointIPAddr;
 
         try
         {
-            rack = epSnitchInfo.getRack(endpoint);
-        } catch (UnknownHostException e)
+            if (resolveIp) endpointIPAddr = InetAddressAndPort.getByName(endpoint).getHostAddress(false);
+            else endpointIPAddr = endpoint;
+
+            rack = epSnitchInfo.getRack(endpointIPAddr);
+        }
+        catch (UnknownHostException e)
         {
             throw new RuntimeException(e);
         }
+
+        if (liveNodes.contains(endpointIPAddr)) status = "U";
+        else if (unreachableNodes.contains(endpointIPAddr)) status = "D";
+        else status = "?";
+        if (joiningNodes.contains(endpointIPAddr)) state = "J";
+        else if (leavingNodes.contains(endpointIPAddr)) state = "L";
+        else if (movingNodes.contains(endpointIPAddr)) state = "M";
+        else state = "N";
+
+        String statusAndState = status.concat(state);
+        load = loadMap.getOrDefault(endpointIPAddr, "?");
+        strOwns = owns != null && hasEffectiveOwns ? new DecimalFormat("##0.0%").format(owns) : "?";
+        hostID = hostIDMap.get(endpointIPAddr);
 
         if (isTokenPerNode)
         {
