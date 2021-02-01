@@ -1,4 +1,6 @@
 3.11.11
+Merged from 2.2:
+ * Make TokenMetadata's ring version increments atomic (CASSANDRA-16286)
 
 
 3.11.10
