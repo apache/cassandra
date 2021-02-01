@@ -1,3 +1,9 @@
+cassandra (3.11.11) UNRELEASED; urgency=medium
+
+  * New release
+
+ -- Alex Petrov <ifesdjeen@apache.org>  Mon, 1 Feb 2021 16:01:13 +0100
+
 cassandra (3.11.10) unstable; urgency=medium
 
   * New release
