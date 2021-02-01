@@ -1,3 +1,6 @@
+3.0.25:
+
+
 3.0.24:
  * Prevent unbounded number of pending flushing tasks; Add PendingFlushTasks metric (CASSANDRA-16261)
  * Improve empty hint file handling during startup (CASSANDRA-16162)
