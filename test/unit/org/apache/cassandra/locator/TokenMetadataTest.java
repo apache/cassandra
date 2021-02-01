@@ -21,6 +21,9 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterators;
@@ -67,6 +70,27 @@ public class TokenMetadataTest
         assertEquals(actual.toString(), expected.length, actual.size());
         for (int i = 0; i < expected.length; i++)
             assertEquals("Mismatch at index " + i + ": " + actual, token(expected[i]), actual.get(i));
+    }
+
+    /**
+     * This test is very likely (but not guaranteed) to fail if ring invalidations are ever allowed to interleave.
+     */
+    @Test
+    public void testConcurrentInvalidation() throws InterruptedException
+    {
+        long startVersion = tmd.getRingVersion();
+
+        ExecutorService pool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() + 1);
+        
+        int invalidations = 1024;
+        
+        for (int i = 0; i < invalidations; i++)
+            pool.execute(() -> tmd.invalidateCachedRings());
+
+        pool.shutdown();
+        
+        assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
+        assertEquals(invalidations + startVersion, tmd.getRingVersion());
     }
 
     @Test
