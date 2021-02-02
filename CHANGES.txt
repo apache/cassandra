@@ -1,4 +1,5 @@
 4.0-beta5
+ * Add access and datacenters to unreserved keywords (CASSANDRA-16398)
  * Fix nodetool ring, status output when DNS resolution or port printing are in use (CASSANDRA-16283)
  * Upgrade Jacoco to 0.8.6 (for Java 11 support) (CASSANDRA-16365)
  * Move excessive repair debug loggings to trace level (CASSANDRA-16406)
