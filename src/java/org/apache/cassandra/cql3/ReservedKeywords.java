@@ -23,7 +23,7 @@ import java.util.Set;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
-class ReservedKeywords
+public final class ReservedKeywords
 {
     @VisibleForTesting
     static final String[] reservedKeywords = new String[]
@@ -91,9 +91,9 @@ class ReservedKeywords
                                                      "MBEAN",
                                                      "MBEANS"};
 
-    private static final Set<String> reservedSet = ImmutableSet.copyOf(reservedKeywords);
+    static final Set<String> reservedSet = ImmutableSet.copyOf(reservedKeywords);
 
-    static boolean isReserved(String text)
+    public static boolean isReserved(String text)
     {
         return reservedSet.contains(text.toUpperCase());
     }

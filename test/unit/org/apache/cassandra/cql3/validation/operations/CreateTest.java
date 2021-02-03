@@ -19,15 +19,20 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CqlLexer;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.ReservedKeywords;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -681,6 +686,22 @@ public class CreateTest extends CQLTester
         assertThrowsConfigurationException("Unknown compression options unknownOption",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                             + " WITH compression = { 'class' : 'SnappyCompressor', 'unknownOption' : 32 };");
+    }
+
+    @Test
+    public void testUseUnreservedKeywordAsColumnName()
+    {
+        Set<String> unreservedKeywords = Arrays.stream(CqlLexer.class.getDeclaredFields())
+                                               .filter(f -> f.getName().startsWith("K_"))
+                                               .map(f -> f.getName().substring(2)) // remove the heading "K_"
+                                               .filter(name -> !ReservedKeywords.isReserved(name.toUpperCase()))
+                                               .collect(Collectors.toSet());
+        for (String colName : unreservedKeywords)
+        {
+            String format = "CREATE TABLE %%s (foo text PRIMARY KEY, %s text);";
+            createTable(KEYSPACE_PER_TEST, String.format(format, colName));
+            createTable(KEYSPACE_PER_TEST, String.format(format, colName.toLowerCase()));
+        }
     }
 
     private void assertThrowsConfigurationException(String errorMsg, String createStmt)
