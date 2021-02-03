@@ -450,13 +450,7 @@ public class MigrationManager
     // Returns a future on the local application of the schema
     private static Future<?> announce(final Collection<Mutation> schema)
     {
-        Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
-        {
-            protected void runMayThrow() throws ConfigurationException
-            {
-                SchemaKeyspace.mergeSchemaAndAnnounceVersion(schema);
-            }
-        });
+        Future<?> f = announceWithoutPush(schema);
 
         for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
         {
@@ -468,6 +462,17 @@ public class MigrationManager
         }
 
         return f;
+    }
+
+    public static Future<?> announceWithoutPush(Collection<Mutation> schema)
+    {
+        return StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
+        {
+            protected void runMayThrow() throws ConfigurationException
+            {
+                SchemaKeyspace.mergeSchemaAndAnnounceVersion(schema);
+            }
+        });
     }
 
     /**
