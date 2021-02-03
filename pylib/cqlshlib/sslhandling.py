@@ -16,8 +16,9 @@
 
 import os
 import sys
-import ConfigParser
 import ssl
+
+from six.moves import configparser
 
 
 def ssl_settings(host, config_file, env=os.environ):
@@ -38,13 +39,13 @@ def ssl_settings(host, config_file, env=os.environ):
     either in the config file or as an environment variable.
     Environment variables override any options set in cqlsh config file.
     """
-    configs = ConfigParser.SafeConfigParser()
+    configs = configparser.SafeConfigParser()
     configs.read(config_file)
 
     def get_option(section, option):
         try:
             return configs.get(section, option)
-        except ConfigParser.Error:
+        except configparser.Error:
             return None
 
     ssl_validate = env.get('SSL_VALIDATE')

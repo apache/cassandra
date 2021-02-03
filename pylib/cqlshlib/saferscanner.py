@@ -19,24 +19,12 @@
 # regex in-pattern flags. Any of those can break correct operation of Scanner.
 
 import re
+import six
 from sre_constants import BRANCH, SUBPATTERN, GROUPREF, GROUPREF_IGNORE, GROUPREF_EXISTS
+from sys import version_info
 
 
-class SaferScanner(re.Scanner):
-
-    def __init__(self, lexicon, flags=0):
-        self.lexicon = lexicon
-        p = []
-        s = re.sre_parse.Pattern()
-        s.flags = flags
-        for phrase, action in lexicon:
-            p.append(re.sre_parse.SubPattern(s, [
-                (SUBPATTERN, (len(p) + 1, self.subpat(phrase, flags))),
-            ]))
-        s.groups = len(p) + 1
-        p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
-        self.p = p
-        self.scanner = re.sre_compile.compile(p)
+class SaferScannerBase(re.Scanner):
 
     @classmethod
     def subpat(cls, phrase, flags):
@@ -60,3 +48,56 @@ class SaferScanner(re.Scanner):
         if sub.pattern.flags ^ flags:
             raise ValueError("RE flag setting not allowed in SaferScanner lexicon (%s)" % (bin(sub.pattern.flags),))
         return re.sre_parse.SubPattern(sub.pattern, scrubbedsub)
+
+
+class Py2SaferScanner(SaferScannerBase):
+
+    def __init__(self, lexicon, flags=0):
+        self.lexicon = lexicon
+        p = []
+        s = re.sre_parse.Pattern()
+        s.flags = flags
+        for phrase, action in lexicon:
+            p.append(re.sre_parse.SubPattern(s, [
+                (SUBPATTERN, (len(p) + 1, self.subpat(phrase, flags))),
+            ]))
+        s.groups = len(p) + 1
+        p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
+        self.p = p
+        self.scanner = re.sre_compile.compile(p)
+
+
+class Py36SaferScanner(SaferScannerBase):
+
+    def __init__(self, lexicon, flags=0):
+        self.lexicon = lexicon
+        p = []
+        s = re.sre_parse.Pattern()
+        s.flags = flags
+        for phrase, action in lexicon:
+            gid = s.opengroup()
+            p.append(re.sre_parse.SubPattern(s, [(SUBPATTERN, (gid, 0, 0, re.sre_parse.parse(phrase, flags))), ]))
+            s.closegroup(gid, p[-1])
+        p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
+        self.p = p
+        self.scanner = re.sre_compile.compile(p)
+
+
+class Py38SaferScanner(SaferScannerBase):
+
+    def __init__(self, lexicon, flags=0):
+        self.lexicon = lexicon
+        p = []
+        s = re.sre_parse.State()
+        s.flags = flags
+        for phrase, action in lexicon:
+            gid = s.opengroup()
+            p.append(re.sre_parse.SubPattern(s, [(SUBPATTERN, (gid, 0, 0, re.sre_parse.parse(phrase, flags))), ]))
+            s.closegroup(gid, p[-1])
+        p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
+        self.p = p
+        self.scanner = re.sre_compile.compile(p)
+
+
+SaferScanner = Py36SaferScanner if six.PY3 else Py2SaferScanner
+SaferScanner = Py38SaferScanner if version_info >= (3, 8) else SaferScanner

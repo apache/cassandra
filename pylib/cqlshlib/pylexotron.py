@@ -15,7 +15,8 @@
 # limitations under the License.
 
 import re
-from .saferscanner import SaferScanner
+
+from cqlshlib.saferscanner import SaferScanner
 
 
 class LexingError(Exception):
@@ -107,15 +108,6 @@ class ParseContext:
             return ' '.join([t[1] for t in tokens])
         # low end of span for first token, to high end of span for last token
         orig_text = orig[tokens[0][2][0]:tokens[-1][2][1]]
-
-        # Convert all unicode tokens to ascii, where possible.  This
-        # helps avoid problems with performing unicode-incompatible
-        # operations on tokens (like .lower()).  See CASSANDRA-9083
-        # for one example of this.
-        try:
-            orig_text = orig_text.encode('ascii')
-        except UnicodeEncodeError:
-            pass
         return orig_text
 
     def __repr__(self):
@@ -146,7 +138,7 @@ class matcher:
         except KeyError:
             return False
         if debugging:
-            print "Trying completer %r with %r" % (completer, ctxt)
+            print("Trying completer %r with %r" % (completer, ctxt))
         try:
             new_compls = completer(ctxt)
         except Exception:
@@ -155,7 +147,7 @@ class matcher:
                 traceback.print_exc()
             return False
         if debugging:
-            print "got %r" % (new_compls,)
+            print("got %r" % (new_compls,))
         completions.update(new_compls)
         return True
 
@@ -284,7 +276,7 @@ class text_match(terminal_matcher):
         try:
             terminal_matcher.__init__(self, eval(text))
         except SyntaxError:
-            print "bad syntax %r" % (text,)
+            print("bad syntax %r" % (text,))
 
     def match(self, ctxt, completions):
         if ctxt.remainder:
@@ -359,7 +351,7 @@ class ParsingRuleSet:
         (r'[@()|?*;]', lambda s, t: t),
         (r'\s+', None),
         (r'#[^\n]*', None),
-    ], re.I | re.S)
+    ], re.I | re.S | re.U)
 
     def __init__(self):
         self.ruleset = {}
@@ -382,7 +374,7 @@ class ParsingRuleSet:
         tokeniter = iter(tokens)
         for t in tokeniter:
             if isinstance(t, tuple) and t[0] in ('reference', 'junk'):
-                assign = tokeniter.next()
+                assign = next(tokeniter)
                 if assign != '::=':
                     raise ValueError('Unexpected token %r; expected "::="' % (assign,))
                 name = t[1]
@@ -405,7 +397,7 @@ class ParsingRuleSet:
 
     @classmethod
     def read_rule_tokens_until(cls, endtoks, tokeniter):
-        if isinstance(endtoks, basestring):
+        if isinstance(endtoks, str):
             endtoks = (endtoks,)
         counttarget = None
         if isinstance(endtoks, int):
@@ -419,7 +411,7 @@ class ParsingRuleSet:
             if t in endtoks:
                 if len(mybranches) == 1:
                     return cls.mkrule(mybranches[0])
-                return choice(map(cls.mkrule, mybranches))
+                return choice(list(map(cls.mkrule, mybranches)))
             if isinstance(t, tuple):
                 if t[0] == 'reference':
                     t = rule_reference(t[1])
@@ -441,7 +433,7 @@ class ParsingRuleSet:
             elif t == '*':
                 t = repeat(myrules.pop(-1))
             elif t == '@':
-                x = tokeniter.next()
+                x = next(tokeniter)
                 if not isinstance(x, tuple) or x[0] != 'litstring':
                     raise ValueError("Unexpected token %r following '@'" % (x,))
                 t = case_match(x[1])
@@ -455,7 +447,7 @@ class ParsingRuleSet:
             if countsofar == counttarget:
                 if len(mybranches) == 1:
                     return cls.mkrule(mybranches[0])
-                return choice(map(cls.mkrule, mybranches))
+                return choice(list(map(cls.mkrule, mybranches)))
         raise ValueError('Unexpected end of rule tokens')
 
     def append_rules(self, rulestr):
@@ -474,7 +466,7 @@ class ParsingRuleSet:
                 return None
             return lambda s, t: (name, t, s.match.span())
         regexes = [(p.pattern(), make_handler(name)) for (name, p) in self.terminals]
-        return SaferScanner(regexes, re.I | re.S).scan
+        return SaferScanner(regexes, re.I | re.S | re.U).scan
 
     def lex(self, text):
         if self.scanner is None:

@@ -26,7 +26,7 @@ Prerequisites
   <http://www.oracle.com/technetwork/java/javase/downloads/index.html>`__ or `OpenJDK 8 <http://openjdk.java.net/>`__. To
   verify that you have the correct version of java installed, type ``java -version``.
 
-- For using cqlsh, the latest version of `Python 2.7 <https://www.python.org/downloads/>`__. To verify that you have
+- For using cqlsh, the latest version of `Python 2.7 <https://www.python.org/downloads/>`__ or Python 3.6+. To verify that you have
   the correct version of Python installed, type ``python --version``.
 
 Installation from binary tarball files

@@ -17,7 +17,7 @@
 import os
 import sys
 import logging
-from itertools import izip
+
 from os.path import dirname, join, normpath
 
 cqlshlog = logging.getLogger('test_cqlsh')
@@ -46,13 +46,27 @@ TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
 
 class BaseTestCase(unittest.TestCase):
     def assertNicelyFormattedTableHeader(self, line, msg=None):
-        return self.assertRegexpMatches(line, r'^ +\w+( +\| \w+)*\s*$', msg=msg)
+        return self.assertRegex(line, r'^ +\w+( +\| \w+)*\s*$', msg=msg)
 
     def assertNicelyFormattedTableRule(self, line, msg=None):
-        return self.assertRegexpMatches(line, r'^-+(\+-+)*\s*$', msg=msg)
+        return self.assertRegex(line, r'^-+(\+-+)*\s*$', msg=msg)
 
     def assertNicelyFormattedTableData(self, line, msg=None):
-        return self.assertRegexpMatches(line, r'^ .* \| ', msg=msg)
+        return self.assertRegex(line, r'^ .* \| ', msg=msg)
+
+    def assertRegex(self, text, regex, msg=None):
+        """Call assertRegexpMatches() if in Python 2"""
+        if hasattr(unittest.TestCase, 'assertRegex'):
+            return super().assertRegex(text, regex, msg)
+        else:
+            return self.assertRegexpMatches(text, regex, msg)
+
+    def assertNotRegex(self, text, regex, msg=None):
+        """Call assertNotRegexpMatches() if in Python 2"""
+        if hasattr(unittest.TestCase, 'assertNotRegex'):
+            return super().assertNotRegex(text, regex, msg)
+        else:
+            return self.assertNotRegexpMatches(text, regex, msg)
 
 def dedent(s):
     lines = [ln.rstrip() for ln in s.splitlines()]
@@ -63,4 +77,4 @@ def dedent(s):
     return '\n'.join(line[minspace:] for line in lines)
 
 def at_a_time(i, num):
-    return izip(*([iter(i)] * num))
+    return zip(*([iter(i)] * num))
