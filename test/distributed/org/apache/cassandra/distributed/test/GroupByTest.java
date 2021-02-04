@@ -40,6 +40,33 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 public class GroupByTest extends TestBaseImpl
 {
     @Test
+    public void groupByWithDeletesAndSrpOnPartitions() throws Throwable
+    {
+        try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("enable_user_defined_functions", "true")).start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, PRIMARY KEY (pk, ck))"));
+            initFunctions(cluster);
+            cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck) VALUES (1, '1') USING TIMESTAMP 0"));
+            cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck) VALUES (2, '2') USING TIMESTAMP 0"));
+            cluster.get(1).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=0 AND ck='0'"));
+
+            cluster.get(2).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, ck) VALUES (0, '0') USING TIMESTAMP 0"));
+            cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=1 AND ck='1'"));
+            cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=2 AND ck='2'"));
+
+            for (String limitClause : new String[]{ "", "LIMIT 1", "LIMIT 10", "PER PARTITION LIMIT 1", "PER PARTITION LIMIT 10" })
+            {
+                String query = withKeyspace("SELECT concat(ck) FROM %s.tbl GROUP BY pk " + limitClause);
+                for (int i = 1; i <= 4; i++)
+                {
+                    Iterator<Object[]> rows = cluster.coordinator(2).executeWithPaging(query, ConsistencyLevel.ALL, i);
+                    assertRows(Iterators.toArray(rows, Object[].class));
+                }
+            }
+        }
+    }
+
+    @Test
     public void groupByWithDeletesAndSrpOnRows() throws Throwable
     {
         try (Cluster cluster = init(builder().withNodes(2).withConfig((cfg) -> cfg.set("enable_user_defined_functions", "true")).start()))
@@ -54,9 +81,8 @@ public class GroupByTest extends TestBaseImpl
             cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=0 AND ck='1'"));
             cluster.get(2).executeInternal(withKeyspace("DELETE FROM %s.tbl WHERE pk=0 AND ck='2'"));
 
-            for (int limit : new int[]{ 0, 1, 10 })
+            for (String limitClause : new String[]{ "", "LIMIT 1", "LIMIT 10", "PER PARTITION LIMIT 1", "PER PARTITION LIMIT 10" })
             {
-                String limitClause = limit == 0 ? "" : "LIMIT " + limit;
                 String query = withKeyspace("SELECT concat(ck) FROM %s.tbl GROUP BY pk " + limitClause);
                 for (int i = 1; i <= 4; i++)
                 {
@@ -126,14 +152,14 @@ public class GroupByTest extends TestBaseImpl
     private static void initFunctions(Cluster cluster)
     {
         cluster.schemaChange(withKeyspace("CREATE FUNCTION %s.concat_strings_fn(a text, b text) " +
-                                          "RETURNS NULL ON NULL INPUT " +
-                                          "RETURNS text " +
-                                          "LANGUAGE java " +
-                                          "AS 'return a + \" \" + b;'"));
+                             "RETURNS NULL ON NULL INPUT " +
+                             "RETURNS text " +
+                             "LANGUAGE java " +
+                             "AS 'return a + \" \" + b;'"));
 
         cluster.schemaChange(withKeyspace("CREATE AGGREGATE %s.concat(text)" +
-                                          " SFUNC concat_strings_fn" +
-                                          " STYPE text" +
-                                          " INITCOND '_'"));
+                             " SFUNC concat_strings_fn" +
+                             " STYPE text" +
+                             " INITCOND '_'"));
     }
 }
