@@ -26,14 +26,14 @@ Choosing What to Work on
 Submitted patches can include bug fixes, changes to the Java code base, improvements for tooling (both Java or Python), documentation, testing or any other changes that requires changing the code base. Although the process of contributing code is always the same, the amount of work and time it takes to get a patch accepted also depends on the kind of issue you're addressing.
 
 As a general rule of thumb:
- * Major new features and significant changes to the code based will likely not going to be accepted without deeper discussion within the `developer community <http://cassandra.apache.org/community/>`_
+ * Major new features and significant changes to the code base are likely not going to be accepted without deeper discussion within the `developer community <http://cassandra.apache.org/community/>`_
  * Bug fixes take higher priority compared to features
- * The extend to which tests are required depend on how likely your changes will effect the stability of Cassandra in production. Tooling changes requires fewer tests than storage engine changes.
+ * The extent to which tests are required depend on how likely your changes will affect the stability of Cassandra in production. Tooling changes requires fewer tests than storage engine changes.
  * Less complex patches will be faster to review: consider breaking up an issue into individual tasks and contributions that can be reviewed separately
 
 .. hint::
 
-   Not sure what to work? Just pick an issue marked as `Low Hanging Fruit <https://issues.apache.org/jira/issues/?jql=project%20%3D%20CASSANDRA%20AND%20Complexity%20%3D%20%22Low%20Hanging%20Fruit%22%20and%20status%20!%3D%20resolved>`_ Complexity in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
+   Not sure what to work on? Just pick an issue marked as `Low Hanging Fruit <https://issues.apache.org/jira/issues/?jql=project%20%3D%20CASSANDRA%20AND%20Complexity%20%3D%20%22Low%20Hanging%20Fruit%22%20and%20status%20!%3D%20resolved>`_ Complexity in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
 
 Before You Start Coding
 =======================
@@ -47,7 +47,7 @@ You should also
  * Update your ticket from time to time by giving feedback on your progress and link a GitHub WIP branch with your current code
  * Ping people who you actively like to ask for advice on JIRA by `mentioning users <https://confluence.atlassian.com/conf54/confluence-user-s-guide/sharing-content/using-mentions>`_
 
-There are also some fixed rules that you need to be aware:
+There are also some fixed rules that you need to be aware of:
  * Patches will only be applied to branches by following the release model
  * Code must be testable
  * Code must follow the :doc:`code_style` convention
@@ -89,17 +89,17 @@ Bug Fixes
 Creating patches for bug fixes is a bit more complicated as this will depend on how many different versions of Cassandra are affected. In each case, the order for merging such changes will be ``cassandra-2.1`` -> ``cassandra-2.2`` -> ``cassandra-3.0`` -> ``cassandra-3.x`` -> ``trunk``. But don't worry, merging from 2.1 would be the worst case for bugs that affect all currently supported versions, which isn't very common. As a contributor, you're also not expected to provide a single patch for each version. What you need to do however is:
 
  * Be clear about which versions you could verify to be affected by the bug
- * For 2.x: ask if a bug qualifies to be fixed in this release line, as this may be handled on case by case bases
+ * For 2.x: ask if a bug qualifies to be fixed in this release line, as this may be handled on a case by case basis
  * If possible, create a patch against the lowest version in the branches listed above (e.g. if you found the bug in 3.9 you should try to fix it already in 3.0)
  * Test if the patch can be merged cleanly across branches in the direction listed above
- * Be clear which branches may need attention by the committer or even create custom patches for those if you can
+ * Be clear about which branches may need attention by the committer or even create custom patches for those if you can
 
 Creating a Patch
 ================
 
 So you've finished coding and the great moment arrives: it's time to submit your patch!
 
- 1. Create a branch for your changes if you haven't done already. Many contributors name their branches based on ticket number and Cassandra version, e.g. ``git checkout -b 12345-3.0``
+ 1. Create a branch for your changes if you haven't done so already. Many contributors name their branches based on ticket number and Cassandra version, e.g. ``git checkout -b 12345-3.0``
  2. Verify that you follow Cassandra's :doc:`code_style`
  3. Make sure all tests (including yours) pass using ant as described in :doc:`testing`. If you suspect a test failure is unrelated to your change, it may be useful to check the test's status by searching the issue tracker or looking at `CI <https://builds.apache.org/>`_ results for the relevant upstream version.  Note that the full test suites take many hours to complete, so it is common to only run specific relevant tests locally before uploading a patch.  Once a patch has been uploaded, the reviewer or committer can help setup CI jobs to run the full test suites.
  4. Consider going through the :doc:`how_to_review` for your code. This will help you to understand how others will consider your change for inclusion.
