@@ -1078,12 +1078,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    @VisibleForTesting
-    public void ensureTraceKeyspace()
-    {
-        evolveSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION).ifPresent(MigrationManager::announce);
-    }
-
     public static boolean isReplacingSameAddress()
     {
         InetAddressAndPort replaceAddress = DatabaseDescriptor.getReplaceAddress();
@@ -1193,7 +1187,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         evolveSystemKeyspace(             AuthKeyspace.metadata(),              AuthKeyspace.GENERATION).ifPresent(changes::add);
 
         if (!changes.isEmpty())
-            MigrationManager.announce(changes);
+            FBUtilities.waitOnFuture(MigrationManager.announceWithoutPush(changes));
     }
 
     public boolean isJoined()
