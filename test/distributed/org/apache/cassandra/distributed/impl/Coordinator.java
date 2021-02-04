@@ -21,17 +21,23 @@ package org.apache.cassandra.distributed.impl;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.Iterators;
+
+import com.datastax.driver.core.ProtocolVersion;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -122,49 +128,64 @@ public class Coordinator implements ICoordinator
             throw new IllegalArgumentException("Page size should be strictly positive but was " + pageSize);
 
         return instance.sync(() -> {
+            ClientState clientState = makeFakeClientState();
             ConsistencyLevel consistencyLevel = ConsistencyLevel.valueOf(consistencyLevelOrigin.name());
-            CQLStatement prepared = QueryProcessor.getStatement(query, ClientState.forInternalCalls()).statement;
+            CQLStatement prepared = QueryProcessor.getStatement(query, clientState).statement;
             List<ByteBuffer> boundBBValues = new ArrayList<>();
             for (Object boundValue : boundValues)
             {
                 boundBBValues.add(ByteBufferUtil.objectToBytes(boundValue));
             }
 
-            prepared.validate(QueryState.forInternalCalls().getClientState());
+            prepared.validate(clientState);
             assert prepared instanceof SelectStatement : "Only SELECT statements can be executed with paging";
 
-            ClientState clientState = QueryState.forInternalCalls().getClientState();
             SelectStatement selectStatement = (SelectStatement) prepared;
-            QueryOptions queryOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
-                                                            boundBBValues,
-                                                            false,
-                                                            pageSize,
-                                                            null,
-                                                            null,
-                                                            Server.CURRENT_VERSION);
-            Pageable pageable = selectStatement.getPageableCommand(queryOptions);
 
-            // Usually pager fetches a single page (see SelectStatement#execute). We need to iterate over all
-            // of the results lazily.
-            QueryPager pager = QueryPagers.pager(pageable, toCassandraCL(consistencyLevel), clientState, null);
-            Iterator<Object[]> iter = RowUtil.toObjects(selectStatement.getResultMetadata().names,
-                                                        UntypedResultSet.create(selectStatement,
-                                                                                pager,
-                                                                                pageSize).iterator());
+            QueryState queryState = new QueryState(clientState);
+            QueryOptions initialOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
+                                                              boundBBValues,
+                                                              false,
+                                                              pageSize,
+                                                              null,
+                                                              null,
+                                                              Server.CURRENT_VERSION);
 
-            // We have to make sure iterator is not running on main thread.
-            Iterator<Object[]> it =  new Iterator<Object[]>() {
+
+            ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions);
+            Iterator<Object[]> iter = new Iterator<Object[]>() {
+                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions);
+                Iterator<Object[]> iter = RowUtil.toIter(rows);
+
                 public boolean hasNext()
                 {
-                    return instance.sync(() -> iter.hasNext()).call();
+                    if (iter.hasNext())
+                        return true;
+
+                    if (rows.result.metadata.getPagingState() == null)
+                        return false;
+
+                    QueryOptions nextOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
+                                                                   boundBBValues,
+                                                                   true,
+                                                                   pageSize,
+                                                                   rows.result.metadata.getPagingState(),
+                                                                   null,
+                                                                   Server.CURRENT_VERSION);
+
+                    rows = selectStatement.execute(queryState, nextOptions);
+                    iter = Iterators.forArray(RowUtil.toObjects(initialRows.result.metadata.names, rows.result.rows));
+
+                    return hasNext();
                 }
 
                 public Object[] next()
                 {
-                    return instance.sync(() -> iter.next()).call();
+                    return iter.next();
                 }
             };
-            return QueryResults.fromObjectArrayIterator(RowUtil.getColumnNames(selectStatement.getResultMetadata().names), it);
+
+            return QueryResults.fromObjectArrayIterator(RowUtil.getColumnNames(initialRows.result.metadata.names), iter);
         }).call();
     }
 
