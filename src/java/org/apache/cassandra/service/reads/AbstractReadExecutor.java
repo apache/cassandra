@@ -42,8 +42,10 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.metrics.MatchingNodeMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.tracing.TraceState;
@@ -157,8 +159,18 @@ public abstract class AbstractReadExecutor
         // We delay the local (potentially blocking) read till the end to avoid stalling remote requests.
         if (hasLocalEndpoint)
         {
+            if (!SchemaConstants.isSystemKeyspace(readCommand.metadata().keyspace) && !readCommand.acceptsTransient() && !readCommand.isDigestQuery())
+            {
+                logger.error(readCommand.toCQLString());
+                MatchingNodeMetrics.instance.localRequests.inc();
+            }
             logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
             Stage.READ.maybeExecuteImmediately(new LocalReadRunnable(command, handler));
+        }
+        else if (!SchemaConstants.isSystemKeyspace(readCommand.metadata().keyspace) && !readCommand.acceptsTransient() && !readCommand.isDigestQuery())
+        {
+            logger.error(readCommand.toCQLString());
+            MatchingNodeMetrics.instance.remoteRequests.inc();
         }
     }
 
