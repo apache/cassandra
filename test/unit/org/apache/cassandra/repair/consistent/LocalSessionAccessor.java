@@ -46,18 +46,21 @@ public class LocalSessionAccessor
 
     public static long finalizeUnsafe(UUID sessionID)
     {
-        LocalSession session = ARS.consistent.local.getSession(sessionID);
-        assert session != null;
-        session.setState(ConsistentSession.State.FINALIZED);
-        ARS.consistent.local.save(session);
+        LocalSession session = setState(sessionID, ConsistentSession.State.FINALIZED);
         return session.repairedAt;
     }
 
     public static void failUnsafe(UUID sessionID)
     {
-        LocalSession session = ARS.consistent.local.getSession(sessionID);
+        setState(sessionID, ConsistentSession.State.FAILED);
+    }
+
+    public static LocalSession setState(UUID sessionId, ConsistentSession.State state)
+    {
+        LocalSession session = ARS.consistent.local.getSession(sessionId);
         assert session != null;
-        session.setState(ConsistentSession.State.FAILED);
+        session.setState(state);
         ARS.consistent.local.save(session);
+        return session;
     }
 }

@@ -4848,6 +4848,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 shutdownClientServers();
             ScheduledExecutors.optionalTasks.shutdown();
             Gossiper.instance.stop();
+            ActiveRepairService.instance.stop();
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "shutting down MessageService", false);
