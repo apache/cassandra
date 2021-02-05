@@ -18,8 +18,12 @@
 
 package org.apache.cassandra.distributed.test.hostreplacement;
 
+import java.net.InetSocketAddress;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopAbrupt;
 
@@ -35,5 +39,21 @@ public class AssassinateAbruptDownedNodeTest extends BaseAssassinatedCase
     void consume(Cluster cluster, IInvokableInstance nodeToRemove)
     {
         stopAbrupt(cluster, nodeToRemove);
+    }
+
+    @Override
+    protected void afterNodeStatusIsLeft(Cluster cluster, IInvokableInstance removedNode)
+    {
+        // Check it is possible to alter keyspaces (see CASSANDRA-16422)
+
+        // First, make sure the node is convicted so the gossiper considers it unreachable
+        InetSocketAddress socketAddress = removedNode.config().broadcastAddress();
+        InetAddressAndPort removedEndpoint = InetAddressAndPort.getByAddressOverrideDefaults(socketAddress.getAddress(),
+                                                                                             socketAddress.getPort());
+        cluster.get(BaseAssassinatedCase.SEED_NUM).runOnInstance(() -> Gossiper.instance.convict(removedEndpoint, 1.0));
+
+        // Second, try and alter the keyspace.  Before the bug was fixed, this would fail as the check includes
+        // unreachable nodes that could have LEFT status.
+        cluster.schemaChangeIgnoringStoppedInstances(String.format("ALTER KEYSPACE %s WITH DURABLE_WRITES = false", KEYSPACE));
     }
 }
