@@ -221,6 +221,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                                              TimeUnit.SECONDS);
     }
 
+    public void stop()
+    {
+        consistent.local.stop();
+    }
+
     @Override
     public List<Map<String, String>> getSessions(boolean all, String rangesStr)
     {
