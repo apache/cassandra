@@ -163,6 +163,11 @@ public class EndpointState
         return getStatus().equals(VersionedValue.STATUS_NORMAL);
     }
 
+    public boolean isLeftState()
+    {
+        return getStatus().equals(VersionedValue.STATUS_LEFT);
+    }
+
     public String getStatus()
     {
         VersionedValue status = getApplicationState(ApplicationState.STATUS_WITH_PORT);
