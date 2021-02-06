@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 import org.slf4j.Logger;
@@ -26,14 +25,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 public abstract class MemtableAllocator
 {
     private static final Logger logger = LoggerFactory.getLogger(MemtableAllocator.class);
-    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 5, TimeUnit.SECONDS);
 
     private final SubAllocator onHeap;
     private final SubAllocator offHeap;
@@ -213,7 +210,8 @@ public abstract class MemtableAllocator
 
             if (state == LifeCycle.DISCARDING)
             {
-                noSpamLogger.info("Allocated {} bytes whilst discarding", size);
+                if (logger.isTraceEnabled())
+                    logger.trace("Allocated {} bytes whilst discarding", size);
                 updateReclaiming();
             }
         }
@@ -230,7 +228,8 @@ public abstract class MemtableAllocator
 
             if (state == LifeCycle.DISCARDING)
             {
-                noSpamLogger.info("Acquired {} bytes whilst discarding", size);
+                if (logger.isTraceEnabled())
+                    logger.trace("Allocated {} bytes whilst discarding", size);
                 updateReclaiming();
             }
         }
@@ -253,7 +252,8 @@ public abstract class MemtableAllocator
             }
             else
             {
-                noSpamLogger.info("Tried to release {} bytes whilst discarding", size);
+                if (logger.isTraceEnabled())
+                    logger.trace("Tried to release {} bytes whilst discarding", size);
             }
         }
 
