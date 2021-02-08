@@ -18,33 +18,19 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import java.util.UUID;
-
-import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.UpgradeableCluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.utils.CassandraVersion;
+
+import static org.apache.cassandra.distributed.test.ReadDigestConsistencyTest.CREATE_TABLE;
+import static org.apache.cassandra.distributed.test.ReadDigestConsistencyTest.insertData;
+import static org.apache.cassandra.distributed.test.ReadDigestConsistencyTest.testDigestConsistency;
 
 public class MixedModeReadTest extends UpgradeTestBase
 {
-    public static final String TABLE_NAME = "tbl";
-    public static final String CREATE_TABLE = String.format(
-      "CREATE TABLE %s.%s (key int, s1 text static, c1 text, c2 text, c3 text, PRIMARY KEY (key, c1))",
-      DistributedTestBase.KEYSPACE, TABLE_NAME);
-
-    public static final String INSERT = String.format(
-      "INSERT INTO %s.%s (key, s1, c1, c2, c3) VALUES (?, ?, ?, ?, ?)",
-      DistributedTestBase.KEYSPACE, TABLE_NAME);
-
-    public static final String SELECT_C1 = String.format("SELECT key, c1 FROM %s.%s WHERE key = ?",
-                                                         DistributedTestBase.KEYSPACE, TABLE_NAME);
-    public static final String SELECT_C1_S1_ROW = String.format("SELECT key, c1, s1 FROM %s.%s WHERE key = ? and c1 = ? ",
-                                                                DistributedTestBase.KEYSPACE, TABLE_NAME);
-    public static final String SELECT_TRACE = "SELECT activity FROM system_traces.events where session_id = ? and source = ? ALLOW FILTERING;";
-
     @Test
     public void mixedModeReadColumnSubsetDigestCheck() throws Throwable
     {
@@ -55,38 +41,26 @@ public class MixedModeReadTest extends UpgradeTestBase
         .upgrade(Versions.Major.v3X, Versions.Major.v4)
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
-            cluster.coordinator(1).execute(INSERT, ConsistencyLevel.ALL, 1, "static", "foo", "bar", "baz");
-            cluster.coordinator(1).execute(INSERT, ConsistencyLevel.ALL, 1, "static", "fi", "biz", "baz");
-            cluster.coordinator(1).execute(INSERT, ConsistencyLevel.ALL, 1, "static", "fo", "boz", "baz");
-
-            // baseline to show no digest mismatches before upgrade
-            checkTraceForDigestMismatch(cluster, 1, SELECT_C1, 1);
-            checkTraceForDigestMismatch(cluster, 2, SELECT_C1, 1);
+            insertData(cluster.coordinator(1));
+            testDigestConsistency(cluster.coordinator(1));
+            testDigestConsistency(cluster.coordinator(2));
         })
-        .runAfterNodeUpgrade((cluster, node) -> {
-            if (node != 1)
-                return; // shouldn't happen but guard for future test changes
+        .runAfterClusterUpgrade(cluster -> {
+            // we need to let gossip settle or the test will fail
+            int attempts = 1;
+            //noinspection Convert2MethodRef
+            while (!((IInvokableInstance) (cluster.get(1))).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0.familyLowerBound.get()) &&
+                                                                                 !Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion(("3.0")).familyLowerBound.get())))
+            {
+                if (attempts++ > 30)
+                    throw new RuntimeException("Gossiper.instance.haveMajorVersion3Nodes() continually returns false despite expecting to be true");
+                Thread.sleep(1000);
+            }
 
             // should not cause a disgest mismatch in mixed mode
-            checkTraceForDigestMismatch(cluster, 1, SELECT_C1, 1);
-            checkTraceForDigestMismatch(cluster, 2, SELECT_C1, 1);
-            checkTraceForDigestMismatch(cluster, 1, SELECT_C1_S1_ROW, 1, "foo");
-            checkTraceForDigestMismatch(cluster, 2, SELECT_C1_S1_ROW, 1, "fi");
+            testDigestConsistency(cluster.coordinator(1));
+            testDigestConsistency(cluster.coordinator(2));
         })
         .run();
-    }
-
-    private void checkTraceForDigestMismatch(UpgradeableCluster cluster, int coordinatorNode, String query, Object... boundValues)
-    {
-        UUID sessionId = UUID.randomUUID();
-        cluster.coordinator(coordinatorNode).executeWithTracing(sessionId, query, ConsistencyLevel.ALL, boundValues);
-        Object[][] results = cluster.coordinator(coordinatorNode)
-                                    .execute(SELECT_TRACE, ConsistencyLevel.ALL,
-                                             sessionId, cluster.get(coordinatorNode).broadcastAddress().getAddress());
-        for (Object[] result : results)
-        {
-            String activity = (String) result[0];
-            Assert.assertFalse("Found Digest Mismatch", activity.toLowerCase().contains("mismatch for key"));
-        }
     }
 }
