@@ -209,10 +209,10 @@
     <!--
       JVM arguments for tests.
 
-      There is a race condition bug in java 11 (see CASSANDRA-15981) which causes a crash of the 
-      JVM; this race is between CMS and class unloading.  In java 8 we can cap the metaspace to 
-      make tests stable on low resource environments, but in java 11 we need to make it unlimited 
-      (don't define MaxMetaspaceSize) and disable class unloading in CMS outside of a 
+      There is a race condition bug in java 11 (see CASSANDRA-15981) which causes a crash of the
+      JVM; this race is between CMS and class unloading.  In java 8 we can cap the metaspace to
+      make tests stable on low resource environments, but in java 11 we need to make it unlimited
+      (don't define MaxMetaspaceSize) and disable class unloading in CMS outside of a
       stop-the-world pause.
     -->
     <resources id="_jvm8_test_arg_items">
@@ -2207,6 +2207,18 @@
                   <include name="**/*.jar" />
               </fileset>
           </classpath>
+          <arg value="-foe"/>
+          <arg value="true"/>
+          <arg value="-rf"/>
+          <arg value="json"/>
+          <arg value="-rff"/>
+          <arg value="${build.test.dir}/jmh-result.json"/>
+          <arg value="-v"/>
+          <arg value="EXTRA"/>
+
+          <!-- Broken: ZeroCopyStreamingBench,MutationBench,FastThreadLocalBench  (FIXME) -->
+          <arg value="-e"/><arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench"/>
+
           <arg value=".*microbench.*${benchmark.name}"/>
       </java>
   </target>

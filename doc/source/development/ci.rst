@@ -40,14 +40,17 @@ You can install any missing plugins through the install manager.
 
 Go to ``Manage Jenkins -> Manage Plugins -> Available`` and install the following plugins and respective dependencies:
 
-* Job DSL
-* Javadoc Plugin
+* Copy Artifact Plugin
 * description setter plugin
-* Throttle Concurrent Builds Plug-in
+* Javadoc Plugin
+* Job DSL
+* Post build task
+* Publish Over SSH
+* JMH Report
+* Slack Notification Plugin
 * Test stability history
-* Hudson Post build task
-* Slack Notification
-* Copy artifact
+* Throttle Concurrent Builds Plug-in
+* Timestamper
 
 
 Configure Throttle Category
