@@ -314,14 +314,14 @@ public class SimpleReadWriteTest extends TestBaseImpl
             };
             for (String statement : statements)
             {
+                Object[][] expected = singleNode.coordinator(1)
+                                                .execute(statement, ConsistencyLevel.QUORUM);
                 for (int pageSize : pageSizes)
                 {
                     assertRows(cluster.coordinator(1)
                                       .executeWithPaging(statement,
                                                          ConsistencyLevel.QUORUM,  pageSize),
-                               singleNode.coordinator(1)
-                                         .executeWithPaging(statement,
-                                                            ConsistencyLevel.QUORUM,  Integer.MAX_VALUE));
+                               expected);
                 }
             }
 
