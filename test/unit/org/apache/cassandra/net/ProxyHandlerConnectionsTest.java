@@ -38,6 +38,8 @@ import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -80,6 +82,9 @@ public class ProxyHandlerConnectionsTest
     public static void startup()
     {
         DatabaseDescriptor.daemonInitialization();
+        // call these to initialize everything in case a message is dropped, otherwise we will NPE in the commitlog
+        CommitLog.instance.start();
+        CompactionManager.instance.getPendingTasks();
     }
 
     @After
@@ -179,28 +184,30 @@ public class ProxyHandlerConnectionsTest
                 counter.incrementAndGet();
             });
 
-            unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(200, MILLISECONDS));
-            handler.withLatency(100, MILLISECONDS);
+            // use much large timeout here since this is temporally sensitive and could fail on slower/busy machines
+            unsafeSetExpiration(Verb._TEST_1, unit -> unit.convert(2000, MILLISECONDS));
+            handler.withLatency(1000, MILLISECONDS);
 
             int expireMessages = 20;
-            long nanoTime = approxTime.now();
             CountDownLatch enqueueDone = new CountDownLatch(1);
             outbound.unsafeRunOnDelivery(() -> Uninterruptibles.awaitUninterruptibly(enqueueDone, 10, SECONDS));
+
             for (int i = 0; i < expireMessages; i++)
             {
+                long nanoTime = approxTime.now();
                 boolean expire = i % 2 == 0;
                 Message.Builder builder = Message.builder(Verb._TEST_1, 1L);
 
                 if (settings.right.acceptVersions == ConnectionTest.legacy)
                 {
-                    // backdate messages; leave 50 milliseconds to leave outbound path
-                    builder.withCreatedAt(nanoTime - (expire ? 0 : MILLISECONDS.toNanos(150)));
+                    // backdate messages; leave 500 milliseconds to leave outbound path
+                    builder.withCreatedAt(nanoTime - (expire ? 0 : MILLISECONDS.toNanos(1500)));
                 }
                 else
                 {
-                    // Give messages 50 milliseconds to leave outbound path
+                    // Give messages 500 milliseconds to leave outbound path
                     builder.withCreatedAt(nanoTime)
-                           .withExpiresAt(nanoTime + (expire ? MILLISECONDS.toNanos(50) : MILLISECONDS.toNanos(1000)));
+                           .withExpiresAt(nanoTime + (expire ? MILLISECONDS.toNanos(500) : MILLISECONDS.toNanos(3000)));
                 }
                 outbound.enqueue(builder.build());
             }
