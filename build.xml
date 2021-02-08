@@ -1969,6 +1969,18 @@
                   <include name="**/*.jar" />
               </fileset>
           </classpath>
+          <arg value="-foe"/>
+          <arg value="true"/>
+          <arg value="-rf"/>
+          <arg value="json"/>
+          <arg value="-rff"/>
+          <arg value="${build.test.dir}/jmh-result.json"/>
+          <arg value="-v"/>
+          <arg value="EXTRA"/>
+
+          <!-- Broken: MutationBench,FastThreadLocalBench  (FIXME) -->
+          <arg value="-e"/><arg value="MutationBench|FastThreadLocalBench"/>
+
           <arg value=".*microbench.*${benchmark.name}"/>
       </java>
   </target>
