@@ -289,14 +289,14 @@ public abstract class DataLimits
         public abstract boolean isDone();
         public abstract boolean isDoneForPartition();
 
-        public boolean needsMoreContents()
+        public boolean hasMoreContents()
         {
-            return isDone();
+            return !isDone();
         }
 
-        public boolean needsMoreContentsForPartition()
+        public boolean hasMoreContentsForPartition()
         {
-            return isDoneForPartition();
+            return !isDoneForPartition();
         }
 
         protected boolean isLive(Row row)
@@ -1013,15 +1013,15 @@ public abstract class DataLimits
             }
 
             @Override
-            public boolean needsMoreContents()
+            public boolean hasMoreContents()
             {
-                return isDone() || hasUnfinishedGroup;
+                return !isDone() & !hasUnfinishedGroup;
             }
 
             @Override
-            public boolean needsMoreContentsForPartition()
+            public boolean hasMoreContentsForPartition()
             {
-                return isDoneForPartition() || hasUnfinishedGroup;
+                return !isDoneForPartition() && !hasUnfinishedGroup;
             }
 
             @Override
