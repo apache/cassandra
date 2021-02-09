@@ -112,11 +112,11 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (allow_alter_rf_during_range_movement)
             return;
 
-        Stream<InetAddressAndPort> unreachableNotLeft =
+        Stream<InetAddressAndPort> unreachableNotAdministrativelyInactive =
             Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                      !Gossiper.instance.getEndpointStateForEndpoint(endpoint).isLeftState());
+                                                                      !Gossiper.instance.getEndpointStateForEndpoint(endpoint).isAdministrativelyInactive());
         Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(),
-                                                             unreachableNotLeft);
+                                                             unreachableNotAdministrativelyInactive);
         List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
                                                                                    !Gossiper.instance.getEndpointStateForEndpoint(endpoint).isNormalState())
                                                                .collect(Collectors.toList());
