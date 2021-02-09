@@ -124,6 +124,7 @@ New features
 
 Upgrading
 ---------
+    - cqlsh shell startup script now prefers 'python3' before 'python' when identifying a runtime.
     - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request
       verb were introduced and verbs were renamed. DroppedMessageMetrics pre-4.0 are now available with _REQ suffix. As
       part of CASSANDRA-16083, we added DroppedMessageMetrics backward compatibility layer which exposes the metrics with
@@ -290,6 +291,7 @@ Deprecation
     - The JMX MBean org.apache.cassandra.db:type=BlacklistedDirectories has been
       deprecated in favor of org.apache.cassandra.db:type=DisallowedDirectories
       and will be removed in a subsequent major version.
+    - cqlsh support of 2.7 is deprecated and will warn when running with Python 2.7.
 
 Materialized Views
 -------------------
