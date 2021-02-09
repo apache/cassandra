@@ -53,17 +53,16 @@ fi
 # get a version string for a Python interpreter
 get_python_version() {
     interpreter=$1
-    version=$(command -v "$interpreter" > /dev/null 2>&1 && $interpreter -c "import os; print('{}.{}'.format(os.sys.version_info.major, os.sys.version_info.minor))")
+    version=$($interpreter -c "import os; print('{}.{}'.format(os.sys.version_info.major, os.sys.version_info.minor))" 2> /dev/null)
     echo "$version"
 }
 
 # test whether a version string matches one of the supported versions for cqlsh
 is_supported_version() {
     version=$1
-    # shellcheck disable=SC2039
     # shellcheck disable=SC2072
-    # python2.7 or python3.6+ is supported
-    if [ "$version" = "3.6" ] || [ "$version" \> "3.6" ] || [ "$version" = "2.7" ]; then
+    # python3.6+ is supported. python2.7 is deprecated but still compatible.
+    if [ ! "$version" \< "3.6" ] || [ "$version" = "2.7" ]; then
         echo "supported"
     else
         echo "unsupported"
@@ -88,8 +87,7 @@ if [ "$USER_SPECIFIED_PYTHON" != "" ]; then
     # run a user specified Python interpreter
     run_if_supported_version "$USER_SPECIFIED_PYTHON" "$@"
 else
-    # try unqualified python first, then python3, then python2.7
-    for interpreter in python python3 python2.7; do
+    for interpreter in python3 python python2.7; do
         run_if_supported_version "$interpreter" "$@"
     done
 fi

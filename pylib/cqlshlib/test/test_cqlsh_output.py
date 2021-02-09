@@ -22,6 +22,7 @@ from __future__ import unicode_literals, with_statement
 import locale
 import os
 import re
+import subprocess
 import sys
 import unittest
 
@@ -35,6 +36,9 @@ from .ansi_colors import (ColoredText, ansi_seq, lookup_colorcode,
 
 CONTROL_C = '\x03'
 CONTROL_D = '\x04'
+
+has_python27 = not subprocess.call(['python2.7', '--version'])
+has_python3 = not subprocess.call(['python3', '--version'])
 
 class TestCqlshOutput(BaseTestCase):
 
@@ -777,8 +781,26 @@ class TestCqlshOutput(BaseTestCase):
 
             output = c.cmd_and_response('show host;')
             self.assertHasColors(output)
-            self.assertRegex(output, '^Connected to .* at %s:%d\.$'
+            self.assertRegex(output, '^Connected to .* at %s:%d$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
+
+    @unittest.skipIf(not has_python27, 'Python 2.7 not available to test warning')
+    def test_warn_py2(self):
+        env = self.default_env.copy()
+        env['USER_SPECIFIED_PYTHON'] = 'python2.7'
+        # has the warning
+        with testrun_cqlsh(tty=True, env=env) as c:
+            self.assertIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
+
+        # can suppress
+        env['CQLSH_NO_WARN_PY2'] = '1'
+        with testrun_cqlsh(tty=True, env=env) as c:
+            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
+
+    @unittest.skipIf(not (has_python27 and has_python3), 'Python 3 and 2.7 not available to test preference')
+    def test_no_warn_both_py_present(self):
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
+            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
 
     @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
