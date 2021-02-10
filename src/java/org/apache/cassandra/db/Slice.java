@@ -200,7 +200,12 @@ public class Slice
             if (cmp < 0 || (inclusive && cmp == 0))
                 return this;
 
-            return new Slice(start, inclusive ? ClusteringBound.inclusiveEndOf(lastReturned) : ClusteringBound.exclusiveEndOf(lastReturned));
+            ClusteringBound<?> nextEnd = inclusive ? ClusteringBound.inclusiveEndOf(lastReturned) : ClusteringBound.exclusiveEndOf(lastReturned);
+
+            if (isEmpty(comparator, start, nextEnd))
+                return null;
+
+            return new Slice(start, nextEnd);
         }
         else
         {
@@ -212,7 +217,12 @@ public class Slice
             if (cmp < 0 || (inclusive && cmp == 0))
                 return this;
 
-            return new Slice(inclusive ? ClusteringBound.inclusiveStartOf(lastReturned) : ClusteringBound.exclusiveStartOf(lastReturned), end);
+            ClusteringBound<?> nextStart = inclusive ? ClusteringBound.inclusiveStartOf(lastReturned) : ClusteringBound.exclusiveStartOf(lastReturned);
+
+            if (isEmpty(comparator, nextStart, end))
+                return null;
+
+            return new Slice(nextStart, end);
         }
     }
 

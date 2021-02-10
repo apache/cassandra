@@ -56,6 +56,20 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return slices.size() == 1 && !slices.hasLowerBound() && !slices.hasUpperBound();
     }
 
+    public boolean isEmpty(ClusteringComparator comparator)
+    {
+        if (slices.isEmpty())
+            return true;
+
+        for (Slice slice : slices)
+        {
+            if (slice.isEmpty(comparator))
+                return true;
+        }
+
+        return false;
+    }
+
     public boolean selects(Clustering<?> clustering)
     {
         return slices.selects(clustering);
