@@ -195,26 +195,37 @@ public class Slice
         if (reversed)
         {
             int cmp = comparator.compare(lastReturned, start);
-            if (cmp < 0 || (!inclusive && cmp == 0))
+            assert cmp != 0;
+            // start is > than lastReturned; got nothing to return no more
+            if (cmp < 0)
                 return null;
 
             cmp = comparator.compare(end, lastReturned);
-            if (cmp < 0 || (inclusive && cmp == 0))
+            assert cmp != 0;
+            if (cmp < 0)
                 return this;
 
-            return new Slice(start, inclusive ? ClusteringBound.inclusiveEndOf(lastReturned) : ClusteringBound.exclusiveEndOf(lastReturned));
+            Slice slice = new Slice(start, inclusive ? ClusteringBound.inclusiveEndOf(lastReturned) : ClusteringBound.exclusiveEndOf(lastReturned));
+            if (slice.isEmpty(comparator))
+                return null;
+            return slice;
         }
         else
         {
             int cmp = comparator.compare(end, lastReturned);
-            if (cmp < 0 || (!inclusive && cmp == 0))
+            assert cmp != 0;
+            if (cmp < 0)
                 return null;
 
             cmp = comparator.compare(lastReturned, start);
-            if (cmp < 0 || (inclusive && cmp == 0))
+            assert cmp != 0;
+            if (cmp < 0)
                 return this;
 
-            return new Slice(inclusive ? ClusteringBound.inclusiveStartOf(lastReturned) : ClusteringBound.exclusiveStartOf(lastReturned), end);
+            Slice slice = new Slice(inclusive ? ClusteringBound.inclusiveStartOf(lastReturned) : ClusteringBound.exclusiveStartOf(lastReturned), end);
+            if (slice.isEmpty(comparator))
+                return null;
+            return slice;
         }
     }
 
