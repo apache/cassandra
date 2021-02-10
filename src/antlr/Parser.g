@@ -1895,5 +1895,10 @@ basic_unreserved_keyword returns [String str]
         | K_GROUP
         | K_DATACENTERS
         | K_ACCESS
+        | K_DEFAULT
+        | K_MBEAN
+        | K_MBEANS
+        | K_REPLACE
+        | K_UNSET
         ) { $str = $k.text; }
     ;
