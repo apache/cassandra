@@ -512,7 +512,7 @@ public class SelectStatement implements CQLStatement
             return ReadQuery.empty(table);
 
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
-        if (filter == null)
+        if (filter == null || filter.isEmpty(table.comparator))
             return ReadQuery.empty(table);
 
         RowFilter rowFilter = getRowFilter(options);

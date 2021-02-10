@@ -2472,6 +2472,8 @@ public class SelectTest extends CQLTester
             assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 > 1 AND c2 > 2 AND c3 = 3 AND v = 3 ALLOW FILTERING;"),
                        row(1, 3, 3, 3, 3));
 
+            assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 > 1 AND c2 < 1 AND v = 3 ALLOW FILTERING;"));
+
             assertRows(execute("SELECT * FROM %s WHERE pk = 1 AND  c1 IN(0,1,2) AND c2 = 1 AND v = 3 ALLOW FILTERING;"),
                        row(1, 1, 1, 3, 3));
 
