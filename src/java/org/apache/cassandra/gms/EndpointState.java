@@ -163,14 +163,6 @@ public class EndpointState
         return getStatus().equals(VersionedValue.STATUS_NORMAL);
     }
 
-    private static List<String> ADMINISTRATIVELY_INACTIVE = Arrays.asList(VersionedValue.HIBERNATE,
-                                                                          VersionedValue.REMOVED_TOKEN,
-                                                                          VersionedValue.STATUS_LEFT);
-    public boolean isAdministrativelyInactive()
-    {
-        return ADMINISTRATIVELY_INACTIVE.contains(getStatus());
-    }
-
     public String getStatus()
     {
         VersionedValue status = getApplicationState(ApplicationState.STATUS_WITH_PORT);
