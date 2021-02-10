@@ -276,6 +276,42 @@ pipeline {
               }
             }
           }
+          stage('dtest-large-novnode') {
+            steps {
+              script {
+                dtest_large_novnode = build job: "${env.JOB_NAME}-dtest-large-novnode", propagate: false
+                if (dtest_large_novnode.result != 'SUCCESS') unstable('dtest-large-novnode failures')
+                if (dtest_large_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('dtest-large-novnode', dtest_large_novnode.getNumber())
+                    }
+                }
+              }
+            }
+          }
+          stage('dtest-upgrade') {
+            steps {
+              script {
+                dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade", propagate: false
+                if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
+                if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
+                      }
+                  }
+              }
+            }
+          }
         }
     }
     stage('Summary') {
