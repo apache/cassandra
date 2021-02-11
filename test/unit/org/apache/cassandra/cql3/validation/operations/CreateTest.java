@@ -688,22 +688,6 @@ public class CreateTest extends CQLTester
                                             + " WITH compression = { 'class' : 'SnappyCompressor', 'unknownOption' : 32 };");
     }
 
-    @Test
-    public void testUseUnreservedKeywordAsColumnName()
-    {
-        Set<String> unreservedKeywords = Arrays.stream(CqlLexer.class.getDeclaredFields())
-                                               .filter(f -> f.getName().startsWith("K_"))
-                                               .map(f -> f.getName().substring(2)) // remove the heading "K_"
-                                               .filter(name -> !ReservedKeywords.isReserved(name.toUpperCase()))
-                                               .collect(Collectors.toSet());
-        for (String colName : unreservedKeywords)
-        {
-            String format = "CREATE TABLE %%s (foo text PRIMARY KEY, %s text);";
-            createTable(KEYSPACE_PER_TEST, String.format(format, colName));
-            createTable(KEYSPACE_PER_TEST, String.format(format, colName.toLowerCase()));
-        }
-    }
-
     private void assertThrowsConfigurationException(String errorMsg, String createStmt)
     {
         try
