@@ -103,7 +103,7 @@ import org.reflections.Reflections;
  */
 public abstract class AbstractCluster<I extends IInstance> implements ICluster<I>, AutoCloseable
 {
-    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());;
+    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());
 
     // WARNING: we have this logger not (necessarily) for logging, but
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)
@@ -492,7 +492,11 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private void schemaChange(String query, boolean ignoreStoppedInstances)
     {
         I instance = ignoreStoppedInstances ? getFirstRunningInstance() : get(1);
+        schemaChange(query, ignoreStoppedInstances, instance);
+    }
 
+    public void schemaChange(String query, boolean ignoreStoppedInstances, I instance)
+    {
         instance.sync(() -> {
             try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
             {
