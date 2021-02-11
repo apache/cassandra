@@ -1,4 +1,5 @@
 4.0-beta5
+ * Reduce new reserved keywords introduced since 3.0 (CASSANDRA-16439)
  * Improve system tables handling in case of disk failures (CASSANDRA-14793)
  * Add access and datacenters to unreserved keywords (CASSANDRA-16398)
  * Fix nodetool ring, status output when DNS resolution or port printing are in use (CASSANDRA-16283)
