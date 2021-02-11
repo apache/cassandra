@@ -415,16 +415,6 @@ public class MigrationManager
         announce(SchemaKeyspace.makeDropAggregateMutation(ksm, udf, FBUtilities.timestampMicros()), announceLocally);
     }
 
-    static void announceGlobally(Mutation change)
-    {
-        announceGlobally(Collections.singletonList(change));
-    }
-
-    static void announceGlobally(Collection<Mutation> change)
-    {
-        FBUtilities.waitOnFuture(announce(change));
-    }
-
     /**
      * actively announce a new version to active hosts via rpc
      * @param schema The schema mutation to be applied

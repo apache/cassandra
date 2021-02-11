@@ -1200,7 +1200,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!authSetupCalled.getAndSet(true))
         {
             if (setUpSchema)
-                evolveSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION).ifPresent(MigrationManager::announceGlobally);
+            {
+                Optional<Mutation> mutation = evolveSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION);
+                mutation.ifPresent(value -> FBUtilities.waitOnFuture(MigrationManager.announceWithoutPush(Collections.singleton(value))));
+            }
 
             DatabaseDescriptor.getRoleManager().setup();
             DatabaseDescriptor.getAuthenticator().setup();
