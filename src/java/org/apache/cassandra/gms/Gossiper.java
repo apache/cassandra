@@ -105,7 +105,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     }
-
+    private static List<String> ADMINISTRATIVELY_INACTIVE_STATES = Arrays.asList(VersionedValue.HIBERNATE,
+                                                                                 VersionedValue.REMOVED_TOKEN,
+                                                                                 VersionedValue.STATUS_LEFT);
     private volatile ScheduledFuture<?> scheduledGossipTask;
     private static final ReentrantLock taskLock = new ReentrantLock();
     public final static int intervalInMillis = 1000;
@@ -1299,6 +1301,23 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
 
         return SILENT_SHUTDOWN_STATES.contains(status);
+    }
+
+    public boolean isAdministrativelyInactiveState(EndpointState epState)
+    {
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
+            return false;
+
+        return ADMINISTRATIVELY_INACTIVE_STATES.contains(status);
+    }
+
+    public boolean isAdministrativelyInactiveState(InetAddressAndPort endpoint)
+    {
+        EndpointState epState = getEndpointStateForEndpoint(endpoint);
+        if (epState == null)
+            return true; // if the end point cannot be found, treat as inactive
+        return isAdministrativelyInactiveState(epState);
     }
 
     private static String getGossipStatus(EndpointState epState)

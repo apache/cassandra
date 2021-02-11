@@ -46,6 +46,10 @@ public abstract class BaseAssassinatedCase extends TestBaseImpl
 
     abstract void consume(Cluster cluster, IInvokableInstance nodeToRemove);
 
+    protected void afterNodeStatusIsLeft(Cluster cluster, IInvokableInstance nodeToRemove)
+    {
+    }
+
     protected String expectedMessage(IInvokableInstance nodeToRemove)
     {
         return "Cannot replace token " + getTokens(nodeToRemove).get(0) + " which does not exist!";
@@ -76,6 +80,9 @@ public abstract class BaseAssassinatedCase extends TestBaseImpl
 
             // wait until the peer sees this assassination
             awaitGossipStatus(seed, nodeToRemove, "LEFT");
+
+            // Any extra checks to run after the node has been as LEFT
+            afterNodeStatusIsLeft(cluster, nodeToRemove);
 
             // allow replacing nodes with the LEFT state, this should fail since the token isn't in the ring
             assertThatThrownBy(() ->
