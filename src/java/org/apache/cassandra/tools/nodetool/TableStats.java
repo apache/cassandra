@@ -68,6 +68,11 @@ public class TableStats extends NodeToolCmd
             description = "Show only the top K tables for the sort key (specify the number K of tables to be shown")
     private int top = 0;
 
+    @Option(title = "sstable_location_check",
+            name = {"-l", "--sstable-location-check"},
+            description = "Check whether or not the SSTables are in the correct location.")
+    private boolean locationCheck = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -92,7 +97,7 @@ public class TableStats extends NodeToolCmd
             throw new IllegalArgumentException("argument for top must be a positive integer.");
         }
 
-        StatsHolder holder = new TableStatsHolder(probe, humanReadable, ignore, tableNames, sortKey, top);
+        StatsHolder holder = new TableStatsHolder(probe, humanReadable, ignore, tableNames, sortKey, top, locationCheck);
         // print out the keyspace and table statistics
         StatsPrinter printer = TableStatsPrinter.from(outputFormat, !sortKey.isEmpty());
         printer.print(holder, probe.output().out);

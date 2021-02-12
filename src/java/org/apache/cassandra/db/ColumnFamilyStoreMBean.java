@@ -218,4 +218,11 @@ public interface ColumnFamilyStoreMBean
     public void setNeverPurgeTombstones(boolean value);
 
     public boolean getNeverPurgeTombstones();
+
+    /**
+     * Check SSTables whether or not they are misplaced.
+     * @return true if any of the SSTables is misplaced.
+     *         If all SSTables are correctly placed or the partitioner does not support splitting, it returns false.
+     */
+    public boolean hasMisplacedSSTables();
 }

@@ -365,7 +365,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
 
         public TestTableStatsHolder(List<StatsKeyspace> testKeyspaces, String sortKey, int top)
         {
-            super(null, false, false, new ArrayList<>(), sortKey, top);
+            super(null, false, false, new ArrayList<>(), sortKey, top, false);
             this.keyspaces.clear();
             this.keyspaces.addAll(testKeyspaces);
         }
