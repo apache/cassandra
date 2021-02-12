@@ -120,6 +120,8 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Average tombstones per slice (last five minutes): " + table.averageTombstonesPerSliceLastFiveMinutes);
             out.println(indent + "Maximum tombstones per slice (last five minutes): " + table.maximumTombstonesPerSliceLastFiveMinutes);
             out.println(indent + "Dropped Mutations: " + table.droppedMutations);
+            if (table.isInCorrectLocation != null)
+                out.println(indent + "SSTables in correct location: " + table.isInCorrectLocation);
             out.println("");
         }
     }

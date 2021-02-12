@@ -2880,4 +2880,25 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 Collections.addAll(collection, localSystemDiskFlushExecutors);
         }
     }
+
+    /*
+     * Check SSTables whether or not they are misplaced.
+     * @return true if any of the SSTables is misplaced.
+     *         If all SSTables are correctly placed or the partitioner does not support splitting, it returns false.
+     */
+    @Override
+    public boolean hasMisplacedSSTables()
+    {
+        if (!getPartitioner().splitter().isPresent())
+            return false;
+
+        final DiskBoundaries diskBoundaries = getDiskBoundaries();
+        for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
+        {
+            Directories.DataDirectory dataDirectory = getDirectories().getDataDirectoryForFile(sstable.descriptor);
+            if (!diskBoundaries.isInCorrectLocation(sstable, dataDirectory))
+                return true;
+        }
+        return false;
+    }
 }

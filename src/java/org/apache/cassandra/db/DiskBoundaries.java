@@ -141,6 +141,13 @@ public class DiskBoundaries
         return directories.get(getDiskIndex(key));
     }
 
+    public boolean isInCorrectLocation(SSTableReader sstable, Directories.DataDirectory currentLocation)
+    {
+        int diskIndex = getDiskIndex(sstable);
+        PartitionPosition diskLast = positions.get(diskIndex);
+        return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
+    }
+
     private int getDiskIndex(DecoratedKey key)
     {
         int pos = Collections.binarySearch(positions, key);
