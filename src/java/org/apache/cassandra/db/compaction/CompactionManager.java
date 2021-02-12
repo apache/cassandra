@@ -660,13 +660,9 @@ public class CompactionManager implements CompactionManagerMBean
                 if (!cfs.getPartitioner().splitter().isPresent())
                     return true;
 
-                int diskIndex = diskBoundaries.getDiskIndex(sstable);
-                PartitionPosition diskLast = diskBoundaries.positions.get(diskIndex);
-
-                // the location we get from directoryIndex is based on the first key in the sstable
-                // now we need to make sure the last key is less than the boundary as well:
-                Directories.DataDirectory dataDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
-                return diskBoundaries.directories.get(diskIndex).equals(dataDirectory) && sstable.last.compareTo(diskLast) <= 0;
+                // Compare the expected data directory for the sstable with its current data directory
+                Directories.DataDirectory currentDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
+                return diskBoundaries.isInCorrectLocation(sstable, currentDirectory);
             }
 
             @Override
@@ -1476,7 +1472,7 @@ public class CompactionManager implements CompactionManagerMBean
      * @param txn a transaction over the repaired sstables to anticompact
      * @param ranges full and transient ranges to be placed into one of the new sstables. The repaired table will be tracked via
      *   the {@link org.apache.cassandra.io.sstable.metadata.StatsMetadata#pendingRepair} field.
-     * @param sessionID the repair session we're anti-compacting for
+     * @param pendingRepair the repair session we're anti-compacting for
      * @param isCancelled function that indicates if active anti-compaction should be canceled
      */
     private void doAntiCompaction(ColumnFamilyStore cfs,
