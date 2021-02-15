@@ -636,7 +636,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             MigrationManager.announceNewFunction(this, true);
     }
 
-    private static class UDFClassLoader extends ClassLoader
+    static class UDFClassLoader extends ClassLoader
     {
         // insecureClassLoader is the C* class loader
         static final ClassLoader insecureClassLoader = Thread.currentThread().getContextClassLoader();
