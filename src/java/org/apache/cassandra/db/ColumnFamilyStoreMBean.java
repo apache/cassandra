@@ -152,8 +152,8 @@ public interface ColumnFamilyStoreMBean
      * @param verifySSTables if the new sstables should be verified that they are not corrupt
      * @param verifyTokens if the tokens in the new sstables should be verified that they are owned by the current node
      * @param invalidateCaches if row cache should be invalidated for the keys in the new sstables
-     * @param jbodCheck if the new sstables should be placed 'optimally' - count tokens and move the sstable to the directory where it has the most keys
      * @param extendedVerify if we should run an extended verify checking all values in the new sstables
+     * @param copyData if we should copy data from source paths instead of moving them
      *
      * @return list of failed import directories
      */
@@ -163,7 +163,8 @@ public interface ColumnFamilyStoreMBean
                                           boolean verifySSTables,
                                           boolean verifyTokens,
                                           boolean invalidateCaches,
-                                          boolean extendedVerify);
+                                          boolean extendedVerify,
+                                          boolean copyData);
 
     @Deprecated
     public void loadNewSSTables();
