@@ -97,6 +97,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public String getSchemaVersion();
 
+    /**
+     * Fetch the replication factor for a given keyspace.
+     * @return string representation of replication information
+     */
+    public String getKeyspaceReplicationInfo(String keyspaceName);
 
     /**
      * Get the list of all data file locations from conf
