@@ -738,7 +738,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
     }
 
-    private static class UDFClassLoader extends ClassLoader
+    static class UDFClassLoader extends ClassLoader
     {
         // insecureClassLoader is the C* class loader
         static final ClassLoader insecureClassLoader = Thread.currentThread().getContextClassLoader();
