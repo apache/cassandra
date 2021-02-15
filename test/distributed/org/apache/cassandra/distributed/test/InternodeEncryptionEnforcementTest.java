@@ -31,9 +31,12 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.OutboundConnections;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 {
@@ -63,6 +66,16 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 
         try (Cluster cluster = builder.start())
         {
+            try
+            {
+                openConnections(cluster);
+                fail("Instances should not be able to connect, much less complete a schema change.");
+            }
+            catch (RuntimeException ise)
+            {
+                assertThat(ise.getMessage(), containsString("agreement not reached"));
+            }
+
             /*
              * instance (1) won't connect to (2), since (2) won't have a TLS listener;
              * instance (2) won't connect to (1), since inbound check will reject
@@ -113,6 +126,8 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 
         try (Cluster cluster = builder.start())
         {
+            openConnections(cluster);
+
             /*
              * instance (1) should connect to instance (2) without any issues;
              * instance (2) should connect to instance (1) without any issues.
@@ -130,5 +145,14 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
             cluster.get(1).runOnInstance(runnable);
             cluster.get(2).runOnInstance(runnable);
         }
+    }
+
+    private void openConnections(Cluster cluster)
+    {
+        cluster.schemaChange("CREATE KEYSPACE test_connections_from_1 " +
+                             "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};", false, cluster.get(1));
+
+        cluster.schemaChange("CREATE KEYSPACE test_connections_from_2 " +
+                             "WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};", false, cluster.get(2));
     }
 }

@@ -191,7 +191,7 @@ public class MigrationManager
 
     public static void announce(Collection<Mutation> schema)
     {
-        Future<?> f = MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
+        Future<?> f = announceWithoutPush(schema);
 
         Set<InetAddressAndPort> schemaDestinationEndpoints = new HashSet<>();
         Set<InetAddressAndPort> schemaEndpointsIgnored = new HashSet<>();
@@ -211,6 +211,11 @@ public class MigrationManager
 
         SchemaAnnouncementDiagnostics.schemaMutationsAnnounced(schemaDestinationEndpoints, schemaEndpointsIgnored);
         FBUtilities.waitOnFuture(f);
+    }
+
+    public static Future<?> announceWithoutPush(Collection<Mutation> schema)
+    {
+        return MIGRATION.submit(() -> Schema.instance.mergeAndAnnounceVersion(schema));
     }
 
     public static KeyspacesDiff announce(SchemaTransformation transformation, boolean locally)
