@@ -707,7 +707,7 @@ public class SSTableReaderTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         SSTableReader sstable = getNewSSTable(cfs);
         Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", 0);
-        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components);
+        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
     }
 
     @Test(expected = RuntimeException.class)
@@ -717,7 +717,7 @@ public class SSTableReaderTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
         SSTableReader sstable = getNewSSTable(cfs);
         Descriptor notLiveDesc = new Descriptor(new File("/tmp"), "", "", 0);
-        SSTableReader.moveAndOpenSSTable(cfs, notLiveDesc, sstable.descriptor, sstable.components);
+        SSTableReader.moveAndOpenSSTable(cfs, notLiveDesc, sstable.descriptor, sstable.components, false);
     }
 
     @Test
@@ -738,7 +738,7 @@ public class SSTableReaderTest
             assertFalse(f.exists());
             assertTrue(new File(sstable.descriptor.filenameFor(c)).exists());
         }
-        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components);
+        SSTableReader.moveAndOpenSSTable(cfs, sstable.descriptor, notLiveDesc, sstable.components, false);
         // make sure the files were moved:
         for (Component c : sstable.components)
         {

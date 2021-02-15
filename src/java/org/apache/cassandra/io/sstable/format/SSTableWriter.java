@@ -344,6 +344,33 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         FileUtils.renameWithOutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
     }
 
+    public static void copy(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
+    {
+        for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
+        {
+            FileUtils.copyWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
+        }
+
+        // do -Data last because -Data present should mean the sstable was completely copied before crash
+        FileUtils.copyWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
+
+        // copy it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
+        FileUtils.copyWithOutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
+    }
+
+    public static void hardlink(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
+    {
+        for (Component component : Sets.difference(components, Sets.newHashSet(Component.DATA, Component.SUMMARY)))
+        {
+            FileUtils.createHardLinkWithConfirm(tmpdesc.filenameFor(component), newdesc.filenameFor(component));
+        }
+
+        // do -Data last because -Data present should mean the sstable was completely copied before crash
+        FileUtils.createHardLinkWithConfirm(tmpdesc.filenameFor(Component.DATA), newdesc.filenameFor(Component.DATA));
+
+        // copy it without confirmation because summary can be available for loadNewSSTables but not for closeAndOpenReader
+        FileUtils.createHardLinkWithoutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
+    }
 
     public static abstract class Factory
     {

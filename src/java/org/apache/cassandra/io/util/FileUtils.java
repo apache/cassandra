@@ -114,28 +114,6 @@ public final class FileUtils
         }
     }
 
-    public static void createHardLink(String from, String to)
-    {
-        createHardLink(new File(from), new File(to));
-    }
-
-    public static void createHardLink(File from, File to)
-    {
-        if (to.exists())
-            throw new RuntimeException("Tried to create duplicate hard link to " + to);
-        if (!from.exists())
-            throw new RuntimeException("Tried to hard link to file that does not exist " + from);
-
-        try
-        {
-            Files.createLink(to.toPath(), from.toPath());
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, to);
-        }
-    }
-
     private static final File tempDir = new File(JAVA_IO_TMPDIR.getString());
     private static final AtomicLong tempFileNum = new AtomicLong();
 
@@ -193,6 +171,62 @@ public final class FileUtils
         return f;
     }
 
+    public static void createHardLink(String from, String to)
+    {
+        createHardLink(new File(from), new File(to));
+    }
+
+    public static void createHardLink(File from, File to)
+    {
+        if (to.exists())
+            throw new RuntimeException("Tried to create duplicate hard link to " + to);
+        if (!from.exists())
+            throw new RuntimeException("Tried to hard link to file that does not exist " + from);
+
+        try
+        {
+            Files.createLink(to.toPath(), from.toPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, to);
+        }
+    }
+
+    public static void createHardLinkWithConfirm(File from, File to)
+    {
+        try
+        {
+            createHardLink(from, to);
+        }
+        catch (FSWriteError ex)
+        {
+            throw ex;
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(String.format("Unable to hardlink from %s to %s", from, to), t);
+        }
+    }
+
+    public static void createHardLinkWithConfirm(String from, String to)
+    {
+        createHardLinkWithConfirm(new File(from), new File(to));
+    }
+
+    public static void createHardLinkWithoutConfirm(String from, String to)
+    {
+        try
+        {
+            createHardLink(new File(from), new File(to));
+        }
+        catch (FSWriteError fse)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Could not hardlink file " + from + " to " + to, fse);
+        }
+    }
+
     public static Throwable deleteWithConfirm(String filePath, Throwable accumulate)
     {
         return deleteWithConfirm(new File(filePath), accumulate, null);
@@ -242,6 +276,40 @@ public final class FileUtils
     public static void deleteWithConfirmWithThrottle(File file, RateLimiter rateLimiter)
     {
         maybeFail(deleteWithConfirm(file, null, rateLimiter));
+    }
+
+    public static void copyWithOutConfirm(String from, String to)
+    {
+        try
+        {
+            Files.copy(Paths.get(from), Paths.get(to));
+        }
+        catch (IOException e)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Could not copy file" + from + " to " + to, e);
+        }
+    }
+
+    public static void copyWithConfirm(String from, String to)
+    {
+        copyWithConfirm(new File(from), new File(to));
+    }
+
+    public static void copyWithConfirm(File from, File to)
+    {
+        assert from.exists();
+        if (logger.isTraceEnabled())
+            logger.trace("Copying {} to {}", from.getPath(), to.getPath());
+
+        try
+        {
+            Files.copy(from.toPath(), to.toPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, "Could not copy file" + from + " to " + to);
+        }
     }
 
     public static void renameWithOutConfirm(String from, String to)
@@ -298,6 +366,7 @@ public final class FileUtils
         }
 
     }
+
     public static void truncate(String path, long size)
     {
         try(FileChannel channel = FileChannel.open(Paths.get(path), StandardOpenOption.READ, StandardOpenOption.WRITE))
@@ -899,7 +968,7 @@ public final class FileUtils
      * signed long (2^63-1), if the filesystem is any bigger, then the size overflows. {@code SafeFileStore} will
      * return {@code Long.MAX_VALUE} if the size overflow.</p>
      *
-     * @see https://bugs.openjdk.java.net/browse/JDK-8162520.
+     * @see <a href="https://bugs.openjdk.java.net/browse/JDK-8162520">JDK-8162520</a>.
      */
     private static final class SafeFileStore extends FileStore
     {
