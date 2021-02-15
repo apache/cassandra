@@ -1,4 +1,5 @@
 4.0-beta5
+ * Add possibility to copy SSTables in SSTableImporter instead of moving them (CASSANDRA-16407)
  * Fix DESCRIBE statement for CUSTOM indices with options (CASSANDRA-16482)
  * Fix cassandra-stress JMX connection (CASSANDRA-16473)
  * Avoid processing redundant application states on endpoint changes (CASSANDRA-16381)

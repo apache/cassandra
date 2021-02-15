@@ -55,6 +55,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.*;
@@ -2254,7 +2255,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      *
      * All components given will be moved/renamed
      */
-    public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components)
+    public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData)
     {
         if (!oldDescriptor.isCompatible())
             throw new RuntimeException(String.format("Can't open incompatible SSTable! Current version %s, found file: %s",
@@ -2276,8 +2277,24 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             throw new RuntimeException(msg);
         }
 
-        logger.info("Renaming new SSTable {} to {}", oldDescriptor, newDescriptor);
-        SSTableWriter.rename(oldDescriptor, newDescriptor, components);
+        if (copyData)
+        {
+            try
+            {
+                logger.info("Hardlinking new SSTable {} to {}", oldDescriptor, newDescriptor);
+                SSTableWriter.hardlink(oldDescriptor, newDescriptor, components);
+            }
+            catch (FSWriteError ex)
+            {
+                logger.warn("Unable to hardlink new SSTable {} to {}, falling back to copying", oldDescriptor, newDescriptor, ex);
+                SSTableWriter.copy(oldDescriptor, newDescriptor, components);
+            }
+        }
+        else
+        {
+            logger.info("Moving new SSTable {} to {}", oldDescriptor, newDescriptor);
+            SSTableWriter.rename(oldDescriptor, newDescriptor, components);
+        }
 
         SSTableReader reader;
         try
