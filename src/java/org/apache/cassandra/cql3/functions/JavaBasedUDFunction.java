@@ -615,7 +615,7 @@ final class JavaBasedUDFunction extends UDFunction
     {
         EcjTargetClassLoader()
         {
-            super(UDFunction.udfClassLoader);
+            super(UDFClassLoader.insecureClassLoader);
         }
 
         // This map is usually empty.

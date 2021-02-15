@@ -21,17 +21,23 @@ package org.apache.cassandra.distributed.impl;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.Iterators;
+
+import com.datastax.driver.core.ProtocolVersion;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -41,6 +47,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.tracing.Tracing;
@@ -144,34 +151,50 @@ public class Coordinator implements ICoordinator
 
             SelectStatement selectStatement = (SelectStatement) prepared;
 
-            QueryPager pager = selectStatement.getQuery(QueryOptions.create(toCassandraCL(consistencyLevel),
-                                                                            boundBBValues,
-                                                                            false,
-                                                                            pageSize,
-                                                                            null,
-                                                                            null,
-                                                                            Server.CURRENT_VERSION),
-                                                        FBUtilities.nowInSeconds())
-                                              .getPager(null, Server.CURRENT_VERSION);
+            QueryState queryState = new QueryState(clientState);
+            QueryOptions initialOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
+                                                              boundBBValues,
+                                                              false,
+                                                              pageSize,
+                                                              null,
+                                                              null,
+                                                              Server.CURRENT_VERSION);
 
-            // Usually pager fetches a single page (see SelectStatement#execute). We need to iterate over all
-            // of the results lazily.
-            UntypedResultSet rs = UntypedResultSet.create(selectStatement, toCassandraCL(consistencyLevel), clientState, pager, pageSize);
-            Iterator<Object[]> it = new Iterator<Object[]>() {
-                Iterator<Object[]> iter = RowUtil.toObjects(rs);
+
+            ResultMessage.Rows initialRows = selectStatement.execute(queryState, initialOptions);
+            Iterator<Object[]> iter = new Iterator<Object[]>() {
+                ResultMessage.Rows rows = selectStatement.execute(queryState, initialOptions);
+                Iterator<Object[]> iter = RowUtil.toIter(rows);
 
                 public boolean hasNext()
                 {
-                    // We have to make sure iterator is not running on main thread.
-                    return instance.sync(() -> iter.hasNext()).call();
+                    if (iter.hasNext())
+                        return true;
+
+                    if (rows.result.metadata.getPagingState() == null)
+                        return false;
+
+                    QueryOptions nextOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
+                                                                   boundBBValues,
+                                                                   true,
+                                                                   pageSize,
+                                                                   rows.result.metadata.getPagingState(),
+                                                                   null,
+                                                                   Server.CURRENT_VERSION);
+
+                    rows = selectStatement.execute(queryState, nextOptions);
+                    iter = Iterators.forArray(RowUtil.toObjects(initialRows.result.metadata.names, rows.result.rows));
+
+                    return hasNext();
                 }
 
                 public Object[] next()
                 {
-                    return instance.sync(() -> iter.next()).call();
+                    return iter.next();
                 }
             };
-            return QueryResults.fromObjectArrayIterator(RowUtil.getColumnNames(rs.metadata()), it);
+
+            return QueryResults.fromObjectArrayIterator(RowUtil.getColumnNames(initialRows.result.metadata.names), iter);
         }).call();
     }
 
