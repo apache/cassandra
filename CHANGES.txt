@@ -1,7 +1,8 @@
 3.11.11
+Merged from 3.0:
+ * Avoid pushing schema mutations when setting up distributed system keyspaces locally (CASSANDRA-16387)
 Merged from 2.2:
  * Make TokenMetadata's ring version increments atomic (CASSANDRA-16286)
-
 
 3.11.10
  * Fix digest computation for queries with fetched but non queried columns (CASSANDRA-15962)
