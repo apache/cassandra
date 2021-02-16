@@ -52,6 +52,16 @@ import static org.junit.Assert.assertTrue;
 
 public class CASTest extends TestBaseImpl
 {
+    /**
+     * The {@code cas_contention_timeout_in_ms} used during the tests
+     */
+    private static final long CONTENTION_TIMEOUT = 1000L;
+
+    /**
+     * The {@code write_request_timeout_in_ms} used during the tests
+     */
+    private static final long REQUEST_TIMEOUT = 1000L;
+
     @Test
     public void simpleUpdate() throws Throwable
     {
@@ -74,7 +84,8 @@ public class CASTest extends TestBaseImpl
     @Test
     public void incompletePrepare() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", 200L).set("cas_contention_timeout_in_ms", 200L))))
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                                                                      .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT))))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -97,7 +108,8 @@ public class CASTest extends TestBaseImpl
     @Test
     public void incompletePropose() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", 200L).set("cas_contention_timeout_in_ms", 200L))))
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                                                                      .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT))))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -123,7 +135,8 @@ public class CASTest extends TestBaseImpl
     @Test
     public void incompleteCommit() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", 200L).set("cas_contention_timeout_in_ms", 200L))))
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                                                                      .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT))))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -183,8 +196,8 @@ public class CASTest extends TestBaseImpl
                                                   BiConsumer<String, ICoordinator> postTimeoutOperation2,
                                                   boolean loseCommitOfOperation1) throws IOException
     {
-        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", 200L)
-                                                                      .set("cas_contention_timeout_in_ms", 200L))))
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                                                                      .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT))))
         {
             String table = KEYSPACE + ".t";
             cluster.schemaChange("CREATE TABLE " + table + " (k int PRIMARY KEY, v int)");
@@ -355,8 +368,8 @@ public class CASTest extends TestBaseImpl
     public void testSuccessfulWriteBeforeRangeMovement() throws Throwable
     {
         try (Cluster cluster = Cluster.create(4, config -> config
-                .set("write_request_timeout_in_ms", 200L)
-                .set("cas_contention_timeout_in_ms", 200L)))
+                .set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
@@ -396,8 +409,8 @@ public class CASTest extends TestBaseImpl
     public void testConflictingWritesWithStaleRingInformation() throws Throwable
     {
         try (Cluster cluster = Cluster.create(4, config -> config
-                .set("write_request_timeout_in_ms", 200L)
-                .set("cas_contention_timeout_in_ms", 200L)))
+                .set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
@@ -436,8 +449,8 @@ public class CASTest extends TestBaseImpl
     public void testSucccessfulWriteDuringRangeMovementFollowedByRead() throws Throwable
     {
         try (Cluster cluster = Cluster.create(4, config -> config
-                .set("write_request_timeout_in_ms", 200L)
-                .set("cas_contention_timeout_in_ms", 200L)))
+                .set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -480,8 +493,8 @@ public class CASTest extends TestBaseImpl
     public void testSuccessfulWriteDuringRangeMovementFollowedByConflicting() throws Throwable
     {
         try (Cluster cluster = Cluster.create(4, config -> config
-                .set("write_request_timeout_in_ms", 200L)
-                .set("cas_contention_timeout_in_ms", 200L)))
+                .set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
@@ -532,8 +545,8 @@ public class CASTest extends TestBaseImpl
     public void testIncompleteWriteFollowedBySuccessfulWriteWithStaleRingDuringRangeMovementFollowedByRead() throws Throwable
     {
         try (Cluster cluster = Cluster.create(4, config -> config
-                .set("write_request_timeout_in_ms", 200L)
-                .set("cas_contention_timeout_in_ms", 200L)))
+                .set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
@@ -596,8 +609,8 @@ public class CASTest extends TestBaseImpl
     public void testIncompleteWriteFollowedBySuccessfulWriteWithStaleRingDuringRangeMovementFollowedByWrite() throws Throwable
     {
         try (Cluster cluster = Cluster.create(4, config -> config
-                .set("write_request_timeout_in_ms", 200L)
-                .set("cas_contention_timeout_in_ms", 200L)))
+                .set("write_request_timeout_in_ms", REQUEST_TIMEOUT)
+                .set("cas_contention_timeout_in_ms", CONTENTION_TIMEOUT)))
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
