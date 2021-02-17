@@ -116,7 +116,7 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to.endpoint(), previous);
     }
 
-    <T> IVersionedAsymmetricSerializer<?, T> responseSerializer(long id, InetAddressAndPort peer)
+    <In,Out> IVersionedAsymmetricSerializer<In, Out> responseSerializer(long id, InetAddressAndPort peer)
     {
         CallbackInfo info = get(id, peer);
         return info == null ? null : info.responseVerb.serializer();
