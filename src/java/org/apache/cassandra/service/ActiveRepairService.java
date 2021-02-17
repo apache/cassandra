@@ -307,7 +307,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     @Override
-    public int parentRepairSessionCount()
+    public int parentRepairSessionsCount()
     {
         return parentRepairSessions.size();
     }
