@@ -255,16 +255,16 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                     continue;
 
                 // We have a close and/or open marker for a source, with nothing corresponding in merged.
-                // Because merged is a superset, this imply that we have a current deletion (being it due to an
+                // Because merged is a superset, this implies that we have a current deletion (either due to an
                 // early opening in merged or a partition level deletion) and that this deletion will still be
                 // active after that point. Further whatever deletion was open or is open by this marker on the
                 // source, that deletion cannot supersedes the current one.
                 //
                 // But while the marker deletion (before and/or after this point) cannot supersede the current
                 // deletion, we want to know if it's equal to it (both before and after), because in that case
-                // the source is up to date and we don't want to include repair.
+                // the source is up to date and we don't want to include it into repair.
                 //
-                // So in practice we have 2 possible case:
+                // So in practice we have 2 possible cases:
                 //  1) the source was up-to-date on deletion up to that point: then it won't be from that point
                 //     on unless it's a boundary and the new opened deletion time is also equal to the current
                 //     deletion (note that this implies the boundary has the same closing and opening deletion
@@ -280,6 +280,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                 // current deletion, this means the current deletion is due to a previously open range tombstone,
                 // and if the source isn't currently repaired for that RT, then it means it's up to date on it).
                 DeletionTime partitionRepairDeletion = partitionLevelRepairDeletion(i);
+
                 if (markerToRepair[i] == null && currentDeletion.supersedes(partitionRepairDeletion))
                 {
                     /*
@@ -310,9 +311,19 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                 // In case 2) above, we only have something to do if the source is up-to-date after that point
                 // (which, since the source isn't up-to-date before that point, means we're opening a new deletion
                 // that is equal to the current one).
-                else if (marker.isOpen(isReversed) && currentDeletion.equals(marker.openDeletionTime(isReversed)))
+                else
                 {
-                    closeOpenMarker(i, marker.openBound(isReversed).invert());
+                    if (markerToRepair[i] == null)
+                    {
+                        // Only way we can have no open RT repair is that partition deletion that has the same timestamp
+                        // as the deletion and same local deletion time. In such case, since partition deletion covers
+                        // an entire partition, we do not include it into repair.
+                        assert currentDeletion.localDeletionTime() == partitionRepairDeletion.localDeletionTime();
+                    }
+                    else if (marker.isOpen(isReversed) && currentDeletion.equals(marker.openDeletionTime(isReversed)))
+                    {
+                        closeOpenMarker(i, marker.openBound(isReversed).invert());
+                    }
                 }
             }
             else

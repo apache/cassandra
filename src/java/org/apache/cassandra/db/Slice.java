@@ -71,6 +71,8 @@ public class Slice
 
     public static Slice make(ClusteringBound<?> start, ClusteringBound<?> end)
     {
+        assert start != null && end != null;
+
         if (start.isBottom() && end.isTop())
             return ALL;
 

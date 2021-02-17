@@ -20,6 +20,8 @@ package org.apache.cassandra.distributed.test;
 
 import java.net.InetSocketAddress;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -27,10 +29,17 @@ import java.util.concurrent.Future;
 import org.junit.Assert;
 import org.junit.Test;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
@@ -41,12 +50,16 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertEquals;
@@ -438,6 +451,58 @@ public class ReadRepairTest extends TestBaseImpl
             coordinator.execute(withKeyspace("SELECT * FROM %s.t"), ALL);
             long requests = ReadRepairTester.readRepairRequestsCount(cluster.get(1), "t");
             assertEquals("No read repair requests were expected, found " + requests, 0, requests);
+        }
+    }
+
+    @Test
+    public void partitionDeletionRTTimestampTieTest() throws Throwable
+    {
+        try (Cluster cluster = init(builder()
+                                    .withNodes(3)
+                                    .withInstanceInitializer(RRHelper::install)
+                                    .start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE distributed_test_keyspace.tbl0 (pk bigint,ck bigint,value bigint, PRIMARY KEY (pk, ck)) WITH  CLUSTERING ORDER BY (ck ASC) AND read_repair='blocking';"));
+            long pk = 0L;
+            cluster.coordinator(1).execute("INSERT INTO distributed_test_keyspace.tbl0 (pk, ck, value) VALUES (?,?,?) USING TIMESTAMP 1", ConsistencyLevel.ALL, pk, 1L, 1L);
+            cluster.coordinator(1).execute("DELETE FROM distributed_test_keyspace.tbl0 USING TIMESTAMP 2 WHERE pk=? AND ck>?;", ConsistencyLevel.ALL, pk, 2L);
+            cluster.get(3).executeInternal("DELETE FROM distributed_test_keyspace.tbl0 USING TIMESTAMP 2 WHERE pk=?;", pk);
+            assertRows(cluster.coordinator(1).execute("SELECT * FROM distributed_test_keyspace.tbl0 WHERE pk=? AND ck>=? AND ck<?;",
+                                                      ConsistencyLevel.ALL, pk, 1L, 3L));
+        }
+    }
+
+    public static class RRHelper
+    {
+        static void install(ClassLoader cl, int nodeNumber)
+        {
+            // Only on coordinating node
+            if (nodeNumber == 1)
+            {
+                new ByteBuddy().rebase(BlockingReadRepair.class)
+                               .method(named("repairPartition"))
+                               .intercept(MethodDelegation.to(RRHelper.class))
+                               .make()
+                               .load(cl, ClassLoadingStrategy.Default.INJECTION);
+            }
+        }
+
+        // This verifies new behaviour in 4.0 that was introduced in CASSANDRA-15369, but did not work
+        // on timestamp tie of RT and partition deletion: we should not generate RT bounds in such case,
+        // since monotonicity is already ensured by the partition deletion, and RT is unnecessary there.
+        // For details, see CASSANDRA-16453.
+        public static Object repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForTokenWrite writePlan, @SuperCall Callable<Void> r) throws Exception
+        {
+            Assert.assertEquals(2, mutations.size());
+            for (Mutation value : mutations.values())
+            {
+                for (PartitionUpdate update : value.getPartitionUpdates())
+                {
+                    Assert.assertFalse(update.hasRows());
+                    Assert.assertFalse(update.partitionLevelDeletion().isLive());
+                }
+            }
+            return r.call();
         }
     }
 }
