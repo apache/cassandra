@@ -797,16 +797,16 @@ public class SecondaryIndexTest extends CQLTester
 
         // LIKE is not supported on indexes of non-literal values
         // this is rejected before binding, so the value isn't available in the error message
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage("Index on column v3 does not support LIKE restrictions.",
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage("Index on column v3 does not support LIKE restrictions.",
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc%");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage("Index on column v3 does not support LIKE restrictions.",
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "%abc%");
-        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+        assertInvalidMessage("Index on column v3 does not support LIKE restrictions.",
                              "SELECT * FROM %s WHERE v3 LIKE ?",
                              "abc");
     }
@@ -1490,7 +1490,7 @@ public class SecondaryIndexTest extends CQLTester
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
         assertTrue(waitForIndex(keyspace(), tableName, indexName));
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+        assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "v"),
                              "SELECT * FROM %s WHERE v CONTAINS ?", udt1);
 
         assertRows(execute("SELECT * FROM %s WHERE v = ?", set(udt1, udt2)), row(1, set(udt1, udt2)));

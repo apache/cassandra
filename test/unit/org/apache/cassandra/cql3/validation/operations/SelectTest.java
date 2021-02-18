@@ -568,7 +568,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn", "foo2"));
 
         beforeAndAfterFlush(() -> {
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+            assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "categories"),
                                  "SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo");
 
             assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn"),
@@ -593,7 +593,7 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (account, id , categories) VALUES (?, ?, ?)", "test", 6, map("lmn2", "foo"));
 
         beforeAndAfterFlush(() -> {
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+            assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "categories"),
                                  "SELECT * FROM %s WHERE account = ? AND categories CONTAINS KEY ?", "test", "lmn");
 
             assertRows(execute("SELECT * FROM %s WHERE account = ? AND categories CONTAINS ?", "test", "foo"),
@@ -1276,11 +1276,12 @@ public class SelectTest extends CQLTester
             assertRows(execute("SELECT * FROM %s WHERE s = 1 AND d = 12 ALLOW FILTERING"),
                        row(1, 3, 1, 6, 12));
 
-            assertInvalidMessage("IN predicates on non-primary-key columns (c) is not yet supported",
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                  "SELECT * FROM %s WHERE a IN (1, 2) AND c IN (6, 7)");
 
-            assertInvalidMessage("IN predicates on non-primary-key columns (c) is not yet supported",
-                                 "SELECT * FROM %s WHERE a IN (1, 2) AND c IN (6, 7) ALLOW FILTERING");
+            assertRows(execute("SELECT * FROM %s WHERE a IN (1, 2) AND c IN (6, 7) ALLOW FILTERING"),
+                       row(1, 3, 1, 6, 12),
+                       row(2, 3, 2, 7, 12));
 
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                  "SELECT * FROM %s WHERE c > 4");
@@ -1669,8 +1670,8 @@ public class SelectTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
 
-            assertInvalidMessage("IN restrictions are not supported when the query involves filtering",
-                    "SELECT * FROM %s WHERE b in (11,12) ALLOW FILTERING");
+            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE b in (11,12)");
 
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                     "SELECT * FROM %s WHERE a = 11");
@@ -1745,8 +1746,8 @@ public class SelectTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
 
-             assertInvalidMessage("IN restrictions are not supported when the query involves filtering",
-                    "SELECT * FROM %s WHERE b in (11,12) ALLOW FILTERING");
+             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                    "SELECT * FROM %s WHERE b in (11,12)");
 
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                     "SELECT * FROM %s WHERE a = 11");
@@ -2838,8 +2839,9 @@ public class SelectTest extends CQLTester
                    row(0, Duration.from("1s")),
                    row(2, Duration.from("1s")));
 
-        assertInvalidMessage("IN predicates on non-primary-key columns (d) is not yet supported",
-                             "SELECT * FROM %s WHERE d IN (1s, 2s) ALLOW FILTERING");
+        assertRows(execute("SELECT * FROM %s WHERE d IN (1s, 3s) ALLOW FILTERING"),
+                   row(0, Duration.from("1s")),
+                   row(2, Duration.from("1s")));
 
         assertInvalidMessage("Slice restrictions are not supported on duration columns",
                              "SELECT * FROM %s WHERE d > 1s ALLOW FILTERING");
@@ -2867,11 +2869,19 @@ public class SelectTest extends CQLTester
             execute("INSERT INTO %s (k, l) VALUES (2, [1s, 3s])");
 
             if (frozen)
+            {
                 assertRows(execute("SELECT * FROM %s WHERE l = [1s, 2s] ALLOW FILTERING"),
                            row(0, list(Duration.from("1s"), Duration.from("2s"))));
 
-            assertInvalidMessage("IN predicates on non-primary-key columns (l) is not yet supported",
-                                 "SELECT * FROM %s WHERE l IN ([1s, 2s], [2s, 3s]) ALLOW FILTERING");
+                assertRows(execute("SELECT * FROM %s WHERE l IN ([1s, 2s], [2s, 3s]) ALLOW FILTERING"),
+                           row(1, list(Duration.from("2s"), Duration.from("3s"))),
+                           row(0, list(Duration.from("1s"), Duration.from("2s"))));
+            }
+            else
+            {
+                assertInvalidMessage("Collection column 'l' (list<duration>) cannot be restricted by a 'IN' relation",
+                                     "SELECT * FROM %s WHERE l IN ([1s, 2s], [2s, 3s]) ALLOW FILTERING");
+            }
 
             assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
                                  "SELECT * FROM %s WHERE l > [2s, 3s] ALLOW FILTERING");
@@ -2904,11 +2914,19 @@ public class SelectTest extends CQLTester
             execute("INSERT INTO %s (k, m) VALUES (2, {1:1s, 3:3s})");
 
             if (frozen)
+            {
                 assertRows(execute("SELECT * FROM %s WHERE m = {1:1s, 2:2s} ALLOW FILTERING"),
                            row(0, map(1, Duration.from("1s"), 2, Duration.from("2s"))));
 
-            assertInvalidMessage("IN predicates on non-primary-key columns (m) is not yet supported",
-                    "SELECT * FROM %s WHERE m IN ({1:1s, 2:2s}, {1:1s, 3:3s}) ALLOW FILTERING");
+                assertRows(execute("SELECT * FROM %s WHERE m IN ({1:1s, 2:2s}, {1:1s, 3:3s}) ALLOW FILTERING"),
+                           row(0, map(1, Duration.from("1s"), 2, Duration.from("2s"))),
+                           row(2, map(1, Duration.from("1s"), 3, Duration.from("3s"))));
+            }
+            else
+            {
+                assertInvalidMessage("Collection column 'm' (map<int, duration>) cannot be restricted by a 'IN' relation",
+                                     "SELECT * FROM %s WHERE m IN ({1:1s, 2:2s}, {1:1s, 3:3s}) ALLOW FILTERING");
+            }
 
             assertInvalidMessage("Slice restrictions are not supported on collections containing durations",
                     "SELECT * FROM %s WHERE m > {1:1s, 3:3s} ALLOW FILTERING");
@@ -2939,8 +2957,9 @@ public class SelectTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE t = (1, 2s) ALLOW FILTERING"),
                    row(0, tuple(1, Duration.from("2s"))));
 
-        assertInvalidMessage("IN predicates on non-primary-key columns (t) is not yet supported",
-                "SELECT * FROM %s WHERE t IN ((1, 2s), (1, 3s)) ALLOW FILTERING");
+        assertRows(execute("SELECT * FROM %s WHERE t IN ((1, 2s), (1, 3s)) ALLOW FILTERING"),
+                   row(0, tuple(1, Duration.from("2s"))),
+                   row(2, tuple(1, Duration.from("3s"))));
 
         assertInvalidMessage("Slice restrictions are not supported on tuples containing durations",
                 "SELECT * FROM %s WHERE t > (1, 2s) ALLOW FILTERING");
@@ -2970,11 +2989,22 @@ public class SelectTest extends CQLTester
             execute("INSERT INTO %s (k, u) VALUES (2, {i: 1, d:3s})");
 
             if (frozen)
+            {
                 assertRows(execute("SELECT * FROM %s WHERE u = {i: 1, d:2s} ALLOW FILTERING"),
                            row(0, userType("i", 1, "d", Duration.from("2s"))));
 
-            assertInvalidMessage("IN predicates on non-primary-key columns (u) is not yet supported",
-                    "SELECT * FROM %s WHERE u IN ({i: 2, d:3s}, {i: 1, d:3s}) ALLOW FILTERING");
+                assertRows(execute("SELECT * FROM %s WHERE u IN ({i: 2, d:3s}, {i: 1, d:3s}) ALLOW FILTERING"),
+                           row(1, userType("i", 2, "d", Duration.from("3s"))),
+                           row(2, userType("i", 1, "d", Duration.from("3s"))));
+            }
+            else
+            {
+                assertInvalidMessage("Non-frozen UDT column 'u' (" + udt + ") cannot be restricted by any relation",
+                                     "SELECT * FROM %s WHERE u = {i: 1, d:2s} ALLOW FILTERING");
+
+                assertInvalidMessage("Non-frozen UDT column 'u' (" + udt + ") cannot be restricted by any relation",
+                                     "SELECT * FROM %s WHERE u IN ({i: 2, d:3s}, {i: 1, d:3s}) ALLOW FILTERING");
+            }
 
             assertInvalidMessage("Slice restrictions are not supported on UDTs containing durations",
                     "SELECT * FROM %s WHERE u > {i: 1, d:3s} ALLOW FILTERING");
