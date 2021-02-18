@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import com.google.common.base.Predicate;
+
 public enum OperationType
 {
     /** Each modification here should be also applied to {@link org.apache.cassandra.tools.nodetool.Stop#compactionType} */
@@ -64,4 +66,9 @@ public enum OperationType
     {
         return type;
     }
+
+    public static final Predicate<OperationType> REWRITES_SSTABLES = o -> o == COMPACTION || o == CLEANUP || o == SCRUB ||
+                                                                          o == TOMBSTONE_COMPACTION || o == ANTICOMPACTION ||
+                                                                          o == UPGRADE_SSTABLES || o == RELOCATE ||
+                                                                          o == GARBAGE_COLLECT;
 }

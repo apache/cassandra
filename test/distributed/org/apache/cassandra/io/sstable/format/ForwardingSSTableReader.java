@@ -422,6 +422,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public DecoratedKey keyAt(FileDataInput reader) throws IOException
+    {
+        return delegate.keyAt(reader);
+    }
+
+    @Override
     public boolean isPendingRepair()
     {
         return delegate.isPendingRepair();

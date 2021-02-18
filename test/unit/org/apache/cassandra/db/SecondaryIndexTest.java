@@ -546,7 +546,7 @@ public class SecondaryIndexTest
                              .filterOn("notbirthdate", Operator.EQ, 0L)
                              .build();
 
-        assertEquals("notbirthdate_key_index", rc.indexMetadata().name);
+        assertEquals("notbirthdate_key_index", rc.indexQueryPlan().getFirst().getIndexMetadata().name);
     }
 
     private void assertIndexedNone(ColumnFamilyStore cfs, ByteBuffer col, Object val)
