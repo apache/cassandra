@@ -1,4 +1,5 @@
 4.0-beta5
+ * Fix node unable to join when RF > N in multi-DC with added warning (CASSANDRA-16296)
  * Add an option to nodetool tablestats to check sstable location correctness (CASSANDRA-16344) 
  * Unable to ALTER KEYSPACE while decommissioned/assassinated nodes are in gossip (CASSANDRA-16422)
  * Metrics backward compatibility restored after CASSANDRA-15066 (CASSANDRA-16083)
