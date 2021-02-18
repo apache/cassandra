@@ -149,7 +149,7 @@ public abstract class UnfilteredPartitionIterators
                 return UnfilteredRowIterators.merge(toMerge, rowListener);
             }
 
-            protected void onKeyChange()
+            public void onKeyChange()
             {
                 toMerge.clear();
                 for (int i = 0; i < iterators.size(); i++)
@@ -215,7 +215,7 @@ public abstract class UnfilteredPartitionIterators
                 };
             }
 
-            protected void onKeyChange()
+            public void onKeyChange()
             {
                 toMerge.clear();
             }

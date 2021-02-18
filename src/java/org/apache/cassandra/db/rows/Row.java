@@ -861,7 +861,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 }
             }
 
-            protected void onKeyChange()
+            public void onKeyChange()
             {
                 column = null;
                 versions.clear();
@@ -890,7 +890,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 return merged;
             }
 
-            protected void onKeyChange()
+            public void onKeyChange()
             {
                 merged = null;
             }

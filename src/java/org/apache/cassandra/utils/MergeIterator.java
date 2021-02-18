@@ -442,7 +442,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
          * Called at the beginning of each new key, before any reduce is called.
          * To be overridden by implementing classes.
          */
-        protected void onKeyChange() {}
+        public void onKeyChange() {}
 
         /**
          * May be overridden by implementations that require cleaning up after use
@@ -486,6 +486,39 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
             if (!source.hasNext())
                 return endOfData();
             return (Out) source.next();
+        }
+    }
+
+    public static <In> Reducer<In, In> getIdentity()
+    {
+        return new IdentityReducer<>();
+    }
+
+    private static class IdentityReducer<In> extends Reducer<In, In>
+    {
+        private In reduced;
+
+        @Override
+        public void reduce(int idx, In current)
+        {
+            this.reduced = current;
+        }
+
+        @Override
+        public In getReduced()
+        {
+            return reduced;
+        }
+
+        @Override
+        public void onKeyChange() {
+            this.reduced = null;
+        }
+
+        @Override
+        public boolean trivialReduceIsTrivial()
+        {
+            return true;
         }
     }
 }

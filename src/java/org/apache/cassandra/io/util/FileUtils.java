@@ -434,6 +434,11 @@ public final class FileUtils
         maybeFail(e, IOException.class);
     }
 
+    public static void closeQuietly(Closeable... cs)
+    {
+        closeQuietly(Arrays.asList(cs));
+    }
+
     public static void closeQuietly(Iterable<? extends AutoCloseable> cs)
     {
         for (AutoCloseable c : cs)

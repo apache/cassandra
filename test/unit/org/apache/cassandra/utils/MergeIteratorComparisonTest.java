@@ -552,7 +552,7 @@ public class MergeIteratorComparisonTest
         }
 
         @Override
-        protected void onKeyChange()
+        public void onKeyChange()
         {
             assert read;
             current = null;
@@ -603,7 +603,7 @@ public class MergeIteratorComparisonTest
         }
 
         @Override
-        protected void onKeyChange()
+        public void onKeyChange()
         {
             assert read;
             current = null;
