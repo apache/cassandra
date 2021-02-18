@@ -289,7 +289,8 @@ public class CustomCassandraIndex implements Index
                               final RegularAndStaticColumns columns,
                               final int nowInSec,
                               final WriteContext ctx,
-                              final IndexTransaction.Type transactionType)
+                              final IndexTransaction.Type transactionType,
+                              final Memtable memtable)
     {
         if (!isPrimaryKeyIndex() && !columns.contains(indexedColumn))
             return null;
@@ -461,7 +462,7 @@ public class CustomCassandraIndex implements Index
                                                                cell));
         Row row = BTreeRow.noCellLiveRow(buildIndexClustering(rowKey, clustering, cell), info);
         PartitionUpdate upd = partitionUpdate(valueKey, row);
-        indexCfs.getWriteHandler().write(upd, ctx, UpdateTransaction.NO_OP);
+        indexCfs.getWriteHandler().write(upd, ctx, false);
         logger.debug("Inserted entry into index for value {}", valueKey);
     }
 
@@ -507,7 +508,7 @@ public class CustomCassandraIndex implements Index
     {
         Row row = BTreeRow.emptyDeletedRow(indexClustering, Row.Deletion.regular(deletion));
         PartitionUpdate upd = partitionUpdate(indexKey, row);
-        indexCfs.getWriteHandler().write(upd, ctx, UpdateTransaction.NO_OP);
+        indexCfs.getWriteHandler().write(upd, ctx, false);
         logger.debug("Removed index entry for value {}", indexKey);
     }
 

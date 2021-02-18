@@ -38,6 +38,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
@@ -520,11 +522,11 @@ public class ReplicaPlans
     }
 
 
-    private static <E extends Endpoints<E>> E candidatesForRead(ConsistencyLevel consistencyLevel, E liveNaturalReplicas)
+    private static <E extends Endpoints<E>> E candidatesForRead(Keyspace keyspace, Index.QueryPlan indexQueryPlan, ConsistencyLevel consistencyLevel, E liveNaturalReplicas)
     {
-        return consistencyLevel.isDatacenterLocal()
-                ? liveNaturalReplicas.filter(InOurDcTester.replicas())
-                : liveNaturalReplicas;
+        E replicas = consistencyLevel.isDatacenterLocal() ? liveNaturalReplicas.filter(InOurDcTester.replicas()) : liveNaturalReplicas;
+
+        return indexQueryPlan != null ? SecondaryIndexManager.filterForQuery(replicas, keyspace, indexQueryPlan, consistencyLevel) : replicas;
     }
 
     private static <E extends Endpoints<E>> E contactForEachQuorumRead(Keyspace keyspace, E candidates)
@@ -585,9 +587,9 @@ public class ReplicaPlans
      * The candidate collection can be used for speculation, although at present
      * it would break EACH_QUORUM to do so without further filtering
      */
-    public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
+    public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, Index.QueryPlan indexQueryPlan, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
-        EndpointsForToken candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forTokenReadLiveSorted(keyspace, token).natural());
+        EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, ReplicaLayout.forTokenReadLiveSorted(keyspace, token).natural());
         EndpointsForToken contacts = contactForRead(keyspace, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
         assureSufficientLiveReplicasForRead(keyspace, consistencyLevel, contacts);
@@ -601,9 +603,9 @@ public class ReplicaPlans
      *
      * There is no speculation for range read queries at present, so we never 'always speculate' here, and a failed response fails the query.
      */
-    public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, int vnodeCount)
+    public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, Index.QueryPlan indexQueryPlan, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, int vnodeCount)
     {
-        EndpointsForRange candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(keyspace, range).natural());
+        EndpointsForRange candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(keyspace, range).natural());
         EndpointsForRange contacts = contactForRead(keyspace, consistencyLevel, false, candidates);
 
         assureSufficientLiveReplicasForRead(keyspace, consistencyLevel, contacts);

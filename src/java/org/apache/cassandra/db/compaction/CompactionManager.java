@@ -1423,7 +1423,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     isTransient,
                                     sstable.getSSTableLevel(),
                                     sstable.header,
-                                    cfs.indexManager.listIndexes(),
+                                    cfs.indexManager.listIndexGroups(),
                                     txn);
     }
 
@@ -1460,7 +1460,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     cfs.metadata,
                                     new MetadataCollector(sstables, cfs.metadata().comparator, minLevel),
                                     SerializationHeader.make(cfs.metadata(), sstables),
-                                    cfs.indexManager.listIndexes(),
+                                    cfs.indexManager.listIndexGroups(),
                                     txn);
     }
 
@@ -2161,6 +2161,60 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     /**
+     * Try to stop all of the compactions for given tables.
+     *
+     * Note that this method does not wait for all compactions to finish; you'll need to loop against
+     * isCompacting if you want that behavior.
+     *
+     * @param tables The tables to try to stop compaction upon.
+     * @param opPredicate Predicate to define which compaction operation to stop, based on its type.
+     * @param readerPredicate Predicate to define which compaction to stop based on candidate sstables.
+     * @param waitForInterruption whether to wait until interrupted compaction has fully stopped
+     *
+     * @return True if any compaction has been interrupted false otherwise.
+     */
+    public boolean interruptCompactionFor(Iterable<TableMetadata> tables, Predicate<OperationType> opPredicate, Predicate<SSTableReader> readerPredicate,
+                                          boolean waitForInterruption)
+    {
+        assert tables != null;
+
+        // interrupt in-progress compactions
+        Set<Holder> interrupted = new HashSet<>();
+        for (Holder compactionHolder : active.getCompactions())
+        {
+            CompactionInfo info = compactionHolder.getCompactionInfo();
+
+            if (Iterables.contains(tables, info.getTableMetadata()) && opPredicate.test(info.getTaskType()))
+            {
+                compactionHolder.stop();
+                interrupted.add(compactionHolder);
+            }
+        }
+
+        if (waitForInterruption)
+        {
+            // wait at most 2 minutes
+            long start = System.nanoTime();
+            long wait = TimeUnit.MINUTES.toNanos(2);
+
+            for (Holder operation : interrupted)
+            {
+                while (active.isActive(operation) && System.nanoTime() - start < wait)
+                    Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+
+                if (active.isActive(operation))
+                    throw new RuntimeException(String.format("Compaction task (%s) didn't finish within 2 minutes", operation.getCompactionInfo()));
+            }
+        }
+
+        return !interrupted.isEmpty();
+    }
+
+    public void interruptCompactionFor(Iterable<TableMetadata> columnFamilies, Predicate<SSTableReader> sstablePredicate, boolean interruptValidation)
+    {
+        interruptCompactionFor(columnFamilies, sstablePredicate, interruptValidation, CompactionInfo.StopTrigger.NONE);
+    }
+    /**
      * Try to stop all of the compactions for given ColumnFamilies.
      *
      * Note that this method does not wait for all compactions to finish; you'll need to loop against
@@ -2170,7 +2224,7 @@ public class CompactionManager implements CompactionManagerMBean
      * @param sstablePredicate the sstable predicate to match on
      * @param interruptValidation true if validation operations for repair should also be interrupted
      */
-    public void interruptCompactionFor(Iterable<TableMetadata> columnFamilies, Predicate<SSTableReader> sstablePredicate, boolean interruptValidation)
+    public void interruptCompactionFor(Iterable<TableMetadata> columnFamilies, Predicate<SSTableReader> sstablePredicate, boolean interruptValidation, CompactionInfo.StopTrigger trigger)
     {
         assert columnFamilies != null;
 
@@ -2184,18 +2238,23 @@ public class CompactionManager implements CompactionManagerMBean
             if (info.getTableMetadata() == null || Iterables.contains(columnFamilies, info.getTableMetadata()))
             {
                 if (info.shouldStop(sstablePredicate))
-                    compactionHolder.stop();
+                    compactionHolder.stop(trigger);
             }
         }
     }
 
     public void interruptCompactionForCFs(Iterable<ColumnFamilyStore> cfss, Predicate<SSTableReader> sstablePredicate, boolean interruptValidation)
     {
+        interruptCompactionForCFs(cfss, sstablePredicate, interruptValidation, CompactionInfo.StopTrigger.NONE);
+    }
+
+    public void interruptCompactionForCFs(Iterable<ColumnFamilyStore> cfss, Predicate<SSTableReader> sstablePredicate, boolean interruptValidation, CompactionInfo.StopTrigger trigger)
+    {
         List<TableMetadata> metadata = new ArrayList<>();
         for (ColumnFamilyStore cfs : cfss)
             metadata.add(cfs.metadata());
 
-        interruptCompactionFor(metadata, sstablePredicate, interruptValidation);
+        interruptCompactionFor(metadata, sstablePredicate, interruptValidation, trigger);
     }
 
     public void waitForCessation(Iterable<ColumnFamilyStore> cfss, Predicate<SSTableReader> sstablePredicate)

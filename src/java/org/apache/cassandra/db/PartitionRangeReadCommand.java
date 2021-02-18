@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,8 +40,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
@@ -65,9 +62,9 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                      RowFilter rowFilter,
                                      DataLimits limits,
                                      DataRange dataRange,
-                                     IndexMetadata index)
+                                     Index.QueryPlan indexQueryPlan)
     {
-        super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+        super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         this.dataRange = dataRange;
     }
 
@@ -87,7 +84,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter,
                                              limits,
                                              dataRange,
-                                             findIndex(metadata, rowFilter));
+                                             findIndexQueryPlan(metadata, rowFilter));
     }
 
     /**
@@ -158,7 +155,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter(),
                                              isRangeContinuation ? limits() : limits().withoutState(),
                                              dataRange().forSubRange(range),
-                                             indexMetadata());
+                                             indexQueryPlan());
     }
 
     public PartitionRangeReadCommand copy()
@@ -172,7 +169,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter(),
                                              limits(),
                                              dataRange(),
-                                             indexMetadata());
+                                             indexQueryPlan());
     }
 
     @Override
@@ -187,7 +184,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter(),
                                              limits(),
                                              dataRange(),
-                                             indexMetadata());
+                                             indexQueryPlan());
     }
 
     @Override
@@ -202,7 +199,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter(),
                                              limits(),
                                              dataRange(),
-                                             indexMetadata());
+                                             indexQueryPlan());
     }
 
     @Override
@@ -217,7 +214,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter(),
                                              newLimits,
                                              dataRange(),
-                                             indexMetadata());
+                                             indexQueryPlan());
     }
 
     @Override
@@ -232,7 +229,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                              rowFilter(),
                                              newLimits,
                                              newDataRange,
-                                             indexMetadata());
+                                             indexQueryPlan());
     }
 
     public long getTimeout(TimeUnit unit)
@@ -383,9 +380,8 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
      */
     public PartitionIterator postReconciliationProcessing(PartitionIterator result)
     {
-        ColumnFamilyStore cfs = Keyspace.open(metadata().keyspace).getColumnFamilyStore(metadata().name);
-        Index index = getIndex(cfs);
-        return index == null ? result : index.postProcessorFor(this).apply(result, this);
+        Index.QueryPlan queryPlan = indexQueryPlan();
+        return queryPlan == null ? result : queryPlan.postProcessor().apply(result);
     }
 
     @Override
@@ -439,11 +435,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                        ColumnFilter columnFilter,
                                        RowFilter rowFilter,
                                        DataLimits limits,
-                                       IndexMetadata index)
+                                       Index.QueryPlan indexQueryPlan)
         throws IOException
         {
             DataRange range = DataRange.serializer.deserialize(in, version, metadata);
-            return new PartitionRangeReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, range, index);
+            return new PartitionRangeReadCommand(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, range, indexQueryPlan);
         }
     }
 }
