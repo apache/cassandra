@@ -201,7 +201,7 @@ public class SASIIndexTest
 
                 for (Component c : components)
                 {
-                    long componentSize = Files.size(Paths.get(snapshotSSTable.filenameFor(c)));
+                    long componentSize = snapshotSSTable.fileFor(c).length();
                     if (Component.Type.fromRepresentation(c.name) == Component.Type.SECONDARY_INDEX)
                         indexSize += componentSize;
                     else

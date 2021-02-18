@@ -119,6 +119,11 @@ public class Descriptor
         return new Descriptor(newType.info.getLatestVersion(), directory, ksname, cfname, id, newType);
     }
 
+    public File tmpFileFor(Component component)
+    {
+        return new File(tmpFilenameFor(component));
+    }
+
     public String tmpFilenameFor(Component component)
     {
         return filenameFor(component) + TMP_EXT;
