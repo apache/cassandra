@@ -75,12 +75,13 @@ public class BigTableWriter extends SSTableWriter
                           UUID pendingRepair,
                           boolean isTransient,
                           TableMetadataRef metadata,
-                          MetadataCollector metadataCollector, 
+                          MetadataCollector metadataCollector,
                           SerializationHeader header,
                           Collection<SSTableFlushObserver> observers,
-                          LifecycleNewTracker lifecycleNewTracker)
+                          LifecycleNewTracker lifecycleNewTracker,
+                          Set<Component> indexComponents)
     {
-        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers);
+        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, indexComponents);
         lifecycleNewTracker.trackNew(this); // must track before any files are created
 
         if (compression)
@@ -335,10 +336,10 @@ public class BigTableWriter extends SSTableWriter
                                                            components, metadata,
                                                            ifile, dfile,
                                                            indexSummary,
-                                                           iwriter.bf.sharedCopy(), 
-                                                           maxDataAge, 
-                                                           stats, 
-                                                           SSTableReader.OpenReason.EARLY, 
+                                                           iwriter.bf.sharedCopy(),
+                                                           maxDataAge,
+                                                           stats,
+                                                           SSTableReader.OpenReason.EARLY,
                                                            header);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)

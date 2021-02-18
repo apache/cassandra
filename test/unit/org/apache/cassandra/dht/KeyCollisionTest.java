@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.dht;
 
-import java.math.BigInteger;
 import java.util.List;
 
 import org.junit.AfterClass;
@@ -27,18 +26,15 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -100,38 +96,5 @@ public class KeyCollisionTest
     {
         RowUpdateBuilder builder = new RowUpdateBuilder(Schema.instance.getTableMetadata(KEYSPACE1, CF), FBUtilities.timestampMicros(), key);
         builder.clustering("c").add("val", "asdf").build().applyUnsafe();
-    }
-
-    static class BigIntegerToken extends ComparableObjectToken<BigInteger>
-    {
-        private static final long serialVersionUID = 1L;
-
-        public BigIntegerToken(BigInteger token)
-        {
-            super(token);
-        }
-
-        // convenience method for testing
-        public BigIntegerToken(String token) {
-            this(new BigInteger(token));
-        }
-
-        @Override
-        public IPartitioner getPartitioner()
-        {
-            return LengthPartitioner.instance;
-        }
-
-        @Override
-        public long getHeapSize()
-        {
-            return 0;
-        }
-
-        @Override
-        public ByteSource asComparableBytes(ByteComparable.Version version)
-        {
-            return IntegerType.instance.asComparableBytes(IntegerType.instance.decompose(token), version);
-        }
     }
 }

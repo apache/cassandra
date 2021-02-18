@@ -23,18 +23,18 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Operation.OperationType;
-import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-public class QueryPlan
+public class SASIIndexSearcher implements Index.Searcher
 {
     private final QueryController controller;
 
-    public QueryPlan(ColumnFamilyStore cfs, ReadCommand command, long executionQuotaMs)
+    public SASIIndexSearcher(ColumnFamilyStore cfs, ReadCommand command, long executionQuotaMs)
     {
         this.controller = new QueryController(cfs, (PartitionRangeReadCommand) command, executionQuotaMs);
     }
@@ -63,7 +63,8 @@ public class QueryPlan
         }
     }
 
-    public UnfilteredPartitionIterator execute(ReadExecutionController executionController) throws RequestTimeoutException
+    @Override
+    public UnfilteredPartitionIterator search(ReadExecutionController executionController)
     {
         return new ResultIterator(analyze(), controller, executionController);
     }

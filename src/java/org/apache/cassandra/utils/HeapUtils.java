@@ -115,7 +115,7 @@ public final class HeapUtils
      * Retrieves the process ID or <code>null</code> if the process ID cannot be retrieved.
      * @return the process ID or <code>null</code> if the process ID cannot be retrieved.
      */
-    private static Long getProcessId()
+    public static Long getProcessId()
     {
         long pid = NativeLibrary.getProcessID();
         if (pid >= 0)

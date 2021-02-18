@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -122,7 +123,13 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     }
 
     @Override
-    public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        return false;
+    }
+
+    @Override
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
     {
         throw new UnsupportedOperationException("Index expression cannot be created for token restriction");
     }
@@ -153,7 +160,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     public final PartitionKeyRestrictions mergeWith(Restriction otherRestriction) throws InvalidRequestException
     {
         if (!otherRestriction.isOnToken())
-            return new TokenFilter(toPartitionKeyRestrictions(otherRestriction), this);
+            return TokenFilter.create(toPartitionKeyRestrictions(otherRestriction), this);
 
         return doMergeWith((TokenRestriction) otherRestriction);
     }
@@ -176,7 +183,9 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         if (restriction instanceof PartitionKeyRestrictions)
             return (PartitionKeyRestrictions) restriction;
 
-        return new PartitionKeySingleRestrictionSet(metadata.partitionKeyAsClusteringComparator()).mergeWith(restriction);
+        return PartitionKeySingleRestrictionSet.builder(metadata.partitionKeyAsClusteringComparator())
+                                               .addRestriction(restriction)
+                                               .build();
     }
 
     public static final class EQRestriction extends TokenRestriction

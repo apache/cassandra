@@ -24,9 +24,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.index.IndexRegistry;
 
 /**
@@ -42,25 +42,10 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
      */
     protected final ClusteringComparator comparator;
 
-    public PartitionKeySingleRestrictionSet(ClusteringComparator comparator)
+    private PartitionKeySingleRestrictionSet(RestrictionSet restrictionSet, ClusteringComparator comparator)
     {
-        super(new RestrictionSet());
+        super(restrictionSet);
         this.comparator = comparator;
-    }
-
-    private PartitionKeySingleRestrictionSet(PartitionKeySingleRestrictionSet restrictionSet,
-                                       SingleRestriction restriction)
-    {
-        super(restrictionSet.restrictions.addRestriction(restriction));
-        this.comparator = restrictionSet.comparator;
-    }
-
-    private List<ByteBuffer> toByteBuffers(SortedSet<? extends ClusteringPrefix> clusterings)
-    {
-        List<ByteBuffer> l = new ArrayList<>(clusterings.size());
-        for (ClusteringPrefix clustering : clusterings)
-            l.add(clustering.serializeAsPartitionKey());
-        return l;
     }
 
     @Override
@@ -71,36 +56,49 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
             if (isEmpty())
                 return (PartitionKeyRestrictions) restriction;
 
-            return new TokenFilter(this, (TokenRestriction) restriction);
+            return TokenFilter.create(this, (TokenRestriction) restriction);
         }
 
-        return new PartitionKeySingleRestrictionSet(this, (SingleRestriction) restriction);
+        Builder builder = PartitionKeySingleRestrictionSet.builder(comparator);
+        List<SingleRestriction> restrictions = restrictions();
+        for (int i = 0; i < restrictions.size(); i++)
+        {
+            SingleRestriction r = restrictions.get(i);
+            builder.addRestriction(r);
+        }
+        return builder.addRestriction(restriction)
+                      .build();
     }
 
     @Override
     public List<ByteBuffer> values(QueryOptions options)
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
-        for (SingleRestriction r : restrictions)
+        List<SingleRestriction> restrictions = restrictions();
+        for (int i = 0; i < restrictions.size(); i++)
         {
+            SingleRestriction r = restrictions.get(i);
             r.appendTo(builder, options);
+
             if (builder.hasMissingElements())
                 break;
         }
-        return toByteBuffers(builder.build());
+        return builder.buildSerializedPartitionKeys();
     }
 
     @Override
     public List<ByteBuffer> bounds(Bound bound, QueryOptions options)
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
-        for (SingleRestriction r : restrictions)
+        List<SingleRestriction> restrictions = restrictions();
+        for (int i = 0; i < restrictions.size(); i++)
         {
+            SingleRestriction r = restrictions.get(i);
             r.appendBoundTo(builder, bound, options);
             if (builder.hasMissingElements())
-                return Collections.emptyList();
+                return Collections.EMPTY_LIST;
         }
-        return toByteBuffers(builder.buildBound(bound.isStart(), true));
+        return builder.buildSerializedPartitionKeys();
     }
 
     @Override
@@ -120,13 +118,15 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     }
 
     @Override
-    public void addRowFilterTo(RowFilter filter,
+    public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
-        for (SingleRestriction restriction : restrictions)
+        List<SingleRestriction> restrictions = restrictions();
+        for (int i = 0; i < restrictions.size(); i++)
         {
-             restriction.addRowFilterTo(filter, indexRegistry, options);
+            SingleRestriction r = restrictions.get(i);
+            r.addToRowFilter(filter, indexRegistry, options);
         }
     }
 
@@ -146,9 +146,56 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
         return size() < table.partitionKeyColumns().size();
     }
 
-    @Override
-    public boolean hasSlice()
+    public static Builder builder(ClusteringComparator clusteringComparator)
     {
-        return restrictions.hasSlice();
+        return new Builder(clusteringComparator);
+    }
+
+    public static final class Builder
+    {
+        private final ClusteringComparator clusteringComparator;
+
+        private final List<Restriction> restrictions = new ArrayList<>();
+
+        private Builder(ClusteringComparator clusteringComparator) {
+            this.clusteringComparator = clusteringComparator;
+        }
+
+        public Builder addRestriction(Restriction restriction) {
+            restrictions.add(restriction);
+            return this;
+        }
+
+        public PartitionKeyRestrictions build() {
+            RestrictionSet.Builder restrictionSet = RestrictionSet.builder();
+
+            for (int i = 0; i < restrictions.size(); i++) {
+                Restriction restriction = restrictions.get(i);
+
+                // restrictions on tokens are handled in a special way
+                if (restriction.isOnToken())
+                    return buildWithTokens(restrictionSet, i);
+
+                restrictionSet.addRestriction((SingleRestriction) restriction);
+            }
+
+            return buildPartitionKeyRestrictions(restrictionSet);
+        }
+
+        private PartitionKeyRestrictions buildWithTokens(RestrictionSet.Builder restrictionSet, int i) {
+            PartitionKeyRestrictions merged = buildPartitionKeyRestrictions(restrictionSet);
+
+            for (; i < restrictions.size(); i++) {
+                Restriction restriction = restrictions.get(i);
+
+                merged = merged.mergeWith(restriction);
+            }
+
+            return merged;
+        }
+
+        private PartitionKeySingleRestrictionSet buildPartitionKeyRestrictions(RestrictionSet.Builder restrictionSet) {
+            return new PartitionKeySingleRestrictionSet(restrictionSet.build(), clusteringComparator);
+        }
     }
 }

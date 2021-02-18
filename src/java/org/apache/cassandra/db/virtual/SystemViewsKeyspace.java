@@ -19,6 +19,10 @@ package org.apache.cassandra.db.virtual;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.index.sai.virtual.IndexesSystemView;
+import org.apache.cassandra.index.sai.virtual.SSTablesSystemView;
+import org.apache.cassandra.index.sai.virtual.SegmentsSystemView;
+
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 
 public final class SystemViewsKeyspace extends VirtualKeyspace
@@ -36,6 +40,9 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new ThreadPoolsTable(VIRTUAL_VIEWS))
                     .add(new InternodeOutboundTable(VIRTUAL_VIEWS))
                     .add(new InternodeInboundTable(VIRTUAL_VIEWS))
+                    .add(new SSTablesSystemView(VIRTUAL_VIEWS))
+                    .add(new SegmentsSystemView(VIRTUAL_VIEWS))
+                    .add(new IndexesSystemView(VIRTUAL_VIEWS))
                     .addAll(TableMetricTables.getAll(VIRTUAL_VIEWS))
                     .build());
     }
