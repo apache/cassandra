@@ -657,8 +657,9 @@
           <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
           <dependency groupId="org.agrona" artifactId="agrona" version="0.9.26" />
           <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="7.5.0" />
-          <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" />
-          <dependency groupId="org.hamcrest" artifactId="hamcrest-all" version="1.3" />
+          <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2">
+              <exclusion groupId="junit" artifactId="junit"/>
+          </dependency>
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -733,6 +734,9 @@
         <!-- coverage debs -->
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
+
+        <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
+        <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -776,7 +780,7 @@
         <dependency groupId="ch.qos.logback" artifactId="logback-core"/>
         <dependency groupId="ch.qos.logback" artifactId="logback-classic"/>
 
-        <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
+          <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
 
@@ -817,6 +821,9 @@
         <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations"/>
         <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
         <dependency groupId="org.agrona" artifactId="agrona"/>
+        <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
+        <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
+        <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
 
         <!-- sasi deps -->
         <dependency groupId="de.jflex" artifactId="jflex" />
