@@ -153,7 +153,7 @@ public class Replay implements Runnable
         {
             return queries;
         }
-        protected void onKeyChange()
+        public void onKeyChange()
         {
             queries.clear();
         }

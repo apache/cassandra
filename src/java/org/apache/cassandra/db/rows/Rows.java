@@ -242,7 +242,7 @@ public abstract class Rows
                 return null;
             }
 
-            protected void onKeyChange()
+            public void onKeyChange()
             {
                 mergedData = null;
                 Arrays.fill(inputDatas, null);
