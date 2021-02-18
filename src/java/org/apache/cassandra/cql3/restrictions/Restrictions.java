@@ -52,18 +52,28 @@ public interface Restrictions extends Restriction
      * Checks if any of the underlying restriction is an IN.
      * @return <code>true</code> if any of the underlying restriction is an IN, <code>false</code> otherwise
      */
-    public boolean hasIN();
+    default public boolean hasIN()
+    {
+        return false;
+    }
 
     /**
      * Checks if any of the underlying restrictions is a CONTAINS / CONTAINS KEY restriction.
      * @return <code>true</code> if any of the underlying restrictions is CONTAINS, <code>false</code> otherwise
      */
-    public boolean hasContains();
+    default public boolean hasContains()
+    {
+        return false;
+    }
+
     /**
      * Checks if any of the underlying restrictions is a slice.
      * @return <code>true</code> if any of the underlying restrictions is a slice, <code>false</code> otherwise
      */
-    public boolean hasSlice();
+    default public boolean hasSlice()
+    {
+        return false;
+    }
 
     /**
      * Checks if all of the underlying restrictions are EQ or IN restrictions.
@@ -71,5 +81,8 @@ public interface Restrictions extends Restriction
      * @return <code>true</code> if all of the underlying restrictions are EQ or IN restrictions,
      * <code>false</code> otherwise
      */
-    public boolean hasOnlyEqualityRestrictions();
+    default public boolean hasOnlyEqualityRestrictions()
+    {
+        return true;
+    }
 }

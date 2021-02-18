@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.*;
@@ -31,6 +32,8 @@ import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -78,6 +81,16 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 return true;
 
         return false;
+    }
+
+    @Override
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        for (Index index : indexGroup.getIndexes())
+            if (isSupportedBy(index))
+                return false;
+
+        return true;
     }
 
     @Override
@@ -150,7 +163,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
@@ -214,11 +227,18 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
-            throw invalidRequest("IN restrictions are not supported on indexed columns");
+            List<ByteBuffer> values = getValues(options);
+            for (ByteBuffer v : values)
+            {
+                checkNotNull(v, "Invalid null value for column %s", columnDef.name);
+                checkBindValueSet(v, "Invalid unset value for column %s", columnDef.name);
+            }
+            ByteBuffer buffer = ListSerializer.pack(values, values.size(), ProtocolVersion.V3);
+            filter.add(columnDef, Operator.IN, buffer);
         }
 
         @Override
@@ -385,7 +405,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             for (Bound b : Bound.values())
                 if (hasBound(b))
@@ -475,7 +495,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             for (ByteBuffer value : bindAndGet(values, options))
                 filter.add(columnDef, Operator.CONTAINS, value);
@@ -614,7 +634,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
@@ -690,7 +710,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {

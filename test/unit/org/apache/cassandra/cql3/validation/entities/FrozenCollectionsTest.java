@@ -866,7 +866,7 @@ public class FrozenCollectionsTest extends CQLTester
                    row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a")),
                    row(1, list(1, 2, 3), set(4, 5, 6), map(2, "b")));
 
-        assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+        assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "d"),
                              "SELECT * FROM %s WHERE d CONTAINS KEY ?", 1);
 
         assertRows(execute("SELECT * FROM %s WHERE b CONTAINS ? AND d CONTAINS KEY ? ALLOW FILTERING", 1, 1),

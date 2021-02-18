@@ -317,6 +317,15 @@ public enum Operator
     }
 
     /**
+     * Checks if this operator is a like operator.
+     * @return {@code true} if this operator is a like operator, {@code false} otherwise.
+     */
+    public boolean isLike()
+    {
+        return this == LIKE_PREFIX || this == LIKE_CONTAINS || this == LIKE_SUFFIX || this == LIKE_MATCHES;
+    }
+
+    /**
      * Checks if this operator is a slice operator.
      * @return {@code true} if this operator is a slice operator, {@code false} otherwise.
      */
