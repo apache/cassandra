@@ -245,6 +245,11 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
         }
 
+        public VersionedValue indexStatus(String status)
+        {
+            return new VersionedValue(status);
+        }
+
         public VersionedValue datacenter(String dcId)
         {
             return new VersionedValue(dcId);

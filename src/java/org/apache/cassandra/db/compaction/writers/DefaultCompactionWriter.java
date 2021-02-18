@@ -76,7 +76,7 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
                                                     cfs.metadata,
                                                     new MetadataCollector(txn.originals(), cfs.metadata().comparator, sstableLevel),
                                                     SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
-                                                    cfs.indexManager.listIndexes(),
+                                                    cfs.indexManager.listIndexGroups(),
                                                     txn);
         sstableWriter.switchWriter(writer);
     }

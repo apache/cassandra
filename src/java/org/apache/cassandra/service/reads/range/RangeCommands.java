@@ -70,7 +70,7 @@ public class RangeCommands
         Tracing.trace("Computing ranges to query");
 
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(), keyspace, consistencyLevel);
+        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(), command.indexQueryPlan(), keyspace, consistencyLevel);
 
         // our estimate of how many result rows there will be per-range
         float resultsPerRange = estimateResultsPerRange(command, keyspace);
