@@ -23,8 +23,10 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
+import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,7 +97,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     public void addCustomIndexExpression(TableMetadata metadata, IndexMetadata targetIndex, ByteBuffer value)
     {
-        add(new CustomExpression(metadata, targetIndex, value));
+        add(CustomExpression.build(metadata, targetIndex, value));
     }
 
     private void add(Expression expression)
@@ -241,6 +243,16 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public RowFilter withoutExpressions()
     {
         return withNewExpressions(Collections.emptyList());
+    }
+
+    public RowFilter restrict(Predicate<Expression> filter)
+    {
+        return fromExpressions(expressions.stream().filter(filter).collect(Collectors.toList()));
+    }
+
+    private RowFilter fromExpressions(List<Expression> expressions)
+    {
+        return expressions.isEmpty() ? NONE : withNewExpressions(expressions);
     }
 
     protected abstract RowFilter withNewExpressions(List<Expression> expressions);
@@ -522,9 +534,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 // custom expressions (3.0+ only) do not contain a column or operator, only a value
                 if (kind == Kind.CUSTOM)
                 {
-                    return new CustomExpression(metadata,
-                            IndexMetadata.serializer.deserialize(in, version, metadata),
-                            ByteBufferUtil.readWithShortLength(in));
+                    return CustomExpression.build(metadata,
+                                                  IndexMetadata.serializer.deserialize(in, version, metadata),
+                                                  ByteBufferUtil.readWithShortLength(in));
                 }
 
                 if (kind == Kind.USER)
@@ -603,6 +615,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             switch (operator)
             {
                 case EQ:
+                case IN:
                 case LT:
                 case LTE:
                 case GTE:
@@ -695,11 +708,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
                     }
-
-                case IN:
-                    // It wouldn't be terribly hard to support this (though doing so would imply supporting
-                    // IN for 2ndary index) but currently we don't.
-                    throw new AssertionError();
             }
             throw new AssertionError();
         }
@@ -833,7 +841,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * A custom index expression for use with 2i implementations which support custom syntax and which are not
      * necessarily linked to a single column in the base table.
      */
-    public static final class CustomExpression extends Expression
+    public static class CustomExpression extends Expression
     {
         private final IndexMetadata targetIndex;
         private final TableMetadata table;
@@ -844,6 +852,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(makeDefinition(table, targetIndex), Operator.EQ, value);
             this.targetIndex = targetIndex;
             this.table = table;
+        }
+
+        public static CustomExpression build(TableMetadata metadata, IndexMetadata targetIndex, ByteBuffer value)
+        {
+            // delegate the expression creation to the target custom index
+            return Keyspace.openAndGetStore(metadata).indexManager.getIndex(targetIndex).customExpressionFor(metadata, value);
         }
 
         private static ColumnMetadata makeDefinition(TableMetadata table, IndexMetadata index)
