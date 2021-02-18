@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
@@ -62,6 +63,11 @@ public final class IndexMetadata
      * A mapping of user-friendly index names to their fully qualified index class names.
      */
     private static final Map<String, String> indexNameAliases = new ConcurrentHashMap<>();
+
+    static
+    {
+        indexNameAliases.put(StorageAttachedIndex.class.getSimpleName(), StorageAttachedIndex.class.getCanonicalName());
+    }
 
     public enum Kind
     {
