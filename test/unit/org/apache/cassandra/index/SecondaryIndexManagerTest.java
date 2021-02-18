@@ -766,7 +766,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         {
             return new CollatedViewIndexBuildingSupport()
             {
-                public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables)
+                public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables, boolean isFullRebuild)
                 {
                     try
                     {
@@ -775,7 +775,7 @@ public class SecondaryIndexManagerTest extends CQLTester
                             buildWaitLatch.countDown();
                             buildLatch.await();
                         }
-                        final SecondaryIndexBuilder builder = super.getIndexBuildTask(cfs, indexes, sstables);
+                        final SecondaryIndexBuilder builder = super.getIndexBuildTask(cfs, indexes, sstables, isFullRebuild);
                         return new SecondaryIndexBuilder()
                         {
 

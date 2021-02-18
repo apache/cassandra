@@ -150,7 +150,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -183,7 +183,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
         raceOfReplicationStrategyTest(
             // init. The # of live endpoints is 3 = 2 + 1
@@ -191,7 +191,7 @@ public class AssureSufficientLiveNodesTest
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 2, DC2, 1, DC3, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -215,7 +215,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -239,7 +239,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
