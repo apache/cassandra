@@ -1335,6 +1335,14 @@ public class TokenMetadata
     }
 
     /**
+     * @return a (stable copy, won't be modified) datacenter to Endpoint map for all the nodes in the cluster.
+     */
+    public ImmutableMultimap<String, InetAddressAndPort> getDC2AllEndpoints(IEndpointSnitch snitch)
+    {
+        return Multimaps.index(getAllEndpoints(), snitch::getDatacenter);
+    }
+
+    /**
      * @return the Topology map of nodes to DCs + Racks
      *
      * This is only allowed when a copy has been made of TokenMetadata, to avoid concurrent modifications

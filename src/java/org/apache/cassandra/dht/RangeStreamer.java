@@ -17,7 +17,13 @@
  */
 package org.apache.cassandra.dht;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -26,39 +32,40 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.LocalStrategy;
-
-import org.apache.cassandra.locator.EndpointsByRange;
-import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.commons.lang3.StringUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.EndpointsByRange;
+import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.locator.Replicas;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
-import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.base.Predicates.and;
 import static com.google.common.base.Predicates.not;
@@ -353,9 +360,27 @@ public class RangeStreamer
      */
     private boolean useStrictSourcesForRanges(AbstractReplicationStrategy strat)
     {
-        return useStrictConsistency
-                && tokens != null
-                && metadata.getSizeOfAllEndpoints() != strat.getReplicationFactor().allReplicas;
+        boolean res = useStrictConsistency && tokens != null;
+        
+        if (res)
+        {
+            int nodes = 0;
+
+            if (strat instanceof NetworkTopologyStrategy)
+            {
+                ImmutableMultimap<String, InetAddressAndPort> dc2Nodes = metadata.getDC2AllEndpoints(snitch);
+
+                NetworkTopologyStrategy ntps = (NetworkTopologyStrategy) strat;
+                for (String dc : dc2Nodes.keySet())
+                    nodes += ntps.getReplicationFactor(dc).allReplicas > 0 ? dc2Nodes.get(dc).size() : 0;
+            }
+            else
+                nodes = metadata.getSizeOfAllEndpoints();
+    
+            res = nodes > strat.getReplicationFactor().allReplicas;
+        }
+        
+        return res;
     }
 
     /**
@@ -442,7 +467,7 @@ public class RangeStreamer
                  if (useStrictConsistency)
                  {
                      EndpointsForRange strictEndpoints;
-                     //Due to CASSANDRA-5953 we can have a higher RF then we have endpoints.
+                     //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
                      //So we need to be careful to only be strict when endpoints == RF
                      if (oldEndpoints.size() == strat.getReplicationFactor().allReplicas)
                      {

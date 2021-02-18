@@ -20,28 +20,28 @@ package org.apache.cassandra.locator;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -51,9 +51,8 @@ public abstract class AbstractReplicationStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
-    @VisibleForTesting
-    final String keyspaceName;
     public final Map<String, String> configOptions;
+    protected final String keyspaceName;
     private final TokenMetadata tokenMetadata;
 
     // track when the token range changes, signaling we need to invalidate our endpoint cache
@@ -299,6 +298,8 @@ public abstract class AbstractReplicationStrategy
 
     public abstract void validateOptions() throws ConfigurationException;
 
+    public abstract void maybeWarnOnOptions();
+
     /*
      * The options recognized by the strategy.
      * The empty collection means that no options are accepted, but null means
@@ -400,6 +401,7 @@ public abstract class AbstractReplicationStrategy
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
+        strategy.maybeWarnOnOptions();
         if (strategy.hasTransientReplicas() && !DatabaseDescriptor.isTransientReplicationEnabled())
         {
             throw new ConfigurationException("Transient replication is disabled. Enable in cassandra.yaml to use.");
