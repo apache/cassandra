@@ -108,7 +108,7 @@ public class RangeCommands
         Index index = command.getIndex(cfs);
         float maxExpectedResults = index == null
                                    ? command.limits().estimateTotalResults(cfs)
-                                   : index.getEstimatedResultRows();
+                                   : command.indexQueryPlan().getEstimatedResultRows();
 
         // adjust maxExpectedResults by the number of tokens this node has and the replication factor for this ks
         return (maxExpectedResults / DatabaseDescriptor.getNumTokens())
