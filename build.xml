@@ -656,6 +656,9 @@
           </dependency>
           <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
           <dependency groupId="org.agrona" artifactId="agrona" version="0.9.26" />
+          <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="7.5.0" />
+          <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" />
+          <dependency groupId="org.hamcrest" artifactId="hamcrest-all" version="1.3" />
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
