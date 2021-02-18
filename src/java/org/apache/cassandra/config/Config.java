@@ -513,6 +513,8 @@ public class Config
      */
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
+    public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
