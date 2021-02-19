@@ -343,10 +343,18 @@ public class SinglePartitionSliceCommandTest
         BiFunction<Boolean, Boolean, List<Unfiltered>> tester = (flush, multiSSTable)->
         {
             cfs.truncateBlocking();
-            QueryProcessor.executeOnceInternal("DELETE FROM ks.partition_row_deletion USING TIMESTAMP 10 WHERE k=1");
+
+            final long timestamp = FBUtilities.timestampMicros();
+            final int nowInSec = FBUtilities.nowInSeconds();
+
+            QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
+                                                                  timestamp,
+                                                                  "DELETE FROM ks.partition_row_deletion USING TIMESTAMP 10 WHERE k=1");
             if (flush && multiSSTable)
                 cfs.forceBlockingFlush();
-            QueryProcessor.executeOnceInternal("DELETE FROM ks.partition_row_deletion USING TIMESTAMP 10 WHERE k=1 and c=1");
+            QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
+                                                                  timestamp,
+                                                                  "DELETE FROM ks.partition_row_deletion USING TIMESTAMP 10 WHERE k=1 and c=1");
             if (flush)
                 cfs.forceBlockingFlush();
 

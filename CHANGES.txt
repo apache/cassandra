@@ -1,4 +1,5 @@
 4.0-beta5
+ * Fix timestamp issue in SinglePartitionSliceCommandTest testPartitionD…eletionRowDeletionTie (CASSANDRA-16443)
  * Promote protocol V5 out of beta (CASSANDRA-14973)
  * Fix incorrect encoding for strings can be UTF8 (CASSANDRA-16429)
  * Fix node unable to join when RF > N in multi-DC with added warning (CASSANDRA-16296)
