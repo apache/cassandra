@@ -368,9 +368,25 @@ public class QueryProcessor implements QueryHandler
      */
     public static UntypedResultSet executeOnceInternal(String query, Object... values)
     {
-        CQLStatement statement = parseStatement(query, internalQueryState().getClientState());
-        statement.validate(internalQueryState().getClientState());
-        ResultMessage result = statement.executeLocally(internalQueryState(), makeInternalOptions(statement, values));
+        return executeOnceInternal(internalQueryState(), query, values);
+    }
+
+    /**
+     * Execute an internal query with the provided {@code nowInSec} and {@code timestamp} for the {@code QueryState}.
+     * <p>This method ensure that the statement will not be cached in the prepared statement cache.</p>
+     */
+    @VisibleForTesting
+    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(int nowInSec, long timestamp, String query, Object... values)
+    {
+        QueryState queryState = new QueryState(InternalStateInstance.INSTANCE.clientState, timestamp, nowInSec);
+        return executeOnceInternal(queryState, query, values);
+    }
+
+    private static UntypedResultSet executeOnceInternal(QueryState queryState, String query, Object... values)
+    {
+        CQLStatement statement = parseStatement(query, queryState.getClientState());
+        statement.validate(queryState.getClientState());
+        ResultMessage result = statement.executeLocally(queryState, makeInternalOptions(statement, values));
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
