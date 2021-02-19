@@ -5139,7 +5139,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
             if (keyspaceInstance == null)
-                throw new IllegalArgumentException("The node does not have " + keyspace + " yet, probably still bootstrapping");
+                throw new IllegalStateException("The node does not have " + keyspace + " yet, probably still bootstrapping. Effective ownership information is meaningless.");
             strategy = keyspaceInstance.getReplicationStrategy();
         }
 

@@ -25,6 +25,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,6 +65,33 @@ public class StatusTest extends CQLTester
                             "status", "-r");
         validateStatusOutput(host.ipOrDns(true),
                             "-pp", "status", "-r");
+    }
+
+    /**
+     * Validate output, making sure even when bootstrapping any available info is displayed (c16412)
+     */
+    @Test
+    public void testOutputWhileBootstrapping()
+    {
+        // Deleting these tables will simulate we're bootstrapping
+        schemaChange("DROP KEYSPACE " + SchemaConstants.TRACE_KEYSPACE_NAME);
+        schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE);
+        schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE_PER_TEST);
+
+        ToolRunner.ToolResult nodetool = ToolRunner.invokeNodetool("status");
+        nodetool.assertOnCleanExit();
+        String[] lines = nodetool.getStdout().split("\\R");
+
+        String hostStatus = lines[lines.length-3].trim();
+        assertThat(hostStatus, startsWith("UN"));
+        assertThat(hostStatus, containsString(FBUtilities.getJustLocalAddress().getHostAddress()));
+        assertThat(hostStatus, matchesPattern(".*\\d+\\.\\d+ KiB.*"));
+        assertThat(hostStatus, containsString(localHostId));
+        assertThat(hostStatus, containsString(token));
+        assertThat(hostStatus, endsWith(SimpleSnitch.RACK_NAME));
+
+        String bootstrappingWarn = lines[lines.length-1].trim();;
+        assertThat(bootstrappingWarn, containsString("probably still bootstrapping. Effective ownership information is meaningless."));
     }
 
     private void validateStatusOutput(String hostForm, String... args)
