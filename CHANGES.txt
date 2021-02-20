@@ -1,4 +1,5 @@
 3.0.25:
+ * Make speculative retry parameter case-insensitive for backward compatibility with 2.1 (CASSANDRA-16467)
  * Push digest mismatch exceptions to trace (CASSANDRA-14900)
  * Support long names in nodetool output (CASSANDRA-14162)
  * Handle correctly the exceptions thrown by custom QueryHandler constructors (CASSANDRA-16703)
