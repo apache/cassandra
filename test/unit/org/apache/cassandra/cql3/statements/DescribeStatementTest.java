@@ -801,7 +801,7 @@ public class DescribeStatementTest extends CQLTester
         // As different ProtocolVersions use different driver instances, we use different ProtocolVersions
         // for the with and without "USE keyspace" cases.
 
-        ProtocolVersion v = useKs != null ? ProtocolVersion.CURRENT : ProtocolVersion.V5;
+        ProtocolVersion v = useKs != null ? ProtocolVersion.CURRENT : ProtocolVersion.V6;
 
         if (useKs != null)
             executeNet(v, "USE " + useKs);

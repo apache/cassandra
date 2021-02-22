@@ -43,6 +43,7 @@ import static com.datastax.driver.core.ProtocolVersion.V2;
 import static com.datastax.driver.core.ProtocolVersion.V3;
 import static com.datastax.driver.core.ProtocolVersion.V4;
 import static com.datastax.driver.core.ProtocolVersion.V5;
+import static com.datastax.driver.core.ProtocolVersion.V6;
 import static org.apache.cassandra.transport.messages.StartupMessage.CQL_VERSION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -67,22 +68,23 @@ public class ProtocolNegotiationTest extends CQLTester
     }
 
     @Test
-    public void serverSupportsV3AndV4ByDefault()
+    public void serverSupportsV3AndV4AndV5ByDefault()
     {
-        // client can explicitly request either V3 or V4
+        // client can explicitly request either V3, V4 or V5
         testConnection(V3, V3);
         testConnection(V4, V4);
+        testConnection(V5, V5);
 
-        // if not specified, V4 is the default
-        testConnection(null, V4);
-        testConnection(NEWEST_SUPPORTED, V4);
+        // if not specified, V5 is the default
+        testConnection(null, V5);
+        testConnection(NEWEST_SUPPORTED, V5);
     }
 
     @Test
-    public void supportV5ConnectionWithBetaOption()
+    public void supportV6ConnectionWithBetaOption()
     {
-        testConnection(V5, V5);
-        testConnection(NEWEST_BETA, V5);
+        testConnection(V6, V6);
+        testConnection(NEWEST_BETA, V6);
     }
 
     @Test
@@ -176,6 +178,7 @@ public class ProtocolNegotiationTest extends CQLTester
         {
             if (expectError)
                 fail("Expected a protocol exception");
+            session.execute("SELECT * FROM system.local");
         }
         catch (Exception e)
         {

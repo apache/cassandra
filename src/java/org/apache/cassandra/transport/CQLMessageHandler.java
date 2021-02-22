@@ -335,10 +335,23 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
             int messageSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedBytes += buf.remaining();
 
-            if (throwOnOverload)
+            LargeMessage largeMessage = new LargeMessage(header);
+            if (!acquireCapacity(header, endpointReserve, globalReserve))
             {
-                LargeMessage largeMessage = new LargeMessage(header);
-                if (!acquireCapacity(header, endpointReserve, globalReserve))
+                // In the case of large messages, never stop processing incoming frames
+                // as this will halt the client meaning no further frames will be sent,
+                // leading to starvation.
+                // If the throwOnOverload option is set, don't process the message once
+                // read, return an error response to notify the client that resource
+                // limits have been exceeded. If the option isn't set, the only thing we
+                // can do is to consume the subsequent frames and process the message.
+                // Large and small messages are never interleaved for a single client, so
+                // we know that this client will finish sending the large message before
+                // anything else. Other clients sending small messages concurrently will
+                // be backpressured by the global resource limits. The server is still
+                // vulnerable to overload by multiple clients sending large messages
+                // concurrently.
+                if (throwOnOverload)
                 {
                     // discard the request and throw an exception
                     ClientMetrics.instance.markRequestDiscarded();
@@ -350,26 +363,12 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                                  globalReserve.using(),
                                  header);
 
-                    // mark as overloaded so that we consume
-                    // subsequent frames and then discard the message
+                    // mark as overloaded so that discard the message
+                    // after consuming any subsequent frames
                     largeMessage.markOverloaded();
                 }
-                this.largeMessage = largeMessage;
-                largeMessage.supply(frame);
-                // Don't stop processing incoming frames, rely on the client to apply
-                // backpressure when it receives OverloadedException
-                return true;
             }
-            else
-            {
-                if (!acquireCapacityAndQueueOnFailure(header, endpointReserve, globalReserve))
-                {
-                    receivedBytes += frame.frameSize;
-                    return false;
-                }
-            }
-
-            largeMessage = new LargeMessage(header);
+            this.largeMessage = largeMessage;
             largeMessage.supply(frame);
             return true;
         }

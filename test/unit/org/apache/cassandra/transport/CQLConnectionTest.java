@@ -135,7 +135,7 @@ public class CQLConnectionTest
             .matches(message ->
                 message.error.getMessage()
                              .equals("Invalid or unsupported protocol version (99); " +
-                                     "supported versions are (3/v3, 4/v4, 5/v5-beta)"));
+                                     "supported versions are (3/v3, 4/v4, 5/v5, 6/v6-beta)"));
         server.stop();
 
         // the failure happens before any capacity is allocated

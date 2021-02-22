@@ -77,6 +77,7 @@ public final class CodecUtils
             case V3:
             case V4:
             case V5:
+            case V6:
                 return input.getInt();
             default:
                 throw new IllegalArgumentException(String.valueOf(version));
@@ -107,6 +108,7 @@ public final class CodecUtils
             case V3:
             case V4:
             case V5:
+            case V6:
                 output.putInt(size);
                 break;
             default:
@@ -149,6 +151,7 @@ public final class CodecUtils
             case V3:
             case V4:
             case V5:
+            case V6:
                 if (value == null)
                 {
                     output.putInt(-1);
@@ -230,6 +233,7 @@ public final class CodecUtils
             case V3:
             case V4:
             case V5:
+            case V6:
                 return 4;
             default:
                 throw new IllegalArgumentException(String.valueOf(version));
@@ -252,6 +256,7 @@ public final class CodecUtils
             case V3:
             case V4:
             case V5:
+            case V6:
                 return value == null ? 4 : 4 + value.remaining();
             default:
                 throw new IllegalArgumentException(String.valueOf(version));
