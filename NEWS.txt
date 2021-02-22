@@ -133,7 +133,7 @@ Upgrading
       CASSANDRA-16083, backward compatibility layer was added so it can be still exposed under the old 3.11 scope.
     - Native protocol v5 is promoted from beta in this release. The wire format has changed
       significantly and users should take care to ensure client drivers are upgraded to a version
-      with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299)
+      with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299, CASSANDRA-14973)
     - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
       replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.

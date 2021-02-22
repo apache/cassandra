@@ -213,8 +213,11 @@ public class ClientResourceLimits
 
         public String toString()
         {
-            return String.format("InflightEndpointRequestPayload: %d, InflightOverallRequestPayload: %d",
-                                 endpointAndGlobal.endpoint().using(), endpointAndGlobal.global().using());
+            return String.format("InflightEndpointRequestPayload: %d/%d, InflightOverallRequestPayload: %d/%d",
+                                 endpointAndGlobal.endpoint().using(),
+                                 endpointAndGlobal.endpoint().limit(),
+                                 endpointAndGlobal.global().using(),
+                                 endpointAndGlobal.global().limit());
         }
     }
 
