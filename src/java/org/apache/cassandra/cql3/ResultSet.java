@@ -452,7 +452,7 @@ public class ResultSet
                             CBUtil.writeAsciiString(name.ksName, dest);
                             CBUtil.writeAsciiString(name.cfName, dest);
                         }
-                        CBUtil.writeAsciiString(name.name.toString(), dest);
+                        CBUtil.writeString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                     }
                 }
@@ -488,7 +488,7 @@ public class ResultSet
                             size += CBUtil.sizeOfAsciiString(name.ksName);
                             size += CBUtil.sizeOfAsciiString(name.cfName);
                         }
-                        size += CBUtil.sizeOfAsciiString(name.name.toString());
+                        size += CBUtil.sizeOfString(name.name.toString());
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                     }
                 }
@@ -657,7 +657,7 @@ public class ResultSet
                         CBUtil.writeAsciiString(name.ksName, dest);
                         CBUtil.writeAsciiString(name.cfName, dest);
                     }
-                    CBUtil.writeAsciiString(name.name.toString(), dest);
+                    CBUtil.writeString(name.name.toString(), dest);
                     DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                 }
             }
@@ -682,7 +682,7 @@ public class ResultSet
                         size += CBUtil.sizeOfAsciiString(name.ksName);
                         size += CBUtil.sizeOfAsciiString(name.cfName);
                     }
-                    size += CBUtil.sizeOfAsciiString(name.name.toString());
+                    size += CBUtil.sizeOfString(name.name.toString());
                     size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                 }
                 return size;
