@@ -206,16 +206,16 @@ public class SerDeserTest
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
 
         String typeName = "myType" + randomUTF8(3);
-        String fieldName = 'f' + randomUTF8(3);
+        String f1 = 'f' + randomUTF8(3);
 
         UserType udt = new UserType("ks",
                                     bb(typeName),
-                                    Arrays.asList(field(fieldName), field("f2"), field("f3"), field("f4")),
+                                    Arrays.asList(field(f1), field("f2"), field("f3"), field("f4")),
                                     Arrays.asList(LongType.instance, lt, st, mt),
                                     true);
 
         Map<FieldIdentifier, Term.Raw> value = new HashMap<>();
-        value.put(field(fieldName), lit(42));
+        value.put(field(f1), lit(42));
         value.put(field("f2"), new Lists.Literal(Arrays.<Term.Raw>asList(lit(3), lit(1))));
         value.put(field("f3"), new Sets.Literal(Arrays.<Term.Raw>asList(lit("foo"), lit("bar"))));
         value.put(field("f4"), new Maps.Literal(Arrays.<Pair<Term.Raw, Term.Raw>>asList(
@@ -228,7 +228,7 @@ public class SerDeserTest
         assertNotNull(decoded);
         assertEquals("User type name mismatches: " + typeName,
                      udt.name, decoded.name);
-        assertEquals("Decoded field name mismatches: " + fieldName,
+        assertEquals("Decoded field name mismatches: " + f1,
                      udt.fieldNameAsString(0), decoded.fieldNameAsString(0));
 
         UserTypes.Literal u = new UserTypes.Literal(value);
