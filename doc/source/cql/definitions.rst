@@ -46,8 +46,10 @@ To aid in specifying the CQL syntax, we will use the following conventions in th
 Identifiers and keywords
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-The CQL language uses *identifiers* (or *names*) to identify tables, columns and other objects. An identifier is a token
-matching the regular expression ``[a-zA-Z][a-zA-Z0-9_]*``.
+The CQL language uses *identifiers* (or *names*) to identify tables, columns and other objects. An identifier can be either
+unquoted or quoted. The unquoted identifier is a token matching the regular expression ``[a-zA-Z][a-zA-Z0-9_]*``.
+In the case of quoted, the identity can contain non-ASCII characters between the quotation marks, with one exception that
+Cassandra does not accept non-ASCII characters, if the quoted identifier is used for keyspace name or table name.
 
 A number of such identifiers, like ``SELECT`` or ``WITH``, are *keywords*. They have a fixed meaning for the language
 and most are reserved. The list of those keywords can be found in :ref:`appendix-A`.

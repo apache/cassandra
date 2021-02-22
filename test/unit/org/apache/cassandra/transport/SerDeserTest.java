@@ -20,6 +20,8 @@ package org.apache.cassandra.transport;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.commons.lang3.RandomStringUtils;
+
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.ByteBuf;
 
@@ -203,19 +205,31 @@ public class SerDeserTest
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
 
+        String typeName = "myType" + randomUTF8(3);
+        String f1 = 'f' + randomUTF8(3);
+
         UserType udt = new UserType("ks",
-                                    bb("myType"),
-                                    Arrays.asList(field("f1"), field("f2"), field("f3"), field("f4")),
+                                    bb(typeName),
+                                    Arrays.asList(field(f1), field("f2"), field("f3"), field("f4")),
                                     Arrays.asList(LongType.instance, lt, st, mt),
                                     true);
 
         Map<FieldIdentifier, Term.Raw> value = new HashMap<>();
-        value.put(field("f1"), lit(42));
+        value.put(field(f1), lit(42));
         value.put(field("f2"), new Lists.Literal(Arrays.<Term.Raw>asList(lit(3), lit(1))));
         value.put(field("f3"), new Sets.Literal(Arrays.<Term.Raw>asList(lit("foo"), lit("bar"))));
         value.put(field("f4"), new Maps.Literal(Arrays.<Pair<Term.Raw, Term.Raw>>asList(
                                    Pair.<Term.Raw, Term.Raw>create(lit("foo"), lit(24)),
                                    Pair.<Term.Raw, Term.Raw>create(lit("bar"), lit(12)))));
+
+        ByteBuf buf = Unpooled.buffer(DataType.UDT.serializedValueSize(udt, version));
+        DataType.UDT.writeValue(udt, buf, version);
+        UserType decoded = (UserType) DataType.UDT.readValue(buf, version);
+        assertNotNull(decoded);
+        assertEquals("User type name mismatches: " + typeName,
+                     udt.name, decoded.name);
+        assertEquals("Decoded field name mismatches: " + f1,
+                     udt.fieldNameAsString(0), decoded.fieldNameAsString(0));
 
         UserTypes.Literal u = new UserTypes.Literal(value);
         Term t = u.prepare("ks", columnSpec("myValue", udt));
@@ -258,6 +272,9 @@ public class SerDeserTest
         List<ColumnSpecification> columnNames = new ArrayList<>();
         for (int i = 0; i < 3; i++)
             columnNames.add(new ColumnSpecification("ks", "cf", new ColumnIdentifier("col" + i, false), Int32Type.instance));
+        // add a column name that contains UTF-8 string (that is valid to cassandra)
+        String utf8ColName = "col" + randomUTF8(3);
+        columnNames.add(new ColumnSpecification("ks", "cf", new ColumnIdentifier(utf8ColName, false), Int32Type.instance));
 
         if (version == ProtocolVersion.V3)
         {
@@ -380,5 +397,12 @@ public class SerDeserTest
         assertEquals(options.getKeyspace(), decodedOptions.getKeyspace());
         assertEquals(options.getTimestamp(state), decodedOptions.getTimestamp(state));
         assertEquals(options.getNowInSeconds(state), decodedOptions.getNowInSeconds(state));
+    }
+
+    // return utf8 string that contains no ascii chars
+    public static String randomUTF8(int count)
+    {
+        // valid for cassandra
+        return RandomStringUtils.random(count, 129, 0xD800, false, false);
     }
 }
