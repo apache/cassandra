@@ -199,6 +199,10 @@ public final class FileUtils
         {
             createHardLink(from, to);
         }
+        catch (FSWriteError ex)
+        {
+            throw ex;
+        }
         catch (Throwable t)
         {
             throw new RuntimeException(String.format("Unable to hardlink from %s to %s", from, to), t);
