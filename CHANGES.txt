@@ -1,4 +1,5 @@
 4.0-beta5
+ * Prevent parent repair sessions leak (CASSANDRA-16446)
  * Fix timestamp issue in SinglePartitionSliceCommandTest testPartitionD…eletionRowDeletionTie (CASSANDRA-16443)
  * Promote protocol V5 out of beta (CASSANDRA-14973)
  * Fix incorrect encoding for strings can be UTF8 (CASSANDRA-16429)

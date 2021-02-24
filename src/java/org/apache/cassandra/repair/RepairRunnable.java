@@ -393,15 +393,29 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         if (options.isPreview())
         {
-            previewRepair(parentSession, creationTimeMillis, neighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
+            previewRepair(parentSession,
+                          creationTimeMillis,
+                          neighborsAndRanges.filterCommonRanges(keyspace, cfnames),
+                          neighborsAndRanges.participants,
+                          cfnames);
         }
         else if (options.isIncremental())
         {
-            incrementalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges, cfnames);
+            incrementalRepair(parentSession,
+                              creationTimeMillis,
+                              traceState,
+                              neighborsAndRanges,
+                              neighborsAndRanges.participants,
+                              cfnames);
         }
         else
         {
-            normalRepair(parentSession, creationTimeMillis, traceState, neighborsAndRanges.filterCommonRanges(keyspace, cfnames), cfnames);
+            normalRepair(parentSession,
+                         creationTimeMillis,
+                         traceState,
+                         neighborsAndRanges.filterCommonRanges(keyspace, cfnames),
+                         neighborsAndRanges.participants,
+                         cfnames);
         }
     }
 
@@ -409,6 +423,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                               long startTime,
                               TraceState traceState,
                               List<CommonRange> commonRanges,
+                              Set<InetAddressAndPort> preparedEndpoints,
                               String... cfnames)
     {
 
@@ -447,13 +462,22 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                 return Futures.immediateFuture(null);
             }
         }, MoreExecutors.directExecutor());
-        Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, successfulRanges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
+        Futures.addCallback(repairResult,
+                            new RepairCompleteCallback(parentSession,
+                                                       successfulRanges,
+                                                       preparedEndpoints,
+                                                       startTime,
+                                                       traceState,
+                                                       hasFailure,
+                                                       executor),
+                            MoreExecutors.directExecutor());
     }
 
     private void incrementalRepair(UUID parentSession,
                                    long startTime,
                                    TraceState traceState,
                                    NeighborsAndRanges neighborsAndRanges,
+                                   Set<InetAddressAndPort> preparedEndpoints,
                                    String... cfnames)
     {
         // the local node also needs to be included in the set of participants, since coordinator sessions aren't persisted
@@ -474,12 +498,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             ranges.addAll(range);
         }
-        Futures.addCallback(repairResult, new RepairCompleteCallback(parentSession, ranges, startTime, traceState, hasFailure, executor), MoreExecutors.directExecutor());
+        Futures.addCallback(repairResult,
+                            new RepairCompleteCallback(parentSession, ranges, preparedEndpoints, startTime, traceState, hasFailure, executor),
+                            MoreExecutors.directExecutor());
     }
 
     private void previewRepair(UUID parentSession,
                                long startTime,
                                List<CommonRange> commonRanges,
+                               Set<InetAddressAndPort> preparedEndpoints,
                                String... cfnames)
     {
 
@@ -521,6 +548,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     notification(message);
 
                     success("Repair preview completed successfully");
+                    ActiveRepairService.instance.cleanUp(parentSession, preparedEndpoints);
                 }
                 catch (Throwable t)
                 {
@@ -669,6 +697,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         final UUID parentSession;
         final Collection<Range<Token>> successfulRanges;
+        final Set<InetAddressAndPort> preparedEndpoints;
         final long startTime;
         final TraceState traceState;
         final AtomicBoolean hasFailure;
@@ -676,6 +705,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
         public RepairCompleteCallback(UUID parentSession,
                                       Collection<Range<Token>> successfulRanges,
+                                      Set<InetAddressAndPort> preparedEndpoints,
                                       long startTime,
                                       TraceState traceState,
                                       AtomicBoolean hasFailure,
@@ -683,6 +713,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         {
             this.parentSession = parentSession;
             this.successfulRanges = successfulRanges;
+            this.preparedEndpoints = preparedEndpoints;
             this.startTime = startTime;
             this.traceState = traceState;
             this.hasFailure = hasFailure;
@@ -699,6 +730,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             else
             {
                 success("Repair completed successfully");
+                ActiveRepairService.instance.cleanUp(parentSession, preparedEndpoints);
             }
             executor.shutdownNow();
         }
