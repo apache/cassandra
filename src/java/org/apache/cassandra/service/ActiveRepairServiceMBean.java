@@ -41,4 +41,13 @@ public interface ActiveRepairServiceMBean
     public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString);
     public List<CompositeData> getPendingStats(List<String> schemaArgs, String rangeString);
     public List<CompositeData> cleanupPending(List<String> schemaArgs, String rangeString, boolean force);
+
+    /**
+     * Each ongoing repair (incremental and non-incremental) is represented by a
+     * {@link ActiveRepairService.ParentRepairSession} entry in the {@link ActiveRepairService} cache.
+     * Returns the current number of ongoing repairs (the current number of cached entries).
+     *
+     * @return current size of the internal cache holding {@link ActiveRepairService.ParentRepairSession} instances
+     */
+    int parentRepairSessionsCount();
 }

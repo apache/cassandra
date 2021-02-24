@@ -64,6 +64,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.CommonRange;
@@ -77,6 +78,7 @@ import org.apache.cassandra.repair.consistent.admin.PendingStats;
 import org.apache.cassandra.repair.consistent.admin.RepairStats;
 import org.apache.cassandra.repair.consistent.RepairedState;
 import org.apache.cassandra.repair.consistent.admin.SchemaArgsParser;
+import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
@@ -302,6 +304,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             stats.add(summary.toComposite());
         }
         return stats;
+    }
+
+    @Override
+    public int parentRepairSessionsCount()
+    {
+        return parentRepairSessions.size();
     }
 
     /**
@@ -595,6 +603,49 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
 
         return parentRepairSession;
+    }
+
+    /**
+     * Send Verb.CLEANUP_MSG to the given endpoints. This results in removing parent session object from the
+     * endpoint's cache.
+     * This method does not throw an exception in case of a messaging failure.
+     */
+    public void cleanUp(UUID parentRepairSession, Set<InetAddressAndPort> endpoints)
+    {
+        for (InetAddressAndPort endpoint : endpoints)
+        {
+            try
+            {
+                if (FailureDetector.instance.isAlive(endpoint))
+                {
+                    CleanupMessage message = new CleanupMessage(parentRepairSession);
+                    Message<CleanupMessage> msg = Message.out(Verb.CLEANUP_MSG, message);
+
+                    RequestCallback loggingCallback = new RequestCallback()
+                    {
+                        @Override
+                        public void onResponse(Message msg)
+                        {
+                            logger.trace("Successfully cleaned up {} parent repair session on {}.", parentRepairSession, endpoint);
+                        }
+
+                        @Override
+                        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                        {
+                            logger.debug("Failed to clean up parent repair session {} on {}. The uncleaned sessions will " +
+                                    "be removed on a node restart. This should not be a problem unless you see thousands " +
+                                    "of messages like this.", parentRepairSession, endpoint);
+                        }
+                    };
+
+                    MessagingService.instance().sendWithCallback(msg, endpoint, loggingCallback);
+                }
+            }
+            catch (Exception exc)
+            {
+                logger.warn("Failed to send a clean up message to {}", endpoint, exc);
+            }
+        }
     }
 
     private void failRepair(UUID parentRepairSession, String errorMsg) {
