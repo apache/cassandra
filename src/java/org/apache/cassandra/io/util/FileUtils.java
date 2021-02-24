@@ -220,6 +220,10 @@ public final class FileUtils
         {
             createHardLink(new File(from), new File(to));
         }
+        catch (FSWriteError fse)
+        {
+            throw fse;
+        }
         catch (Throwable t)
         {
             if (logger.isTraceEnabled())
