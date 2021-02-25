@@ -22,9 +22,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
-
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -62,6 +62,7 @@ public final class HintMessage implements SerializableHintMessage
 
     HintMessage(UUID hostId, Hint hint)
     {
+        assert hint != null;
         this.hostId = hostId;
         this.hint = hint;
         this.unknownTableID = null;
@@ -81,8 +82,10 @@ public final class HintMessage implements SerializableHintMessage
             if (obj instanceof HintMessage)
             {
                 HintMessage message = (HintMessage) obj;
-                long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
 
+                Objects.requireNonNull(message.hint); // we should never *send* a HintMessage with null hint
+
+                long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
                 long hintSize = Hint.serializer.serializedSize(message.hint, version);
                 size += TypeSizes.sizeofUnsignedVInt(hintSize);
                 size += hintSize;

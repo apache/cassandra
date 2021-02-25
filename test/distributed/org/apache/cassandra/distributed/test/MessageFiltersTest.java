@@ -39,11 +39,15 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.MessageFilters;
+import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 public class MessageFiltersTest extends TestBaseImpl
 {
@@ -262,6 +266,59 @@ public class MessageFiltersTest extends TestBaseImpl
             Assert.assertEquals(2, outboundMessagesSeen.size());
             Assert.assertFalse("outbound message saw after inbound", outboundAfterInbound.get());
         }
+    }
+
+    @Test
+    public void hintSerializationTest() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(3)
+                                             .withConfig(config -> config.with(GOSSIP)
+                                                                         .with(NETWORK)
+                                                                         .set("hinted_handoff_enabled", true))
+                                             .start()))
+        {
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (k int PRIMARY KEY, v int)"));
+            executeWithWriteFailure(cluster,
+                                    withKeyspace("INSERT INTO %s.tbl (k, v) VALUES (1,1)"),
+                                    ConsistencyLevel.QUORUM,
+                                    1);
+            CountDownLatch latch = new CountDownLatch(1);
+            cluster.filters().verbs(Verb.HINT_REQ.id).messagesMatching((a,b,msg) -> {
+                cluster.get(1).acceptsOnInstance((IIsolatedExecutor.SerializableConsumer<IMessage>) (m) -> {
+                    HintMessage hintMessage = (HintMessage) Instance.deserializeMessage(m).payload;
+                    assert hintMessage != null;
+                }).accept(msg);
+
+                latch.countDown();
+                return false;
+            }).drop().on();
+            cluster.schemaChange(withKeyspace("DROP TABLE %s.tbl"));
+            latch.await();
+        }
+    }
+
+    public Object[][] executeWithWriteFailure(Cluster cluster, String statement, ConsistencyLevel cl, int coordinator, Object... bindings)
+    {
+        IMessageFilters filters = cluster.filters();
+
+        // Drop exactly one coordinated message
+        filters.verbs(Verb.MUTATION_REQ.id).from(coordinator).messagesMatching(new IMessageFilters.Matcher()
+        {
+            private final AtomicBoolean issued = new AtomicBoolean();
+
+            public boolean matches(int from, int to, IMessage message)
+            {
+                if (from != coordinator || message.verb() != Verb.MUTATION_REQ.id)
+                    return false;
+
+                return !issued.getAndSet(true);
+            }
+        }).drop().on();
+        Object[][] res = cluster
+                         .coordinator(coordinator)
+                         .execute(statement, cl, bindings);
+        filters.reset();
+        return res;
     }
 
     private static void assertTimeOut(Runnable r)
