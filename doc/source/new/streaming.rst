@@ -50,20 +50,25 @@ Zero copy streaming is enabled by setting the following setting in ``cassandra.y
 
  stream_entire_sstables: true
 
-By default zero copy streaming is enabled. 
+It is enabled by default. 
+
+This feature is automatically disabled if internode encryption is enabled.
 
 SSTables Eligible for Zero Copy Streaming
 *****************************************
 Zero copy streaming is used if all partitions within the SSTable need to be transmitted. This is common when using ``LeveledCompactionStrategy`` or when partitioning SSTables by token range has been enabled. All partition keys in the SSTables are iterated over to determine the eligibility for Zero Copy streaming.
 
 Benefits of Zero Copy Streaming
-******************************** 
+******************************* 
 When enabled, it permits Cassandra to zero-copy stream entire eligible SSTables between nodes, including every component. This speeds up the network transfer significantly subject to throttling specified by ``stream_throughput_outbound_megabits_per_sec``. 
  
-Enabling this will reduce the GC pressure on sending and receiving node. While this feature tries to keep the disks balanced, it cannot guarantee it. This feature will be automatically disabled if internode encryption is enabled. Currently this can be used with Leveled Compaction.   
+Enabling zero copy streaming also reduces the GC pressure on the sending and receiving nodes.
+
+.. note:: While this feature tries to keep the disks balanced, it cannot guarantee it. 
+   For instance, it is expected that some of the SSTables do not fit entirely in their disk boundaries, when bootstraping a new node having multiple data directoris.
 
 Configuring for Zero Copy Streaming
-************************************ 
+*********************************** 
 Throttling would reduce the streaming speed. The ``stream_throughput_outbound_megabits_per_sec`` throttles all outbound streaming file transfers on a node to the given total throughput in Mbps. When unset, the default is 200 Mbps or 25 MB/s.
 
 ::
