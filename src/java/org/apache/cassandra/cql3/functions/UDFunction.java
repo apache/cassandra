@@ -182,7 +182,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return false;
     }
 
-    // setup the UDF class loader with no parent class loader so that we have full control about what class/resource UDF uses
+    // setup the UDF class loader with a context class loader as a parent so that we have full control about what class/resource UDF uses
     static final ClassLoader udfClassLoader = new UDFClassLoader();
 
     protected UDFunction(FunctionName name,
@@ -738,10 +738,15 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
     }
 
-    static class UDFClassLoader extends ClassLoader
+    private static class UDFClassLoader extends ClassLoader
     {
         // insecureClassLoader is the C* class loader
         static final ClassLoader insecureClassLoader = Thread.currentThread().getContextClassLoader();
+
+        private UDFClassLoader()
+        {
+            super(insecureClassLoader);
+        }
 
         public URL getResource(String name)
         {
