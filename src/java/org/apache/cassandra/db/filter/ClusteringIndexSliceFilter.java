@@ -63,11 +63,11 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
         for (Slice slice : slices)
         {
-            if (slice.isEmpty(comparator))
-                return true;
+            if (!slice.isEmpty(comparator))
+                return false;
         }
 
-        return false;
+        return true;
     }
 
     public boolean selects(Clustering<?> clustering)

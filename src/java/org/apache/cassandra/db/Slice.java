@@ -193,36 +193,34 @@ public class Slice
         if (reversed)
         {
             int cmp = comparator.compare(lastReturned, start);
-            if (cmp < 0 || (!inclusive && cmp == 0))
+            if (cmp < 0)
+                return null;
+
+            // if one of the bounds is exclusive, slice is empty
+            if (cmp == 0 && (!inclusive || start.isExclusive()))
                 return null;
 
             cmp = comparator.compare(end, lastReturned);
             if (cmp < 0 || (inclusive && cmp == 0))
                 return this;
 
-            ClusteringBound<?> nextEnd = inclusive ? ClusteringBound.inclusiveEndOf(lastReturned) : ClusteringBound.exclusiveEndOf(lastReturned);
-
-            if (isEmpty(comparator, start, nextEnd))
-                return null;
-
-            return new Slice(start, nextEnd);
+            return new Slice(start, inclusive ? ClusteringBound.inclusiveEndOf(lastReturned) : ClusteringBound.exclusiveEndOf(lastReturned));
         }
         else
         {
             int cmp = comparator.compare(end, lastReturned);
-            if (cmp < 0 || (!inclusive && cmp == 0))
+            if (cmp < 0)
+                return null;
+
+            // if one of the bounds is exclusive, the slice is empty
+            if (cmp == 0 && (!inclusive || end.isExclusive()))
                 return null;
 
             cmp = comparator.compare(lastReturned, start);
             if (cmp < 0 || (inclusive && cmp == 0))
                 return this;
 
-            ClusteringBound<?> nextStart = inclusive ? ClusteringBound.inclusiveStartOf(lastReturned) : ClusteringBound.exclusiveStartOf(lastReturned);
-
-            if (isEmpty(comparator, nextStart, end))
-                return null;
-
-            return new Slice(nextStart, end);
+            return new Slice(inclusive ? ClusteringBound.inclusiveStartOf(lastReturned) : ClusteringBound.exclusiveStartOf(lastReturned), end);
         }
     }
 
