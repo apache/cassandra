@@ -72,7 +72,7 @@ public class BigTableWriter extends SSTableWriter
         {
             dataFile = SequentialWriter.open(getFilename(),
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                             metadata.params.compression,
+                                             metadata.compressionParams(),
                                              metadataCollector);
             dbuilder = SegmentedFile.getCompressedBuilder((CompressedSequentialWriter) dataFile);
         }

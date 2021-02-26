@@ -339,20 +339,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Map<String,String> getCompressionParameters()
     {
-        return metadata.params.compression.asMap();
+        return metadata.compressionParams().asMap();
     }
 
     public void setCompressionParameters(Map<String,String> opts)
     {
         try
         {
-            metadata.compression(CompressionParams.fromMap(opts));
-            metadata.params.compression.validate();
+            CompressionParams newParams = CompressionParams.fromMap(opts);
+            newParams.validate();
+            metadata.setLocalCompressionParams(newParams);
         }
         catch (ConfigurationException e)
         {
             throw new IllegalArgumentException(e.getMessage());
         }
+    }
+
+    public void setCompressionParametersJson(String options)
+    {
+        setCompressionParameters(FBUtilities.fromJsonMap(options));
+    }
+
+    public String getCompressionParametersJson()
+    {
+        return FBUtilities.json(getCompressionParameters());
     }
 
     private ColumnFamilyStore(Keyspace keyspace,
