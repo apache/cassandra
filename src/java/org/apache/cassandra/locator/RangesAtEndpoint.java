@@ -193,6 +193,11 @@ public class RangesAtEndpoint extends AbstractReplicaCollection<RangesAtEndpoint
         public Builder(InetAddressAndPort endpoint, int capacity) { this(endpoint, new ReplicaList(capacity)); }
         private Builder(InetAddressAndPort endpoint, ReplicaList list) { super(endpoint, list, rangeMap(list)); }
 
+        public RangesAtEndpoint.Builder add(Replica replica)
+        {
+            return add(replica, Conflict.DUPLICATE);
+        }
+
         public RangesAtEndpoint.Builder add(Replica replica, Conflict ignoreConflict)
         {
             if (built) throw new IllegalStateException();

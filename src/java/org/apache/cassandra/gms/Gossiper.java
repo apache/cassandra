@@ -1376,7 +1376,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
-            EndpointState remoteState = entry.getValue();
+            EndpointState remoteState = removeRedundantApplicationStates(entry.getValue());
 
             /*
                 If state does not exist just add it. If it does then add it if the remote generation is greater.
@@ -1434,6 +1434,32 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
+    // remove duplicated deprecated states
+    private static EndpointState removeRedundantApplicationStates(EndpointState remoteState)
+    {
+        if (remoteState.states().isEmpty())
+            return remoteState;
+
+        Map<ApplicationState, VersionedValue> updatedStates = remoteState.states().stream().filter(entry -> {
+            // Filter out pre-4.0 versions of data for more complete 4.0 versions
+            switch (entry.getKey())
+            {
+                case INTERNAL_IP:
+                    return (null == remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT));
+                case STATUS:
+                    return (null == remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT));
+                case RPC_ADDRESS:
+                    return (null == remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT));
+                default:
+                    return true;
+            }
+        }).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+
+        EndpointState updated = new EndpointState(remoteState.getHeartBeatState(), updatedStates);
+        if (!remoteState.isAlive()) updated.markDead();
+        return updated;
+    }
+
     private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState)
     {
         // don't assert here, since if the node restarts the version will go back to zero
@@ -1448,22 +1474,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
 
         Set<Entry<ApplicationState, VersionedValue>> updatedStates = remoteStates.stream().filter(entry -> {
-            // Filter out pre-4.0 versions of data for more complete 4.0 versions
-            switch (entry.getKey())
-            {
-                case INTERNAL_IP:
-                    if (remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT) != null) return false;
-                    break;
-                case STATUS:
-                    if (remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT) != null) return false;
-                    break;
-                case RPC_ADDRESS:
-                    if (remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT) != null) return false;
-                    break;
-                default:
-                    break;
-            }
-
             // filter out the states that are already up to date (has the same or higher version)
             VersionedValue local = localState.getApplicationState(entry.getKey());
             return (local == null || local.version < entry.getValue().version);
