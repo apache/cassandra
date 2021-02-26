@@ -222,12 +222,8 @@ public final class FileUtils
         }
         catch (FSWriteError fse)
         {
-            throw fse;
-        }
-        catch (Throwable t)
-        {
             if (logger.isTraceEnabled())
-                logger.trace("Could not hardlink file " + from + " to " + to, t);
+                logger.trace("Could not hardlink file " + from + " to " + to, fse);
         }
     }
 
