@@ -29,6 +29,7 @@ Merged from 3.11:
  * Reduce amount of allocations during batch statement execution (CASSANDRA-16201)
  * Update jflex-1.6.0.jar to match upstream (CASSANDRA-16393)
 Merged from 3.0:
+ * Update debian packaging for python3 (CASSANDRA-16396)
  * Avoid pushing schema mutations when setting up distributed system keyspaces locally (CASSANDRA-16387)
  * Prevent unbounded number of pending flushing tasks (CASSANDRA-16261)
  * Improve empty hint file handling during startup (CASSANDRA-16162)
