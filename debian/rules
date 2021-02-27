@@ -31,7 +31,7 @@ build-stamp: $(QUILT_STAMPFN)
 
 	$(ANT) generate-cql-html
 	$(ANT) jar
-	cd pylib && python setup.py install --no-compile --install-layout deb \
+	cd pylib && python3 setup.py install --no-compile --install-layout deb \
 		--root $(CURDIR)/debian/cassandra
 
 	touch build-stamp
@@ -41,7 +41,7 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
-	dh_python2
+	dh_python3
 
 	# Copy in the jar and symlink to something stable
 	dh_install build/apache-cassandra-$(VERSION).jar \
