@@ -766,7 +766,6 @@ public class CassandraIndexTest extends CQLTester
             // note: this is not possible if the indexed column is part of the primary key, so we skip it in that case
             if (includesUpdate())
             {
-                System.out.println("getUpdateCql() = " + getUpdateCql());
                 execute(getUpdateCql(), getPrimaryKeyValues(firstRow));
                 assertEmpty(execute(selectFirstRowCql));
                 // update the select statement to query using the updated value

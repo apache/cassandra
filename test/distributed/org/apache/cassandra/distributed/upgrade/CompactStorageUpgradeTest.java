@@ -150,9 +150,6 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck) VALUES (1,1)", ConsistencyLevel.ALL);
         })
         .runAfterClusterUpgrade((cluster) -> {
-            cluster.forEach((inst) -> {
-                System.out.println("inst.getReleaseVersionString() = " + inst.getReleaseVersionString());
-            });
             cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl DROP COMPACT STORAGE");
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
                                                       ConsistencyLevel.ALL),
