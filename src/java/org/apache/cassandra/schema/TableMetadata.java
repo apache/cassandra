@@ -1414,7 +1414,6 @@ public class TableMetadata implements SchemaElement
             Iterator<ColumnMetadata> partitionKeyIter = partitionKeyColumns.iterator();
             Iterator<ColumnMetadata> clusteringIter;
 
-            System.out.println("isStaticCompactTable = " + isStaticCompactTable);
             if (isStaticCompactTable())
                 clusteringIter = Collections.EMPTY_LIST.iterator();
             else
