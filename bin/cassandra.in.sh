@@ -30,10 +30,10 @@ CLASSPATH="$CASSANDRA_CONF"
 # compiled classes. NOTE: This isn't needed by the startup script,
 # it's just used here in constructing the classpath.
 if [ -d $CASSANDRA_HOME/build ] ; then
-    #cassandra_bin="$CASSANDRA_HOME/build/classes/main"
-    cassandra_bin=`ls -1 $CASSANDRA_HOME/build/apache-cassandra*.jar`
+    #dse_db_bin="$CASSANDRA_HOME/build/classes/main"
+    dse_db_bin=`ls -1 $CASSANDRA_HOME/build/dse-db*.jar`
 
-    CLASSPATH="$CLASSPATH:$cassandra_bin"
+    CLASSPATH="$CLASSPATH:$dse_db_bin"
 fi
 
 # the default location for commitlogs, sstables, and saved caches
@@ -112,16 +112,16 @@ JAVA_VERSION=11
 if [ "$JVM_VERSION" = "1.8.0" ]  ; then
     JVM_PATCH_VERSION=${jvmver#*_}
     if [ "$JVM_VERSION" \< "1.8" ] || [ "$JVM_VERSION" \> "1.8.2" ] ; then
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $JVM_VERSION is not supported."
+        echo "DSE DB 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $JVM_VERSION is not supported."
         exit 1;
     fi
     if [ "$JVM_PATCH_VERSION" -lt 151 ] ; then
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java 8 update $JVM_PATCH_VERSION is not supported."
+        echo "DSE DB 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java 8 update $JVM_PATCH_VERSION is not supported."
         exit 1;
     fi
     JAVA_VERSION=8
 elif [ "$JVM_VERSION" \< "11" ] ; then
-    echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer)."
+    echo "DSE DB 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer)."
     exit 1;
 fi
 

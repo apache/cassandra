@@ -14,7 +14,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." default="jar" name="apache-cassandra"
+<project basedir="." default="jar" name="dse-db"
          xmlns:artifact="antlib:org.apache.maven.artifact.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
@@ -25,9 +25,9 @@
 
     <!-- default version and SCM information -->
     <property name="base.version" value="4.0.1"/>
-    <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
-    <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
-    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+    <property name="scm.connection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+    <property name="scm.developerConnection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+    <property name="scm.url" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -84,14 +84,14 @@
               value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
-    <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
+    <condition property="maven-repository-url" value="https://repo.sjc.dsinternal.org/artifactory/datastax-releases-local">
       <isset property="release"/>
     </condition>
-    <condition property="maven-repository-id" value="apache.releases.https">
+    <condition property="maven-repository-id" value="datastax.releases.https">
       <isset property="release"/>
     </condition>
-    <property name="maven-repository-url" value="https://repository.apache.org/content/repositories/snapshots"/>
-    <property name="maven-repository-id" value="apache.snapshots.https"/>
+    <property name="maven-repository-url" value="https://repo.sjc.dsinternal.org/artifactory/datastax-snapshots-local"/>
+    <property name="maven-repository-id" value="datastax.snapshots.https"/>
 
     <property name="test.timeout" value="240000" />
     <property name="test.memory.timeout" value="480000" />
@@ -284,7 +284,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009-2021 The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009-2021 The Apache Software Foundation; All changes to the original code are Copyright DataStax, Inc."
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
         maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
@@ -472,14 +472,14 @@
             description="Define dependencies and dependency versions">
       <!-- The parent pom defines the versions of all dependencies -->
       <artifact:pom id="parent-pom"
-                    groupId="org.apache.cassandra"
-                    artifactId="cassandra-parent"
+                    groupId="com.datastax.dse"
+                    artifactId="dse-db-parent"
                     packaging="pom"
                     version="${version}"
-                    url="https://cassandra.apache.org"
-                    name="Apache Cassandra"
+                    url="https://datastax.com"
+                    name="Datastax DB"
                     inceptionYear="2009"
-                    description="The Apache Cassandra Project develops a highly scalable second-generation distributed database, bringing together Dynamo's fully distributed design and Bigtable's ColumnFamily-based data model.">
+                    description="The Apache Cassandra Project develops a highly scalable second-generation distributed database. DataStax, Inc. provides additional improvements on top of Apache Cassandra">
 
         <!-- Inherit from the ASF template pom file, ref http://maven.apache.org/pom/asf/ -->
         <parent groupId="org.apache" artifactId="apache" version="22"/>
@@ -563,7 +563,7 @@
 
           <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.9.7" scope="test"/>
 
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
+          <dependency groupId="com.datastax.dse" artifactId="dse-db-all" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.5" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-logback" version="3.1.5" />
@@ -708,8 +708,8 @@
       <!-- each dependency set then defines the subset of the dependencies for that dependency set -->
       <artifact:pom id="build-deps-pom"
                     artifactId="cassandra-build-deps">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
+        <parent groupId="com.datastax.dse"
+                artifactId="dse-db-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
         <dependency groupId="junit" artifactId="junit"/>
@@ -734,11 +734,11 @@
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
       <artifact:pom id="all-pom"
-                    artifactId="cassandra-all"
-                    url="https://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
+                    artifactId="dse-db-all"
+                    url="https://datastax.com"
+                    name="DataStax DB">
+        <parent groupId="com.datastax.dse"
+                artifactId="dse-db-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
@@ -1006,7 +1006,7 @@
     -->
     <target name="_main-jar"
             depends="build"
-            description="Assemble Cassandra JAR files">
+            description="Assemble DSE DB JAR files">
       <mkdir dir="${build.classes.main}/META-INF" />
       <copy file="LICENSE.txt"
             tofile="${build.classes.main}/META-INF/LICENSE.txt"/>
@@ -1020,16 +1020,16 @@
         <manifest>
         <!-- <section name="org/apache/cassandra/infrastructure"> -->
           <attribute name="Multi-Release" value="true"/>
-          <attribute name="Implementation-Title" value="Cassandra"/>
+          <attribute name="Implementation-Title" value="DSE DB"/>
           <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
+          <attribute name="Implementation-Vendor" value="DataStax"/>
         <!-- </section> -->
         </manifest>
       </jar>
     </target>
     <target name="jar"
             depends="_main-jar,build-test,stress-build,fqltool-build,write-poms"
-            description="Assemble Cassandra JAR files">
+            description="Assemble DSE DB JAR files">
       <!-- Stress jar -->
       <manifest file="${stress.manifest}">
         <attribute name="Built-By" value="Pavel Yaskevich"/>
@@ -1055,7 +1055,7 @@
     <!--
         The javadoc-jar target makes cassandra-javadoc.jar output required for publishing to Maven central repository.
     -->
-    <target name="javadoc-jar" depends="javadoc" unless="no-javadoc" description="Assemble Cassandra JavaDoc JAR file">
+    <target name="javadoc-jar" depends="javadoc" unless="no-javadoc" description="Assemble DSE DB JavaDoc JAR file">
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar" basedir="${javadoc.dir}"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent
            being pulled into the distribution by accident -->
@@ -1065,7 +1065,7 @@
     <!--
         The sources-jar target makes cassandra-sources.jar output required for publishing to Maven central repository.
     -->
-    <target name="sources-jar" depends="init" description="Assemble Cassandra Sources JAR file">
+    <target name="sources-jar" depends="init" description="Assemble DSE DB Sources JAR file">
       <jar jarfile="${build.dir}/${final.name}-sources.jar">
         <fileset dir="${build.src.java}" defaultexcludes="yes">
           <include name="org/apache/**/*.java"/>
@@ -1133,7 +1133,7 @@
 
     <!-- creates release tarballs -->
     <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar,javadoc-jar"
-            description="Create Cassandra release artifacts">
+            description="Create DSE DB release artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
 

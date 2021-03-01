@@ -47,7 +47,7 @@ Troubleshooting and conflict resolution
 Here are some useful commands that may help you out resolving conflicts.
 
 * ``ant realclean`` - gets rid of the build directory, including build artifacts.
-* ``mvn dependency:tree -f build/apache-cassandra-*-SNAPSHOT.pom -Dverbose -Dincludes=org.slf4j`` - shows transitive dependency tree for artifacts, e.g. org.slf4j. In case the command above fails due to a missing parent pom file, try running ``ant mvn-install``.
-* ``rm ~/.m2/repository/org/apache/cassandra/apache-cassandra/`` - removes cached local Cassandra maven artifacts
+* ``mvn dependency:tree -f build/dse-db-*-SNAPSHOT.pom -Dverbose -Dincludes=org.slf4j`` - shows transitive dependency tree for artifacts, e.g. org.slf4j. In case the command above fails due to a missing parent pom file, try running ``ant mvn-install``.
+* ``rm ~/.m2/repository/com/datastax/dse/dse-db/`` - removes cached local Cassandra maven artifacts
 
 
