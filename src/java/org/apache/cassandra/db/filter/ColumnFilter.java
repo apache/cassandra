@@ -23,6 +23,9 @@ import java.util.*;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
@@ -62,6 +65,8 @@ import org.apache.cassandra.net.MessagingService;
  */
 public class ColumnFilter
 {
+    private final static Logger logger = LoggerFactory.getLogger(ColumnFilter.class);
+
     public static final Serializer serializer = new Serializer();
 
     // True if _fetched_ is all the columns, in which case metadata must not be null. If false,
@@ -111,7 +116,19 @@ public class ColumnFilter
      */
     public static ColumnFilter selection(CFMetaData metadata, PartitionColumns queried)
     {
-        return new ColumnFilter(true, metadata.partitionColumns(), queried, null);
+        // When fetchAll is enabled on pre CASSANDRA-10657 (3.4-), queried columns are not considered at all, and it
+        // is assumed that all columns are queried. CASSANDRA-10657 (3.4+) brings back skipping values of columns
+        // which are not in queried set when fetchAll is enabled. That makes exactly the same filter being
+        // interpreted in a different way on 3.4- and 3.4+.
+        //
+        // Moreover, there is no way to convert the filter with fetchAll and queried != null so that it is
+        // interpreted the same way on 3.4- because that Cassandra version does not support such filtering.
+        //
+        // In order to avoid inconsitencies in data read by 3.4- and 3.4+ we need to avoid creation of incompatible
+        // filters when the cluster contains 3.4- nodes. We do that by forcibly setting queried to null.
+        //
+        // see CASSANDRA-10657, CASSANDRA-15833, CASSANDRA-16415
+        return new ColumnFilter(true, metadata.partitionColumns(), Gossiper.instance.isAnyNodeOn30() ? null : queried, null);
     }
 
     /**
@@ -357,9 +374,12 @@ public class ColumnFilter
                     s.put(subSelection.column().name, subSelection);
             }
 
-            // see CASSANDRA-15833
-            if (isFetchAll && Gossiper.instance.isAnyNodeOn30())
+            // See the comment in {@link ColumnFilter#selection(CFMetaData, PartitionColumns)}
+            if (isFetchAll && queried != null && Gossiper.instance.isAnyNodeOn30())
+            {
+                logger.trace("Column filter will be automatically converted to query all columns because 3.0 nodes are present in the cluster");
                 queried = null;
+            }
 
             return new ColumnFilter(isFetchAll, isFetchAll ? metadata.partitionColumns() : null, queried, s);
         }
@@ -385,44 +405,29 @@ public class ColumnFilter
     @Override
     public String toString()
     {
+        String prefix = "";
+        if (isFetchAll && queried == null)
+            return "*/*";
+
         if (isFetchAll)
-            return "*";
+            prefix = "*/";
 
         if (queried.isEmpty())
-            return "";
+            return prefix + "[]";
 
-        Iterator<ColumnDefinition> defs = queried.selectOrderIterator();
-        if (!defs.hasNext())
-            return "<none>";
-
-        StringBuilder sb = new StringBuilder();
-        while (defs.hasNext())
+        StringJoiner joiner = new StringJoiner(", ", "[", "]");
+        Iterator<ColumnDefinition> it = queried.selectOrderIterator();
+        while (it.hasNext())
         {
-            appendColumnDef(sb, defs.next());
-            if (defs.hasNext())
-                sb.append(", ");
-        }
-        return sb.toString();
-    }
+            ColumnDefinition column = it.next();
+            SortedSet<ColumnSubselection> s = subSelections != null ? subSelections.get(column.name) : Collections.emptySortedSet();
 
-    private void appendColumnDef(StringBuilder sb, ColumnDefinition column)
-    {
-        if (subSelections == null)
-        {
-            sb.append(column.name);
-            return;
+            if (s.isEmpty())
+                joiner.add(String.valueOf(column.name));
+            else
+                s.forEach(subSel -> joiner.add(String.format("%s%s", column.name , subSel)));
         }
-
-        SortedSet<ColumnSubselection> s = subSelections.get(column.name);
-        if (s.isEmpty())
-        {
-            sb.append(column.name);
-            return;
-        }
-
-        int i = 0;
-        for (ColumnSubselection subSel : s)
-            sb.append(i++ == 0 ? "" : ", ").append(column.name).append(subSel);
+        return prefix + joiner.toString();
     }
 
     public static class Serializer
@@ -505,9 +510,16 @@ public class ColumnFilter
                 }
             }
 
-            // See CASSANDRA-15833
-            if (version <= MessagingService.VERSION_3014 && isFetchAll)
+            // Since nodes with and without CASSANDRA-10657 are not distinguishable by messaging version, we need to
+            // check whether there are any nodes running pre CASSANDRA-10657 Cassandra and apply conversion to the
+            // column filter so that it is interpreted in the same way as on the nodes without CASSANDRA-10657.
+            //
+            // See the comment in {@link ColumnFilter#selection(CFMetaData, PartitionColumns)}
+            if (isFetchAll && queried != null && Gossiper.instance.isAnyNodeOn30())
+            {
+                logger.trace("Deserialized column filter will be automatically converted to query all columns because 3.0 nodes are present in the cluster");
                 queried = null;
+            }
 
             return new ColumnFilter(isFetchAll, fetched, queried, subSelections);
         }

@@ -1833,4 +1833,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         stop();
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
     }
+
+    @VisibleForTesting
+    public void setAnyNodeOn30(boolean anyNodeOn30)
+    {
+        this.anyNodeOn30 = anyNodeOn30;
+    }
 }
