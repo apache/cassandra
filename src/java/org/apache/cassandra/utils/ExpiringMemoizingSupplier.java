@@ -22,6 +22,7 @@ package org.apache.cassandra.utils;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 /**
@@ -75,6 +76,12 @@ public class ExpiringMemoizingSupplier<T> implements Supplier<T>
             }
         }
         return this.value;
+    }
+
+    @VisibleForTesting
+    public void expire()
+    {
+        this.expirationNanos = 0;
     }
 
     @Override

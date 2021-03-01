@@ -79,6 +79,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
@@ -801,5 +802,21 @@ public class Util
 
         for (SSTableReader reader : cfs.getLiveSSTables())
             assertEquals(FilterFactory.AlwaysPresent, reader.getBloomFilter());
+    }
+
+    /**
+     * Setups Gossiper to mimic the upgrade behaviour when {@link Gossiper#isUpgradingFromVersionLowerThan(CassandraVersion)}
+     * or {@link Gossiper#hasMajorVersion3Nodes()} is called.
+     */
+    public static void setUpgradeFromVersion(String version)
+    {
+        int v = Optional.ofNullable(Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort()))
+                        .map(ep -> ep.getApplicationState(ApplicationState.RELEASE_VERSION))
+                        .map(rv -> rv.version)
+                        .orElse(0);
+
+        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION,
+                                                   VersionedValue.unsafeMakeVersionedValue(version, v + 1));
+        Gossiper.instance.expireUpgradeFromVersion();
     }
 }

@@ -118,7 +118,7 @@ public final class TraceKeyspace
         rb.ttl(ttl)
           .add("client", client)
           .add("coordinator", FBUtilities.getBroadcastAddressAndPort().address);
-        if (!Gossiper.instance.haveMajorVersion3Nodes())
+        if (!Gossiper.instance.hasMajorVersion3Nodes())
             rb.add("coordinator_port", FBUtilities.getBroadcastAddressAndPort().port);
         rb.add("request", request)
           .add("started_at", new Date(startedAt))
@@ -145,7 +145,7 @@ public final class TraceKeyspace
 
         rowBuilder.add("activity", message)
                   .add("source", FBUtilities.getBroadcastAddressAndPort().address);
-        if (!Gossiper.instance.haveMajorVersion3Nodes())
+        if (!Gossiper.instance.hasMajorVersion3Nodes())
             rowBuilder.add("source_port", FBUtilities.getBroadcastAddressAndPort().port);
         rowBuilder.add("thread", threadName);
 

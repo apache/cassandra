@@ -21,10 +21,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -46,10 +48,15 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     private static final Pattern PATTERN = Pattern.compile(VERSION_REGEXP);
 
+    public static final CassandraVersion CASSANDRA_4_0 = new CassandraVersion("4.0").familyLowerBound.get();
+    public static final CassandraVersion CASSANDRA_3_4 = new CassandraVersion("3.4").familyLowerBound.get();
+
     public final int major;
     public final int minor;
     public final int patch;
     public final int hotfix;
+
+    public final Supplier<CassandraVersion> familyLowerBound = Suppliers.memoize(this::getFamilyLowerBound);
 
     private final String[] preRelease;
     private final String[] build;
@@ -95,6 +102,13 @@ public class CassandraVersion implements Comparable<CassandraVersion>
         {
             throw new IllegalArgumentException("Invalid version value: " + version, e);
         }
+    }
+
+    private CassandraVersion getFamilyLowerBound()
+    {
+        return patch == 0 && hotfix == NO_HOTFIX && preRelease != null && preRelease.length == 0 && build == null
+               ? this
+               : new CassandraVersion(major, minor, 0, NO_HOTFIX, new String[0], null);
     }
 
     private static String[] parseIdentifiers(String version, String str)
