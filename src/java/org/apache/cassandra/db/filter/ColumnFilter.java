@@ -26,7 +26,6 @@ import com.google.common.collect.TreeMultimap;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -139,44 +138,6 @@ public class ColumnFilter
     {
         // We don't use that currently, see #10655 for more details.
         return false;
-    }
-
-    /**
-     * Whether the provided cell of a complex column is selected by this selection.
-     */
-    public boolean includes(Cell cell)
-    {
-        if (isFetchAll || subSelections == null || !cell.column().isComplex())
-            return true;
-
-        SortedSet<ColumnSubselection> s = subSelections.get(cell.column().name);
-        if (s.isEmpty())
-            return true;
-
-        for (ColumnSubselection subSel : s)
-            if (subSel.compareInclusionOf(cell.path()) == 0)
-                return true;
-
-        return false;
-    }
-
-    /**
-     * Whether we can skip the value of the cell of a complex column.
-     */
-    public boolean canSkipValue(ColumnDefinition column, CellPath path)
-    {
-        if (!isFetchAll || subSelections == null || !column.isComplex())
-            return false;
-
-        SortedSet<ColumnSubselection> s = subSelections.get(column.name);
-        if (s.isEmpty())
-            return false;
-
-        for (ColumnSubselection subSel : s)
-            if (subSel.compareInclusionOf(path) == 0)
-                return false;
-
-        return true;
     }
 
     /**
@@ -340,44 +301,31 @@ public class ColumnFilter
                Objects.equals(otherCf.subSelections, this.subSelections);
 
     }
+
     @Override
     public String toString()
     {
+        String prefix = "";
+
         if (isFetchAll)
-            return "*";
+            return "*/*";
 
         if (queried.isEmpty())
-            return "";
+            return prefix + "[]";
 
-        Iterator<ColumnDefinition> defs = queried.selectOrderIterator();
-        if (!defs.hasNext())
-            return "<none>";
-
-        StringBuilder sb = new StringBuilder();
-        appendColumnDef(sb, defs.next());
-        while (defs.hasNext())
-            appendColumnDef(sb.append(", "), defs.next());
-        return sb.toString();
-    }
-
-    private void appendColumnDef(StringBuilder sb, ColumnDefinition column)
-    {
-        if (subSelections == null)
+        StringJoiner joiner = new StringJoiner(", ", "[", "]");
+        Iterator<ColumnDefinition> it = queried.selectOrderIterator();
+        while (it.hasNext())
         {
-            sb.append(column.name);
-            return;
-        }
+            ColumnDefinition column = it.next();
+            SortedSet<ColumnSubselection> s = subSelections != null ? subSelections.get(column.name) : Collections.emptySortedSet();
 
-        SortedSet<ColumnSubselection> s = subSelections.get(column.name);
-        if (s.isEmpty())
-        {
-            sb.append(column.name);
-            return;
+            if (s.isEmpty())
+                joiner.add(String.valueOf(column.name));
+            else
+                s.forEach(subSel -> joiner.add(String.format("%s%s", column.name, subSel)));
         }
-
-        int i = 0;
-        for (ColumnSubselection subSel : s)
-            sb.append(i++ == 0 ? "" : ", ").append(column.name).append(subSel);
+        return prefix + joiner.toString();
     }
 
     public static class Serializer
