@@ -214,7 +214,7 @@ public final class SystemDistributedKeyspace
     {
         //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
         //due to schema differences
-        boolean includeNewColumns = !Gossiper.instance.haveMajorVersion3Nodes();
+        boolean includeNewColumns = !Gossiper.instance.hasMajorVersion3Nodes();
 
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();

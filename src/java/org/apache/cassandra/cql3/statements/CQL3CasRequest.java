@@ -164,21 +164,16 @@ public class CQL3CasRequest implements CASRequest
 
     private RegularAndStaticColumns columnsToRead()
     {
-        // If all our conditions are columns conditions (IF x = ?), then it's enough to query
-        // the columns from the conditions. If we have a IF EXISTS or IF NOT EXISTS however,
-        // we need to query all columns for the row since if the condition fails, we want to
-        // return everything to the user. Static columns make this a bit more complex, in that
-        // if an insert only static columns, then the existence condition applies only to the
-        // static columns themselves, and so we don't want to include regular columns in that
-        // case.
-        if (hasExists)
-        {
-            RegularAndStaticColumns allColumns = metadata.regularAndStaticColumns();
-            Columns statics = updatesStaticRow ? allColumns.statics : Columns.NONE;
-            Columns regulars = updatesRegularRows ? allColumns.regulars : Columns.NONE;
-            return new RegularAndStaticColumns(statics, regulars);
-        }
-        return conditionColumns;
+        RegularAndStaticColumns allColumns = metadata.regularAndStaticColumns();
+
+        // If we update static row, we won't have any conditions on regular rows.
+        // If we update regular row, we have to fetch all regular rows (which would satisfy column condition) and
+        // static rows that take part in column condition.
+        // In both cases, we're fetching enough rows to distinguish between "all conditions are nulls" and "row does not exist".
+        // We have to do this as we can't rely on row marker for that (see #6623)
+        Columns statics = updatesStaticRow ? allColumns.statics : conditionColumns.statics;
+        Columns regulars = updatesRegularRows ? allColumns.regulars : conditionColumns.regulars;
+        return new RegularAndStaticColumns(statics, regulars);
     }
 
     public SinglePartitionReadQuery readCommand(int nowInSec)
@@ -186,7 +181,7 @@ public class CQL3CasRequest implements CASRequest
         assert staticConditions != null || !conditions.isEmpty();
 
         // Fetch all columns, but query only the selected ones
-        ColumnFilter columnFilter = ColumnFilter.selection(metadata, columnsToRead());
+        ColumnFilter columnFilter = ColumnFilter.selection(columnsToRead());
 
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.

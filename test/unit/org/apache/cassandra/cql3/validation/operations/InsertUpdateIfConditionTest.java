@@ -19,23 +19,69 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.utils.CassandraVersion;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class InsertUpdateIfConditionTest extends CQLTester
 {
+    @Parameterized.Parameter(0)
+    public String clusterMinVersion;
+
+    @Parameterized.Parameter(1)
+    public Runnable assertion;
+
+    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
+    public static Collection<Object[]> data()
+    {
+        return Arrays.asList(new Object[]{ "3.0", (Runnable) () -> {
+                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
+                             } },
+                             new Object[]{ "3.11", (Runnable) () -> {
+                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("4.0")));
+                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
+                             } },
+                             new Object[]{ SystemKeyspace.CURRENT_VERSION.toString(), (Runnable) () -> {
+                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("4.0")));
+                             } });
+    }
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        Gossiper.instance.maybeInitializeLocalState(0);
+    }
+
+    @Before
+    public void before()
+    {
+        Util.setUpgradeFromVersion(clusterMinVersion);
+        assertion.run();
+    }
+
     /**
      * Migrated from cql_tests.py:TestCQL.cas_simple_test()
      */
@@ -1020,7 +1066,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     }
 
     /**
-     * Test expanded functionality from CASSANDRA-6839, 
+     * Test expanded functionality from CASSANDRA-6839,
      * migrated from cql_tests.py:TestCQL.expanded_list_item_conditional_test()
      */
     @Test
