@@ -422,7 +422,7 @@
           <dependency groupId="org.apache.thrift" artifactId="libthrift" version="0.9.2">
 	         <exclusion groupId="commons-logging" artifactId="commons-logging"/>
           </dependency>
-          <dependency groupId="junit" artifactId="junit" version="4.6" />
+          <dependency groupId="junit" artifactId="junit" version="4.12" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7" />
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
