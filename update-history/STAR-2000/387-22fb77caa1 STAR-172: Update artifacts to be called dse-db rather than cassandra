@@ -1,0 +1,21 @@
+--- a/build.xml
++++ b/build.xml
+@@ -33,17 +33,10 @@
+     <property name="debuglevel" value="source,lines,vars"/>
+ 
+     <!-- default version and SCM information -->
+-<<<<<<<
+-    <property name="base.version" value="4.0.7"/>
++    <property name="base.version" value="4.0.8"/>
+     <property name="scm.connection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+     <property name="scm.developerConnection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+     <property name="scm.url" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+-=======
+-    <property name="base.version" value="4.0.8"/>
+-    <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
+-    <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
+-    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+->>>>>>>
+ 
+     <!-- directory details -->
+     <property name="basedir" value="."/>

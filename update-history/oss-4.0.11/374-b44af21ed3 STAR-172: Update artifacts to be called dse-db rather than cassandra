@@ -1,0 +1,33 @@
+--- a/build.xml
++++ b/build.xml
+@@ -33,17 +33,10 @@
+     <property name="debuglevel" value="source,lines,vars"/>
+ 
+     <!-- default version and SCM information -->
+-<<<<<<<
+     <property name="base.version" value="4.0.12"/>
+-    <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
+-    <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
+-    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+-=======
+-    <property name="base.version" value="4.0.8"/>
+     <property name="scm.connection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+     <property name="scm.developerConnection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+     <property name="scm.url" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
+->>>>>>>
+ 
+     <!-- directory details -->
+     <property name="basedir" value="."/>
+@@ -315,11 +308,7 @@
+     <sequential>
+       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
+         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
+-<<<<<<<
+-        bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
+-=======
+-        bottom="Copyright &amp;copy; 2009-2022 The Apache Software Foundation; All changes to the original code are Copyright DataStax, Inc."
+->>>>>>>
++        bottom="Copyright &amp;copy; 2009- The Apache Software Foundation; All changes to the original code are Copyright DataStax, Inc."
+         useexternalfile="yes" encoding="UTF-8" failonerror="false"
+         maxmemory="1024M" additionalparam="${jdk11-javadoc-exports}">
+         <filesets/>

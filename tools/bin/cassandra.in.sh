@@ -30,10 +30,10 @@ CLASSPATH="$CASSANDRA_CONF"
 # compiled classes. NOTE: This isn't needed by the startup script,
 # it's just used here in constructing the classpath.
 if [ -d $CASSANDRA_HOME/build ] ; then
-    #cassandra_bin="$CASSANDRA_HOME/build/classes/main"
-    cassandra_bin=`ls -1 $CASSANDRA_HOME/build/apache-cassandra*.jar`
-    cassandra_bin="$cassandra_bin:$CASSANDRA_HOME/build/classes/stress:$CASSANDRA_HOME/build/classes/fqltool"
-    CLASSPATH="$CLASSPATH:$cassandra_bin"
+    #dse_db_bin="$CASSANDRA_HOME/build/classes/main"
+    dse_db_bin=`ls -1 $CASSANDRA_HOME/build/dse-db*.jar`
+    dse_db_bin="$dse_db_bin:$CASSANDRA_HOME/build/classes/stress:$CASSANDRA_HOME/build/classes/fqltool"
+    CLASSPATH="$CLASSPATH:$dse_db_bin"
 fi
 
 # the default location for commitlogs, sstables, and saved caches
