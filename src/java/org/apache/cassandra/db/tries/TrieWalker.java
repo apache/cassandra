@@ -22,7 +22,7 @@ package org.apache.cassandra.db.tries;
  * CompletableFuture.
  * See TrieDumper for sample usage.
  */
-interface TrieWalker<T, V>
+public interface TrieWalker<T, V>
 {
     /**
      * Called when entering a node of the trie.

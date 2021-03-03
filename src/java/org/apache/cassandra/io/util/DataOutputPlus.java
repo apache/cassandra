@@ -77,4 +77,41 @@ public interface DataOutputPlus extends DataOutput
     {
         return false;
     }
+
+    // The methods below support page-aware layout for writing. These would only be implemented if position() is
+    // also supported.
+
+    /**
+     * Returns the number of bytes that a page can take at maximum.
+     */
+    default int maxBytesInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Pad this page with 0s to move on to the next.
+     * @throws IOException
+     */
+    default void padToPageBoundary() throws IOException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns how many bytes are left in the page.
+     */
+    default int bytesLeftInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the next padded position. This is either the current position (if already padded), or the start of next
+     * page.
+     */
+    default long paddedPosition()
+    {
+        throw new UnsupportedOperationException();
+    }
 }
