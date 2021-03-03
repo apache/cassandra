@@ -1089,6 +1089,14 @@
         </testmacro>
     </target>
 
+    <target name="stress-test-some" depends="stress-build-test, build-test" description="Runs stress tests">
+        <testmacro inputdir="${stress.test.src}"
+                       timeout="${test.timeout}">
+          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
+          <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+        </testmacro>
+    </target>
+
     <!--
         fqltool build file
         -->
