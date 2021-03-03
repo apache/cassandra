@@ -20,10 +20,17 @@ package org.apache.cassandra.stress.settings;
 
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectOutputStream;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Test;
+
+import org.apache.cassandra.stress.report.StressMetrics;
+
+import static org.junit.Assert.assertEquals;
 
 public class StressSettingsTest
 {
@@ -35,5 +42,12 @@ public class StressSettingsTest
         StressSettings settings = StressSettings.get(args);
         // Will throw if not all settings are Serializable
         new ObjectOutputStream(new ByteArrayOutputStream()).writeObject(settings);
+    }
+
+    @Test
+    public void test16473()
+    {
+        Set<String> jmxNodes = StressMetrics.toJmxNodes(new HashSet<String>(Arrays.asList("127.0.0.1:9042", "127.0.0.1")));
+        assertEquals(0, jmxNodes.stream().filter(n -> n.contains(":")).count());
     }
 }
