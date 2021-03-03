@@ -1,4 +1,5 @@
 4.0-beta5
+ * Fix cassandra-stress JMX connection (CASSANDRA-16473)
  * Avoid processing redundant application states on endpoint changes (CASSANDRA-16381)
  * Prevent parent repair sessions leak (CASSANDRA-16446)
  * Fix timestamp issue in SinglePartitionSliceCommandTest testPartitionD…eletionRowDeletionTie (CASSANDRA-16443)
