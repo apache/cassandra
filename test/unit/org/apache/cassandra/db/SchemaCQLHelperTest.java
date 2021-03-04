@@ -349,7 +349,14 @@ public class SchemaCQLHelperTest extends CQLTester
                    Collections.singletonList(new IndexTarget(reg1, IndexTarget.Type.KEYS_AND_VALUES)),
                    "indexName4",
                    IndexMetadata.Kind.CUSTOM,
-                   Collections.singletonMap(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName()))));
+                   Collections.singletonMap(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName())),
+                   IndexMetadata.fromIndexTargets(
+                   Collections.singletonList(new IndexTarget(reg1, IndexTarget.Type.KEYS_AND_VALUES)),
+                   "indexName5",
+                   IndexMetadata.Kind.CUSTOM,
+                   ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,SASIIndex.class.getName(),
+                                   "is_literal", "false"))
+                   ));
 
 
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), builder);
@@ -359,7 +366,8 @@ public class SchemaCQLHelperTest extends CQLTester
         assertEquals(ImmutableList.of("CREATE INDEX \"indexName\" ON cql_test_keyspace_3.test_table_3 (values(reg1));",
                                       "CREATE INDEX \"indexName2\" ON cql_test_keyspace_3.test_table_3 (keys(reg1));",
                                       "CREATE INDEX \"indexName3\" ON cql_test_keyspace_3.test_table_3 (entries(reg1));",
-                                      "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';"),
+                                      "CREATE CUSTOM INDEX \"indexName4\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex';",
+                                      "CREATE CUSTOM INDEX \"indexName5\" ON cql_test_keyspace_3.test_table_3 (entries(reg1)) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false'};"),
                      SchemaCQLHelper.getIndexesAsCQL(cfs.metadata(), false).collect(Collectors.toList()));
     }
 
