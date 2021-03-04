@@ -82,6 +82,22 @@ public class GossiperTest
     }
 
     @Test
+    public void testPaddingIntact() throws Exception
+    {
+        // sanity check that all 10 pads still exist
+        assert ApplicationState.X1 == ApplicationState.X1;
+        assert ApplicationState.X2 == ApplicationState.X2;
+        assert ApplicationState.X3 == ApplicationState.X3;
+        assert ApplicationState.X4 == ApplicationState.X4;
+        assert ApplicationState.X5 == ApplicationState.X5;
+        assert ApplicationState.X6 == ApplicationState.X6;
+        assert ApplicationState.X7 == ApplicationState.X7;
+        assert ApplicationState.X8 == ApplicationState.X8;
+        assert ApplicationState.X9 == ApplicationState.X9;
+        assert ApplicationState.X10 == ApplicationState.X10;
+    }
+
+    @Test
     public void testHasVersion3Nodes() throws Exception
     {
         Gossiper.instance.expireUpgradeFromVersion();
