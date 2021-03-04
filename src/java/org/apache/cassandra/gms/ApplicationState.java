@@ -19,6 +19,7 @@ package org.apache.cassandra.gms;
 
 public enum ApplicationState
 {
+    // never remove a state here, ordering matters.
     @Deprecated STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
     LOAD,
     SCHEMA,
@@ -38,6 +39,9 @@ public enum ApplicationState
     INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
     NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
     STATUS_WITH_PORT, //Replacement for STATUS
+    // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
+    X1,
+    X2,
     X3,
     X4,
     X5,
