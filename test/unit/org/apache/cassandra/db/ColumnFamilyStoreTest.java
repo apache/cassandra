@@ -462,6 +462,22 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
+    public void testDataDirectoriesOfColumnFamily() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        List<String> dataPaths = cfs.getDataPaths();
+        Assert.assertFalse(dataPaths.isEmpty());
+
+        Path path = Paths.get(dataPaths.get(0));
+
+        String keyspace = path.getParent().getFileName().toString();
+        String table = path.getFileName().toString().split("-")[0];
+
+        Assert.assertEquals(cfs.getTableName(), table);
+        Assert.assertEquals(KEYSPACE1, keyspace);
+    }
+
+    @Test
     public void testScrubDataDirectories() throws Throwable
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
@@ -487,21 +503,5 @@ public class ColumnFamilyStoreTest
         List<File> ssTableFiles = new Directories(cfs.metadata()).sstableLister(Directories.OnTxnErr.THROW).listFiles();
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
-    }
-
-    @Test
-    public void testDataDirectoriesOfColumnFamily() throws Exception
-    {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        List<String> dataPaths = cfs.getDataPaths();
-        Assert.assertTrue(!dataPaths.isEmpty());
-
-        Path path = Paths.get(dataPaths.get(0));
-
-        String keyspace = path.getParent().getFileName().toString();
-        String table = path.getFileName().toString().split("-")[0];
-
-        Assert.assertEquals(cfs.getTableName(), table);
-        Assert.assertEquals(KEYSPACE1, keyspace);
     }
 }
