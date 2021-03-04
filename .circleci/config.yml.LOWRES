@@ -2,7 +2,7 @@ version: 2
 jobs:
   j8_jvm_upgrade_dtests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -93,7 +93,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_cqlsh-dtests-py2-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -170,7 +170,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_unit_tests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -262,7 +262,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j8_cqlsh-dtests-py38-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -339,7 +339,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_cqlsh-dtests-py3-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -417,7 +417,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j11_cqlsh-dtests-py3-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -495,7 +495,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j11_cqlsh-dtests-py38-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -573,7 +573,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j8_cqlsh-dtests-py3-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -650,7 +650,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_cqlsh-dtests-py2-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -727,7 +727,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_cqlsh-dtests-py2-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -805,7 +805,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j11_dtests-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -886,7 +886,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j8_dtests-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -944,7 +944,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_upgradetests-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1002,7 +1002,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   utests_stress:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1047,7 +1047,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_unit_tests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1138,7 +1138,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_jvm_dtests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1230,7 +1230,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j11_build:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1311,7 +1311,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j11_cqlsh-dtests-py2-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1389,7 +1389,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j11_cqlshlib_tests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1426,7 +1426,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j8_dtests-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1484,7 +1484,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_cqlsh-dtests-py38-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1562,7 +1562,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   j8_jvm_dtests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1653,7 +1653,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_build:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1733,7 +1733,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_cqlsh-dtests-py3-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1810,7 +1810,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_cqlsh-dtests-py38-with-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1887,7 +1887,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   utests_long:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1932,7 +1932,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_cqlshlib_tests:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -1968,7 +1968,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   utests_fqltool:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2013,7 +2013,7 @@ jobs:
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j11_dtests-no-vnodes:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2094,7 +2094,7 @@ jobs:
     - CASSANDRA_USE_JDK11: true
   utests_compression:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2183,100 +2183,9 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-  utests_system_keyspace_directory:
-    docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
-    resource_class: medium
-    working_directory: ~/
-    shell: /bin/bash -eo pipefail -l
-    parallelism: 4
-    steps:
-    - attach_workspace:
-        at: /home/cassandra
-    - run:
-        name: Determine unit Tests to Run
-        command: |
-          # reminder: this code (along with all the steps) is independently executed on every circle container
-          # so the goal here is to get the circleci script to return the tests *this* container will run
-          # which we do via the `circleci` cli tool.
-
-          rm -fr ~/cassandra-dtest/upgrade_tests
-          echo "***java tests***"
-
-          # get all of our unit test filenames
-          set -eo pipefail && circleci tests glob "$HOME/cassandra/test/unit/**/*.java" > /tmp/all_java_unit_tests.txt
-
-          # split up the unit tests into groups based on the number of containers we have
-          set -eo pipefail && circleci tests split --split-by=timings --timings-type=filename --index=${CIRCLE_NODE_INDEX} --total=${CIRCLE_NODE_TOTAL} /tmp/all_java_unit_tests.txt > /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt
-          set -eo pipefail && cat /tmp/java_tests_${CIRCLE_NODE_INDEX}.txt | sed "s;^/home/cassandra/cassandra/test/unit/;;g" | grep "Test\.java$"  > /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-          echo "** /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt"
-          cat /tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt
-        no_output_timeout: 15m
-    - run:
-        name: Log Environment Information
-        command: |
-          echo '*** id ***'
-          id
-          echo '*** cat /proc/cpuinfo ***'
-          cat /proc/cpuinfo
-          echo '*** free -m ***'
-          free -m
-          echo '*** df -m ***'
-          df -m
-          echo '*** ifconfig -a ***'
-          ifconfig -a
-          echo '*** uname -a ***'
-          uname -a
-          echo '*** mount ***'
-          mount
-          echo '*** env ***'
-          env
-          echo '*** java ***'
-          which java
-          java -version
-    - run:
-        name: Run Unit Tests (testclasslist-system-keyspace-directory)
-        command: |
-          set -x
-          export PATH=$JAVA_HOME/bin:$PATH
-          time mv ~/cassandra /tmp
-          cd /tmp/cassandra
-          if [ -d ~/dtest_jars ]; then
-            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
-          fi
-          test_timeout=$(grep 'name="test.unit.timeout"' build.xml | awk -F'"' '{print $4}' || true)
-          if [ -z "$test_timeout" ]; then
-            test_timeout=$(grep 'name="test.timeout"' build.xml | awk -F'"' '{print $4}')
-          fi
-          ant testclasslist-system-keyspace-directory -Dtest.timeout="$test_timeout" -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
-        no_output_timeout: 15m
-    - store_test_results:
-        path: /tmp/cassandra/build/test/output/
-    - store_artifacts:
-        path: /tmp/cassandra/build/test/output
-        destination: junitxml
-    - store_artifacts:
-        path: /tmp/cassandra/build/test/logs
-        destination: logs
-    environment:
-    - ANT_HOME: /usr/share/ant
-    - LANG: en_US.UTF-8
-    - KEEP_TEST_DIR: true
-    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
-    - PYTHONIOENCODING: utf-8
-    - PYTHONUNBUFFERED: true
-    - CASS_DRIVER_NO_EXTENSIONS: true
-    - CASS_DRIVER_NO_CYTHON: true
-    - CASSANDRA_SKIP_SYNC: true
-    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
-    - DTEST_BRANCH: master
-    - CCM_MAX_HEAP_SIZE: 1024M
-    - CCM_HEAP_NEWSIZE: 256M
-    - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_dtest_jars_build:
     docker:
-    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210105
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
@@ -2379,12 +2288,6 @@ workflows:
     - utests_compression:
         requires:
         - start_utests_compression
-        - j8_build
-    - start_utests_system_keyspace_directory:
-        type: approval
-    - utests_system_keyspace_directory:
-        requires:
-        - start_utests_system_keyspace_directory
         - j8_build
     - start_utests_stress:
         type: approval
