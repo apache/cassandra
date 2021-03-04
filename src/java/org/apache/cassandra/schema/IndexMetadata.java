@@ -261,7 +261,7 @@ public final class IndexMetadata
 
             if (!copyOptions.isEmpty())
                 builder.append(" WITH OPTIONS = ")
-                       .append(options);
+                       .append(copyOptions);
         }
         else
         {

@@ -671,6 +671,38 @@ public class DescribeStatementTest extends CQLTester
         }
     }
 
+    @Test
+    public void testDescribeWithCustomIndex() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s (id int PRIMARY KEY, value text);");
+        String indexWithoutOptions = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'org.apache.cassandra.index.sasi.SASIIndex';");
+        String indexWithOptions = createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false'};");
+
+        String expectedKeyspaceStmt = "CREATE KEYSPACE " + KEYSPACE +
+                                      " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}" +
+                                      "  AND durable_writes = true;";
+
+        String expectedTableStmt = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                   "    id int PRIMARY KEY,\n" +
+                                   "    value text\n" +
+                                   ") WITH " + tableParametersCql();
+
+        String expectedIndexStmtWithoutOptions = "CREATE CUSTOM INDEX " + indexWithoutOptions + " ON " + KEYSPACE + "." + table + " (value) USING 'org.apache.cassandra.index.sasi.SASIIndex';";
+        String expectedIndexStmtWithOptions = "CREATE CUSTOM INDEX " + indexWithOptions + " ON " + KEYSPACE + "." + table + " (value) USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = {'is_literal': 'false'};";
+
+        assertRowsNet(executeDescribeNet("DESCRIBE KEYSPACE " + KEYSPACE),
+                      row(KEYSPACE, "keyspace", KEYSPACE, expectedKeyspaceStmt),
+                      row(KEYSPACE, "table", table, expectedTableStmt),
+                      row(KEYSPACE, "index", indexWithoutOptions, expectedIndexStmtWithoutOptions),
+                      row(KEYSPACE, "index", indexWithOptions, expectedIndexStmtWithOptions));
+
+        assertRowsNet(executeDescribeNet("DESCRIBE INDEX " + KEYSPACE + "." + indexWithoutOptions),
+                      row(KEYSPACE, "index", indexWithoutOptions, expectedIndexStmtWithoutOptions));
+
+        assertRowsNet(executeDescribeNet("DESCRIBE INDEX " + KEYSPACE + "." + indexWithOptions),
+                      row(KEYSPACE, "index", indexWithOptions, expectedIndexStmtWithOptions));
+    }
+
     private static String allTypesTable()
     {
         return "CREATE TABLE test.has_all_types (\n" +
