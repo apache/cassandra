@@ -58,7 +58,7 @@ public class CustomIndexExpression
     @Override
     public String toString()
     {
-        return String.format("expr(%s,%s)", targetIndex, valueRaw);
+        return String.format("expr(%s,%s)", targetIndex.toCQLString(), valueRaw.getText());
     }
 
     @Override

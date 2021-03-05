@@ -145,7 +145,7 @@ public final class SingleColumnRelation extends Relation
     @Override
     public String toString()
     {
-        String entityAsString = entity.toString();
+        String entityAsString = entity.toCQLString();
         if (mapKey != null)
             entityAsString = String.format("%s[%s]", entityAsString, mapKey);
 
