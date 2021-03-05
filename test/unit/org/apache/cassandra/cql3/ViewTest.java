@@ -1442,4 +1442,21 @@ public class ViewTest extends CQLTester
             DatabaseDescriptor.setEnableMaterializedViews(enableMaterializedViews);
         }
     }
+
+    @Test
+    public void testQuotedIdentifiersInWhereClause() throws Throwable
+    {
+        createTable("CREATE TABLE %s (\"theKey\" int, \"theClustering_1\" int, \"theClustering_2\" int, \"theValue\" int, PRIMARY KEY (\"theKey\", \"theClustering_1\", \"theClustering_2\"))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("view1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE \"theKey\" IS NOT NULL AND \"theClustering_1\" IS NOT NULL AND \"theClustering_2\" IS NOT NULL AND \"theValue\" IS NOT NULL  PRIMARY KEY (\"theKey\", \"theClustering_1\", \"theClustering_2\");");
+        createView("view2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE \"theKey\" IS NOT NULL AND (\"theClustering_1\", \"theClustering_2\") = (1, 2) AND \"theValue\" IS NOT NULL  PRIMARY KEY (\"theKey\", \"theClustering_1\", \"theClustering_2\");");
+        createView("view3", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE token(\"theKey\") > token(1) AND \"theClustering_1\" = 1 AND \"theClustering_2\" > 2 AND \"theValue\" IS NOT NULL  PRIMARY KEY (\"theKey\", \"theClustering_1\", \"theClustering_2\");");
+
+        assertRows(execute("SELECT where_clause FROM system_schema.views"),
+                   row("\"theKey\" IS NOT NULL AND \"theClustering_1\" IS NOT NULL AND \"theClustering_2\" IS NOT NULL AND \"theValue\" IS NOT NULL"),
+                   row("\"theKey\" IS NOT NULL AND (\"theClustering_1\", \"theClustering_2\") = (1, 2) AND \"theValue\" IS NOT NULL"),
+                   row("token(\"theKey\") > token(1) AND \"theClustering_1\" = 1 AND \"theClustering_2\" > 2 AND \"theValue\" IS NOT NULL"));
+    }
 }

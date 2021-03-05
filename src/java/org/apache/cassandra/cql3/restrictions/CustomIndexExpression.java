@@ -55,10 +55,15 @@ public class CustomIndexExpression
                                         value.bindAndGet(options));
     }
 
+    public String toCQLString()
+    {
+        return String.format("expr(%s,%s)", targetIndex.toCQLString(), valueRaw.getText());
+    }
+
     @Override
     public String toString()
     {
-        return String.format("expr(%s,%s)", targetIndex, valueRaw);
+        return toCQLString();
     }
 
     @Override
