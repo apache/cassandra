@@ -100,7 +100,7 @@ abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
     public String toCQLString()
     {
         StringBuilder sb = new StringBuilder().append("SELECT ")
-                                              .append(columnFilter())
+                                              .append(columnFilter().toCQLString())
                                               .append(" FROM ")
                                               .append(metadata().keyspace)
                                               .append('.')
