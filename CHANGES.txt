@@ -1,4 +1,5 @@
 4.0-beta5
+ * Fix the CQL generated for the views.where_clause column when some identifiers require quoting (CASSANDRA-16479)
  * Send FAILED_SESSION_MSG on shutdown and on in-progress repairs during startup (CASSANDRA-16425)
  * Reinstate removed ApplicationState padding (CASSANDRA-16484)
  * Expose data dirs to ColumnFamilyStoreMBean (CASSANDRA-16335)

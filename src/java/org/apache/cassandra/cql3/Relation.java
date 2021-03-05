@@ -257,4 +257,17 @@ public abstract class Relation
      *         a new Relation with "from" replaced by "to" is returned.
      */
     public abstract Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to);
+
+    /**
+     * Returns a CQL representation of this relation.
+     *
+     * @return a CQL representation of this relation
+     */
+    public abstract String toCQLString();
+
+    @Override
+    public String toString()
+    {
+        return toCQLString();
+    }
 }

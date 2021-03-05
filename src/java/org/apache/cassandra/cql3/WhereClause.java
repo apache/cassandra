@@ -80,9 +80,19 @@ public final class WhereClause
     @Override
     public String toString()
     {
+        return toCQLString();
+    }
+
+    /**
+     * Returns a CQL representation of this WHERE clause.
+     *
+     * @return a CQL representation of this WHERE clause
+     */
+    public String toCQLString()
+    {
         return join(" AND ",
-                    concat(transform(relations, Relation::toString),
-                           transform(expressions, CustomIndexExpression::toString)));
+                    concat(transform(relations, Relation::toCQLString),
+                           transform(expressions, CustomIndexExpression::toCQLString)));
     }
 
     @Override
