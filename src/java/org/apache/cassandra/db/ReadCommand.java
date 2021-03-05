@@ -686,8 +686,8 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     public String toCQLString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("SELECT ").append(columnFilter());
-        sb.append(" FROM ").append(metadata().ksName).append('.').append(metadata.cfName);
+        sb.append("SELECT ").append(columnFilter().toCQLString());
+        sb.append(" FROM ").append(metadata().ksName).append('.').append(metadata().cfName);
         appendCQLWhereClause(sb);
 
         if (limits() != DataLimits.NONE)
