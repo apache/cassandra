@@ -134,6 +134,7 @@ public class ColumnFilter
     /**
      * Whether we can skip the value for the provided selected column.
      */
+    @SuppressWarnings("unused")
     public boolean canSkipValue(ColumnDefinition column)
     {
         // We don't use that currently, see #10655 for more details.
@@ -275,7 +276,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
             {
-                s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
+                s = TreeMultimap.create(Comparator.naturalOrder(), Comparator.naturalOrder());
                 for (ColumnSubselection subSelection : subSelections)
                     s.put(subSelection.column().name, subSelection);
             }
@@ -305,27 +306,43 @@ public class ColumnFilter
     @Override
     public String toString()
     {
-        String prefix = "";
-
         if (isFetchAll)
             return "*/*";
 
         if (queried.isEmpty())
-            return prefix + "[]";
+            return "[]";
 
-        StringJoiner joiner = new StringJoiner(", ", "[", "]");
-        Iterator<ColumnDefinition> it = queried.selectOrderIterator();
-        while (it.hasNext())
+        return toString(false);
+    }
+
+    public String toCQLString()
+    {
+        if (queried == null || queried.isEmpty())
+            return "*";
+
+        return toString(true);
+    }
+
+    private String toString(boolean cql)
+    {
+        Iterator<ColumnDefinition> columns = queried.selectOrderIterator();
+        StringJoiner joiner = cql ? new StringJoiner(", ") : new StringJoiner(", ", "[", "]");
+
+        while (columns.hasNext())
         {
-            ColumnDefinition column = it.next();
-            SortedSet<ColumnSubselection> s = subSelections != null ? subSelections.get(column.name) : Collections.emptySortedSet();
+            ColumnDefinition column = columns.next();
+            String columnName = cql ? column.name.toCQLString() : String.valueOf(column.name);
+
+            SortedSet<ColumnSubselection> s = subSelections != null
+                                            ? subSelections.get(column.name)
+                                            : Collections.emptySortedSet();
 
             if (s.isEmpty())
-                joiner.add(String.valueOf(column.name));
+                joiner.add(columnName);
             else
-                s.forEach(subSel -> joiner.add(String.format("%s%s", column.name, subSel)));
+                s.forEach(subSel -> joiner.add(String.format("%s%s", columnName, subSel)));
         }
-        return prefix + joiner.toString();
+        return joiner.toString();
     }
 
     public static class Serializer
@@ -399,7 +416,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
             if (hasSubSelections)
             {
-                subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
+                subSelections = TreeMultimap.create(Comparator.naturalOrder(), Comparator.naturalOrder());
                 int size = (int)in.readUnsignedVInt();
                 for (int i = 0; i < size; i++)
                 {
