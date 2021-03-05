@@ -109,6 +109,12 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_utests_fqltool
           - j8_build
+    - start_utests_system_keyspace_directory:
+        type: approval
+    - utests_system_keyspace_directory:
+        requires:
+          - start_utests_system_keyspace_directory
+          - j8_build
     - start_jvm_upgrade_dtest:
         type: approval
     - j8_dtest_jars_build:
@@ -454,6 +460,16 @@ jobs:
           at: /home/cassandra
       - run_junit_tests:
           target: fqltool-test
+
+  utests_system_keyspace_directory:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - create_junit_containers
+      - log_environment
+      - run_parallel_junit_tests:
+          target: testclasslist-system-keyspace-directory
 
   j8_dtests-with-vnodes:
     <<: *j8_par_executor
