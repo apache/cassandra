@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -38,19 +37,19 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
 
 public class BlockingReadRepairTest extends AbstractReadRepairTest
 {
-    private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
-            extends BlockingPartitionRepair<E, P>
+    private static class InstrumentedReadRepairHandler
+            extends BlockingPartitionRepair
     {
-        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
+        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
         {
-            super(Util.dk("not a real usable value"), repairs, maxBlockFor, replicaPlan,
-                    e -> targets.contains(e));
+            super(Util.dk("not a real usable value"), repairs, writePlan, e -> targets.contains(e));
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -67,16 +66,15 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         configureClass(ReadRepairStrategy.BLOCKING);
     }
 
-    private static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
-    InstrumentedReadRepairHandler<E, P> createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor, P replicaPlan)
+    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForTokenWrite writePlan)
     {
-        return new InstrumentedReadRepairHandler<>(repairs, maxBlockFor, replicaPlan);
+        return new InstrumentedReadRepairHandler(repairs, writePlan);
     }
 
-    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, int maxBlockFor)
+    private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs)
     {
         EndpointsForRange replicas = EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet()));
-        return createRepairHandler(repairs, maxBlockFor, replicaPlan(replicas, replicas));
+        return createRepairHandler(repairs, repairPlan(replicas, replicas));
     }
 
     private static class InstrumentedBlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>>
@@ -140,8 +138,8 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica1, repair1);
         repairs.put(replica2, repair2);
 
-        ReplicaPlan.ForRangeRead replicaPlan = replicaPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
-        InstrumentedReadRepairHandler<?, ?> handler = createRepairHandler(repairs, 2, replicaPlan);
+        ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, writePlan);
 
         Assert.assertTrue(handler.mutationsSent.isEmpty());
 
@@ -158,11 +156,11 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         assertMutationEqual(resolved, handler.mutationsSent.get(target3));
 
         // check repairs stop blocking after receiving 2 acks
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1);
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target3);
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertTrue(getCurrentRepairStatus(handler));
 
     }
 
@@ -176,7 +174,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica1, mutation(cell2));
         repairs.put(replica2, mutation(cell1));
 
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2);
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs);
         handler.sendInitialRepairs();
         handler.ack(target1);
         handler.ack(target2);
@@ -197,7 +195,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica1, mutation(cell2));
         repairs.put(replica2, mutation(cell1));
 
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2);
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs);
         handler.sendInitialRepairs();
 
         // we've already sent mutations to all candidates, so we shouldn't send any more
@@ -219,7 +217,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica1, repair1);
 
         // check that the correct initial mutations are sent out
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicaPlan(replicas, EndpointsForRange.of(replica1, replica2)));
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, repairPlan(replicas, EndpointsForRange.of(replica1, replica2)));
         handler.sendInitialRepairs();
         Assert.assertEquals(1, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(target1));
@@ -240,17 +238,16 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica3, mutation(cell3));
         Assert.assertEquals(3, repairs.size());
 
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2);
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs);
         handler.sendInitialRepairs();
 
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
         handler.ack(target1);
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
 
         // here we should stop blocking, even though we've sent 3 repairs
         handler.ack(target2);
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
-
+        Assert.assertTrue(getCurrentRepairStatus(handler));
     }
 
     /**
@@ -267,22 +264,27 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(remote1, mutation(cell1));
 
         EndpointsForRange participants = EndpointsForRange.of(replica1, replica2, remote1, remote2);
-        ReplicaPlan.ForRangeRead replicaPlan = replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, participants);
-        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, 2, replicaPlan);
+        ReplicaPlan.ForTokenWrite writePlan = repairPlan(replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, participants));
+        InstrumentedReadRepairHandler handler = createRepairHandler(repairs, writePlan);
         handler.sendInitialRepairs();
         Assert.assertEquals(2, handler.mutationsSent.size());
         Assert.assertTrue(handler.mutationsSent.containsKey(replica1.endpoint()));
         Assert.assertTrue(handler.mutationsSent.containsKey(remote1.endpoint()));
 
         Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
 
         handler.ack(remote1.endpoint());
         Assert.assertEquals(1, handler.waitingOn());
-        Assert.assertFalse(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertFalse(getCurrentRepairStatus(handler));
 
         handler.ack(replica1.endpoint());
         Assert.assertEquals(0, handler.waitingOn());
-        Assert.assertTrue(handler.awaitRepairs(0, TimeUnit.NANOSECONDS));
+        Assert.assertTrue(getCurrentRepairStatus(handler));
+    }
+
+    private boolean getCurrentRepairStatus(BlockingPartitionRepair handler)
+    {
+        return handler.awaitRepairsUntil(System.nanoTime(), TimeUnit.NANOSECONDS);
     }
 }

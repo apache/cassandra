@@ -119,7 +119,7 @@ public class NeverPurgeTest extends CQLTester
                             Row r = (Row)atom;
                             if (!r.deletion().isLive())
                                 tombstoneCount++;
-                            for (Cell c : r.cells())
+                            for (Cell<?> c : r.cells())
                                 if (c.isTombstone())
                                     tombstoneCount++;
                         }

@@ -99,6 +99,7 @@ public class CassandraStreamManagerTest
             return new StreamSession(StreamOperation.REPAIR,
                                      InetAddressAndPort.getByName("127.0.0.1"),
                                      connectionFactory,
+                                     false,
                                      0,
                                      pendingRepair,
                                      PreviewKind.NONE);
@@ -160,6 +161,9 @@ public class CassandraStreamManagerTest
     @Test
     public void incrementalSSTableSelection() throws Exception
     {
+        // CASSANDRA-15825 Make sure a compaction won't be triggered under our feet removing the sstables mid-flight
+        cfs.disableAutoCompaction();
+
         // make 3 tables, 1 unrepaired, 2 pending repair with different repair ids, and 1 repaired
         SSTableReader sstable1 = createSSTable(() -> QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (1, 1)", keyspace, table)));
         SSTableReader sstable2 = createSSTable(() -> QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (2, 2)", keyspace, table)));

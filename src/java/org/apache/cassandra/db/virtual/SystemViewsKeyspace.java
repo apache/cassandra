@@ -19,23 +19,24 @@ package org.apache.cassandra.db.virtual;
 
 import com.google.common.collect.ImmutableList;
 
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
+
 public final class SystemViewsKeyspace extends VirtualKeyspace
 {
-    private static final String NAME = "system_views";
-
     public static SystemViewsKeyspace instance = new SystemViewsKeyspace();
 
     private SystemViewsKeyspace()
     {
-        super(NAME, new ImmutableList.Builder<VirtualTable>()
-                    .add(new CachesTable(NAME))
-                    .add(new ClientsTable(NAME))
-                    .add(new SettingsTable(NAME))
-                    .add(new SSTableTasksTable(NAME))
-                    .add(new ThreadPoolsTable(NAME))
-                    .add(new InternodeOutboundTable(NAME))
-                    .add(new InternodeInboundTable(NAME))
-                    .addAll(TableMetricTables.getAll(NAME))
+        super(VIRTUAL_VIEWS, new ImmutableList.Builder<VirtualTable>()
+                    .add(new CachesTable(VIRTUAL_VIEWS))
+                    .add(new ClientsTable(VIRTUAL_VIEWS))
+                    .add(new SettingsTable(VIRTUAL_VIEWS))
+                    .add(new SystemPropertiesTable(VIRTUAL_VIEWS))
+                    .add(new SSTableTasksTable(VIRTUAL_VIEWS))
+                    .add(new ThreadPoolsTable(VIRTUAL_VIEWS))
+                    .add(new InternodeOutboundTable(VIRTUAL_VIEWS))
+                    .add(new InternodeInboundTable(VIRTUAL_VIEWS))
+                    .addAll(TableMetricTables.getAll(VIRTUAL_VIEWS))
                     .build());
     }
 }

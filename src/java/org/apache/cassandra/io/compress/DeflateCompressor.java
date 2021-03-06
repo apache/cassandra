@@ -29,6 +29,8 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import com.google.common.collect.ImmutableSet;
+
 public class DeflateCompressor implements ICompressor
 {
     public static final DeflateCompressor instance = new DeflateCompressor();
@@ -49,6 +51,7 @@ public class DeflateCompressor implements ICompressor
 
     private final FastThreadLocal<Deflater> deflater;
     private final FastThreadLocal<Inflater> inflater;
+    private final Set<Uses> recommendedUses;
 
     public static DeflateCompressor create(Map<String, String> compressionOptions)
     {
@@ -74,6 +77,7 @@ public class DeflateCompressor implements ICompressor
                 return new Inflater();
             }
         };
+        recommendedUses = ImmutableSet.of(Uses.GENERAL);
     }
 
     public Set<String> supportedOptions()
@@ -225,5 +229,11 @@ public class DeflateCompressor implements ICompressor
     {
         // Prefer array-backed buffers.
         return BufferType.ON_HEAP;
+    }
+
+    @Override
+    public Set<Uses> recommendedUses()
+    {
+        return recommendedUses;
     }
 }

@@ -19,86 +19,80 @@
 package org.apache.cassandra.audit;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Central location for managing the logging of client/user-initated actions (like queries, log in commands, and so on).
  *
- * We can run multiple {@link IAuditLogger}s at the same time, including the standard audit logger ({@link #auditLogger}
- * and the full query logger ({@link #fullQueryLogger}.
  */
-public class AuditLogManager
+public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listener
 {
     private static final Logger logger = LoggerFactory.getLogger(AuditLogManager.class);
-    private static final AuditLogManager instance = new AuditLogManager();
-
-    // FQL always writes to a BinLog, but it is a type of IAuditLogger
-    private final FullQueryLogger fullQueryLogger;
-    private final ImmutableSet<AuditLogEntryCategory> fqlIncludeFilter = ImmutableSet.of(AuditLogEntryCategory.OTHER,
-                                                                                         AuditLogEntryCategory.QUERY,
-                                                                                         AuditLogEntryCategory.DCL,
-                                                                                         AuditLogEntryCategory.DML,
-                                                                                         AuditLogEntryCategory.DDL);
+    public static final AuditLogManager instance = new AuditLogManager();
 
     // auditLogger can write anywhere, as it's pluggable (logback, BinLog, DiagnosticEvents, etc ...)
     private volatile IAuditLogger auditLogger;
 
     private volatile AuditLogFilter filter;
-    private volatile boolean isAuditLogEnabled;
 
     private AuditLogManager()
     {
-        fullQueryLogger = new FullQueryLogger();
+        final AuditLogOptions auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
 
-        if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
+        if (auditLogOptions.enabled)
         {
             logger.info("Audit logging is enabled.");
-            auditLogger = getAuditLogger(DatabaseDescriptor.getAuditLoggingOptions().logger);
-            isAuditLogEnabled = true;
+            auditLogger = getAuditLogger(auditLogOptions.logger);
         }
         else
         {
             logger.debug("Audit logging is disabled.");
-            isAuditLogEnabled = false;
-            auditLogger = new NoOpAuditLogger();
+            auditLogger = new NoOpAuditLogger(Collections.emptyMap());
         }
 
-        filter = AuditLogFilter.create(DatabaseDescriptor.getAuditLoggingOptions());
+        filter = AuditLogFilter.create(auditLogOptions);
     }
 
-    public static AuditLogManager getInstance()
+    public void initialize()
     {
-        return instance;
+        if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
+            registerAsListener();
     }
 
-    private IAuditLogger getAuditLogger(String loggerClassName) throws ConfigurationException
+    private IAuditLogger getAuditLogger(ParameterizedClass logger) throws ConfigurationException
     {
-        if (loggerClassName != null)
+        if (logger.class_name != null)
         {
-            return FBUtilities.newAuditLogger(loggerClassName);
+            return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
         }
 
-        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName());
+        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName(), Collections.emptyMap());
     }
 
     @VisibleForTesting
@@ -107,26 +101,16 @@ public class AuditLogManager
         return auditLogger;
     }
 
-    public boolean isAuditingEnabled()
+    public boolean isEnabled()
     {
-        return isAuditLogEnabled;
-    }
-
-    public boolean isLoggingEnabled()
-    {
-        return isAuditingEnabled() || isFQLEnabled();
-    }
-
-    private boolean isFQLEnabled()
-    {
-        return fullQueryLogger.enabled();
+        return auditLogger.isEnabled();
     }
 
     /**
-     * Logs AuditLogEntry to standard audit logger
+     * Logs AudigLogEntry to standard audit logger
      * @param logEntry AuditLogEntry to be logged
      */
-    private void logAuditLoggerEntry(AuditLogEntry logEntry)
+    private void log(AuditLogEntry logEntry)
     {
         if (!filter.isFiltered(logEntry))
         {
@@ -134,87 +118,155 @@ public class AuditLogManager
         }
     }
 
-    /**
-     * Logs AudigLogEntry to both FQL and standard audit logger
-     * @param logEntry AuditLogEntry to be logged
-     */
-    public void log(AuditLogEntry logEntry)
+    private void log(AuditLogEntry logEntry, Exception e)
     {
-        if (logEntry == null)
+        AuditLogEntry.Builder builder = new AuditLogEntry.Builder(logEntry);
+
+        if (e instanceof UnauthorizedException)
+        {
+            builder.setType(AuditLogEntryType.UNAUTHORIZED_ATTEMPT);
+        }
+        else if (e instanceof AuthenticationException)
+        {
+            builder.setType(AuditLogEntryType.LOGIN_ERROR);
+        }
+        else
+        {
+            builder.setType(AuditLogEntryType.REQUEST_FAILURE);
+        }
+
+        builder.appendToOperation(e.getMessage());
+
+        log(builder.build());
+    }
+
+    /**
+     * Disables AuditLog, designed to be invoked only via JMX/ Nodetool, not from anywhere else in the codepath.
+     */
+    public synchronized void disableAuditLog()
+    {
+        unregisterAsListener();
+        IAuditLogger oldLogger = auditLogger;
+        auditLogger = new NoOpAuditLogger(Collections.emptyMap());
+        oldLogger.stop();
+    }
+
+    /**
+     * Enables AuditLog, designed to be invoked only via JMX/ Nodetool, not from anywhere else in the codepath.
+     * @param auditLogOptions AuditLogOptions to be used for enabling AuditLog
+     * @throws ConfigurationException It can throw configuration exception when provided logger class does not exist in the classpath
+     */
+    public synchronized void enable(AuditLogOptions auditLogOptions) throws ConfigurationException
+    {
+        // always reload the filters
+        filter = AuditLogFilter.create(auditLogOptions);
+
+        // next, check to see if we're changing the logging implementation; if not, keep the same instance and bail.
+        // note: auditLogger should never be null
+        IAuditLogger oldLogger = auditLogger;
+        if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger.class_name))
             return;
 
-        if (isAuditingEnabled())
-        {
-            logAuditLoggerEntry(logEntry);
-        }
+        auditLogger = getAuditLogger(auditLogOptions.logger);
 
-        if (isFQLEnabled() && fqlIncludeFilter.contains(logEntry.getType().getCategory()))
+        // note that we might already be registered here and we rely on the fact that Query/AuthEvents have a Set of listeners
+        registerAsListener();
+
+        // ensure oldLogger's stop() is called after we swap it with new logger,
+        // otherwise, we might be calling log() on the stopped logger.
+        oldLogger.stop();
+    }
+
+    private void registerAsListener()
+    {
+        QueryEvents.instance.registerListener(this);
+        AuthEvents.instance.registerListener(this);
+    }
+
+    private void unregisterAsListener()
+    {
+        QueryEvents.instance.unregisterListener(this);
+        AuthEvents.instance.unregisterListener(this);
+    }
+
+    public void querySuccess(CQLStatement statement, String query, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+    {
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setType(statement.getAuditLogContext().auditLogEntryType)
+                                                              .setOperation(query)
+                                                              .setTimestamp(queryTime)
+                                                              .setScope(statement)
+                                                              .setKeyspace(state, statement)
+                                                              .setOptions(options)
+                                                              .build();
+        log(entry);
+    }
+
+    public void queryFailure(CQLStatement stmt, String query, QueryOptions options, QueryState state, Exception cause)
+    {
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
+                                                              .setOptions(options)
+                                                              .build();
+        log(entry, cause);
+    }
+
+    public void executeSuccess(CQLStatement statement, String query, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+    {
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setType(statement.getAuditLogContext().auditLogEntryType)
+                                                              .setOperation(query)
+                                                              .setTimestamp(queryTime)
+                                                              .setScope(statement)
+                                                              .setKeyspace(state, statement)
+                                                              .setOptions(options)
+                                                              .build();
+        log(entry);
+    }
+
+    public void executeFailure(CQLStatement statement, String query, QueryOptions options, QueryState state, Exception cause)
+    {
+        AuditLogEntry entry = null;
+        if (cause instanceof PreparedQueryNotFoundException)
         {
-            fullQueryLogger.log(logEntry);
+            entry = new AuditLogEntry.Builder(state).setOperation(query == null ? "null" : query)
+                                                                  .setOptions(options)
+                                                                  .build();
+        }
+        else if (statement != null)
+        {
+            entry = new AuditLogEntry.Builder(state).setOperation(query == null ? statement.toString() : query)
+                                                                  .setType(statement.getAuditLogContext().auditLogEntryType)
+                                                                  .setScope(statement)
+                                                                  .setKeyspace(state, statement)
+                                                                  .setOptions(options)
+                                                                  .build();
+        }
+        if (entry != null)
+            log(entry, cause);
+    }
+
+    public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
+    {
+        List<AuditLogEntry> entries = buildEntriesForBatch(statements, queries, state, options, queryTime);
+        for (AuditLogEntry auditLogEntry : entries)
+        {
+            log(auditLogEntry);
         }
     }
 
-    public void log(AuditLogEntry logEntry, Exception e)
+    public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, Exception cause)
     {
-        if ((logEntry != null) && (isAuditingEnabled()))
-        {
-            AuditLogEntry.Builder builder = new AuditLogEntry.Builder(logEntry);
-
-            if (e instanceof UnauthorizedException)
-            {
-                builder.setType(AuditLogEntryType.UNAUTHORIZED_ATTEMPT);
-            }
-            else if (e instanceof AuthenticationException)
-            {
-                builder.setType(AuditLogEntryType.LOGIN_ERROR);
-            }
-            else
-            {
-                builder.setType(AuditLogEntryType.REQUEST_FAILURE);
-            }
-
-            builder.appendToOperation(e.getMessage());
-
-            log(builder.build());
-        }
+        String auditMessage = String.format("BATCH of %d statements at consistency %s", statements.size(), options.getConsistency());
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(auditMessage)
+                                                              .setOptions(options)
+                                                              .setType(AuditLogEntryType.BATCH)
+                                                              .build();
+        log(entry, cause);
     }
 
-    /**
-     * Logs Batch queries to both FQL and standard audit logger.
-     */
-    public void logBatch(BatchStatement.Type type,
-                         List<Object> queryOrIdList,
-                         List<List<ByteBuffer>> values,
-                         List<QueryHandler.Prepared> prepared,
-                         QueryOptions options,
-                         QueryState state,
-                         long queryStartTimeMillis)
+    private static List<AuditLogEntry> buildEntriesForBatch(List<? extends CQLStatement> statements, List<String> queries, QueryState state, QueryOptions options, long queryStartTimeMillis)
     {
-        if (isAuditingEnabled())
-        {
-            List<AuditLogEntry> entries = buildEntriesForBatch(queryOrIdList, prepared, state, options, queryStartTimeMillis);
-            for (AuditLogEntry auditLogEntry : entries)
-            {
-                logAuditLoggerEntry(auditLogEntry);
-            }
-        }
-
-        if (isFQLEnabled())
-        {
-            List<String> queryStrings = new ArrayList<>(queryOrIdList.size());
-            for (QueryHandler.Prepared prepStatment : prepared)
-            {
-                queryStrings.add(prepStatment.rawCQLStatement);
-            }
-            fullQueryLogger.logBatch(type, queryStrings, values, options, state, queryStartTimeMillis);
-        }
-    }
-
-    private static List<AuditLogEntry> buildEntriesForBatch(List<Object> queryOrIdList, List<QueryHandler.Prepared> prepared, QueryState state, QueryOptions options, long queryStartTimeMillis)
-    {
-        List<AuditLogEntry> auditLogEntries = new ArrayList<>(queryOrIdList.size() + 1);
+        List<AuditLogEntry> auditLogEntries = new ArrayList<>(statements.size() + 1);
         UUID batchId = UUID.randomUUID();
-        String queryString = String.format("BatchId:[%s] - BATCH of [%d] statements", batchId, queryOrIdList.size());
+        String queryString = String.format("BatchId:[%s] - BATCH of [%d] statements", batchId, statements.size());
         AuditLogEntry entry = new AuditLogEntry.Builder(state)
                               .setOperation(queryString)
                               .setOptions(options)
@@ -224,12 +276,12 @@ public class AuditLogManager
                               .build();
         auditLogEntries.add(entry);
 
-        for (int i = 0; i < queryOrIdList.size(); i++)
+        for (int i = 0; i < statements.size(); i++)
         {
-            CQLStatement statement = prepared.get(i).statement;
+            CQLStatement statement = statements.get(i);
             entry = new AuditLogEntry.Builder(state)
                     .setType(statement.getAuditLogContext().auditLogEntryType)
-                    .setOperation(prepared.get(i).rawCQLStatement)
+                    .setOperation(queries.get(i))
                     .setTimestamp(queryStartTimeMillis)
                     .setScope(statement)
                     .setKeyspace(state, statement)
@@ -242,77 +294,38 @@ public class AuditLogManager
         return auditLogEntries;
     }
 
-    /**
-     * Disables AuditLog, designed to be invoked only via JMX/ Nodetool, not from anywhere else in the codepath.
-     */
-    public synchronized void disableAuditLog()
+    public void prepareSuccess(CQLStatement statement, String query, QueryState state, long queryTime, ResultMessage.Prepared response)
     {
-        if (isAuditLogEnabled)
-        {
-            // Disable isAuditLogEnabled before attempting to cleanup/ stop AuditLogger so that any incoming log() requests will be dropped.
-            isAuditLogEnabled = false;
-            IAuditLogger oldLogger = auditLogger;
-            auditLogger = new NoOpAuditLogger();
-            oldLogger.stop();
-        }
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
+                                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                                                              .setScope(statement)
+                                                              .setKeyspace(statement)
+                                                              .build();
+        log(entry);
     }
 
-    /**
-     * Enables AuditLog, designed to be invoked only via JMX/ Nodetool, not from anywhere else in the codepath.
-     * @param auditLogOptions AuditLogOptions to be used for enabling AuditLog
-     * @throws ConfigurationException It can throw configuration exception when provided logger class does not exist in the classpath
-     */
-    public synchronized void enableAuditLog(AuditLogOptions auditLogOptions) throws ConfigurationException
+    public void prepareFailure(@Nullable CQLStatement stmt, @Nullable String query, QueryState state, Exception cause)
     {
-        if (isFQLEnabled() && fullQueryLogger.path().toString().equals(auditLogOptions.audit_logs_dir))
-            throw new IllegalArgumentException(String.format("audit log path (%s) cannot be the same as the " +
-                                                             "running full query logger (%s)",
-                                                             auditLogOptions.audit_logs_dir,
-                                                             fullQueryLogger.path()));
-
-        // always reload the filters
-        filter = AuditLogFilter.create(auditLogOptions);
-
-        // next, check to see if we're changing the logging implementation; if not, keep the same instance and bail.
-        // note: auditLogger should never be null
-        IAuditLogger oldLogger = auditLogger;
-        if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger))
-            return;
-
-        auditLogger = getAuditLogger(auditLogOptions.logger);
-        isAuditLogEnabled = true;
-
-        // ensure oldLogger's stop() is called after we swap it with new logger,
-        // otherwise, we might be calling log() on the stopped logger.
-        oldLogger.stop();
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
+//                                                              .setKeyspace(keyspace) // todo: do we need this? very much special case compared to the others
+                                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                                                              .build();
+        log(entry, cause);
     }
 
-    public void configureFQL(Path path, String rollCycle, boolean blocking, int maxQueueWeight, long maxLogSize, String archiveCommand, int maxArchiveRetries)
+    public void authSuccess(QueryState state)
     {
-        if (path.equals(auditLogger.path()))
-            throw new IllegalArgumentException(String.format("fullquerylogger path (%s) cannot be the same as the " +
-                                                             "running audit logger (%s)",
-                                                             path,
-                                                             auditLogger.path()));
-
-        fullQueryLogger.configure(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation("LOGIN SUCCESSFUL")
+                                                              .setType(AuditLogEntryType.LOGIN_SUCCESS)
+                                                              .build();
+        log(entry);
     }
 
-    public void resetFQL(String fullQueryLogPath)
+    public void authFailure(QueryState state, Exception cause)
     {
-        fullQueryLogger.reset(fullQueryLogPath);
-    }
-
-    public void disableFQL()
-    {
-        fullQueryLogger.stop();
-    }
-
-    /**
-     * ONLY FOR TESTING
-     */
-    FullQueryLogger getFullQueryLogger()
-    {
-        return fullQueryLogger;
+        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation("LOGIN FAILURE")
+                                                              .setType(AuditLogEntryType.LOGIN_ERROR)
+                                                              .build();
+        log(entry, cause);
     }
 }

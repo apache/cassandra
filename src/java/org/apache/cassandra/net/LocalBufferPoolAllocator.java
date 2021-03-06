@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 
 import io.netty.channel.EventLoop;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 /**
  * Equivalent to {@link GlobalBufferPoolAllocator}, except explicitly using a specified
@@ -36,7 +37,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
 
     LocalBufferPoolAllocator(EventLoop eventLoop)
     {
-        this.pool = new BufferPool.LocalPool().recycleWhenFree(false);
+        this.pool = BufferPools.forNetworking().create().recycleWhenFree(false);
         this.eventLoop = eventLoop;
     }
 
@@ -45,7 +46,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
     {
         if (!eventLoop.inEventLoop())
             throw new IllegalStateException("get() called from outside of owning event loop");
-        return pool.get(size, false);
+        return pool.get(size);
     }
 
     @Override
@@ -53,7 +54,7 @@ class LocalBufferPoolAllocator extends BufferPoolAllocator
     {
         if (!eventLoop.inEventLoop())
             throw new IllegalStateException("getAtLeast() called from outside of owning event loop");
-        return pool.get(size, true);
+        return pool.getAtLeast(size);
     }
 
     @Override

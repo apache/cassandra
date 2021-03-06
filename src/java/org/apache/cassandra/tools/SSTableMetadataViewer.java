@@ -21,6 +21,7 @@ import static org.apache.cassandra.tools.Util.BLUE;
 import static org.apache.cassandra.tools.Util.CYAN;
 import static org.apache.cassandra.tools.Util.RESET;
 import static org.apache.cassandra.tools.Util.WHITE;
+import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
 import java.io.DataInputStream;
 import java.io.File;
@@ -70,8 +71,6 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
-import org.joda.time.Duration;
-import org.joda.time.format.PeriodFormat;
 
 import com.google.common.collect.MinMaxPriorityQueue;
 
@@ -143,7 +142,7 @@ public class SSTableMetadataViewer
         {
             return "never";
         }
-        return PeriodFormat.getDefault().print(new Duration(unit.toMillis(duration)).toPeriod());
+        return formatDurationWords(unit.toMillis(duration), true, true);
     }
 
     public static String toByteString(long bytes)
@@ -228,7 +227,7 @@ public class SSTableMetadataViewer
                                 Row row = (Row) unfiltered;
                                 psize += row.dataSize();
                                 pcount++;
-                                for (org.apache.cassandra.db.rows.Cell cell : row.cells())
+                                for (org.apache.cassandra.db.rows.Cell<?> cell : row.cells())
                                 {
                                     cellCount++;
                                     double percentComplete = Math.min(1.0, cellCount / totalCells);
@@ -432,6 +431,7 @@ public class SSTableMetadataViewer
             field("ClusteringTypes", clusteringTypes.toString());
             field("StaticColumns", FBUtilities.toString(statics));
             field("RegularColumns", FBUtilities.toString(regulars));
+            field("IsTransient", stats.isTransient);
         }
     }
 

@@ -20,33 +20,32 @@ package org.apache.cassandra.db;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.List;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import org.apache.cassandra.*;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.junit.Assert.assertEquals;
+
 public class PartitionRangeReadTest
 {
-    public static final String KEYSPACE1 = "PartitionRangeReadTest1";
-    public static final String KEYSPACE2 = "PartitionRangeReadTest2";
-    public static final String CF_STANDARD1 = "Standard1";
-    public static final String CF_STANDARDINT = "StandardInteger1";
-    public static final String CF_COMPACT1 = "Compact1";
+    private static final String KEYSPACE1 = "PartitionRangeReadTest1";
+    private static final String KEYSPACE2 = "PartitionRangeReadTest2";
+    private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_STANDARDINT = "StandardInteger1";
+    private static final String CF_COMPACT1 = "Compact1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -55,9 +54,12 @@ public class PartitionRangeReadTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDINT, IntegerType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDINT,
+                                                              0,
+                                                              AsciiType.instance,
+                                                              AsciiType.instance,
+                                                              IntegerType.instance),
                                     TableMetadata.builder(KEYSPACE1, CF_COMPACT1)
-                                                 .isCompound(false)
                                                  .addPartitionKeyColumn("key", AsciiType.instance)
                                                  .addClusteringColumn("column1", AsciiType.instance)
                                                  .addRegularColumn("value", AsciiType.instance)
@@ -82,11 +84,10 @@ public class PartitionRangeReadTest
     }
 
     @Test
-    public void testCassandra6778() throws CharacterCodingException
+    public void testCassandra6778()
     {
-        String cfname = CF_STANDARDINT;
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARDINT);
         cfs.truncateBlocking();
 
         ByteBuffer col = ByteBufferUtil.bytes("val");
@@ -110,11 +111,11 @@ public class PartitionRangeReadTest
 
         // fetch by the first column name; we should get the second version of the column value
         Row row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{1})).build());
-        assertTrue(row.getCell(cDef).value().equals(ByteBufferUtil.bytes("val2")));
+        assertEquals(ByteBufferUtil.bytes("val2"), row.getCell(cDef).buffer());
 
         // fetch by the second column name; we should get the second version of the column value
         row = Util.getOnlyRow(Util.cmd(cfs, "k1").includeRow(new BigInteger(new byte[]{0, 0, 1})).build());
-        assertTrue(row.getCell(cDef).value().equals(ByteBufferUtil.bytes("val2")));
+        assertEquals(ByteBufferUtil.bytes("val2"), row.getCell(cDef).buffer());
     }
 
     @Test
@@ -142,12 +143,10 @@ public class PartitionRangeReadTest
     }
 
     @Test
-    public void testRangeSliceInclusionExclusion() throws Throwable
+    public void testRangeSliceInclusionExclusion()
     {
-        String keyspaceName = KEYSPACE1;
-        String cfName = CF_STANDARD1;
-        Keyspace keyspace = Keyspace.open(keyspaceName);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfName);
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         cfs.clearUnsafe();
 
         for (int i = 0; i < 10; ++i)
@@ -167,26 +166,26 @@ public class PartitionRangeReadTest
         // Start and end inclusive
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyIncl("7").build());
         assertEquals(6, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("2")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("7")));
+        assertEquals(ByteBufferUtil.bytes("2"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("7"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
 
         // Start and end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyExcl("7").build());
         assertEquals(4, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("3")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("6")));
+        assertEquals(ByteBufferUtil.bytes("3"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("6"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
 
         // Start excluded, end included
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyIncl("7").build());
         assertEquals(5, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("3")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("7")));
+        assertEquals(ByteBufferUtil.bytes("3"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("7"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
 
         // Start included, end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyExcl("7").build());
         assertEquals(5, partitions.size());
-        assertTrue(partitions.get(0).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("2")));
-        assertTrue(partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).value().equals(ByteBufferUtil.bytes("6")));
+        assertEquals(ByteBufferUtil.bytes("2"), partitions.get(0).iterator().next().getCell(cDef).buffer());
+        assertEquals(ByteBufferUtil.bytes("6"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
     }
 }
 

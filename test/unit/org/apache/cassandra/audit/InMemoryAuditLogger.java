@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.audit;
 
-import java.nio.file.Path;
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Queue;
 
 public class InMemoryAuditLogger implements IAuditLogger
@@ -26,8 +26,13 @@ public class InMemoryAuditLogger implements IAuditLogger
     final Queue<AuditLogEntry> inMemQueue = new LinkedList<>();
     private boolean enabled = true;
 
+    public InMemoryAuditLogger(Map<String, String> params)
+    {
+
+    }
+
     @Override
-    public boolean enabled()
+    public boolean isEnabled()
     {
         return enabled;
     }

@@ -62,10 +62,10 @@ public class Repair extends NodeToolCmd
     @Option(title = "specific_host", name = {"-hosts", "--in-hosts"}, description = "Use -hosts to repair specific hosts")
     private List<String> specificHosts = new ArrayList<>();
 
-    @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts")
+    @Option(title = "start_token", name = {"-st", "--start-token"}, description = "Use -st to specify a token at which the repair range starts (exclusive)")
     private String startToken = EMPTY;
 
-    @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends")
+    @Option(title = "end_token", name = {"-et", "--end-token"}, description = "Use -et to specify a token at which repair range ends (inclusive)")
     private String endToken = EMPTY;
 
     @Option(title = "primary_range", name = {"-pr", "--partitioner-range"}, description = "Use -pr to repair only the first range returned by the partitioner")
@@ -97,6 +97,8 @@ public class Repair extends NodeToolCmd
     @Option(title = "optimise_streams", name = {"-os", "--optimise-streams"}, description = "Use --optimise-streams to try to reduce the number of streams we do (EXPERIMENTAL, see CASSANDRA-3200).")
     private boolean optimiseStreams = false;
 
+    @Option(title = "ignore_unreplicated_keyspaces", name = {"-iuk","--ignore-unreplicated-keyspaces"}, description = "Use --ignore-unreplicated-keyspaces to ignore keyspaces which are not replicated, otherwise the repair will fail")
+    private boolean ignoreUnreplicatedKeyspaces = false;
 
     private PreviewKind getPreviewKind()
     {
@@ -149,6 +151,8 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.FORCE_REPAIR_KEY, Boolean.toString(force));
             options.put(RepairOption.PREVIEW, getPreviewKind().toString());
             options.put(RepairOption.OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
+            options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
+
             if (!startToken.isEmpty() || !endToken.isEmpty())
             {
                 options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);
@@ -164,7 +168,7 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.HOSTS_KEY, StringUtils.join(specificHosts, ","));
             try
             {
-                probe.repairAsync(System.out, keyspace, options);
+                probe.repairAsync(probe.output().out, keyspace, options);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during repair", e);

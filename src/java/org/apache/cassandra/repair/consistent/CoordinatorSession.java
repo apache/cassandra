@@ -44,6 +44,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairSessionResult;
+import org.apache.cassandra.repair.SomeRepairFailedException;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePropose;
@@ -139,19 +140,19 @@ public class CoordinatorSession extends ConsistentSession
         return getState() == State.FAILED || Iterables.any(participantStates.values(), v -> v == State.FAILED);
     }
 
-    protected void sendMessage(InetAddressAndPort destination, RepairMessage message)
+    protected void sendMessage(InetAddressAndPort destination, Message<RepairMessage> message)
     {
-        logger.trace("Sending {} to {}", message, destination);
-        Message<RepairMessage> messageOut = Message.out(Verb.REPAIR_REQ, message);
-        MessagingService.instance().send(messageOut, destination);
+        logger.trace("Sending {} to {}", message.payload, destination);
+        MessagingService.instance().send(message, destination);
     }
 
     public ListenableFuture<Boolean> prepare()
     {
         Preconditions.checkArgument(allStates(State.PREPARING));
 
-        logger.debug("Beginning prepare phase of incremental repair session {}", sessionID);
-        PrepareConsistentRequest message = new PrepareConsistentRequest(sessionID, coordinator, participants);
+        logger.info("Beginning prepare phase of incremental repair session {}", sessionID);
+        Message<RepairMessage> message =
+            Message.out(Verb.PREPARE_CONSISTENT_REQ, new PrepareConsistentRequest(sessionID, coordinator, participants));
         for (final InetAddressAndPort participant : participants)
         {
             sendMessage(participant, message);
@@ -161,9 +162,14 @@ public class CoordinatorSession extends ConsistentSession
 
     public synchronized void handlePrepareResponse(InetAddressAndPort participant, boolean success)
     {
+        if (getState() == State.FAILED)
+        {
+            logger.trace("Incremental repair {} has failed, ignoring prepare response from {}", sessionID, participant);
+            return;
+        }
         if (!success)
         {
-            logger.debug("{} failed the prepare phase for incremental repair session {}", participant, sessionID);
+            logger.warn("{} failed the prepare phase for incremental repair session {}", participant, sessionID);
             sendFailureMessageToParticipants();
             setParticipantState(participant, State.FAILED);
         }
@@ -197,8 +203,8 @@ public class CoordinatorSession extends ConsistentSession
     public synchronized ListenableFuture<Boolean> finalizePropose()
     {
         Preconditions.checkArgument(allStates(State.REPAIRING));
-        logger.debug("Proposing finalization of repair session {}", sessionID);
-        FinalizePropose message = new FinalizePropose(sessionID);
+        logger.info("Proposing finalization of repair session {}", sessionID);
+        Message<RepairMessage> message = Message.out(Verb.FINALIZE_PROPOSE_MSG, new FinalizePropose(sessionID));
         for (final InetAddressAndPort participant : participants)
         {
             sendMessage(participant, message);
@@ -214,7 +220,7 @@ public class CoordinatorSession extends ConsistentSession
         }
         else if (!success)
         {
-            logger.debug("Finalization proposal of session {} rejected by {}. Aborting session", sessionID, participant);
+            logger.warn("Finalization proposal of session {} rejected by {}. Aborting session", sessionID, participant);
             fail();
             finalizeProposeFuture.set(false);
         }
@@ -224,7 +230,7 @@ public class CoordinatorSession extends ConsistentSession
             setParticipantState(participant, State.FINALIZE_PROMISED);
             if (getState() == State.FINALIZE_PROMISED)
             {
-                logger.debug("Finalization proposal for repair session {} accepted by all participants.", sessionID);
+                logger.info("Finalization proposal for repair session {} accepted by all participants.", sessionID);
                 finalizeProposeFuture.set(true);
             }
         }
@@ -233,8 +239,8 @@ public class CoordinatorSession extends ConsistentSession
     public synchronized void finalizeCommit()
     {
         Preconditions.checkArgument(allStates(State.FINALIZE_PROMISED));
-        logger.debug("Committing finalization of repair session {}", sessionID);
-        FinalizeCommit message = new FinalizeCommit(sessionID);
+        logger.info("Committing finalization of repair session {}", sessionID);
+        Message<RepairMessage> message = Message.out(Verb.FINALIZE_COMMIT_MSG, new FinalizeCommit(sessionID));
         for (final InetAddressAndPort participant : participants)
         {
             sendMessage(participant, message);
@@ -245,7 +251,7 @@ public class CoordinatorSession extends ConsistentSession
 
     private void sendFailureMessageToParticipants()
     {
-        FailSession message = new FailSession(sessionID);
+        Message<RepairMessage> message = Message.out(Verb.FAILED_SESSION_MSG, new FailSession(sessionID));
         for (final InetAddressAndPort participant : participants)
         {
             if (participantStates.get(participant) != State.FAILED)
@@ -322,7 +328,7 @@ public class CoordinatorSession extends ConsistentSession
                         logger.debug("Incremental repair {} validation/stream phase completed in {}", sessionID, formatDuration(repairStart, finalizeStart));
 
                     }
-                    return Futures.immediateFailedFuture(new RuntimeException());
+                    return Futures.immediateFailedFuture(SomeRepairFailedException.INSTANCE);
                 }
                 else
                 {
@@ -382,7 +388,7 @@ public class CoordinatorSession extends ConsistentSession
                     resultFuture.setException(t);
                 }
             }
-        });
+        }, MoreExecutors.directExecutor());
 
         return resultFuture;
     }

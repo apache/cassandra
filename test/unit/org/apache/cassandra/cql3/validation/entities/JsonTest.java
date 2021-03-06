@@ -21,6 +21,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 
 import org.apache.cassandra.serializers.SimpleDateSerializer;
@@ -38,6 +39,8 @@ import java.net.InetAddress;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.*;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
@@ -513,7 +516,7 @@ public class JsonTest extends CQLTester
         assertInvalidMessage("Expected a long or a datestring representation of a timestamp value, but got a Double",
                 "INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "123.456");
 
-        assertInvalidMessage("Unable to coerce 'abcd' to a formatted date",
+        assertInvalidMessage("Unable to parse a date/time from 'abcd'",
                 "INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "\"abcd\"");
 
         // ================ timeuuid ================
@@ -943,10 +946,10 @@ public class JsonTest extends CQLTester
 
         // ================ duration ================
         execute("INSERT INTO %s (k, durationval) VALUES (?, 12µs)", 0);
-        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "12us"));
+        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"12us\""));
 
         execute("INSERT INTO %s (k, durationval) VALUES (?, P1Y1M2DT10H5M)", 0);
-        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "1y1mo2d10h5m"));
+        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"1y1mo2d10h5m\""));
     }
 
     @Test
@@ -1361,7 +1364,7 @@ public class JsonTest extends CQLTester
             future.get(30, TimeUnit.SECONDS);
 
         executor.shutdown();
-        Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
     }
 
     @Test
@@ -1418,6 +1421,36 @@ public class JsonTest extends CQLTester
     }
 
     @Test
+     public void testInsertAndSelectJsonSyntaxWithEmptyAndNullValues() throws Throwable
+     {
+         createTable("create table %s(id INT, name TEXT, name_asc ASCII, bytes BLOB, PRIMARY KEY(id));");
+
+         // Test with empty values
+
+         execute("INSERT INTO %s JSON ?", "{\"id\": 0, \"bytes\": \"0x\", \"name\": \"\", \"name_asc\": \"\"}");
+         assertRows(execute("SELECT * FROM %s WHERE id=0"), row(0, ByteBufferUtil.EMPTY_BYTE_BUFFER, "", ""));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 0"),
+                    row("{\"id\": 0, \"bytes\": \"0x\", \"name\": \"\", \"name_asc\": \"\"}"));
+
+         execute("INSERT INTO %s(id, name, name_asc, bytes) VALUES (1, ?, ?, ?);", "", "", ByteBufferUtil.EMPTY_BYTE_BUFFER);
+         assertRows(execute("SELECT * FROM %s WHERE id=1"), row(1, ByteBufferUtil.EMPTY_BYTE_BUFFER, "", ""));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 1"),
+                    row("{\"id\": 1, \"bytes\": \"0x\", \"name\": \"\", \"name_asc\": \"\"}"));
+
+         // Test with null values
+
+         execute("INSERT INTO %s JSON ?", "{\"id\": 2, \"bytes\": null, \"name\": null, \"name_asc\": null}");
+         assertRows(execute("SELECT * FROM %s WHERE id=2"), row(2, null, null, null));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 2"),
+                    row("{\"id\": 2, \"bytes\": null, \"name\": null, \"name_asc\": null}"));
+
+         execute("INSERT INTO %s(id, name, name_asc, bytes) VALUES (3, ?, ?, ?);", null, null, null);
+         assertRows(execute("SELECT * FROM %s WHERE id=3"), row(3, null, null, null));
+         assertRows(execute("SELECT JSON * FROM %s WHERE id = 3"),
+                 row("{\"id\": 3, \"bytes\": null, \"name\": null, \"name_asc\": null}"));
+     }
+
+    @Test
     public void testJsonWithNaNAndInfinity() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, f1 float, f2 float, f3 float, d1 double, d2 double, d3 double)");
@@ -1426,5 +1459,20 @@ public class JsonTest extends CQLTester
 
         // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
         assertRows(execute("SELECT JSON * FROM %s"), row("{\"pk\": 1, \"d1\": null, \"d2\": null, \"d3\": null, \"f1\": null, \"f2\": null, \"f3\": null}"));
+    }
+
+    @Test
+    public void testDurationJsonRoundtrip() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, d duration)");
+        execute("INSERT INTO %s (pk, d) VALUES (1, 6h40m)");
+        UntypedResultSet res = execute("SELECT JSON * FROM %s WHERE pk = 1");
+        UntypedResultSet.Row r = res.one();
+        String json = r.getString("[json]");
+        execute("DELETE FROM %s WHERE pk = 1");
+        execute("INSERT INTO %s JSON '"+json+"'");
+        res = execute("SELECT JSON * FROM %s WHERE pk = 1");
+        assertEquals(json, res.one().getString("[json]"));
+
     }
 }

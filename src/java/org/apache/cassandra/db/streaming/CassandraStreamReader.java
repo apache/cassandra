@@ -124,7 +124,7 @@ public class CassandraStreamReader implements IStreamReader
             {
                 writePartition(deserializer, writer);
                 // TODO move this to BytesReadTracker
-                session.progress(writer.getFilename(), ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
+                session.progress(writer.getFilename() + '-' + fileSeqNum, ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
             }
             logger.debug("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}",
                          session.planId(), fileSeqNum, session.peer, FBUtilities.prettyPrintMemory(in.getBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
@@ -181,7 +181,7 @@ public class CassandraStreamReader implements IStreamReader
         private final TableMetadata metadata;
         private final DataInputPlus in;
         private final SerializationHeader header;
-        private final SerializationHelper helper;
+        private final DeserializationHelper helper;
 
         private DecoratedKey key;
         private DeletionTime partitionLevelDeletion;
@@ -193,7 +193,7 @@ public class CassandraStreamReader implements IStreamReader
         {
             this.metadata = metadata;
             this.in = in;
-            this.helper = new SerializationHelper(metadata, version.correspondingMessagingVersion(), SerializationHelper.Flag.PRESERVE_SIZE);
+            this.helper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
         }
 

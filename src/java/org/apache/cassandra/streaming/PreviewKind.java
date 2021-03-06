@@ -18,22 +18,35 @@
 
 package org.apache.cassandra.streaming;
 
-
 import java.util.UUID;
+
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.repair.PreviewRepairConflictWithIncrementalRepairException;
+import org.apache.cassandra.repair.consistent.ConsistentSession;
+import org.apache.cassandra.repair.consistent.LocalSession;
+import org.apache.cassandra.service.ActiveRepairService;
 
 public enum PreviewKind
 {
-    NONE(0),
-    ALL(1),
-    UNREPAIRED(2),
-    REPAIRED(3);
+    NONE(0, (sstable) -> {
+        throw new RuntimeException("Can't get preview predicate for preview kind NONE");
+    }),
+    ALL(1, Predicates.alwaysTrue()),
+    UNREPAIRED(2, sstable -> !sstable.isRepaired()),
+    REPAIRED(3, new PreviewRepairedSSTablePredicate());
 
     private final int serializationVal;
+    private final Predicate<SSTableReader> predicate;
 
-    PreviewKind(int serializationVal)
+    PreviewKind(int serializationVal, Predicate<SSTableReader> predicate)
     {
         assert ordinal() == serializationVal;
         this.serializationVal = serializationVal;
+        this.predicate = predicate;
     }
 
     public int getSerializationVal()
@@ -45,7 +58,6 @@ public enum PreviewKind
     {
         return values()[serializationVal];
     }
-
 
     public boolean isPreview()
     {
@@ -62,4 +74,28 @@ public enum PreviewKind
         return '[' + logPrefix() + " #" + sessionId.toString() + ']';
     }
 
+    public Predicate<SSTableReader> predicate()
+    {
+        return predicate;
+    }
+
+    private static class PreviewRepairedSSTablePredicate implements Predicate<SSTableReader>
+    {
+        public boolean apply(SSTableReader sstable)
+        {
+            // grab the metadata before checking pendingRepair since this can be nulled out at any time
+            StatsMetadata sstableMetadata = sstable.getSSTableMetadata();
+            if (sstableMetadata.pendingRepair != null)
+            {
+                LocalSession session = ActiveRepairService.instance.consistent.local.getSession(sstableMetadata.pendingRepair);
+                if (session == null)
+                    return false;
+                else if (session.getState() == ConsistentSession.State.FINALIZED)
+                    return true;
+                else if (session.getState() != ConsistentSession.State.FAILED)
+                    throw new PreviewRepairConflictWithIncrementalRepairException(String.format("SSTable %s is marked pending for non-finalized incremental repair session %s, failing preview repair", sstable, sstableMetadata.pendingRepair));
+            }
+            return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
+        }
+    }
 }

@@ -39,7 +39,6 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.tracing.Tracing;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 /**
@@ -53,12 +52,10 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     private static final Logger logger = LoggerFactory.getLogger(BlockingReadRepair.class);
 
     protected final Queue<BlockingPartitionRepair> repairs = new ConcurrentLinkedQueue<>();
-    private final int blockFor;
 
     BlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         super(command, replicaPlan, queryStartNanoTime);
-        this.blockFor = replicaPlan().consistencyLevel().blockFor(cfs.keyspace);
     }
 
     public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan)
@@ -84,31 +81,34 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     @Override
     public void awaitWrites()
     {
-        boolean timedOut = false;
-        for (BlockingPartitionRepair repair: repairs)
+        BlockingPartitionRepair timedOut = null;
+        for (BlockingPartitionRepair repair : repairs)
         {
-            if (!repair.awaitRepairs(DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS), NANOSECONDS))
+            if (!repair.awaitRepairsUntil(DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS) + queryStartNanoTime, NANOSECONDS))
             {
-                timedOut = true;
+                timedOut = repair;
+                break;
             }
         }
-        if (timedOut)
+        if (timedOut != null)
         {
-            // We got all responses, but timed out while repairing
-            int blockFor = replicaPlan().blockFor();
+            // We got all responses, but timed out while repairing;
+            // pick one of the repairs to throw, as this is better than completely manufacturing the error message
+            int blockFor = timedOut.blockFor();
+            int received = Math.min(blockFor - timedOut.waitingOn(), blockFor - 1);
             if (Tracing.isTracing())
                 Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
             else
                 logger.debug("Timeout while read-repairing after receiving all {} data and digest responses", blockFor);
 
-            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), blockFor - 1, blockFor, true);
+            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, true);
         }
     }
 
     @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, P replicaPlan)
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForTokenWrite writePlan)
     {
-        BlockingPartitionRepair<E, P> blockingRepair = new BlockingPartitionRepair<>(partitionKey, mutations, blockFor, replicaPlan);
+        BlockingPartitionRepair blockingRepair = new BlockingPartitionRepair(partitionKey, mutations, writePlan);
         blockingRepair.sendInitialRepairs();
         repairs.add(blockingRepair);
     }

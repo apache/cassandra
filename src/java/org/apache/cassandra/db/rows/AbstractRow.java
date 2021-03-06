@@ -16,22 +16,20 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
-import java.util.AbstractCollection;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
-import com.google.common.hash.Hasher;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.HashingUtils;
 
 /**
  * Base abstract class for {@code Row} implementations.
@@ -61,34 +59,46 @@ public abstract class AbstractRow implements Row
         return clustering() == Clustering.STATIC_CLUSTERING;
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
-        HashingUtils.updateWithByte(hasher, kind().ordinal());
-        clustering().digest(hasher);
+        digest.updateWithByte(kind().ordinal());
+        clustering().digest(digest);
 
-        deletion().digest(hasher);
-        primaryKeyLivenessInfo().digest(hasher);
+        deletion().digest(digest);
+        primaryKeyLivenessInfo().digest(digest);
 
-        for (ColumnData cd : this)
-            cd.digest(hasher);
+        apply(ColumnData::digest, digest);
+    }
+
+    private <V> void validateClustering(TableMetadata metadata, Clustering<V> clustering)
+    {
+        ValueAccessor<V> accessor = clustering.accessor();
+        for (int i = 0; i < clustering.size(); i++)
+        {
+            V value = clustering.get(i);
+            if (value != null)
+            {
+                try
+                {
+                    metadata.comparator.subtype(i).validate(value, accessor);
+                }
+                catch (Exception e)
+                {
+                    throw new MarshalException("comparator #" + i + " '" + metadata.comparator.subtype(i) + "' in '" + metadata + "' didn't validate", e);
+                }
+            }
+        }
     }
 
     public void validateData(TableMetadata metadata)
     {
-        Clustering clustering = clustering();
-        for (int i = 0; i < clustering.size(); i++)
-        {
-            ByteBuffer value = clustering.get(i);
-            if (value != null)
-                metadata.comparator.subtype(i).validate(value);
-        }
+        validateClustering(metadata, clustering());
 
         primaryKeyLivenessInfo().validate();
         if (deletion().time().localDeletionTime() < 0)
-            throw new MarshalException("A local deletion time should not be negative");
+            throw new MarshalException("A local deletion time should not be negative in '" + metadata + "'");
 
-        for (ColumnData cd : this)
-            cd.validate();
+        apply(cd -> cd.validate());
     }
 
     public boolean hasInvalidDeletions()
@@ -150,7 +160,7 @@ public abstract class AbstractRow implements Row
                     ComplexColumnData complexData = (ComplexColumnData)cd;
                     if (!complexData.complexDeletion().isLive())
                         sb.append("del(").append(cd.column().name).append(")=").append(complexData.complexDeletion());
-                    for (Cell cell : complexData)
+                    for (Cell<?> cell : complexData)
                         sb.append(", ").append(cell);
                 }
             }
@@ -158,24 +168,24 @@ public abstract class AbstractRow implements Row
             {
                 if (cd.column().isSimple())
                 {
-                    Cell cell = (Cell)cd;
+                    Cell<?> cell = (Cell<?>)cd;
                     sb.append(cell.column().name).append('=');
                     if (cell.isTombstone())
                         sb.append("<tombstone>");
                     else
-                        sb.append(cell.column().type.getString(cell.value()));
+                        sb.append(Cells.valueString(cell));
                 }
                 else
                 {
                     sb.append(cd.column().name).append('=');
                     ComplexColumnData complexData = (ComplexColumnData) cd;
-                    Function<Cell, String> transform = null;
+                    Function<Cell<?>, String> transform = null;
                     if (cd.column().type.isCollection())
                     {
                         CollectionType ct = (CollectionType) cd.column().type;
                         transform = cell -> String.format("%s -> %s",
                                                   ct.nameComparator().getString(cell.path().get(0)),
-                                                  ct.valueComparator().getString(cell.value()));
+                                                  Cells.valueString(cell, ct.valueComparator()));
 
                     }
                     else if (cd.column().type.isUDT())
@@ -185,7 +195,7 @@ public abstract class AbstractRow implements Row
                             Short fId = ut.nameComparator().getSerializer().deserialize(cell.path().get(0));
                             return String.format("%s -> %s",
                                                  ut.fieldNameAsString(fId),
-                                                 ut.fieldType(fId).getString(cell.value()));
+                                                 Cells.valueString(cell, ut.fieldType(fId)));
                         };
                     }
                     else

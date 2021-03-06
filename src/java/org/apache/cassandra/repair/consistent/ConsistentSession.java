@@ -56,13 +56,13 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  * There are 4 stages to a consistent incremental repair.
  *
  * <h1>Repair prepare</h1>
- *  First, the normal {@link ActiveRepairService#prepareForRepair(UUID, InetAddressAndPort, Set, RepairOption, List)} stuff
+ *  First, the normal {@link ActiveRepairService#prepareForRepair(UUID, InetAddressAndPort, Set, RepairOption, boolean, List)} stuff
  *  happens, which sends out {@link PrepareMessage} and creates a {@link ActiveRepairService.ParentRepairSession}
  *  on the coordinator and each of the neighbors.
  *
  * <h1>Consistent prepare</h1>
  *  The consistent prepare step promotes the parent repair session to a consistent session, and isolates the sstables
- *  being repaired other sstables. First, the coordinator sends a {@link PrepareConsistentRequest} message to each repair
+ *  being repaired from  other sstables. First, the coordinator sends a {@link PrepareConsistentRequest} message to each repair
  *  participant (including itself). When received, the node creates a {@link LocalSession} instance, sets it's state to
  *  {@code PREPARING}, persists it, and begins a preparing the tables for incremental repair, which segregates the data
  *  being repaired from the rest of the table data. When the preparation completes, the session state is set to
@@ -74,7 +74,7 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  *  Once the coordinator recieves positive {@code PrepareConsistentResponse} messages from all the participants, the
  *  coordinator begins the normal repair process.
  *  <p/>
- *  (see {@link CoordinatorSession#handlePrepareResponse(InetAddress, boolean)}
+ *  (see {@link CoordinatorSession#handlePrepareResponse(InetAddressAndPort, boolean)}
  *
  * <h1>Repair</h1>
  *  The coordinator runs the normal data repair process against the sstables segregated in the previous step. When a
@@ -96,7 +96,7 @@ import org.apache.cassandra.tools.nodetool.RepairAdmin;
  *  conflicts with in progress compactions. The sstables will be marked repaired as part of the normal compaction process.
  *  <p/>
  *
- *  On the coordinator side, see {@link CoordinatorSession#finalizePropose()}, {@link CoordinatorSession#handleFinalizePromise(InetAddress, boolean)},
+ *  On the coordinator side, see {@link CoordinatorSession#finalizePropose()}, {@link CoordinatorSession#handleFinalizePromise(InetAddressAndPort, boolean)},
  *  & {@link CoordinatorSession#finalizeCommit()}
  *  <p/>
  *
@@ -214,6 +214,11 @@ public abstract class ConsistentSession
     public void setState(State state)
     {
         this.state = state;
+    }
+
+    public boolean intersects(Iterable<Range<Token>> otherRanges)
+    {
+        return Iterables.any(ranges, r -> r.intersects(otherRanges));
     }
 
     public boolean equals(Object o)

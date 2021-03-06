@@ -19,12 +19,16 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.*;
 import java.util.*;
+import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -110,7 +114,7 @@ public class MetadataSerializer implements IMetadataSerializer
             out.writeInt((int) crc.getValue());
     }
 
-    public Map<MetadataType, MetadataComponent> deserialize( Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
+    public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
     {
         Map<MetadataType, MetadataComponent> components;
         logger.trace("Load metadata for {}", descriptor);
@@ -219,36 +223,55 @@ public class MetadataSerializer implements IMetadataSerializer
         }
     }
 
+    @Override
+    public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException
+    {
+        if (logger.isTraceEnabled() )
+            logger.trace("Mutating {} to {}", descriptor.filenameFor(Component.STATS), description);
+
+        mutate(descriptor, transform);
+    }
+
+    @Override
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
-        Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
-        StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
-        // mutate level
-        currentComponents.put(MetadataType.STATS, stats.mutateLevel(newLevel));
-        rewriteSSTableMetadata(descriptor, currentComponents);
+
+        mutate(descriptor, stats -> stats.mutateLevel(newLevel));
     }
 
+    @Override
     public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
                          descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
+
+        mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
+    }
+
+    private void mutate(Descriptor descriptor, UnaryOperator<StatsMetadata> transform) throws IOException
+    {
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
-        // mutate time & id
-        currentComponents.put(MetadataType.STATS, stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
+
+        currentComponents.put(MetadataType.STATS, transform.apply(stats));
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 
-    private void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
+    public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
         String filePath = descriptor.tmpFilenameFor(Component.STATS);
         try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(filePath)))
         {
             serialize(currentComponents, out, descriptor.version);
             out.flush();
+        }
+        catch (IOException e)
+        {
+            Throwables.throwIfInstanceOf(e, FileNotFoundException.class);
+            throw new FSWriteError(e, filePath);
         }
         // we cant move a file on top of another file in windows:
         if (FBUtilities.isWindows)

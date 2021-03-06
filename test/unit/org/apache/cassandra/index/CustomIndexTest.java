@@ -186,39 +186,39 @@ public class CustomIndexTest extends CQLTester
                     " PRIMARY KEY(k,c))");
 
         assertInvalidMessage("Cannot create keys() index on frozen column fmap. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, keys(fmap)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create entries() index on frozen column fmap. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, entries(fmap)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create values() index on frozen column fmap. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, fmap) USING'%s'", StubIndex.class.getName()));
 
         assertInvalidMessage("Cannot create keys() index on frozen column flist. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, keys(flist)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create entries() index on frozen column flist. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, entries(flist)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create values() index on frozen column flist. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, flist) USING'%s'", StubIndex.class.getName()));
 
         assertInvalidMessage("Cannot create keys() index on frozen column fset. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, keys(fset)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create entries() index on frozen column fset. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, entries(fset)) USING'%s'",
                                            StubIndex.class.getName()));
         assertInvalidMessage("Cannot create values() index on frozen column fset. " +
-                             "Frozen collections only support full() indexes",
+                             "Frozen collections are immutable and must be fully indexed",
                              String.format("CREATE CUSTOM INDEX ON %%s(c, fset) USING'%s'", StubIndex.class.getName()));
 
         createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, full(fmap)) USING'%s'", StubIndex.class.getName()));
@@ -602,7 +602,7 @@ public class CustomIndexTest extends CQLTester
 
         // the index should have been notified of the expired row
         assertEquals(1, index.rowsDeleted.size());
-        Integer deletedClustering = Int32Type.instance.compose(index.rowsDeleted.get(0).clustering().get(0));
+        Integer deletedClustering = Int32Type.instance.compose(index.rowsDeleted.get(0).clustering().bufferAt(0));
         assertEquals(0, deletedClustering.intValue());
     }
 
@@ -684,7 +684,11 @@ public class CustomIndexTest extends CQLTester
         assertTrue(index.writeGroups.size() > 1);
         assertFalse(index.readOrderingAtFinish.isBlocking());
         index.writeGroups.forEach(group -> assertFalse(group.isBlocking()));
-        index.barriers.forEach(OpOrder.Barrier::allPriorOpsAreFinished);
+        index.readBarriers.forEach(b -> assertTrue(b.getSyncPoint().isFinished()));
+        index.writeBarriers.forEach(b -> {
+            b.await(); // Keyspace.writeOrder is global, so this might be temporally blocked by other tests
+            assertTrue(b.getSyncPoint().isFinished());
+        });
     }
 
     @Test
@@ -1052,7 +1056,8 @@ public class CustomIndexTest extends CQLTester
         OpOrder.Group readOrderingAtStart = null;
         OpOrder.Group readOrderingAtFinish = null;
         Set<OpOrder.Group> writeGroups = new HashSet<>();
-        List<OpOrder.Barrier> barriers = new ArrayList<>();
+        List<OpOrder.Barrier> readBarriers = new ArrayList<>();
+        List<OpOrder.Barrier> writeBarriers = new ArrayList<>();
 
         static final int ROWS_IN_PARTITION = 1000;
 
@@ -1098,10 +1103,10 @@ public class CustomIndexTest extends CQLTester
                     // indexing of a partition
                     OpOrder.Barrier readBarrier = baseCfs.readOrdering.newBarrier();
                     readBarrier.issue();
-                    barriers.add(readBarrier);
+                    readBarriers.add(readBarrier);
                     OpOrder.Barrier writeBarrier = Keyspace.writeOrder.newBarrier();
                     writeBarrier.issue();
-                    barriers.add(writeBarrier);
+                    writeBarriers.add(writeBarrier);
                 }
 
                 public void insertRow(Row row)

@@ -127,27 +127,20 @@ public final class CompactionInfo
         return sstables;
     }
 
+    @Override
     public String toString()
     {
-        StringBuilder buff = new StringBuilder();
-        buff.append(getTaskType());
-
         if (metadata != null)
         {
-            buff.append('@').append(metadata.id).append('(');
-            buff.append(metadata.keyspace).append(", ").append(metadata.name).append(", ");
+            return String.format("%s(%s, %s / %s %s)@%s(%s, %s)",
+                                 tasktype, compactionId, completed, total, unit,
+                                 metadata.id, metadata.keyspace, metadata.name);
         }
         else
         {
-            buff.append('(');
+            return String.format("%s(%s, %s / %s %s)",
+                                 tasktype, compactionId, completed, total, unit);
         }
-        buff.append(getCompleted())
-            .append('/')
-            .append(getTotal())
-            .append(')')
-            .append(unit);
-
-        return buff.toString();
     }
 
     public Map<String, String> asMap()
@@ -184,9 +177,15 @@ public final class CompactionInfo
             stopRequested = true;
         }
 
+        /**
+         * if this compaction involves several/all tables we can safely check globalCompactionsPaused
+         * in isStopRequested() below
+         */
+        public abstract boolean isGlobal();
+
         public boolean isStopRequested()
         {
-            return stopRequested;
+            return stopRequested || (isGlobal() && CompactionManager.instance.isGlobalCompactionPaused());
         }
     }
 

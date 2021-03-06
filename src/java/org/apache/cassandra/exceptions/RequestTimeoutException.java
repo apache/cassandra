@@ -32,4 +32,12 @@ public class RequestTimeoutException extends RequestExecutionException
         this.received = received;
         this.blockFor = blockFor;
     }
+
+    protected RequestTimeoutException(ExceptionCode code, ConsistencyLevel consistency, int received, int blockFor, String msg)
+    {
+        super(code, msg);
+        this.consistency = consistency;
+        this.received = received;
+        this.blockFor = blockFor;
+    }
 }

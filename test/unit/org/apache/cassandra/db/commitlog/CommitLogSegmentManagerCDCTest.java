@@ -46,6 +46,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     public static void setUpClass()
     {
         DatabaseDescriptor.setCDCEnabled(true);
+        DatabaseDescriptor.setCDCSpaceInMB(1024);
         CQLTester.setUpClass();
     }
 

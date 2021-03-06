@@ -20,8 +20,11 @@ package org.apache.cassandra.tools.nodetool.formatter;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 /**
@@ -35,7 +38,7 @@ import javax.annotation.Nonnull;
  * {
  *     table.add(row);
  * }
- * table.print(System.out);
+ * table.print(probe.outStream());
  * }
  * </pre>
  */
@@ -60,6 +63,13 @@ public class TableBuilder
     public TableBuilder(String columnDelimiter)
     {
         this.columnDelimiter = columnDelimiter;
+    }
+
+    private TableBuilder(TableBuilder base, int[] maximumColumnWidth)
+    {
+        this(base.columnDelimiter);
+        this.maximumColumnWidth = maximumColumnWidth;
+        this.rows.addAll(base.rows);
     }
 
     public void add(@Nonnull String... row)
@@ -103,6 +113,58 @@ public class TableBuilder
                     out.print(columnDelimiter);
             }
             out.println();
+        }
+    }
+
+    /**
+     * Share max offsets across multiple TableBuilders
+     */
+    public static class SharedTable {
+        private List<TableBuilder> tables = new ArrayList<>();
+        private final String columnDelimiter;
+
+        public SharedTable()
+        {
+            this(' ');
+        }
+
+        public SharedTable(char columnDelimiter)
+        {
+            this(String.valueOf(columnDelimiter));
+        }
+
+        public SharedTable(String columnDelimiter)
+        {
+            this.columnDelimiter = columnDelimiter;
+        }
+
+        public TableBuilder next()
+        {
+            TableBuilder next = new TableBuilder(columnDelimiter);
+            tables.add(next);
+            return next;
+        }
+
+        public List<TableBuilder> complete()
+        {
+            if (tables.size() == 0)
+                return Collections.emptyList();
+
+            final int columns = tables.stream()
+                                      .max(Comparator.comparing(tb -> tb.maximumColumnWidth.length))
+                                      .get().maximumColumnWidth.length;
+
+            final int[] maximumColumnWidth = new int[columns];
+            for (TableBuilder tb : tables)
+            {
+                for (int i = 0; i < tb.maximumColumnWidth.length; i++)
+                {
+                    maximumColumnWidth[i] = Math.max(tb.maximumColumnWidth[i], maximumColumnWidth[i]);
+                }
+            }
+            return tables.stream()
+                         .map(tb -> new TableBuilder(tb, maximumColumnWidth))
+                         .collect(Collectors.toList());
         }
     }
 }

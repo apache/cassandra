@@ -18,19 +18,17 @@
 
 package org.apache.cassandra.net;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.Assert;
-
-import org.apache.cassandra.net.InboundMessageHandlers;
-import org.apache.cassandra.net.OutboundConnection;
+import static org.apache.cassandra.Util.spinAssertEquals;
 
 public class ConnectionUtils
 {
     public interface FailCheck
     {
-        public void accept(String message, long expected, long actual);
+        public void accept(String message, Long expected, Supplier<Long> actualSupplier);
     }
 
     public static class OutboundCountChecker
@@ -98,44 +96,44 @@ public class ConnectionUtils
 
         public void check()
         {
-            doCheck(Assert::assertEquals);
+            doCheck((message, expected, actual) -> spinAssertEquals(message, expected, actual, 5, TimeUnit.SECONDS));
         }
 
         public void check(FailCheck failCheck)
         {
-            doCheck((message, expect, actual) -> { if (expect != actual) failCheck.accept(message, expect, actual); });
+            doCheck((message, expect, actual) -> { if (!Objects.equals(expect, actual.get())) failCheck.accept(message, expect, actual); });
         }
 
         private void doCheck(FailCheck testAndFailCheck)
         {
             if (checkSubmitted)
             {
-                testAndFailCheck.accept("submitted count values don't match", submitted, connection.submittedCount());
+                testAndFailCheck.accept("submitted count values don't match", submitted, connection::submittedCount);
             }
             if (checkPending)
             {
-                testAndFailCheck.accept("pending count values don't match", pending, connection.pendingCount());
-                testAndFailCheck.accept("pending bytes values don't match", pendingBytes, connection.pendingBytes());
+                testAndFailCheck.accept("pending count values don't match", pending, () -> (long) connection.pendingCount());
+                testAndFailCheck.accept("pending bytes values don't match", pendingBytes, connection::pendingBytes);
             }
             if (checkSent)
             {
-                testAndFailCheck.accept("sent count values don't match", sent, connection.sentCount());
-                testAndFailCheck.accept("sent bytes values don't match", sentBytes, connection.sentBytes());
+                testAndFailCheck.accept("sent count values don't match", sent, connection::sentCount);
+                testAndFailCheck.accept("sent bytes values don't match", sentBytes, connection::sentBytes);
             }
             if (checkOverload)
             {
-                testAndFailCheck.accept("overload count values don't match", overload, connection.overloadedCount());
-                testAndFailCheck.accept("overload bytes values don't match", overloadBytes, connection.overloadedBytes());
+                testAndFailCheck.accept("overload count values don't match", overload, connection::overloadedCount);
+                testAndFailCheck.accept("overload bytes values don't match", overloadBytes, connection::overloadedBytes);
             }
             if (checkExpired)
             {
-                testAndFailCheck.accept("expired count values don't match", expired, connection.expiredCount());
-                testAndFailCheck.accept("expired bytes values don't match", expiredBytes, connection.expiredBytes());
+                testAndFailCheck.accept("expired count values don't match", expired, connection::expiredCount);
+                testAndFailCheck.accept("expired bytes values don't match", expiredBytes, connection::expiredBytes);
             }
             if (checkError)
             {
-                testAndFailCheck.accept("error count values don't match", error, connection.errorCount());
-                testAndFailCheck.accept("error bytes values don't match", errorBytes, connection.errorBytes());
+                testAndFailCheck.accept("error count values don't match", error, connection::errorCount);
+                testAndFailCheck.accept("error bytes values don't match", errorBytes, connection::errorBytes);
             }
         }
     }
@@ -197,45 +195,40 @@ public class ConnectionUtils
 
         public void check()
         {
-            doCheck(Assert::assertEquals);
+            doCheck((message, expected, actual) -> spinAssertEquals(message, expected, actual, 5, TimeUnit.SECONDS));
         }
 
         public void check(FailCheck failCheck)
         {
-            doCheck((message, expect, actual) -> { if (expect != actual) failCheck.accept(message, expect, actual); });
+            doCheck((message, expect, actual) -> { if (!Objects.equals(expect, actual.get())) failCheck.accept(message, expect, actual); });
         }
 
         private void doCheck(FailCheck testAndFailCheck)
         {
             if (checkReceived)
             {
-                testAndFailCheck.accept("received count values don't match", received, connection.receivedCount());
-                testAndFailCheck.accept("received bytes values don't match", receivedBytes, connection.receivedBytes());
+                testAndFailCheck.accept("received count values don't match", received, connection::receivedCount);
+                testAndFailCheck.accept("received bytes values don't match", receivedBytes, connection::receivedBytes);
             }
             if (checkProcessed)
             {
-                testAndFailCheck.accept("processed count values don't match", processed, connection.processedCount());
-                testAndFailCheck.accept("processed bytes values don't match", processedBytes, connection.processedBytes());
+                testAndFailCheck.accept("processed count values don't match", processed, connection::processedCount);
+                testAndFailCheck.accept("processed bytes values don't match", processedBytes, connection::processedBytes);
             }
             if (checkExpired)
             {
-                testAndFailCheck.accept("expired count values don't match", expired, connection.expiredCount());
-                testAndFailCheck.accept("expired bytes values don't match", expiredBytes, connection.expiredBytes());
+                testAndFailCheck.accept("expired count values don't match", expired, connection::expiredCount);
+                testAndFailCheck.accept("expired bytes values don't match", expiredBytes, connection::expiredBytes);
             }
             if (checkError)
             {
-                testAndFailCheck.accept("error count values don't match", error, connection.errorCount());
-                testAndFailCheck.accept("error bytes values don't match", errorBytes, connection.errorBytes());
+                testAndFailCheck.accept("error count values don't match", error, connection::errorCount);
+                testAndFailCheck.accept("error bytes values don't match", errorBytes, connection::errorBytes);
             }
             if (checkScheduled)
             {
-                // scheduled cannot relied upon to not race with completion of the task,
-                // so if it is currently above the value we expect, sleep for a bit
-                if (scheduled < connection.scheduledCount())
-                    for (int i = 0; i < 10 && scheduled < connection.scheduledCount() ; ++i)
-                        Uninterruptibles.sleepUninterruptibly(1L, TimeUnit.MILLISECONDS);
-                testAndFailCheck.accept("scheduled count values don't match", scheduled, connection.scheduledCount());
-                testAndFailCheck.accept("scheduled bytes values don't match", scheduledBytes, connection.scheduledBytes());
+                testAndFailCheck.accept("scheduled count values don't match", scheduled, connection::scheduledCount);
+                testAndFailCheck.accept("scheduled bytes values don't match", scheduledBytes, connection::scheduledBytes);
             }
         }
     }

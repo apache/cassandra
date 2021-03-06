@@ -55,7 +55,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public void preprocess(Message<ReadResponse> message)
     {
-        if (replicaPlan().getReplicaFor(message.from()).isTransient() &&
+        if (replicaPlan().lookup(message.from()).isTransient() &&
             message.payload.isDigestResponse())
             throw new IllegalArgumentException("Digest response received from transient replica");
 

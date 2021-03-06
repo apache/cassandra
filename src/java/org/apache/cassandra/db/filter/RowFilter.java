@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
@@ -128,6 +129,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
+    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec);
+
     /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
      * are included in the resulting iterator.
@@ -136,7 +139,23 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public abstract UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec);
+    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+    {
+        return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(iter.metadata(), nowInSec));
+    }
+
+    /**
+     * Filters the provided iterator so that only the row satisfying the expression of this filter
+     * are included in the resulting iterator.
+     *
+     * @param iter the iterator to filter
+     * @param nowInSec the time of query in seconds.
+     * @return the filtered iterator.
+     */
+    public PartitionIterator filter(PartitionIterator iter, TableMetadata metadata, int nowInSec)
+    {
+        return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(metadata, nowInSec));
+    }
 
     /**
      * Whether the provided row in the provided partition satisfies this filter.
@@ -186,14 +205,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * Returns true if all of the expressions within this filter that apply to the clustering key are satisfied by
      * the given Clustering, false otherwise.
      */
-    public boolean clusteringKeyRestrictionsAreSatisfiedBy(Clustering clustering)
+    public boolean clusteringKeyRestrictionsAreSatisfiedBy(Clustering<?> clustering)
     {
         for (Expression e : expressions)
         {
             if (!e.column.isClusteringColumn())
                 continue;
 
-            if (!e.operator().isSatisfiedBy(e.column.type, clustering.get(e.column.position()), e.value))
+            if (!e.operator().isSatisfiedBy(e.column.type, clustering.bufferAt(e.column.position()), e.value))
             {
                 return false;
             }
@@ -256,13 +275,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(expressions);
         }
 
-        public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec)
         {
-            if (expressions.isEmpty())
-                return iter;
-
-            final TableMetadata metadata = iter.metadata();
-
             List<Expression> partitionLevelExpressions = new ArrayList<>();
             List<Expression> rowLevelExpressions = new ArrayList<>();
             for (Expression e: expressions)
@@ -276,12 +290,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             long numberOfRegularColumnExpressions = rowLevelExpressions.size();
             final boolean filterNonStaticColumns = numberOfRegularColumnExpressions > 0;
 
-            class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
+            return new Transformation<BaseRowIterator<?>>()
             {
                 DecoratedKey pk;
 
                 @SuppressWarnings("resource")
-                public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+                protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
                 {
                     pk = partition.partitionKey();
 
@@ -293,7 +307,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                             return null;
                         }
 
-                    UnfilteredRowIterator iterator = Transformation.apply(partition, this);
+                    BaseRowIterator<?> iterator = partition instanceof UnfilteredRowIterator
+                                                  ? Transformation.apply((UnfilteredRowIterator) partition, this)
+                                                  : Transformation.apply((RowIterator) partition, this);
+
                     if (filterNonStaticColumns && !iterator.hasNext())
                     {
                         iterator.close();
@@ -315,9 +332,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
                     return row;
                 }
-            }
-
-            return Transformation.apply(iter, new IsSatisfiedFilter());
+            };
         }
 
         protected RowFilter withNewExpressions(List<Expression> expressions)
@@ -433,10 +448,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                          ? CompositeType.extractComponent(partitionKey.getKey(), column.position())
                          : partitionKey.getKey();
                 case CLUSTERING:
-                    return row.clustering().get(column.position());
+                    return row.clustering().bufferAt(column.position());
                 default:
-                    Cell cell = row.getCell(column);
-                    return cell == null ? null : cell.value();
+                    Cell<?> cell = row.getCell(column);
+                    return cell == null ? null : cell.buffer();
             }
         }
 
@@ -490,7 +505,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 switch (expression.kind())
                 {
                     case SIMPLE:
-                        ByteBufferUtil.writeWithShortLength(((SimpleExpression)expression).value, out);
+                        ByteBufferUtil.writeWithShortLength(expression.value, out);
                         break;
                     case MAP_EQUALITY:
                         MapEqualityExpression mexpr = (MapEqualityExpression)expression;
@@ -519,7 +534,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 Operator operator = Operator.readFrom(in);
                 ColumnMetadata column = metadata.getColumn(name);
 
-                if (!metadata.isCompactTable() && column == null)
+                // Compact storage tables, when used with thrift, used to allow falling through this withouot throwing an
+                // exception. However, since thrift was removed in 4.0, this behaviour was not restored in CASSANDRA-16217
+                if (column == null)
                     throw new RuntimeException("Unknown (or dropped) column " + UTF8Type.instance.getString(name) + " during deserialization");
 
                 switch (kind)
@@ -601,7 +618,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                             if (foundValue == null)
                                 return false;
 
-                            ByteBuffer counterValue = LongType.instance.decompose(CounterContext.instance().total(foundValue));
+                            ByteBuffer counterValue = LongType.instance.decompose(CounterContext.instance().total(foundValue, ByteBufferAccessor.instance));
                             return operator.isSatisfiedBy(LongType.instance, counterValue, value);
                         }
                         else
@@ -630,7 +647,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         ComplexColumnData complexData = row.getComplexColumnData(column);
                         if (complexData != null)
                         {
-                            for (Cell cell : complexData)
+                            for (Cell<?> cell : complexData)
                             {
                                 if (type.kind == CollectionType.Kind.SET)
                                 {
@@ -639,7 +656,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                                 }
                                 else
                                 {
-                                    if (type.valueComparator().compare(cell.value(), value) == 0)
+                                    if (type.valueComparator().compare(cell.buffer(), value) == 0)
                                         return true;
                                 }
                             }
@@ -745,7 +762,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         @Override
         public ByteBuffer getIndexValue()
         {
-            return CompositeType.build(key, value);
+            return CompositeType.build(ByteBufferAccessor.instance, key, value);
         }
 
         public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
@@ -761,8 +778,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             MapType<?, ?> mt = (MapType<?, ?>)column.type;
             if (column.isComplex())
             {
-                Cell cell = row.getCell(column, CellPath.create(key));
-                return cell != null && mt.valueComparator().compare(cell.value(), value) == 0;
+                Cell<?> cell = row.getCell(column, CellPath.create(key));
+                return cell != null && mt.valueComparator().compare(cell.buffer(), value) == 0;
             }
             else
             {

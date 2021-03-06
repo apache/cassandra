@@ -28,6 +28,6 @@ public class ResetFullQueryLog extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.getSpProxy().resetFullQueryLogger();
+        probe.resetFullQueryLogger();
     }
 }

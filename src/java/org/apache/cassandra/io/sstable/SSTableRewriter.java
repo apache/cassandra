@@ -66,6 +66,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
+    private final boolean eagerWriterMetaRelease; // true if the writer metadata should be released when switch is called
 
     private SSTableWriter writer;
     private Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
@@ -74,44 +75,33 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private boolean throwEarly, throwLate;
 
     @Deprecated
-    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline)
+    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
-        this(transaction, maxAge, isOffline, true);
-    }
-    @Deprecated
-    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
-    {
-        this(transaction, maxAge, calculateOpenInterval(shouldOpenEarly), false);
+        this(transaction, maxAge, preemptiveOpenInterval, keepOriginals, false);
     }
 
-    @VisibleForTesting
-    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
+    SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals, boolean eagerWriterMetaRelease)
     {
         this.transaction = transaction;
         this.maxAge = maxAge;
-        this.keepOriginals = keepOriginals;
         this.preemptiveOpenInterval = preemptiveOpenInterval;
-    }
-
-    @Deprecated
-    public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean isOffline)
-    {
-        return constructKeepingOriginals(transaction, keepOriginals, maxAge);
+        this.keepOriginals = keepOriginals;
+        this.eagerWriterMetaRelease = eagerWriterMetaRelease;
     }
 
     public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals, true);
     }
 
     public static SSTableRewriter constructWithoutEarlyOpening(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals, true);
     }
 
     public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals, true);
     }
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
@@ -302,6 +292,9 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     {
         if (newWriter != null)
             writers.add(newWriter.setMaxDataAge(maxAge));
+
+        if (eagerWriterMetaRelease && writer != null)
+            writer.releaseMetadataOverhead();
 
         if (writer == null || writer.getFilePointer() == 0)
         {

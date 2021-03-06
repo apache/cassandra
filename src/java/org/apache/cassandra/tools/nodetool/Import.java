@@ -23,6 +23,8 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 
 import io.airlift.airline.Option;
+
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -73,6 +75,11 @@ public class Import extends NodeToolCmd
             description = "Run an extended verify, verifying all values in the new sstables")
     private boolean extendedVerify = false;
 
+    @Option(title = "copy_data",
+            name = {"-p", "--copy-data"},
+            description = "Copy data from source directories instead of moving them")
+    private boolean copyData = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -80,19 +87,20 @@ public class Import extends NodeToolCmd
 
         if (quick)
         {
-            System.out.println("Doing a quick import - skipping sstable verification and row cache invalidation");
+            probe.output().out.println("Doing a quick import - skipping sstable verification and row cache invalidation");
             noVerifyTokens = true;
             noInvalidateCaches = true;
             noVerify = true;
             extendedVerify = false;
         }
         List<String> srcPaths = Lists.newArrayList(args.subList(2, args.size()));
-        List<String> failedDirs = probe.importNewSSTables(args.get(0), args.get(1), new HashSet<>(srcPaths), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, extendedVerify);
+        List<String> failedDirs = probe.importNewSSTables(args.get(0), args.get(1), new HashSet<>(srcPaths), !keepLevel, !keepRepaired, !noVerify, !noVerifyTokens, !noInvalidateCaches, extendedVerify, copyData);
         if (!failedDirs.isEmpty())
         {
-            System.err.println("Some directories failed to import, check server logs for details:");
+            PrintStream err = probe.output().err;
+            err.println("Some directories failed to import, check server logs for details:");
             for (String directory : failedDirs)
-                System.err.println(directory);
+                err.println(directory);
             System.exit(1);
         }
     }

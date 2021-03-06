@@ -79,7 +79,7 @@ public class KeysSearcher extends CassandraIndexSearcher
                 while (next == null && indexHits.hasNext())
                 {
                     Row hit = indexHits.next();
-                    DecoratedKey key = index.baseCfs.decorateKey(hit.clustering().get(0));
+                    DecoratedKey key = index.baseCfs.decorateKey(hit.clustering().bufferAt(0));
                     if (!command.selectsKey(key))
                         continue;
 
@@ -149,9 +149,9 @@ public class KeysSearcher extends CassandraIndexSearcher
         {
             // Index is stale, remove the index entry and ignore
             index.deleteStaleEntry(index.getIndexCfs().decorateKey(indexedValue),
-                    makeIndexClustering(iterator.partitionKey().getKey(), Clustering.EMPTY),
-                    new DeletionTime(indexHit.primaryKeyLivenessInfo().timestamp(), nowInSec),
-                    ctx);
+                                   makeIndexClustering(iterator.partitionKey().getKey(), Clustering.EMPTY),
+                                   new DeletionTime(indexHit.primaryKeyLivenessInfo().timestamp(), nowInSec),
+                                   ctx);
             iterator.close();
             return null;
         }

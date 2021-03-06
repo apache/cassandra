@@ -98,7 +98,7 @@ do_stop()
     #   1 if daemon was already stopped
     #   2 if daemon could not be stopped
     #   other if a failure occurred
-    start-stop-daemon -K -p "$PIDFILE" -R TERM/30/KILL/5 >/dev/null
+    start-stop-daemon -K -u cassandra -p "$PIDFILE" -R TERM/30/KILL/5 >/dev/null
     RET=$?
     rm -f "$PIDFILE"
     return $RET

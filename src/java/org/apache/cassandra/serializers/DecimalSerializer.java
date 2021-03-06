@@ -17,28 +17,25 @@
  */
 package org.apache.cassandra.serializers;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
-public class DecimalSerializer implements TypeSerializer<BigDecimal>
+public class DecimalSerializer extends TypeSerializer<BigDecimal>
 {
     public static final DecimalSerializer instance = new DecimalSerializer();
 
-    public BigDecimal deserialize(ByteBuffer bytes)
+    public <V> BigDecimal deserialize(V value, ValueAccessor<V> accessor)
     {
-        if (bytes == null || bytes.remaining() == 0)
+        if (value == null || accessor.isEmpty(value))
             return null;
 
         // do not consume the contents of the ByteBuffer
-        bytes = bytes.duplicate();
-        int scale = bytes.getInt();
-        byte[] bibytes = new byte[bytes.remaining()];
-        bytes.get(bibytes);
-
-        BigInteger bi = new BigInteger(bibytes);
+        int scale = accessor.getInt(value, 0);
+        BigInteger bi = new BigInteger(accessor.toArray(value, 4, accessor.size(value) - 4));
         return new BigDecimal(bi, scale);
     }
 
@@ -58,16 +55,16 @@ public class DecimalSerializer implements TypeSerializer<BigDecimal>
         return bytes;
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <T> void validate(T value, ValueAccessor<T> accessor) throws MarshalException
     {
         // We at least store the scale.
-        if (bytes.remaining() != 0 && bytes.remaining() < 4)
-            throw new MarshalException(String.format("Expected 0 or at least 4 bytes (%d)", bytes.remaining()));
+        if (!accessor.isEmpty(value) && accessor.size(value) < 4)
+            throw new MarshalException(String.format("Expected 0 or at least 4 bytes (%d)", accessor.size(value)));
     }
 
     public String toString(BigDecimal value)
     {
-        return value == null ? "" : value.toPlainString();
+        return value == null ? "" : value.toString();
     }
 
     public Class<BigDecimal> getType()

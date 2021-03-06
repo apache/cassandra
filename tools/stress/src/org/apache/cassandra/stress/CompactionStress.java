@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
@@ -75,6 +76,7 @@ public abstract class CompactionStress implements Runnable
     static
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     List<File> getDataDirectories()
@@ -260,7 +262,7 @@ public abstract class CompactionStress implements Runnable
     {
         System.out.println("========");
         System.out.println(String.format("Pending compactions: %d\n", CompactionManager.instance.getPendingTasks()));
-        CompactionStats.reportCompactionTable(CompactionManager.instance.getCompactions(), 0, true);
+        CompactionStats.reportCompactionTable(CompactionManager.instance.getCompactions(), 0, true, System.out);
     }
 
 

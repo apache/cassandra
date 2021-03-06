@@ -22,6 +22,8 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
@@ -66,7 +68,7 @@ import static org.junit.Assert.fail;
 
 public class SecondaryIndexTest extends CQLTester
 {
-    private static final int TOO_BIG = 1024 * 65;
+    public static final int TOO_BIG = 1024 * 65;
 
     @Test
     public void testCreateAndDropIndex() throws Throwable
@@ -1010,7 +1012,7 @@ public class SecondaryIndexTest extends CQLTester
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
         newRow = index.rowsUpdated.get(0).right;
         assertEquals(1, newRow.columnCount());
-        Cell newCell = newRow.getCell(v1);
+        Cell<?> newCell = newRow.getCell(v1);
         assertTrue(newCell.isTombstone());
         assertEquals(3, newCell.timestamp());
         index.reset();
@@ -1051,6 +1053,84 @@ public class SecondaryIndexTest extends CQLTester
         {
             execute("DROP index " + KEYSPACE + ".testIndex");
         }
+    }
+
+    @Test // A Bad init could leave an index only accepting reads
+    public void testReadOnlyIndex() throws Throwable
+    {
+        // On successful initialization both reads and writes go through
+        String tableName = createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
+        assertTrue(waitForIndex(keyspace(), tableName, indexName));
+        execute("SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
+        ReadOnlyOnFailureIndex index = (ReadOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
+        assertEquals(1, index.rowsInserted.size());
+
+        // Upon rebuild, both reads and writes still go through
+        getCurrentColumnFamilyStore().indexManager.rebuildIndexesBlocking(ImmutableSet.of(indexName));
+        assertEquals(1, index.rowsInserted.size());
+        execute("SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 2, 1, 1);
+        assertEquals(2, index.rowsInserted.size());
+        dropIndex(format("DROP INDEX %s.%s", KEYSPACE, indexName));
+
+        // On bad initial build writes are not forwarded to the index
+        ReadOnlyOnFailureIndex.failInit = true;
+        indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + ReadOnlyOnFailureIndex.class.getName() + "'");
+        index = (ReadOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
+        assertTrue(waitForIndexBuilds(keyspace(), indexName));
+        assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
+        assertEquals(0, index.rowsInserted.size());
+
+        // Upon recovery, we can index data again
+        index.reset();
+        getCurrentColumnFamilyStore().indexManager.rebuildIndexesBlocking(ImmutableSet.of(indexName));
+        assertEquals(2, index.rowsInserted.size());
+        execute("SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 2, 1, 1);
+        assertEquals(3, index.rowsInserted.size());
+        dropIndex(format("DROP INDEX %s.%s", KEYSPACE, indexName));
+    }
+
+    @Test  // A Bad init could leave an index only accepting writes
+    public void testWriteOnlyIndex() throws Throwable
+    {
+        // On successful initialization both reads and writes go through
+        String tableName = createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
+        String indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + WriteOnlyOnFailureIndex.class.getName() + "'");
+        assertTrue(waitForIndex(keyspace(), tableName, indexName));
+        execute("SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
+        WriteOnlyOnFailureIndex index = (WriteOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
+        assertEquals(1, index.rowsInserted.size());
+
+        // Upon rebuild, both reads and writes still go through
+        getCurrentColumnFamilyStore().indexManager.rebuildIndexesBlocking(ImmutableSet.of(indexName));
+        assertEquals(1, index.rowsInserted.size());
+        execute("SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 2, 1, 1);
+        assertEquals(2, index.rowsInserted.size());
+        dropIndex(format("DROP INDEX %s.%s", KEYSPACE, indexName));
+
+        // On bad initial build writes are forwarded to the index
+        WriteOnlyOnFailureIndex.failInit = true;
+        indexName = createIndex("CREATE CUSTOM INDEX ON %s (value) USING '" + WriteOnlyOnFailureIndex.class.getName() + "'");
+        index = (WriteOnlyOnFailureIndex) getCurrentColumnFamilyStore().indexManager.getIndexByName(indexName);
+        assertTrue(waitForIndexBuilds(keyspace(), indexName));
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 1, 1, 1);
+        assertEquals(1, index.rowsInserted.size());
+        assertInvalidThrow(IndexNotAvailableException.class, "SELECT value FROM %s WHERE value = 1");
+
+        // Upon recovery, we can query data again
+        index.reset();
+        getCurrentColumnFamilyStore().indexManager.rebuildIndexesBlocking(ImmutableSet.of(indexName));
+        assertEquals(2, index.rowsInserted.size());
+        execute("SELECT value FROM %s WHERE value = 1");
+        execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", 2, 1, 1);
+        assertEquals(3, index.rowsInserted.size());
+        dropIndex(format("DROP INDEX %s.%s", KEYSPACE, indexName));
     }
 
     @Test
@@ -1375,6 +1455,7 @@ public class SecondaryIndexTest extends CQLTester
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 0, udt1);
         String indexName = createIndex("CREATE INDEX ON %s (v)");
+
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt2);
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, udt1);
         assertTrue(waitForIndex(keyspace(), tableName, indexName));
@@ -1402,8 +1483,8 @@ public class SecondaryIndexTest extends CQLTester
         Object udt2 = userType("a", 2);
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1, udt2));
-        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (keys(v))");
-        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (values(v))");
+        assertInvalidMessage("Frozen collections are immutable and must be fully indexed", "CREATE INDEX idx ON %s (keys(v))");
+        assertInvalidMessage("Frozen collections are immutable and must be fully indexed", "CREATE INDEX idx ON %s (values(v))");
         String indexName = createIndex("CREATE INDEX ON %s (full(v))");
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
@@ -1518,10 +1599,10 @@ public class SecondaryIndexTest extends CQLTester
                                       ClientState.forInternalCalls());
     }
 
-    private void validateCell(Cell cell, ColumnMetadata def, ByteBuffer val, long timestamp)
+    private void validateCell(Cell<?> cell, ColumnMetadata def, ByteBuffer val, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, def.type.compare(cell.value(), val));
+        assertEquals(0, def.type.compare(cell.buffer(), val));
         assertEquals(timestamp, cell.timestamp());
     }
 
@@ -1529,7 +1610,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         ColumnMetadata col = cfm.getColumn(new ColumnIdentifier(name, true));
         AbstractType<?> type = col.type;
-        assertEquals(expected, type.compose(row.getCell(col).value()));
+        assertEquals(expected, type.compose(row.getCell(col).buffer()));
     }
 
     /**
@@ -1558,6 +1639,64 @@ public class SecondaryIndexTest extends CQLTester
         {
             latch.countDown();
             return super.getInvalidateTask();
+        }
+    }
+
+    /**
+     * {@code StubIndex} that only supports some load. Could be intentional or a result of a bad init.
+     */
+    public static class LoadTypeConstrainedIndex extends StubIndex
+    {
+        static volatile boolean failInit = false;
+        final LoadType supportedLoadOnFailure;
+
+        LoadTypeConstrainedIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef, LoadType supportedLoadOnFailure)
+        {
+            super(baseCfs, indexDef);
+            this.supportedLoadOnFailure = supportedLoadOnFailure;
+        }
+
+        @Override
+        public LoadType getSupportedLoadTypeOnFailure(boolean isInitialBuild)
+        {
+            return supportedLoadOnFailure;
+        }
+
+        @Override
+        public void reset()
+        {
+            super.reset();
+            failInit = false;
+        }
+
+        @Override
+        public Callable<?> getInitializationTask()
+        {
+            if (failInit)
+                return () -> {throw new IllegalStateException("Index is configured to fail.");};
+
+            return null;
+        }
+
+        public boolean shouldBuildBlocking()
+        {
+            return true;
+        }
+    }
+
+    public static class ReadOnlyOnFailureIndex extends LoadTypeConstrainedIndex
+    {
+        public ReadOnlyOnFailureIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
+        {
+            super(baseCfs, indexDef, LoadType.READ);
+        }
+    }
+
+    public static class WriteOnlyOnFailureIndex extends LoadTypeConstrainedIndex
+    {
+        public WriteOnlyOnFailureIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
+        {
+            super(baseCfs, indexDef, LoadType.WRITE);
         }
     }
 }

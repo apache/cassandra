@@ -21,8 +21,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.hash.Hasher;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
@@ -48,17 +46,9 @@ public abstract class UnfilteredPartitionIterators
     public interface MergeListener
     {
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
-        public void close();
+        public default void close() {}
 
-        public static MergeListener NOOP = new MergeListener()
-        {
-            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
-            {
-                return UnfilteredRowIterators.MergeListener.NOOP;
-            }
-
-            public void close() {}
-        };
+        public static MergeListener NOOP = (partitionKey, versions) -> UnfilteredRowIterators.MergeListener.NOOP;
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -114,7 +104,6 @@ public abstract class UnfilteredPartitionIterators
     @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final MergeListener listener)
     {
-        assert listener != null;
         assert !iterators.isEmpty();
 
         final TableMetadata metadata = iterators.get(0).metadata();
@@ -139,7 +128,9 @@ public abstract class UnfilteredPartitionIterators
             @SuppressWarnings("resource")
             protected UnfilteredRowIterator getReduced()
             {
-                UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
+                UnfilteredRowIterators.MergeListener rowListener = listener == null
+                                                                 ? null
+                                                                 : listener.getRowMergeListener(partitionKey, toMerge);
 
                 // Make a single empty iterator object to merge, we don't need toMerge.size() copiess
                 UnfilteredRowIterator empty = null;
@@ -187,7 +178,9 @@ public abstract class UnfilteredPartitionIterators
             public void close()
             {
                 merged.close();
-                listener.close();
+
+                if (listener != null)
+                    listener.close();
             }
         };
     }
@@ -259,16 +252,16 @@ public abstract class UnfilteredPartitionIterators
      * Caller must close the provided iterator.
      *
      * @param iterator the iterator to digest.
-     * @param hasher the {@link Hasher} to use for the digest.
+     * @param digest the {@link Digest} to use.
      * @param version the messaging protocol to use when producing the digest.
      */
-    public static void digest(UnfilteredPartitionIterator iterator, Hasher hasher, int version)
+    public static void digest(UnfilteredPartitionIterator iterator, Digest digest, int version)
     {
         while (iterator.hasNext())
         {
             try (UnfilteredRowIterator partition = iterator.next())
             {
-                    UnfilteredRowIterators.digest(partition, hasher, version);
+                UnfilteredRowIterators.digest(partition, digest, version);
             }
         }
     }
@@ -318,7 +311,7 @@ public abstract class UnfilteredPartitionIterators
             out.writeBoolean(false);
         }
 
-        public UnfilteredPartitionIterator deserialize(final DataInputPlus in, final int version, final TableMetadata metadata, final ColumnFilter selection, final SerializationHelper.Flag flag) throws IOException
+        public UnfilteredPartitionIterator deserialize(final DataInputPlus in, final int version, final TableMetadata metadata, final ColumnFilter selection, final DeserializationHelper.Flag flag) throws IOException
         {
             // Skip now unused isForThrift boolean
             in.readBoolean();

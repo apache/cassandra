@@ -41,7 +41,7 @@ import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 
@@ -59,13 +59,15 @@ public class CassandraStreamWriter
     protected final Collection<SSTableReader.PartitionPositionBounds> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
+    private final long totalSize;
 
-    public CassandraStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, StreamSession session)
+    public CassandraStreamWriter(SSTableReader sstable, CassandraStreamHeader header, StreamSession session)
     {
         this.session = session;
         this.sstable = sstable;
-        this.sections = sections;
+        this.sections = header.sections;
         this.limiter =  StreamManager.getRateLimiter(session.peer);
+        this.totalSize = header.size();
     }
 
     /**
@@ -83,7 +85,7 @@ public class CassandraStreamWriter
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
         AsyncStreamingOutputPlus out = (AsyncStreamingOutputPlus) output;
-        try(ChannelProxy proxy = sstable.getDataChannel().sharedCopy();
+        try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
             ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
                                           ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
                                           : null)
@@ -127,10 +129,7 @@ public class CassandraStreamWriter
 
     protected long totalSize()
     {
-        long size = 0;
-        for (SSTableReader.PartitionPositionBounds section : sections)
-            size += section.upperPosition - section.lowerPosition;
-        return size;
+        return totalSize;
     }
 
     /**
@@ -153,7 +152,7 @@ public class CassandraStreamWriter
 
         // this buffer will hold the data from disk. as it will be compressed on the fly by
         // AsyncChannelCompressedStreamWriter.write(ByteBuffer), we can release this buffer as soon as we can.
-        ByteBuffer buffer = BufferPool.get(minReadable, BufferType.OFF_HEAP);
+        ByteBuffer buffer = BufferPools.forNetworking().get(minReadable, BufferType.OFF_HEAP);
         try
         {
             int readCount = proxy.read(buffer, start);
@@ -172,7 +171,7 @@ public class CassandraStreamWriter
         }
         finally
         {
-            BufferPool.put(buffer);
+            BufferPools.forNetworking().put(buffer);
         }
 
         return toTransfer;

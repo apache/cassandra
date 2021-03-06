@@ -28,6 +28,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -44,22 +45,28 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
  */
 public class SyncRequest extends RepairMessage
 {
-    public static MessageSerializer serializer = new SyncRequestSerializer();
-
     public final InetAddressAndPort initiator;
     public final InetAddressAndPort src;
     public final InetAddressAndPort dst;
     public final Collection<Range<Token>> ranges;
     public final PreviewKind previewKind;
+    public final boolean asymmetric;
 
-   public SyncRequest(RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst, Collection<Range<Token>> ranges, PreviewKind previewKind)
+   public SyncRequest(RepairJobDesc desc,
+                      InetAddressAndPort initiator,
+                      InetAddressAndPort src,
+                      InetAddressAndPort dst,
+                      Collection<Range<Token>> ranges,
+                      PreviewKind previewKind,
+                      boolean asymmetric)
    {
-        super(Type.SYNC_REQUEST, desc);
+        super(desc);
         this.initiator = initiator;
         this.src = src;
         this.dst = dst;
         this.ranges = ranges;
         this.previewKind = previewKind;
+        this.asymmetric = asymmetric;
     }
 
     @Override
@@ -68,22 +75,22 @@ public class SyncRequest extends RepairMessage
         if (!(o instanceof SyncRequest))
             return false;
         SyncRequest req = (SyncRequest)o;
-        return messageType == req.messageType &&
-               desc.equals(req.desc) &&
+        return desc.equals(req.desc) &&
                initiator.equals(req.initiator) &&
                src.equals(req.src) &&
                dst.equals(req.dst) &&
                ranges.equals(req.ranges) &&
-               previewKind == req.previewKind;
+               previewKind == req.previewKind &&
+               asymmetric == req.asymmetric;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(messageType, desc, initiator, src, dst, ranges, previewKind);
+        return Objects.hash(desc, initiator, src, dst, ranges, previewKind);
     }
 
-    public static class SyncRequestSerializer implements MessageSerializer<SyncRequest>
+    public static final IVersionedSerializer<SyncRequest> serializer = new IVersionedSerializer<SyncRequest>()
     {
         public void serialize(SyncRequest message, DataOutputPlus out, int version) throws IOException
         {
@@ -98,6 +105,7 @@ public class SyncRequest extends RepairMessage
                 AbstractBounds.tokenSerializer.serialize(range, out, version);
             }
             out.writeInt(message.previewKind.getSerializationVal());
+            out.writeBoolean(message.asymmetric);
         }
 
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
@@ -111,7 +119,8 @@ public class SyncRequest extends RepairMessage
             for (int i = 0; i < rangesCount; ++i)
                 ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version));
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
-            return new SyncRequest(desc, owner, src, dst, ranges, previewKind);
+            boolean asymmetric = in.readBoolean();
+            return new SyncRequest(desc, owner, src, dst, ranges, previewKind, asymmetric);
         }
 
         public long serializedSize(SyncRequest message, int version)
@@ -122,9 +131,10 @@ public class SyncRequest extends RepairMessage
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
             size += TypeSizes.sizeof(message.previewKind.getSerializationVal());
+            size += TypeSizes.sizeof(message.asymmetric);
             return size;
         }
-    }
+    };
 
     @Override
     public String toString()
@@ -135,6 +145,7 @@ public class SyncRequest extends RepairMessage
                 ", dst=" + dst +
                 ", ranges=" + ranges +
                 ", previewKind=" + previewKind +
+                ", asymmetric=" + asymmetric +
                 "} " + super.toString();
     }
 }

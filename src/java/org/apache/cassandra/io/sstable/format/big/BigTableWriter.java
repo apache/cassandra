@@ -18,9 +18,11 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.*;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -42,6 +45,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -80,11 +84,13 @@ public class BigTableWriter extends SSTableWriter
 
         if (compression)
         {
+            final CompressionParams compressionParams = compressionFor(lifecycleNewTracker.opType());
+
             dataFile = new CompressedSequentialWriter(new File(getFilename()),
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
                                              new File(descriptor.filenameFor(Component.DIGEST)),
                                              writerOption,
-                                             metadata().params.compression,
+                                             compressionParams,
                                              metadataCollector);
         }
         else
@@ -100,6 +106,45 @@ public class BigTableWriter extends SSTableWriter
         iwriter = new IndexWriter(keyCount);
 
         columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, getRowIndexEntrySerializer().indexInfoSerializer());
+    }
+
+    /**
+     * Given an OpType, determine the correct Compression Parameters
+     * @param opType
+     * @return {@link org.apache.cassandra.schema.CompressionParams}
+     */
+    private CompressionParams compressionFor(final OperationType opType)
+    {
+        CompressionParams compressionParams = metadata().params.compression;
+        final ICompressor compressor = compressionParams.getSstableCompressor();
+
+        if (null != compressor && opType == OperationType.FLUSH)
+        {
+            // When we are flushing out of the memtable throughput of the compressor is critical as flushes,
+            // especially of large tables, can queue up and potentially block writes.
+            // This optimization allows us to fall back to a faster compressor if a particular
+            // compression algorithm indicates we should. See CASSANDRA-15379 for more details.
+            switch (DatabaseDescriptor.getFlushCompression())
+            {
+                // It is relatively easier to insert a Noop compressor than to disable compressed writing
+                // entirely as the "compression" member field is provided outside the scope of this class.
+                // It may make sense in the future to refactor the ownership of the compression flag so that
+                // We can bypass the CompressedSequentialWriter in this case entirely.
+                case none:
+                    compressionParams = CompressionParams.NOOP;
+                    break;
+                case fast:
+                    if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
+                    {
+                        // The default compressor is generally fast (LZ4 with 16KiB block size)
+                        compressionParams = CompressionParams.DEFAULT;
+                        break;
+                    }
+                case table:
+                default:
+            }
+        }
+        return compressionParams;
     }
 
     public void mark()
@@ -189,6 +234,10 @@ public class BigTableWriter extends SSTableWriter
             metadataCollector.addPartitionSizeInBytes(rowSize);
             afterAppend(key, endPosition, entry, columnIndexWriter.buffer());
             return entry;
+        }
+        catch (BufferOverflowException boe)
+        {
+            throw new PartitionSerializationException(iterator, boe);
         }
         catch (IOException e)
         {
@@ -289,8 +338,13 @@ public class BigTableWriter extends SSTableWriter
         invalidateCacheAtBoundary(dfile);
         SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components, metadata,
-                                                           ifile, dfile, indexSummary,
-                                                           iwriter.bf.sharedCopy(), maxDataAge, stats, SSTableReader.OpenReason.EARLY, header);
+                                                           ifile, dfile,
+                                                           indexSummary,
+                                                           iwriter.bf.sharedCopy(), 
+                                                           maxDataAge, 
+                                                           stats, 
+                                                           SSTableReader.OpenReason.EARLY, 
+                                                           header);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);

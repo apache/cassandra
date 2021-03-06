@@ -136,7 +136,7 @@ public class SecondaryIndexTest
             for (Row row : partition)
             {
                 ++rowCount;
-                assert ByteBufferUtil.toLong(Util.cell(cfs, row, "birthdate").value()) > 1L;
+                assert ByteBufferUtil.toLong(Util.cell(cfs, row, "birthdate").buffer()) > 1L;
             }
         }
         assertEquals(2, rowCount);
@@ -484,7 +484,7 @@ public class SecondaryIndexTest
                    .build();
         MigrationManager.announceTableUpdate(updated, true);
 
-        // fait for the index to be built
+        // wait for the index to be built
         Index index = cfs.indexManager.getIndex(indexDef);
         do
         {

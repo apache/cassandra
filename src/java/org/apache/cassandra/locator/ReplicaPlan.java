@@ -52,6 +52,8 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     public abstract int blockFor();
 
     public E contacts() { return contacts; }
+
+    // TODO: should this semantically return true if we contain the endpoint, not the exact replica?
     public boolean contacts(Replica replica) { return contacts.contains(replica); }
     public Keyspace keyspace() { return keyspace; }
     public ConsistencyLevel consistencyLevel() { return consistencyLevel; }
@@ -72,17 +74,12 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
         public E candidates() { return candidates; }
 
-        public E uncontactedCandidates()
-        {
-            return candidates().filter(r -> !contacts(r));
-        }
-
         public Replica firstUncontactedCandidate(Predicate<Replica> extraPredicate)
         {
             return Iterables.tryFind(candidates(), r -> extraPredicate.test(r) && !contacts(r)).orNull();
         }
 
-        public Replica getReplicaFor(InetAddressAndPort endpoint)
+        public Replica lookup(InetAddressAndPort endpoint)
         {
             return candidates().byEndpoint().get(endpoint);
         }
@@ -109,18 +106,30 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
     public static class ForRangeRead extends ForRead<EndpointsForRange>
     {
         final AbstractBounds<PartitionPosition> range;
+        final int vnodeCount;
 
-        public ForRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, EndpointsForRange candidates, EndpointsForRange contact)
+        public ForRangeRead(Keyspace keyspace,
+                            ConsistencyLevel consistencyLevel,
+                            AbstractBounds<PartitionPosition> range,
+                            EndpointsForRange candidates,
+                            EndpointsForRange contact,
+                            int vnodeCount)
         {
             super(keyspace, consistencyLevel, candidates, contact);
             this.range = range;
+            this.vnodeCount = vnodeCount;
         }
 
         public AbstractBounds<PartitionPosition> range() { return range; }
 
+        /**
+         * @return number of vnode ranges covered by the range
+         */
+        public int vnodeCount() { return vnodeCount; }
+
         ForRangeRead withContact(EndpointsForRange newContact)
         {
-            return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact);
+            return new ForRangeRead(keyspace, consistencyLevel, range, candidates(), newContact, vnodeCount);
         }
     }
 
@@ -151,6 +160,10 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
         public E liveUncontacted() { return live().filter(r -> !contacts(r)); }
         /** Test liveness, consistent with the upfront analysis done for this operation (i.e. test membership of live()) */
         public boolean isAlive(Replica replica) { return live.endpoints().contains(replica.endpoint()); }
+        public Replica lookup(InetAddressAndPort endpoint)
+        {
+            return liveAndDown().byEndpoint().get(endpoint);
+        }
 
         public String toString()
         {

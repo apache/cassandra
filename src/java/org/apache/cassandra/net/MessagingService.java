@@ -19,11 +19,7 @@ package org.apache.cassandra.net;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -36,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -48,7 +43,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -213,6 +207,20 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
 
+    public enum Version
+    {
+        VERSION_30(10),
+        VERSION_3014(11),
+        VERSION_40(12);
+
+        public final int value;
+
+        Version(int value)
+        {
+            this.value = value;
+        }
+    }
+
     private static class MSHandle
     {
         public static final MessagingService instance = new MessagingService(false);
@@ -245,9 +253,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     final ResourceLimits.Limit outboundGlobalReserveLimit =
         new ResourceLimits.Concurrent(DatabaseDescriptor.getInternodeApplicationSendQueueReserveGlobalCapacityInBytes());
 
-    // back-pressure implementation
-    private final BackPressureStrategy backPressure = DatabaseDescriptor.getBackPressureStrategy();
-
     private volatile boolean isShuttingDown;
 
     @VisibleForTesting
@@ -274,7 +279,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb, ConnectionType specifyConnection)
     {
         callbacks.addWithExpiration(cb, message, to);
-        updateBackPressureOnSend(to, cb, message);
         if (cb.invokeOnFailure() && !message.callBackOnFailure())
             message = message.withCallBackOnFailure();
         send(message, to, specifyConnection);
@@ -295,7 +299,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         assert message.callBackOnFailure();
         callbacks.addWithExpiration(handler, message, to, handler.consistencyLevel(), allowHints);
-        updateBackPressureOnSend(to.endpoint(), handler, message);
         send(message, to.endpoint(), null);
     }
 
@@ -344,74 +347,6 @@ public final class MessagingService extends MessagingServiceMBeanImpl
                 channelManagers.remove(to, connections);
             }
         }
-    }
-
-    /**
-     * Updates the back-pressure state on sending to the given host if enabled and the given message callback supports it.
-     *
-     * @param host The replica host the back-pressure state refers to.
-     * @param callback The message callback.
-     * @param message The actual message.
-     */
-    void updateBackPressureOnSend(InetAddressAndPort host, RequestCallback callback, Message<?> message)
-    {
-        if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
-        {
-            BackPressureState backPressureState = getBackPressureState(host);
-            if (backPressureState != null)
-                backPressureState.onMessageSent(message);
-        }
-    }
-
-    /**
-     * Updates the back-pressure state on reception from the given host if enabled and the given message callback supports it.
-     *
-     * @param host The replica host the back-pressure state refers to.
-     * @param callback The message callback.
-     * @param timeout True if updated following a timeout, false otherwise.
-     */
-    void updateBackPressureOnReceive(InetAddressAndPort host, RequestCallback callback, boolean timeout)
-    {
-        if (DatabaseDescriptor.backPressureEnabled() && callback.supportsBackPressure())
-        {
-            BackPressureState backPressureState = getBackPressureState(host);
-            if (backPressureState == null)
-                return;
-            if (!timeout)
-                backPressureState.onResponseReceived();
-            else
-                backPressureState.onResponseTimeout();
-        }
-    }
-
-    /**
-     * Applies back-pressure for the given hosts, according to the configured strategy.
-     *
-     * If the local host is present, it is removed from the pool, as back-pressure is only applied
-     * to remote hosts.
-     *
-     * @param hosts The hosts to apply back-pressure to.
-     * @param timeoutInNanos The max back-pressure timeout.
-     */
-    public void applyBackPressure(Iterable<InetAddressAndPort> hosts, long timeoutInNanos)
-    {
-        if (DatabaseDescriptor.backPressureEnabled())
-        {
-            Set<BackPressureState> states = new HashSet<>();
-            for (InetAddressAndPort host : hosts)
-            {
-                if (host.equals(FBUtilities.getBroadcastAddressAndPort()))
-                    continue;
-                states.add(getOutbound(host).getBackPressureState());
-            }
-            //noinspection unchecked
-            backPressure.apply(states, timeoutInNanos, NANOSECONDS);
-        }
-    }
-
-    BackPressureState getBackPressureState(InetAddressAndPort host)
-    {
-        return getOutbound(host).getBackPressureState();
     }
 
     void markExpiredCallback(InetAddressAndPort addr)
@@ -496,10 +431,16 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
     public void shutdown(long timeout, TimeUnit units, boolean shutdownGracefully, boolean shutdownExecutors)
     {
+        if (isShuttingDown)
+        {
+            logger.info("Shutdown was already called");
+            return;
+        }
+
         isShuttingDown = true;
         logger.info("Waiting for messaging service to quiesce");
         // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
-        assert !StageManager.getStage(MUTATION).isShutdown();
+        assert !MUTATION.executor().isShutdown();
 
         if (shutdownGracefully)
         {
@@ -555,7 +496,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         OutboundConnections connections = channelManagers.get(to);
         if (connections == null)
-            connections = OutboundConnections.tryRegister(channelManagers, to, new OutboundConnectionSettings(to).withDefaults(ConnectionCategory.MESSAGING), backPressure.newState(to));
+            connections = OutboundConnections.tryRegister(channelManagers, to, new OutboundConnectionSettings(to).withDefaults(ConnectionCategory.MESSAGING));
         return connections;
     }
 

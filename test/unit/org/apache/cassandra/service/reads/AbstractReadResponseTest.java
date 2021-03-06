@@ -34,6 +34,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.BufferClusteringBound;
+import org.apache.cassandra.db.BufferClusteringBoundary;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundary;
 import org.apache.cassandra.db.ClusteringPrefix;
@@ -82,14 +84,18 @@ import static org.apache.cassandra.net.Verb.READ_REQ;
 public abstract class AbstractReadResponseTest
 {
     public static final String KEYSPACE1 = "DataResolverTest";
+    public static final String KEYSPACE3 = "DataResolverTest3";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_COLLECTION = "Collection1";
 
     public static Keyspace ks;
+    public static Keyspace ks3;
     public static ColumnFamilyStore cfs;
     public static ColumnFamilyStore cfs2;
+    public static ColumnFamilyStore cfs3;
     public static TableMetadata cfm;
     public static TableMetadata cfm2;
+    public static TableMetadata cfm3;
     public static ColumnMetadata m;
 
     public static DecoratedKey dk;
@@ -128,19 +134,32 @@ public abstract class AbstractReadResponseTest
                      .addRegularColumn("one", AsciiType.instance)
                      .addRegularColumn("two", AsciiType.instance);
 
+        TableMetadata.Builder builder3 =
+        TableMetadata.builder(KEYSPACE3, CF_STANDARD)
+                     .addPartitionKeyColumn("key", BytesType.instance)
+                     .addClusteringColumn("col1", AsciiType.instance)
+                     .addRegularColumn("c1", AsciiType.instance)
+                     .addRegularColumn("c2", AsciiType.instance)
+                     .addRegularColumn("one", AsciiType.instance)
+                     .addRegularColumn("two", AsciiType.instance);
+
         TableMetadata.Builder builder2 =
         TableMetadata.builder(KEYSPACE1, CF_COLLECTION)
                      .addPartitionKeyColumn("k", ByteType.instance)
                      .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true));
 
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), builder1, builder2);
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(2), builder1, builder2);
+        SchemaLoader.createKeyspace(KEYSPACE3, KeyspaceParams.simple(4), builder3);
 
         ks = Keyspace.open(KEYSPACE1);
         cfs = ks.getColumnFamilyStore(CF_STANDARD);
         cfm = cfs.metadata();
         cfs2 = ks.getColumnFamilyStore(CF_COLLECTION);
         cfm2 = cfs2.metadata();
+        ks3 = Keyspace.open(KEYSPACE3);
+        cfs3 = ks3.getColumnFamilyStore(CF_STANDARD);
+        cfm3 = cfs3.metadata();
         m = cfm2.getColumn(new ColumnIdentifier("m", false));
     }
 
@@ -260,18 +279,18 @@ public abstract class AbstractReadResponseTest
 
     public RangeTombstone tombstone(Object start, boolean inclusiveStart, Object end, boolean inclusiveEnd, long markedForDeleteAt, int localDeletionTime)
     {
-        ClusteringBound startBound = rtBound(start, true, inclusiveStart);
-        ClusteringBound endBound = rtBound(end, false, inclusiveEnd);
+        ClusteringBound<?> startBound = rtBound(start, true, inclusiveStart);
+        ClusteringBound<?> endBound = rtBound(end, false, inclusiveEnd);
         return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(markedForDeleteAt, localDeletionTime));
     }
 
-    public ClusteringBound rtBound(Object value, boolean isStart, boolean inclusive)
+    public ClusteringBound<?> rtBound(Object value, boolean isStart, boolean inclusive)
     {
         ClusteringBound.Kind kind = isStart
                                     ? (inclusive ? ClusteringPrefix.Kind.INCL_START_BOUND : ClusteringPrefix.Kind.EXCL_START_BOUND)
                                     : (inclusive ? ClusteringPrefix.Kind.INCL_END_BOUND : ClusteringPrefix.Kind.EXCL_END_BOUND);
 
-        return ClusteringBound.create(kind, cfm.comparator.make(value).getRawValues());
+        return BufferClusteringBound.create(kind, cfm.comparator.make(value).getBufferArray());
     }
 
     public ClusteringBoundary rtBoundary(Object value, boolean inclusiveOnEnd)
@@ -279,7 +298,7 @@ public abstract class AbstractReadResponseTest
         ClusteringBound.Kind kind = inclusiveOnEnd
                                     ? ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY
                                     : ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY;
-        return ClusteringBoundary.create(kind, cfm.comparator.make(value).getRawValues());
+        return BufferClusteringBoundary.create(kind, cfm.comparator.make(value).getBufferArray());
     }
 
     public RangeTombstoneBoundMarker marker(Object value, boolean isStart, boolean inclusive, long markedForDeleteAt, int localDeletionTime)

@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -34,7 +35,7 @@ public class UnfilteredDeserializer
 {
     protected final TableMetadata metadata;
     protected final DataInputPlus in;
-    protected final SerializationHelper helper;
+    protected final DeserializationHelper helper;
 
     private final ClusteringPrefix.Deserializer clusteringDeserializer;
     private final SerializationHeader header;
@@ -49,7 +50,7 @@ public class UnfilteredDeserializer
     private UnfilteredDeserializer(TableMetadata metadata,
                                    DataInputPlus in,
                                    SerializationHeader header,
-                                   SerializationHelper helper)
+                                   DeserializationHelper helper)
     {
         this.metadata = metadata;
         this.in = in;
@@ -62,7 +63,7 @@ public class UnfilteredDeserializer
     public static UnfilteredDeserializer create(TableMetadata metadata,
                                                 DataInputPlus in,
                                                 SerializationHeader header,
-                                                SerializationHelper helper)
+                                                DeserializationHelper helper)
     {
         return new UnfilteredDeserializer(metadata, in, header, helper);
     }
@@ -105,7 +106,7 @@ public class UnfilteredDeserializer
      * comparison. Whenever we know what to do with this atom (read it or skip it),
      * readNext or skipNext should be called.
      */
-    public int compareNextTo(ClusteringBound bound) throws IOException
+    public int compareNextTo(ClusteringBound<?> bound) throws IOException
     {
         if (!isReady)
             prepareNext();
@@ -134,7 +135,7 @@ public class UnfilteredDeserializer
         isReady = false;
         if (UnfilteredSerializer.kind(nextFlags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
         {
-            ClusteringBoundOrBoundary bound = clusteringDeserializer.deserializeNextBound();
+            ClusteringBoundOrBoundary<byte[]> bound = clusteringDeserializer.deserializeNextBound();
             return UnfilteredSerializer.serializer.deserializeMarkerBody(in, header, bound);
         }
         else

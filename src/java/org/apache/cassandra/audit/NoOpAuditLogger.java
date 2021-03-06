@@ -17,13 +17,20 @@
  */
 package org.apache.cassandra.audit;
 
+import java.util.Map;
+
 /**
  * No-Op implementation of {@link IAuditLogger} to be used as a default audit logger when audit logging is disabled.
  */
 public class NoOpAuditLogger implements IAuditLogger
 {
+    public NoOpAuditLogger(Map<String, String> params)
+    {
+
+    }
+
     @Override
-    public boolean enabled()
+    public boolean isEnabled()
     {
         return false;
     }

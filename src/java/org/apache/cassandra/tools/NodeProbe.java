@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.MalformedObjectNameException;
@@ -58,14 +59,16 @@ import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.HintedHandOffManagerMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.GossiperMBean;
-import org.apache.cassandra.db.HintedHandOffManager;
+import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.hints.HintsServiceMBean;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -96,6 +99,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * JMX client operations for Cassandra.
@@ -113,22 +117,24 @@ public class NodeProbe implements AutoCloseable
     private String username;
     private String password;
 
-    private JMXConnector jmxc;
-    private MBeanServerConnection mbeanServerConn;
-    private CompactionManagerMBean compactionProxy;
-    private StorageServiceMBean ssProxy;
-    private GossiperMBean gossProxy;
-    private MemoryMXBean memProxy;
-    private GCInspectorMXBean gcProxy;
-    private RuntimeMXBean runtimeProxy;
-    private StreamManagerMBean streamProxy;
-    public MessagingServiceMBean msProxy;
-    private FailureDetectorMBean fdProxy;
-    private CacheServiceMBean cacheService;
-    private StorageProxyMBean spProxy;
-    private HintedHandOffManagerMBean hhProxy;
-    private BatchlogManagerMBean bmProxy;
-    private ActiveRepairServiceMBean arsProxy;
+
+    protected JMXConnector jmxc;
+    protected MBeanServerConnection mbeanServerConn;
+    protected CompactionManagerMBean compactionProxy;
+    protected StorageServiceMBean ssProxy;
+    protected GossiperMBean gossProxy;
+    protected MemoryMXBean memProxy;
+    protected GCInspectorMXBean gcProxy;
+    protected RuntimeMXBean runtimeProxy;
+    protected StreamManagerMBean streamProxy;
+    protected MessagingServiceMBean msProxy;
+    protected FailureDetectorMBean fdProxy;
+    protected CacheServiceMBean cacheService;
+    protected StorageProxyMBean spProxy;
+    protected HintsServiceMBean hsProxy;
+    protected BatchlogManagerMBean bmProxy;
+    protected ActiveRepairServiceMBean arsProxy;
+    protected Output output;
     private boolean failed;
 
     /**
@@ -147,6 +153,7 @@ public class NodeProbe implements AutoCloseable
         this.port = port;
         this.username = username;
         this.password = password;
+        this.output = Output.CONSOLE;
         connect();
     }
 
@@ -161,6 +168,7 @@ public class NodeProbe implements AutoCloseable
     {
         this.host = host;
         this.port = port;
+        this.output = Output.CONSOLE;
         connect();
     }
 
@@ -174,7 +182,16 @@ public class NodeProbe implements AutoCloseable
     {
         this.host = host;
         this.port = defaultPort;
+        this.output = Output.CONSOLE;
         connect();
+    }
+
+    protected NodeProbe()
+    {
+        // this constructor is only used for extensions to rewrite their own connect method
+        this.host = "";
+        this.port = 0;
+        this.output = Output.CONSOLE;
     }
 
     /**
@@ -182,10 +199,10 @@ public class NodeProbe implements AutoCloseable
      *
      * @throws IOException on connection failures
      */
-    private void connect() throws IOException
+    protected void connect() throws IOException
     {
         JMXServiceURL jmxUrl = new JMXServiceURL(String.format(fmtUrl, host, port));
-        Map<String,Object> env = new HashMap<String,Object>();
+        Map<String, Object> env = new HashMap<String, Object>();
         if (username != null)
         {
             String[] creds = { username, password };
@@ -213,8 +230,8 @@ public class NodeProbe implements AutoCloseable
             cacheService = JMX.newMBeanProxy(mbeanServerConn, name, CacheServiceMBean.class);
             name = new ObjectName(StorageProxy.MBEAN_NAME);
             spProxy = JMX.newMBeanProxy(mbeanServerConn, name, StorageProxyMBean.class);
-            name = new ObjectName(HintedHandOffManager.MBEAN_NAME);
-            hhProxy = JMX.newMBeanProxy(mbeanServerConn, name, HintedHandOffManagerMBean.class);
+            name = new ObjectName(HintsService.MBEAN_NAME);
+            hsProxy = JMX.newMBeanProxy(mbeanServerConn, name, HintsServiceMBean.class);
             name = new ObjectName(GCInspector.MBEAN_NAME);
             gcProxy = JMX.newMBeanProxy(mbeanServerConn, name, GCInspectorMXBean.class);
             name = new ObjectName(Gossiper.MBEAN_NAME);
@@ -257,6 +274,16 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public void setOutput(Output output)
+    {
+        this.output = output;
+    }
+
+    public Output output()
+    {
+        return output;
+    }
+
     public int forceKeyspaceCleanup(int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.forceKeyspaceCleanup(jobs, keyspaceName, tables);
@@ -285,7 +312,7 @@ public class NodeProbe implements AutoCloseable
     private void checkJobs(PrintStream out, int jobs)
     {
         // TODO this should get the configured number of concurrent_compactors via JMX and not using DatabaseDescriptor
-        DatabaseDescriptor.toolInitialization();
+        DatabaseDescriptor.toolInitialization(false); // if running in dtest, this would fail if true (default)
         if (jobs > DatabaseDescriptor.getConcurrentCompactors())
             out.println(String.format("jobs (%d) is bigger than configured concurrent_compactors (%d) on this host, using at most %d threads", jobs, DatabaseDescriptor.getConcurrentCompactors(), DatabaseDescriptor.getConcurrentCompactors()));
     }
@@ -398,20 +425,22 @@ public class NodeProbe implements AutoCloseable
         RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
         try
         {
-            jmxc.addConnectionNotificationListener(runner, null, null);
+            if (jmxc != null)
+                jmxc.addConnectionNotificationListener(runner, null, null);
             ssProxy.addNotificationListener(runner, null, null);
             runner.run();
         }
         catch (Exception e)
         {
-            throw new IOException(e) ;
+            throw new IOException(e);
         }
         finally
         {
             try
             {
                 ssProxy.removeNotificationListener(runner);
-                jmxc.removeConnectionNotificationListener(runner);
+                if (jmxc != null)
+                    jmxc.removeConnectionNotificationListener(runner);
             }
             catch (Throwable e)
             {
@@ -515,6 +544,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.effectiveOwnershipWithPort(keyspace);
     }
 
+    public MBeanServerConnection getMbeanServerConn()
+    {
+        return mbeanServerConn;
+    }
+
     public CacheServiceMBean getCacheServiceMBean()
     {
         String cachePath = "org.apache.cassandra.db:type=Caches";
@@ -605,6 +639,16 @@ public class NodeProbe implements AutoCloseable
     public MemoryUsage getHeapMemoryUsage()
     {
         return memProxy.getHeapMemoryUsage();
+    }
+
+    public long getSnapshotLinksPerSecond()
+    {
+        return ssProxy.getSnapshotLinksPerSecond();
+    }
+
+    public void setSnapshotLinksPerSecond(long throttle)
+    {
+        ssProxy.setSnapshotLinksPerSecond(throttle);
     }
 
     /**
@@ -775,34 +819,18 @@ public class NodeProbe implements AutoCloseable
 
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)
     {
-        try
-        {
-            String keyCachePath = "org.apache.cassandra.db:type=Caches";
-            CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
-            cacheMBean.setKeyCacheCapacityInMB(keyCacheCapacity);
-            cacheMBean.setRowCacheCapacityInMB(rowCacheCapacity);
-            cacheMBean.setCounterCacheCapacityInMB(counterCacheCapacity);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CacheServiceMBean cacheMBean = getCacheServiceMBean();
+        cacheMBean.setKeyCacheCapacityInMB(keyCacheCapacity);
+        cacheMBean.setRowCacheCapacityInMB(rowCacheCapacity);
+        cacheMBean.setCounterCacheCapacityInMB(counterCacheCapacity);
     }
 
     public void setCacheKeysToSave(int keyCacheKeysToSave, int rowCacheKeysToSave, int counterCacheKeysToSave)
     {
-        try
-        {
-            String keyCachePath = "org.apache.cassandra.db:type=Caches";
-            CacheServiceMBean cacheMBean = JMX.newMBeanProxy(mbeanServerConn, new ObjectName(keyCachePath), CacheServiceMBean.class);
-            cacheMBean.setKeyCacheKeysToSave(keyCacheKeysToSave);
-            cacheMBean.setRowCacheKeysToSave(rowCacheKeysToSave);
-            cacheMBean.setCounterCacheKeysToSave(counterCacheKeysToSave);
-        }
-        catch (MalformedObjectNameException e)
-        {
-            throw new RuntimeException(e);
-        }
+        CacheServiceMBean cacheMBean = getCacheServiceMBean();
+        cacheMBean.setKeyCacheKeysToSave(keyCacheKeysToSave);
+        cacheMBean.setRowCacheKeysToSave(rowCacheKeysToSave);
+        cacheMBean.setCounterCacheKeysToSave(counterCacheKeysToSave);
     }
 
     public void setHintedHandoffThrottleInKB(int throttleInKB)
@@ -818,11 +846,6 @@ public class NodeProbe implements AutoCloseable
     public List<InetAddress> getEndpoints(String keyspace, String cf, String key)
     {
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);
-    }
-
-    public List<String> getReplicas(String keyspace, String cf, String key)
-    {
-        return ssProxy.getReplicas(keyspace, cf, key);
     }
 
     public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)
@@ -926,6 +949,10 @@ public class NodeProbe implements AutoCloseable
         return spProxy;
     }
 
+    public StorageServiceMBean getStorageService() {
+        return ssProxy;
+    }
+
     public GossiperMBean getGossProxy()
     {
         return gossProxy;
@@ -1009,29 +1036,22 @@ public class NodeProbe implements AutoCloseable
 
     public void pauseHintsDelivery()
     {
-        hhProxy.pauseHintsDelivery(true);
+        hsProxy.pauseDispatch();
     }
 
     public void resumeHintsDelivery()
     {
-        hhProxy.pauseHintsDelivery(false);
+        hsProxy.resumeDispatch();
     }
 
     public void truncateHints(final String host)
     {
-        hhProxy.deleteHintsForEndpoint(host);
+        hsProxy.deleteAllHintsForEndpoint(host);
     }
 
     public void truncateHints()
     {
-        try
-        {
-            hhProxy.truncateAllHints();
-        }
-        catch (ExecutionException | InterruptedException e)
-        {
-            throw new RuntimeException("Error while executing truncate hints", e);
-        }
+        hsProxy.deleteAllHints();
     }
 
     public void refreshSizeEstimates()
@@ -1158,6 +1178,8 @@ public class NodeProbe implements AutoCloseable
                 return ssProxy.getInternodeTcpConnectTimeoutInMS();
             case "internodeuser":
                 return ssProxy.getInternodeTcpUserTimeoutInMS();
+            case "internodestreaminguser":
+                return ssProxy.getInternodeStreamingTcpUserTimeoutInMS();
             default:
                 throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");
         }
@@ -1194,9 +1216,9 @@ public class NodeProbe implements AutoCloseable
         ssProxy.loadNewSSTables(ksName, cfName);
     }
 
-    public List<String> importNewSSTables(String ksName, String cfName, Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
+    public List<String> importNewSSTables(String ksName, String cfName, Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify, boolean copyData)
     {
-        return getCfsProxy(ksName, cfName).importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify);
+        return getCfsProxy(ksName, cfName).importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify, copyData);
     }
 
     public void rebuildIndex(String ksName, String cfName, String... idxNames)
@@ -1247,6 +1269,9 @@ public class NodeProbe implements AutoCloseable
                 break;
             case "internodeuser":
                 ssProxy.setInternodeTcpUserTimeoutInMS((int) value);
+                break;
+            case "internodestreaminguser":
+                ssProxy.setInternodeStreamingTcpUserTimeoutInMS((int) value);
                 break;
             default:
                 throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");
@@ -1306,6 +1331,11 @@ public class NodeProbe implements AutoCloseable
     public boolean isFailed()
     {
         return failed;
+    }
+
+    public void failed()
+    {
+        this.failed = true;
     }
 
     public long getReadRepairAttempted()
@@ -1590,7 +1620,7 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Retrieve Proxy metrics
-     * @param connections, connectedNativeClients, connectedNativeClientsByUser, clientsByProtocolVersion
+     * @param metricName
      */
     public Object getClientMetric(String metricName)
     {
@@ -1633,26 +1663,26 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
+    public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxHistogramMBean metric)
     {
-        return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+        return new Double[]{ metric.get50thPercentile(),
+                Double.valueOf(metric.get75thPercentile()),
+                Double.valueOf(metric.get95thPercentile()),
+                Double.valueOf(metric.get98thPercentile()),
+                Double.valueOf(metric.get99thPercentile()),
+                Double.valueOf(metric.getMin()),
+                Double.valueOf(metric.getMax())};
     }
 
-    public double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxTimerMBean metric)
+    public Double[] metricPercentilesAsArray(CassandraMetricsRegistry.JmxTimerMBean metric)
     {
-        return new double[]{ metric.get50thPercentile(),
-                metric.get75thPercentile(),
-                metric.get95thPercentile(),
-                metric.get98thPercentile(),
-                metric.get99thPercentile(),
-                metric.getMin(),
-                metric.getMax()};
+        return new Double[]{ Double.valueOf(metric.get50thPercentile()),
+                             Double.valueOf(metric.get75thPercentile()),
+                             Double.valueOf(metric.get95thPercentile()),
+                             Double.valueOf(metric.get98thPercentile()),
+                             Double.valueOf(metric.get99thPercentile()),
+                             Double.valueOf(metric.getMin()),
+                             Double.valueOf(metric.getMax())};
     }
 
     public TabularData getCompactionHistory()
@@ -1673,7 +1703,7 @@ public class NodeProbe implements AutoCloseable
         }
         catch (Exception e)
         {
-          throw new RuntimeException("Error setting log for " + classQualifier +" on level " + level +". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
+            throw new RuntimeException("Error setting log for " + classQualifier + " on level " + level + ". Please check logback configuration and ensure to have <jmxConfigurator /> set", e);
         }
     }
 
@@ -1682,12 +1712,18 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getLoggingLevels();
     }
 
+    public long getPid()
+    {
+        return NativeLibrary.getProcessID();
+    }
+
     public void resumeBootstrap(PrintStream out) throws IOException
     {
         BootstrapMonitor monitor = new BootstrapMonitor(out);
         try
         {
-            jmxc.addConnectionNotificationListener(monitor, null, null);
+            if (jmxc != null)
+                jmxc.addConnectionNotificationListener(monitor, null, null);
             ssProxy.addNotificationListener(monitor, null, null);
             if (ssProxy.resumeBootstrap())
             {
@@ -1708,13 +1744,24 @@ public class NodeProbe implements AutoCloseable
             try
             {
                 ssProxy.removeNotificationListener(monitor);
-                jmxc.removeConnectionNotificationListener(monitor);
+                if (jmxc != null)
+                    jmxc.removeConnectionNotificationListener(monitor);
             }
             catch (Throwable e)
             {
                 out.println("Exception occurred during clean-up. " + e);
             }
         }
+    }
+
+    public Map<String, List<Integer>> getMaximumPoolSizes(List<String> stageNames)
+    {
+        return ssProxy.getConcurrency(stageNames);
+    }
+
+    public void setConcurrency(String stageName, int coreThreads, int maxConcurrency)
+    {
+        ssProxy.setConcurrency(stageName, coreThreads, maxConcurrency);
     }
 
     public void replayBatchlog() throws IOException
@@ -1755,15 +1802,20 @@ public class NodeProbe implements AutoCloseable
     {
         ssProxy.clearConnectionHistory();
     }
-    
+
     public void disableAuditLog()
     {
         ssProxy.disableAuditLog();
     }
 
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
+    {
+        ssProxy.enableAuditLog(loggerName, parameters, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+    }
+
     public void enableAuditLog(String loggerName, String includedKeyspaces ,String excludedKeyspaces ,String includedCategories ,String excludedCategories ,String includedUsers ,String excludedUsers)
     {
-        ssProxy.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
+        this.enableAuditLog(loggerName, Collections.emptyMap(), includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories, includedUsers, excludedUsers);
     }
 
     public void enableOldProtocolVersions()
@@ -1774,6 +1826,31 @@ public class NodeProbe implements AutoCloseable
     public void disableOldProtocolVersions()
     {
         ssProxy.disableNativeTransportOldProtocolVersions();
+	}
+
+    public MessagingServiceMBean getMessagingServiceProxy()
+    {
+        return msProxy;
+    }
+
+    public void enableFullQueryLogger(String path, String rollCycle, Boolean blocking, int maxQueueWeight, long maxLogSize, @Nullable String archiveCommand, int maxArchiveRetries)
+    {
+        ssProxy.enableFullQueryLogger(path, rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
+    }
+
+    public void stopFullQueryLogger()
+    {
+        ssProxy.stopFullQueryLogger();
+    }
+
+    public void resetFullQueryLogger()
+    {
+        ssProxy.resetFullQueryLogger();
+    }
+
+    public FullQueryLoggerOptions getFullQueryLoggerOptions()
+    {
+        return FullQueryLoggerOptionsCompositeData.fromCompositeData(ssProxy.getFullQueryLoggerOptions());
     }
 }
 

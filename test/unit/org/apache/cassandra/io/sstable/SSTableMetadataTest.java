@@ -38,7 +38,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.Util.getBytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -52,7 +51,7 @@ public class SSTableMetadataTest
     public static final String CF_COUNTER1 = "Counter1";
 
     @BeforeClass
-    public static void defineSchema() throws Exception
+    public static void defineSchema()
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
@@ -221,6 +220,9 @@ public class SSTableMetadataTest
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "7col149");
+            // make sure the clustering values are minimised
+            assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
+            assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
         }
         String key = "row2";
 
@@ -240,6 +242,9 @@ public class SSTableMetadataTest
         {
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().minClusteringValues.get(0)), "0col100");
             assertEquals(ByteBufferUtil.string(sstable.getSSTableMetadata().maxClusteringValues.get(0)), "9col298");
+            // and make sure the clustering values are still minimised after compaction
+            assertTrue(sstable.getSSTableMetadata().minClusteringValues.get(0).capacity() < 50);
+            assertTrue(sstable.getSSTableMetadata().maxClusteringValues.get(0).capacity() < 50);
         }
     }
 

@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
+
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -130,7 +132,7 @@ public class StreamingTransferTest
             {
                 fail();
             }
-        });
+        }, MoreExecutors.directExecutor());
         // should be complete immediately
         futureResult.get(100, TimeUnit.MILLISECONDS);
     }
@@ -210,7 +212,7 @@ public class StreamingTransferTest
             assert !Util.getAll(Util.cmd(cfs, key).build()).isEmpty();
             ImmutableBTreePartition partition = partitions.get(i);
             assert ByteBufferUtil.compareUnsigned(partition.partitionKey().getKey(), ByteBufferUtil.bytes(key)) == 0;
-            assert ByteBufferUtil.compareUnsigned(partition.iterator().next().clustering().get(0), ByteBufferUtil.bytes(col)) == 0;
+            assert ByteBufferUtil.compareUnsigned(partition.iterator().next().clustering().bufferAt(0), ByteBufferUtil.bytes(col)) == 0;
         }
 
         // and that the max timestamp for the file was rediscovered
@@ -373,7 +375,7 @@ public class StreamingTransferTest
 
         Row r = Util.getOnlyRow(Util.cmd(cfs).build());
         Assert.assertFalse(r.isEmpty());
-        Assert.assertTrue(1 == Int32Type.instance.compose(r.clustering().get(0)));
+        Assert.assertTrue(1 == Int32Type.instance.compose(r.clustering().bufferAt(0)));
     }
 
     @Test

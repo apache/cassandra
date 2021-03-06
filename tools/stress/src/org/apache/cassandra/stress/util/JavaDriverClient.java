@@ -17,16 +17,19 @@
  */
 package org.apache.cassandra.stress.util;
 
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
 import com.datastax.driver.core.policies.TokenAwarePolicy;
 import com.datastax.driver.core.policies.WhiteListPolicy;
+import com.datastax.shaded.netty.channel.socket.SocketChannel;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.config.EncryptionOptions;
@@ -54,7 +57,6 @@ public class JavaDriverClient
     private Cluster cluster;
     private Session session;
     private final LoadBalancingPolicy loadBalancingPolicy;
-    private final boolean allowServerPortDiscovery;
 
     private static final ConcurrentMap<String, PreparedStatement> stmts = new ConcurrentHashMap<>();
 
@@ -71,10 +73,9 @@ public class JavaDriverClient
         this.username = settings.mode.username;
         this.password = settings.mode.password;
         this.authProvider = settings.mode.authProvider;
-        this.encryptionOptions = encryptionOptions;
+        this.encryptionOptions = new EncryptionOptions(encryptionOptions).applyConfig();
         this.loadBalancingPolicy = loadBalancingPolicy(settings);
         this.connectionsPerHost = settings.mode.connectionsPerHost == null ? 8 : settings.mode.connectionsPerHost;
-        this.allowServerPortDiscovery = settings.node.allowServerPortDiscovery;
 
         int maxThreadCount = 0;
         if (settings.rate.auto)
@@ -136,19 +137,30 @@ public class JavaDriverClient
                                                 .withoutJMXReporting()
                                                 .withProtocolVersion(protocolVersion)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
-        if (allowServerPortDiscovery)
-            clusterBuilder = clusterBuilder.allowServerPortDiscovery();
 
         if (loadBalancingPolicy != null)
             clusterBuilder.withLoadBalancingPolicy(loadBalancingPolicy);
         clusterBuilder.withCompression(compression);
-        if (encryptionOptions.enabled)
+        if (encryptionOptions.isEnabled())
         {
             SSLContext sslContext;
             sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
-            SSLOptions sslOptions = JdkSSLOptions.builder()
-                                                 .withSSLContext(sslContext)
-                                                 .withCipherSuites(encryptionOptions.cipher_suites.toArray(new String[0])).build();
+
+            // Temporarily override newSSLEngine to set accepted protocols until it is added to
+            // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
+            RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
+            {
+                protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)
+                {
+                    SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
+
+                    String[] acceptedProtocols = encryptionOptions.acceptedProtocolsArray();
+                    if (acceptedProtocols != null && acceptedProtocols.length > 0)
+                        engine.setEnabledProtocols(acceptedProtocols);
+
+                    return engine;
+                }
+            };
             clusterBuilder.withSSL(sslOptions);
         }
 

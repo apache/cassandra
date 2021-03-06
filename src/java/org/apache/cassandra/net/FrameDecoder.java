@@ -56,7 +56,7 @@ import static org.apache.cassandra.utils.ByteBufferUtil.copyBytes;
  * 5. {@link FrameDecoderLegacyLZ4}
  *        LZ4 compression using standard LZ4 frame format; groups legacy messages (< 4.0) into frames
  */
-abstract class FrameDecoder extends ChannelInboundHandlerAdapter
+public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
 {
     private static final FrameProcessor NO_PROCESSOR =
         frame -> { throw new IllegalStateException("Frame processor invoked on an unregistered FrameDecoder"); };
@@ -64,7 +64,7 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
     private static final FrameProcessor CLOSED_PROCESSOR =
         frame -> { throw new IllegalStateException("Frame processor invoked on a closed FrameDecoder"); };
 
-    interface FrameProcessor
+    public interface FrameProcessor
     {
         /**
          * Frame processor that the frames should be handed off to.
@@ -75,10 +75,10 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
         boolean process(Frame frame) throws IOException;
     }
 
-    abstract static class Frame
+    public abstract static class Frame
     {
-        final boolean isSelfContained;
-        final int frameSize;
+        public final boolean isSelfContained;
+        public final int frameSize;
 
         Frame(boolean isSelfContained, int frameSize)
         {
@@ -99,9 +99,9 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
      * {@link Message} is contained in the payload; it can be relied upon that this partial {@link Message}
      * will only be delivered in its own unique {@link Frame}.
      */
-    final static class IntactFrame extends Frame
+    public final static class IntactFrame extends Frame
     {
-        final ShareableBytes contents;
+        public final ShareableBytes contents;
 
         IntactFrame(boolean isSelfContained, ShareableBytes contents)
         {
@@ -119,7 +119,7 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             return !contents.hasRemaining();
         }
 
-        void consume()
+        public void consume()
         {
             contents.consume();
         }
@@ -136,9 +136,10 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
      * A recoverable {@link CorruptFrame} can be considered unrecoverable by {@link InboundMessageHandler}
      * if it's the first frame of a large message (isn't self contained).
      */
-    final static class CorruptFrame extends Frame
+    public final static class CorruptFrame extends Frame
     {
-        final int readCRC, computedCRC;
+        public final int readCRC;
+        public final int computedCRC;
 
         CorruptFrame(boolean isSelfContained, int frameSize, int readCRC, int computedCRC)
         {
@@ -157,7 +158,7 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             return new CorruptFrame(false, Integer.MIN_VALUE, readCRC, computedCRC);
         }
 
-        boolean isRecoverable()
+        public boolean isRecoverable()
         {
             return frameSize != Integer.MIN_VALUE;
         }
@@ -192,7 +193,7 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
     /**
      * For use by InboundMessageHandler (or other upstream handlers) that want to start receiving frames.
      */
-    void activate(FrameProcessor processor)
+    public void activate(FrameProcessor processor)
     {
         if (this.processor != NO_PROCESSOR)
             throw new IllegalStateException("Attempted to activate an already active FrameDecoder");
@@ -235,7 +236,7 @@ abstract class FrameDecoder extends ChannelInboundHandlerAdapter
      * For use by InboundMessageHandler (or other upstream handlers) that want to permanently
      * stop receiving frames, e.g. because of an exception caught.
      */
-    void discard()
+    public void discard()
     {
         isActive = false;
         processor = CLOSED_PROCESSOR;

@@ -51,6 +51,7 @@ public class VirtualTableTest extends CQLTester
     private static final String KS_NAME = "test_virtual_ks";
     private static final String VT1_NAME = "vt1";
     private static final String VT2_NAME = "vt2";
+    private static final String VT3_NAME = "vt3";
 
     private static class WritableVirtualTable extends AbstractVirtualTable
     {
@@ -80,10 +81,10 @@ public class VirtualTableTest extends CQLTester
         {
             String key = (String) metadata().partitionKeyType.compose(update.partitionKey().getKey());
             update.forEach(row ->
-            {
-                Integer value = Int32Type.instance.compose(row.getCell(valueColumn).value());
-                backingMap.put(key, value);
-            });
+                           {
+                               Integer value = Int32Type.instance.compose(row.getCell(valueColumn).buffer());
+                               backingMap.put(key, value);
+                           });
         }
     }
 
@@ -91,13 +92,13 @@ public class VirtualTableTest extends CQLTester
     public static void setUpClass()
     {
         TableMetadata vt1Metadata =
-            TableMetadata.builder(KS_NAME, VT1_NAME)
-                         .kind(TableMetadata.Kind.VIRTUAL)
-                         .addPartitionKeyColumn("pk", UTF8Type.instance)
-                         .addClusteringColumn("c", UTF8Type.instance)
-                         .addRegularColumn("v1", Int32Type.instance)
-                         .addRegularColumn("v2", LongType.instance)
-                         .build();
+        TableMetadata.builder(KS_NAME, VT1_NAME)
+                     .kind(TableMetadata.Kind.VIRTUAL)
+                     .addPartitionKeyColumn("pk", UTF8Type.instance)
+                     .addClusteringColumn("c", UTF8Type.instance)
+                     .addRegularColumn("v1", Int32Type.instance)
+                     .addRegularColumn("v2", LongType.instance)
+                     .build();
 
         SimpleDataSet vt1data = new SimpleDataSet(vt1Metadata);
 
@@ -117,7 +118,30 @@ public class VirtualTableTest extends CQLTester
         };
         VirtualTable vt2 = new WritableVirtualTable(KS_NAME, VT2_NAME);
 
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2)));
+        TableMetadata vt3Metadata =
+        TableMetadata.builder(KS_NAME, VT3_NAME)
+                     .kind(TableMetadata.Kind.VIRTUAL)
+                     .addPartitionKeyColumn("pk1", UTF8Type.instance)
+                     .addPartitionKeyColumn("pk2", UTF8Type.instance)
+                     .addClusteringColumn("ck1", UTF8Type.instance)
+                     .addClusteringColumn("ck2", UTF8Type.instance)
+                     .addRegularColumn("v1", Int32Type.instance)
+                     .addRegularColumn("v2", LongType.instance)
+                     .build();
+
+        SimpleDataSet vt3data = new SimpleDataSet(vt3Metadata);
+
+        vt3data.row("pk11", "pk11", "ck11", "ck11").column("v1", 1111).column("v2", 1111L)
+               .row("pk11", "pk11", "ck22", "ck22").column("v1", 1122).column("v2", 1122L);
+
+        VirtualTable vt3 = new AbstractVirtualTable(vt3Metadata)
+        {
+            public DataSet data()
+            {
+                return vt3data;
+            }
+        };
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3)));
 
         CQLTester.setUpClass();
     }
@@ -205,6 +229,23 @@ public class VirtualTableTest extends CQLTester
             assertRowsNet(executeNetWithPaging("SELECT count(*) FROM test_virtual_ks.vt1 WHERE token(pk) = token('pk2') AND c < 'c3' ALLOW FILTERING", pageSize),
                           row(2L));
         }
+    }
+
+    @Test
+    public void testQueriesOnTableWithMultiplePks() throws Throwable
+    {
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt3 WHERE pk1 = 'UNKNOWN' AND pk2 = 'UNKNOWN'"));
+
+        assertRowsNet(executeNet("SELECT * FROM test_virtual_ks.vt3 WHERE pk1 = 'pk11' AND pk2 = 'pk22' AND ck1 = 'UNKNOWN'"));
+
+        // Test DISTINCT query
+        assertRowsNet(executeNet("SELECT DISTINCT pk1, pk2 FROM test_virtual_ks.vt3"),
+                      row("pk11", "pk11"));
+
+        // Test single partition queries
+        assertRowsNet(executeNet("SELECT v1, v2 FROM test_virtual_ks.vt3 WHERE pk1 = 'pk11' AND pk2 = 'pk11'"),
+                      row(1111, 1111L),
+                      row(1122, 1122L));
     }
 
     @Test

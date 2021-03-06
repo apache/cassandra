@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +51,7 @@ import io.netty.channel.Channel;
 import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import net.openhft.chronicle.core.util.ThrowingRunnable;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -57,7 +59,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageGenerator.UniformPayloadGenerator;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MonotonicClock;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Math.min;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -249,6 +251,9 @@ public class ConnectionBurnTest
             return result;
         }
 
+        /**
+         * Test connections with broken messages, live in-flight bytes updates, reconnect
+         */
         public void run() throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
         {
             Reporters reporters = new Reporters(endpoints, connections);
@@ -430,7 +435,7 @@ public class ConnectionBurnTest
                                         checkStoppedTo  .accept(endpoint, getConnections(endpoint, true ));
                                         checkStoppedFrom.accept(endpoint, getConnections(endpoint, false));
                                     }
-                                    long inUse = BufferPool.unsafeGetBytesInUse();
+                                    long inUse = BufferPools.forNetworking().usedSizeInBytes();
                                     if (inUse > 0)
                                     {
 //                                        try
@@ -622,7 +627,7 @@ public class ConnectionBurnTest
         }
     }
 
-    public static void test(GlobalInboundSettings inbound, OutboundConnectionSettings outbound) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    private void test(GlobalInboundSettings inbound, OutboundConnectionSettings outbound) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
     {
         MessageGenerator small = new UniformPayloadGenerator(0, 1, (1 << 15));
         MessageGenerator large = new UniformPayloadGenerator(0, 1, (1 << 16) + (1 << 15));
@@ -635,11 +640,26 @@ public class ConnectionBurnTest
             .endpoints(4)
             .inbound(inbound)
             .outbound(outbound)
-            .time(2L, TimeUnit.DAYS)
+            // change the following for a longer burn
+            .time(2L, TimeUnit.MINUTES)
             .build().run();
     }
 
     public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
+    {
+        setup();
+        new ConnectionBurnTest().test();
+    }
+
+    @BeforeClass
+    public static void setup()
+    {
+        // since CASSANDRA-15295, commitlog needs to be manually started.
+        CommitLog.instance.start();
+    }
+
+    @org.junit.Test
+    public void test() throws ExecutionException, InterruptedException, NoSuchFieldException, IllegalAccessException, TimeoutException
     {
         GlobalInboundSettings inboundSettings = new GlobalInboundSettings()
                                                 .withQueueCapacity(1 << 18)
@@ -652,5 +672,4 @@ public class ConnectionBurnTest
                               .withTcpUserTimeoutInMS(0));
         MessagingService.instance().socketFactory.shutdownNow();
     }
-
 }

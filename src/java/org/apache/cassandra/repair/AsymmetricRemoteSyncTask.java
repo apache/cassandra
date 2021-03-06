@@ -26,16 +26,16 @@ import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.messages.AsymmetricSyncRequest;
+import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.SYNC_REQ;
 
 /**
- * AsymmetricRemoteSyncTask sends {@link AsymmetricSyncRequest} to target node to repair(stream)
+ * AsymmetricRemoteSyncTask sends {@link SyncRequest} to target node to repair(stream)
  * data with other target replica.
  *
  * When AsymmetricRemoteSyncTask receives SyncComplete from the target, task completes.
@@ -50,10 +50,10 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
     public void startSync()
     {
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        AsymmetricSyncRequest request = new AsymmetricSyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind);
-        String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.fetchingNode, request.fetchFrom);
+        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, true);
+        String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         Tracing.traceRepair(message);
-        MessagingService.instance().send(Message.out(REPAIR_REQ, request), request.fetchingNode);
+        MessagingService.instance().send(Message.out(SYNC_REQ, request), request.src);
     }
 
     public void syncComplete(boolean success, List<SessionSummary> summaries)

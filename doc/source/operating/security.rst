@@ -54,7 +54,7 @@ cassandra.yaml. See `the java document on FIPS <https://docs.oracle.com/javase/8
 for more details.
 
 For information on generating the keystore and truststore files used in SSL communications, see the
-`java documentation on creating keystores <http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
+`java documentation on creating keystores <https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
 
 SSL Certificate Hot Reloading
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -276,7 +276,7 @@ providers are available; the first based on standard JMX security and the second
 Cassandra's own auth subsystem.
 
 The default settings for Cassandra make JMX accessible only from localhost. To enable remote JMX connections, edit
-``cassandra-env.sh`` (or ``cassandra-env.ps1`` on Windows) to change the ``LOCAL_JMX`` setting to ``yes``. Under the
+``cassandra-env.sh`` to change the ``LOCAL_JMX`` setting to ``no``. Under the
 standard configuration, when remote JMX connections are enabled, :ref:`standard JMX authentication <standard-jmx-auth>`
 is also switched on.
 
@@ -412,7 +412,7 @@ JMX With SSL
 ~~~~~~~~~~~~
 
 JMX SSL configuration is controlled by a number of system properties, some of which are optional. To turn on SSL, edit
-the relevant lines in ``cassandra-env.sh`` (or ``cassandra-env.ps1`` on Windows) to uncomment and set the values of these
+the relevant lines in ``cassandra-env.sh`` to uncomment and set the values of these
 properties as required:
 
 ``com.sun.management.jmxremote.ssl``

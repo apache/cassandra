@@ -21,12 +21,12 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.UUID;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.locator.ReplicaPlan;
+
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -54,11 +54,18 @@ import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
@@ -76,28 +83,42 @@ import static org.junit.Assert.assertTrue;
 
 public class DataResolverTest extends AbstractReadResponseTest
 {
-    public static final String KEYSPACE1 = "DataResolverTest";
-    public static final String CF_STANDARD = "Standard1";
-
     private ReadCommand command;
     private TestableReadRepair readRepair;
+    private Keyspace ks;
+    private ColumnFamilyStore cfs;
 
-    @Before
-    public void setup()
+    private EndpointsForRange makeReplicas(int num)
     {
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+
+        switch (num)
+        {
+            case 2:
+                ks = AbstractReadResponseTest.ks;
+                cfs = AbstractReadResponseTest.cfs;
+                break;
+            case 4:
+                ks = AbstractReadResponseTest.ks3;
+                cfs = AbstractReadResponseTest.cfs3;
+                break;
+            default:
+                throw new IllegalStateException("This test needs refactoring to cleanly support different replication factors");
+        }
+
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
         command.trackRepairedStatus();
         readRepair = new TestableReadRepair(command);
-    }
-
-    private static EndpointsForRange makeReplicas(int num)
-    {
+        Token token = Murmur3Partitioner.instance.getMinimumToken();
         EndpointsForRange.Builder replicas = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE, num);
         for (int i = 0; i < num; i++)
         {
             try
             {
-                replicas.add(ReplicaUtils.full(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) })));
+                InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, (byte) (i + 1) });
+                replicas.add(ReplicaUtils.full(endpoint));
+                StorageService.instance.getTokenMetadata().updateNormalToken(token = token.increaseSlightly(), endpoint);
+                Gossiper.instance.initializeNodeUnsafe(endpoint, UUID.randomUUID(), 1);
             }
             catch (UnknownHostException e)
             {
@@ -231,30 +252,30 @@ public class DataResolverTest extends AbstractReadResponseTest
 
         RangeTombstone tombstone1 = tombstone("1", "11", 1, nowInSec);
         RangeTombstone tombstone2 = tombstone("3", "31", 1, nowInSec);
-        PartitionUpdate update = new RowUpdateBuilder(cfm, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
+        PartitionUpdate update = new RowUpdateBuilder(cfm3, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
                                                                             .addRangeTombstone(tombstone2)
                                                                             .buildUpdate();
 
         InetAddressAndPort peer1 = replicas.get(0).endpoint();
-        UnfilteredPartitionIterator iter1 = iter(new RowUpdateBuilder(cfm, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
+        UnfilteredPartitionIterator iter1 = iter(new RowUpdateBuilder(cfm3, nowInSec, 1L, dk).addRangeTombstone(tombstone1)
                                                                                             .addRangeTombstone(tombstone2)
                                                                                             .buildUpdate());
         resolver.preprocess(response(command, peer1, iter1));
         // not covered by any range tombstone
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
-        UnfilteredPartitionIterator iter2 = iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("0")
+        UnfilteredPartitionIterator iter2 = iter(new RowUpdateBuilder(cfm3, nowInSec, 0L, dk).clustering("0")
                                                                                             .add("c1", "v0")
                                                                                             .buildUpdate());
         resolver.preprocess(response(command, peer2, iter2));
         // covered by a range tombstone
         InetAddressAndPort peer3 = replicas.get(2).endpoint();
-        UnfilteredPartitionIterator iter3 = iter(new RowUpdateBuilder(cfm, nowInSec, 0L, dk).clustering("10")
+        UnfilteredPartitionIterator iter3 = iter(new RowUpdateBuilder(cfm3, nowInSec, 0L, dk).clustering("10")
                                                                                             .add("c2", "v1")
                                                                                             .buildUpdate());
         resolver.preprocess(response(command, peer3, iter3));
         // range covered by rt, but newer
         InetAddressAndPort peer4 = replicas.get(3).endpoint();
-        UnfilteredPartitionIterator iter4 = iter(new RowUpdateBuilder(cfm, nowInSec, 2L, dk).clustering("3")
+        UnfilteredPartitionIterator iter4 = iter(new RowUpdateBuilder(cfm3, nowInSec, 2L, dk).clustering("3")
                                                                                             .add("one", "A")
                                                                                             .buildUpdate());
         resolver.preprocess(response(command, peer4, iter4));
@@ -681,7 +702,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             return rt;
 
         Slice slice = rt.deletedSlice();
-        ClusteringBound newStart = ClusteringBound.create(Kind.EXCL_START_BOUND, slice.start().getRawValues());
+        ClusteringBound<?> newStart = ClusteringBound.create(Kind.EXCL_START_BOUND, slice.start());
         return condition
                ? new RangeTombstone(Slice.make(newStart, slice.end()), rt.deletionTime())
                : rt;
@@ -694,7 +715,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             return rt;
 
         Slice slice = rt.deletedSlice();
-        ClusteringBound newEnd = ClusteringBound.create(Kind.EXCL_END_BOUND, slice.end().getRawValues());
+        ClusteringBound<?> newEnd = ClusteringBound.create(Kind.EXCL_END_BOUND, slice.end());
         return condition
                ? new RangeTombstone(Slice.make(slice.start(), newEnd), rt.deletionTime())
                : rt;
@@ -705,7 +726,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         return ByteBufferUtil.bytes(b);
     }
 
-    private Cell mapCell(int k, int v, long ts)
+    private Cell<?> mapCell(int k, int v, long ts)
     {
         return BufferCell.live(m, ts, bb(v), CellPath.create(bb(k)));
     }
@@ -731,7 +752,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
-        Cell expectedCell = mapCell(1, 1, ts[1]);
+        Cell<?> expectedCell = mapCell(1, 1, ts[1]);
         builder.addCell(expectedCell);
 
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
@@ -821,7 +842,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[0] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
-        Cell expectedCell = mapCell(0, 0, ts[0]);
+        Cell<?> expectedCell = mapCell(0, 0, ts[0]);
         builder.addCell(expectedCell);
 
         // empty map column
@@ -878,7 +899,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
-        Cell expectedCell = mapCell(1, 1, ts[1]);
+        Cell<?> expectedCell = mapCell(1, 1, ts[1]);
         builder.addCell(expectedCell);
 
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
@@ -1294,13 +1315,13 @@ public class DataResolverTest extends AbstractReadResponseTest
     private void assertRepairMetadata(Mutation mutation)
     {
         PartitionUpdate update = mutation.getPartitionUpdates().iterator().next();
-        assertEquals(update.metadata().keyspace, cfm.keyspace);
+        assertEquals(update.metadata().keyspace, ks.getName());
         assertEquals(update.metadata().name, cfm.name);
     }
 
     private ReplicaPlan.SharedForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas));
+        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas, 1));
     }
 
     private static void resolveAndConsume(DataResolver resolver)

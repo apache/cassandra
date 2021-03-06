@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Queue;
 import java.util.UUID;
 
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -72,6 +73,7 @@ public class CassandraEntireSSTableStreamWriterTest
     public static final String CF_STANDARDLOWINDEXINTERVAL = "StandardLowIndexInterval";
 
     private static SSTableReader sstable;
+    private static Descriptor descriptor;
     private static ColumnFamilyStore store;
 
     @BeforeClass
@@ -104,6 +106,7 @@ public class CassandraEntireSSTableStreamWriterTest
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();
+        descriptor = sstable.descriptor;
     }
 
     @Test
@@ -111,15 +114,18 @@ public class CassandraEntireSSTableStreamWriterTest
     {
         StreamSession session = setupStreamingSessionForTest();
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
-
         EmbeddedChannel channel = new EmbeddedChannel();
-        AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
-        writer.write(out);
+        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+             ComponentContext context = ComponentContext.create(descriptor))
+        {
+            CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
 
-        Queue msgs = channel.outboundMessages();
+            writer.write(out);
 
-        assertTrue(msgs.peek() instanceof DefaultFileRegion);
+            Queue msgs = channel.outboundMessages();
+
+            assertTrue(msgs.peek() instanceof DefaultFileRegion);
+        }
     }
 
     @Test
@@ -128,18 +134,19 @@ public class CassandraEntireSSTableStreamWriterTest
         StreamSession session = setupStreamingSessionForTest();
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
 
-        CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
 
         // This is needed as Netty releases the ByteBuffers as soon as the channel is flushed
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
-        AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+        try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
+             ComponentContext context = ComponentContext.create(descriptor))
+        {
+            CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
+            writer.write(out);
 
-        writer.write(out);
+            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
 
-        session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
-
-        CassandraStreamHeader header =
+            CassandraStreamHeader header =
             CassandraStreamHeader.builder()
                                  .withSSTableFormat(sstable.descriptor.formatType)
                                  .withSSTableVersion(sstable.descriptor.version)
@@ -147,18 +154,19 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withEstimatedKeys(sstable.estimatedKeys())
                                  .withSections(Collections.emptyList())
                                  .withSerializationHeader(sstable.header.toComponent())
-                                 .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                 .withComponentManifest(context.manifest())
                                  .isEntireSSTable(true)
                                  .withFirstKey(sstable.first)
                                  .withTableId(sstable.metadata().id)
                                  .build();
 
-        CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), 0, 0, 0, null), header, session);
+            CassandraEntireSSTableStreamReader reader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id, peer, session.planId(), false, 0, 0, 0, null), header, session);
 
-        SSTableMultiWriter sstableWriter = reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
-        Collection<SSTableReader> newSstables = sstableWriter.finished();
+            SSTableMultiWriter sstableWriter = reader.read(new DataInputBuffer(serializedFile.nioBuffer(), false));
+            Collection<SSTableReader> newSstables = sstableWriter.finished();
 
-        assertEquals(1, newSstables.size());
+            assertEquals(1, newSstables.size());
+        }
     }
 
     private EmbeddedChannel createMockNettyChannel(ByteBuf serializedFile) throws Exception
@@ -196,8 +204,8 @@ public class CassandraEntireSSTableStreamWriterTest
 
     private StreamSession setupStreamingSessionForTest()
     {
-        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.init(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
+        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
+        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));

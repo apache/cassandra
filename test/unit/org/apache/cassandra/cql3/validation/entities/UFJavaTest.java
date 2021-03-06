@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.validation.entities;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,8 +36,13 @@ import com.datastax.driver.core.TupleValue;
 import com.datastax.driver.core.UDTValue;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Schema;
@@ -56,7 +62,7 @@ public class UFJavaTest extends CQLTester
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS bigint " +
                                       "LANGUAGE JAVA\n" +
-                                      "AS '" +functionBody + "';");
+                                      "AS '" + functionBody + "';");
 
         assertRows(execute("SELECT language, body FROM system_schema.functions WHERE keyspace_name=? AND function_name=?",
                            KEYSPACE, parseFunctionName(fName).name),
@@ -476,7 +482,7 @@ public class UFJavaTest extends CQLTester
             {
                 List<Row> rowsNet = executeNet(version, "SELECT f_use1(udt) FROM %s WHERE key = 1").all();
                 Assert.assertEquals(1, rowsNet.size());
-                UDTValue udtVal = rowsNet.get(0).getUDTValue(0);
+                com.datastax.driver.core.UDTValue udtVal = rowsNet.get(0).getUDTValue(0);
                 Assert.assertEquals("one", udtVal.getString("txt"));
                 Assert.assertEquals(1, udtVal.getInt("i"));
             }
@@ -717,13 +723,15 @@ public class UFJavaTest extends CQLTester
                                   "(key int primary key, lst list<frozen<%s>>, st set<frozen<%s>>, mp map<int, frozen<%s>>)",
                                   type, type, type));
 
+        // The mix of the package names org.apache.cassandra.cql3.functions.types and com.datastax.driver.core is
+        // intentional to test the replacement of com.datastax.driver.core with org.apache.cassandra.cql3.functions.types.
         String fName1 = createFunction(KEYSPACE, "list<frozen<" + type + ">>",
                                        "CREATE FUNCTION %s( lst list<frozen<" + type + ">> ) " +
                                        "RETURNS NULL ON NULL INPUT " +
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
-                                       "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)lst.get(1);" +
+                                       "     org.apache.cassandra.cql3.functions.types.UDTValue udtVal = (com.datastax.driver.core.UDTValue)lst.get(1);" +
                                        "     return udtVal.getString(\"txt\");$$;");
         String fName2 = createFunction(KEYSPACE, "set<frozen<" + type + ">>",
                                        "CREATE FUNCTION %s( st set<frozen<" + type + ">> ) " +
@@ -731,7 +739,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
-                                       "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)st.iterator().next();" +
+                                       "     com.datastax.driver.core.UDTValue udtVal = (org.apache.cassandra.cql3.functions.types.UDTValue)st.iterator().next();" +
                                        "     return udtVal.getString(\"txt\");$$;");
         String fName3 = createFunction(KEYSPACE, "map<int, frozen<" + type + ">>",
                                        "CREATE FUNCTION %s( mp map<int, frozen<" + type + ">> ) " +
@@ -739,7 +747,7 @@ public class UFJavaTest extends CQLTester
                                        "RETURNS text " +
                                        "LANGUAGE java\n" +
                                        "AS $$" +
-                                       "     com.datastax.driver.core.UDTValue udtVal = (com.datastax.driver.core.UDTValue)mp.get(Integer.valueOf(3));" +
+                                       "     org.apache.cassandra.cql3.functions.types.UDTValue udtVal = (com.datastax.driver.core.UDTValue)mp.get(Integer.valueOf(3));" +
                                        "     return udtVal.getString(\"txt\");$$;");
 
         execute("INSERT INTO %s (key, lst, st, mp) values (1, " +
@@ -793,5 +801,62 @@ public class UFJavaTest extends CQLTester
                            "LANGUAGE JAVA\n" +
                            "AS 'return 0;'");
         }
+    }
+
+    @Test
+    public void testUDFToCqlString()
+    {
+        UDFunction function = UDFunction.create(new FunctionName("my_ks", "my_function"),
+                                                Arrays.asList(ColumnIdentifier.getInterned("column", false)),
+                                                Arrays.asList(UTF8Type.instance),
+                                                Int32Type.instance,
+                                                false,
+                                                "java",
+                                                "return 0;");
+
+        Assert.assertTrue(function.toCqlString(true, true).contains("CREATE FUNCTION IF NOT EXISTS"));
+        Assert.assertFalse(function.toCqlString(true, false).contains("CREATE FUNCTION IF NOT EXISTS"));
+
+        Assert.assertEquals(function.toCqlString(true, true), function.toCqlString(false, true));
+        Assert.assertEquals(function.toCqlString(true, false), function.toCqlString(false, false));
+    }
+
+    @Test
+    public void testUDAToCqlString() throws Throwable
+    {
+        // we have to create this function in DB otherwise UDAggregate creation below fails
+        String stateFunctionName = createFunction(KEYSPACE, "int,int",
+                                                  "CREATE OR REPLACE FUNCTION %s(state int, val int)\n" +
+                                                  "    CALLED ON NULL INPUT\n" +
+                                                  "    RETURNS int\n" +
+                                                  "    LANGUAGE java\n" +
+                                                  "    AS $$\n" +
+                                                  "        return state + val;\n" +
+                                                  "    $$;");
+
+        // Java representation of state function so we can construct aggregate programmatically
+        UDFunction stateFunction = UDFunction.create(new FunctionName(KEYSPACE, stateFunctionName.split("\\.")[1]),
+                                                     Arrays.asList(ColumnIdentifier.getInterned("state", false),
+                                                                   ColumnIdentifier.getInterned("val", false)),
+                                                     Arrays.asList(Int32Type.instance, Int32Type.instance),
+                                                     Int32Type.instance,
+                                                     true,
+                                                     "java",
+                                                     "return state + val;");
+
+        UDAggregate aggregate = UDAggregate.create(Collections.singleton(stateFunction),
+                                                   new FunctionName(KEYSPACE, "my_aggregate"),
+                                                   Collections.singletonList(Int32Type.instance),
+                                                   Int32Type.instance,
+                                                   new FunctionName(KEYSPACE, stateFunctionName.split("\\.")[1]),
+                                                   null,
+                                                   Int32Type.instance,
+                                                   null);
+
+        Assert.assertTrue(aggregate.toCqlString(true, true).contains("CREATE AGGREGATE IF NOT EXISTS"));
+        Assert.assertFalse(aggregate.toCqlString(true, false).contains("CREATE AGGREGATE IF NOT EXISTS"));
+
+        Assert.assertEquals(aggregate.toCqlString(true, true), aggregate.toCqlString(false, true));
+        Assert.assertEquals(aggregate.toCqlString(true, false), aggregate.toCqlString(false, false));
     }
 }

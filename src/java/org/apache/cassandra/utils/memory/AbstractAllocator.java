@@ -20,6 +20,9 @@ package org.apache.cassandra.utils.memory;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -32,13 +35,27 @@ public abstract class AbstractAllocator
      */
     public ByteBuffer clone(ByteBuffer buffer)
     {
-        assert buffer != null;
-        if (buffer.remaining() == 0)
+        return clone(buffer, ByteBufferAccessor.instance);
+    }
+
+    /**
+     * Allocate a slice of the given length.
+     */
+    public ByteBuffer clone(byte[] bytes)
+    {
+        return clone(bytes, ByteArrayAccessor.instance);
+    }
+
+    public <V> ByteBuffer clone(V value, ValueAccessor<V> accessor)
+    {
+        assert value != null;
+        int size = accessor.size(value);
+        if (size == 0)
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
-        ByteBuffer cloned = allocate(buffer.remaining());
+        ByteBuffer cloned = allocate(size);
 
         cloned.mark();
-        cloned.put(buffer.duplicate());
+        accessor.write(value, cloned);
         cloned.reset();
         return cloned;
     }
@@ -61,13 +78,13 @@ public abstract class AbstractAllocator
         }
 
         @Override
-        public void newRow(Clustering clustering)
+        public void newRow(Clustering<?> clustering)
         {
             super.newRow(clustering.copy(allocator));
         }
 
         @Override
-        public void addCell(Cell cell)
+        public void addCell(Cell<?> cell)
         {
             super.addCell(cell.copy(allocator));
         }

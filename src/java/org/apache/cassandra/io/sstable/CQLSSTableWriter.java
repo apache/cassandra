@@ -30,38 +30,28 @@ import java.util.SortedSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import com.datastax.driver.core.ProtocolVersion;
-import com.datastax.driver.core.TypeCodec;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.functions.UDHelper;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
+import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.schema.Functions;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.schema.Types;
-import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -247,7 +237,7 @@ public class CQLSSTableWriter implements Closeable
 
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
-        SortedSet<Clustering> clusterings = insert.createClustering(options);
+        SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
 
         long now = System.currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
@@ -264,7 +254,7 @@ public class CQLSSTableWriter implements Closeable
         {
             for (ByteBuffer key : keys)
             {
-                for (Clustering clustering : clusterings)
+                for (Clustering<?> clustering : clusterings)
                     insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
             }
             return this;
@@ -312,11 +302,11 @@ public class CQLSSTableWriter implements Closeable
      * @param dataType name of the User Defined type
      * @return user defined type
      */
-    public com.datastax.driver.core.UserType getUDType(String dataType)
+    public UserType getUDType(String dataType)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(insert.keyspace());
-        UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
-        return (com.datastax.driver.core.UserType) UDHelper.driverType(userType);
+        org.apache.cassandra.db.marshal.UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
+        return (UserType) UDHelper.driverType(userType);
     }
 
     /**
@@ -335,7 +325,7 @@ public class CQLSSTableWriter implements Closeable
         if (value == null || value == UNSET_VALUE)
             return (ByteBuffer) value;
 
-        return codec.serialize(value, ProtocolVersion.NEWEST_SUPPORTED);
+        return codec.serialize(value, ProtocolVersion.CURRENT);
     }
     /**
      * A Builder for a CQLSSTableWriter object.

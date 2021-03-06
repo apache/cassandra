@@ -19,7 +19,6 @@ package org.apache.cassandra.db.rows;
 
 import java.util.*;
 
-import com.google.common.hash.Hasher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +32,6 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.HashingUtils;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
@@ -72,12 +70,17 @@ public abstract class UnfilteredRowIterators
          * particular, this may be called in cases where there is no row in the merged output (if a source has a row
          * that is shadowed by another source range tombstone or partition level deletion).
          *
-         * @param merged the result of the merge. This cannot be {@code null} but can be empty, in which case this is a
-         * placeholder for when at least one source has a row, but that row is shadowed in the merged output.
+         * @param merged the result of the merge. This cannot be {@code null} (so that listener can always access the
+         * clustering from this safely)but can be empty, in which case this is a placeholder for when at least one
+         * source has a row, but that row is shadowed in the merged output.
          * @param versions for each source, the row in that source corresponding to {@code merged}. This can be
          * {@code null} for some sources if the source has not such row.
+         * @return the row to use as result of the merge (can be {@code null}). Most implementations should simply
+         * return {@code merged}, but this allows some implementations to impact the merge result if necessary. If this
+         * returns either {@code null} or an empty row, then the row is skipped from the merge result. If this returns a
+         * non {@code null} result, then the returned row <b>must</b> have the same clustering than {@code merged}.
          */
-        public void onMergedRows(Row merged, Row[] versions);
+        public Row onMergedRows(Row merged, Row[] versions);
 
         /**
          * Called once for every range tombstone marker participating in the merge.
@@ -100,7 +103,7 @@ public abstract class UnfilteredRowIterators
         {
             public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions) {}
 
-            public void onMergedRows(Row merged, Row[] versions) {}
+            public Row onMergedRows(Row merged, Row[] versions) {return merged;}
 
             public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions) {}
 
@@ -181,14 +184,14 @@ public abstract class UnfilteredRowIterators
      * Digests the partition represented by the provided iterator.
      *
      * @param iterator the iterator to digest.
-     * @param hasher the {@link Hasher} to use for the digest.
+     * @param digest the {@link Digest} to use.
      * @param version the messaging protocol to use when producing the digest.
      */
-    public static void digest(UnfilteredRowIterator iterator, Hasher hasher, int version)
+    public static void digest(UnfilteredRowIterator iterator, Digest digest, int version)
     {
-        HashingUtils.updateBytes(hasher, iterator.partitionKey().getKey().duplicate());
-        iterator.partitionLevelDeletion().digest(hasher);
-        iterator.columns().regulars.digest(hasher);
+        digest.update(iterator.partitionKey().getKey());
+        iterator.partitionLevelDeletion().digest(digest);
+        iterator.columns().regulars.digest(digest);
         // When serializing an iterator, we skip the static columns if the iterator has not static row, even if the
         // columns() object itself has some (the columns() is a superset of what the iterator actually contains, and
         // will correspond to the queried columns pre-serialization). So we must avoid taking the satic column names
@@ -200,14 +203,14 @@ public abstract class UnfilteredRowIterators
         // different), but removing them entirely is stricly speaking a breaking change (it would create mismatches on
         // upgrade) so we can only do on the next protocol version bump.
         if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
-            iterator.columns().statics.digest(hasher);
-        HashingUtils.updateWithBoolean(hasher, iterator.isReverseOrder());
-        iterator.staticRow().digest(hasher);
+            iterator.columns().statics.digest(digest);
+        digest.updateWithBoolean(iterator.isReverseOrder());
+        iterator.staticRow().digest(digest);
 
         while (iterator.hasNext())
         {
             Unfiltered unfiltered = iterator.next();
-            unfiltered.digest(hasher);
+            unfiltered.digest(digest);
         }
     }
 
@@ -491,9 +494,12 @@ public abstract class UnfilteredRowIterators
             Row merged = merger.merge(partitionDeletion);
             if (merged == null)
                 merged = Rows.EMPTY_STATIC_ROW;
-            if (listener != null)
-                listener.onMergedRows(merged, merger.mergedRows());
-            return merged;
+            if (listener == null)
+                return merged;
+
+            merged = listener.onMergedRows(merged, merger.mergedRows());
+            // Note that onMergedRows can have returned null even though his input wasn't null
+            return merged == null ? Rows.EMPTY_STATIC_ROW : merged;
         }
 
         private static RegularAndStaticColumns collectColumns(List<UnfilteredRowIterator> iterators)
@@ -569,9 +575,15 @@ public abstract class UnfilteredRowIterators
                 if (nextKind == Unfiltered.Kind.ROW)
                 {
                     Row merged = rowMerger.merge(markerMerger.activeDeletion());
-                    if (listener != null)
-                        listener.onMergedRows(merged == null ? BTreeRow.emptyRow(rowMerger.mergedClustering()) : merged, rowMerger.mergedRows());
-                    return merged;
+                    if (listener == null)
+                        return merged;
+
+                    merged = listener.onMergedRows(merged == null
+                                                   ? BTreeRow.emptyRow(rowMerger.mergedClustering())
+                                                   : merged,
+                                                   rowMerger.mergedRows());
+
+                    return merged == null || merged.isEmpty() ? null : merged;
                 }
                 else
                 {

@@ -240,6 +240,11 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         return DatabaseDescriptor.getRangeRpcTimeout(unit);
     }
 
+    public boolean isReversed()
+    {
+        return dataRange.isReversed();
+    }
+
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
     {
         return StorageProxy.getRangeSlice(this, consistency, queryStartNanoTime);
@@ -282,7 +287,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             if (inputCollector.isEmpty())
                 return EmptyIterators.unfilteredPartition(metadata());
 
-            return checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(inputCollector.finalizeIterators()), cfs);
+            return checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(inputCollector.finalizeIterators(cfs, nowInSec(), oldestUnrepairedTombstone)), cfs);
         }
         catch (RuntimeException | Error e)
         {

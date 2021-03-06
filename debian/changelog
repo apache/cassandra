@@ -1,8 +1,56 @@
-cassandra (4.0) UNRELEASED; urgency=medium
+cassandra (4.0~beta5) UNRELEASED; urgency=medium
 
   * New release
 
- -- Michael Shuler <michael@pbandjelly.org>  Wed, 15 Feb 2017 18:20:09 -0600
+ -- Mick Semb Wever <mck@apache.org>  Fri, 18 Dec 2020 18:32:45 +0100
+
+cassandra (4.0~beta4) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Fri, 18 Dec 2020 18:32:45 +0100
+
+cassandra (4.0~beta3) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Thu, 29 Oct 2020 12:59:30 +0100
+
+cassandra (4.0~beta2) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Fri, 28 Aug 2020 15:53:19 +0200
+
+cassandra (4.0~beta1) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org> Fri, 17 Jul 2020 23:22:24 +0200
+
+cassandra (4.0~alpha4) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Sat, 11 Apr 2020 00:27:13 +0200
+
+cassandra (4.0~alpha3) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Mon, 30 Jan 2020 19:28:04 +0100
+
+cassandra (4.0~alpha2) unstable; urgency=medium
+
+  * New release
+
+ -- Michael Shuler <mshuler@apache.org>  Thu, 24 Oct 2019 09:12:05 -0500
+
+cassandra (4.0~alpha1) unstable; urgency=medium
+
+  * New release
+
+ -- Michael Shuler <mshuler@apache.org>  Tue, 03 Sep 2019 11:51:18 -0500
 
 cassandra (3.10) unstable; urgency=medium
 

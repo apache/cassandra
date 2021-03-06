@@ -78,6 +78,12 @@ public class Commit
         return this.ballot.equals(ballot);
     }
 
+    /** Whether this is an empty commit, that is one with no updates. */
+    public boolean isEmpty()
+    {
+        return update.isEmpty();
+    }
+
     public Mutation makeMutation()
     {
         return new Mutation(update);
@@ -117,7 +123,7 @@ public class Commit
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
             UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
-            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL);
+            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, DeserializationHelper.Flag.LOCAL);
             return new Commit(ballot, update);
         }
 

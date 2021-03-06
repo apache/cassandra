@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -37,7 +38,7 @@ public class FinalizePromise extends RepairMessage
 
     public FinalizePromise(UUID sessionID, InetAddressAndPort participant, boolean promised)
     {
-        super(Type.FINALIZE_PROMISE, null);
+        super(null);
         assert sessionID != null;
         assert participant != null;
         this.sessionID = sessionID;
@@ -65,7 +66,7 @@ public class FinalizePromise extends RepairMessage
         return result;
     }
 
-    public static MessageSerializer serializer = new MessageSerializer<FinalizePromise>()
+    public static final IVersionedSerializer<FinalizePromise> serializer = new IVersionedSerializer<FinalizePromise>()
     {
         public void serialize(FinalizePromise msg, DataOutputPlus out, int version) throws IOException
         {

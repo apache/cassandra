@@ -34,6 +34,7 @@ import org.junit.Test;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
@@ -76,7 +77,7 @@ public class StreamTransferTaskTest
     public void testScheduleTimeout() throws Exception
     {
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, (template, messagingVersion) -> new EmbeddedChannel(), 0, UUID.randomUUID(), PreviewKind.ALL);
+        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, (template, messagingVersion) -> new EmbeddedChannel(), false, 0, UUID.randomUUID(), PreviewKind.ALL);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
         // create two sstables
@@ -87,6 +88,7 @@ public class StreamTransferTaskTest
         }
 
         // create streaming task that streams those two sstables
+        session.state(StreamSession.State.PREPARING);
         StreamTransferTask task = new StreamTransferTask(session, cfs.metadata.id);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
@@ -94,9 +96,10 @@ public class StreamTransferTaskTest
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, sstable.selfRef(), sstable.getPositionsForRanges(ranges), ranges, 1));
         }
-        assertEquals(2, task.getTotalNumberOfFiles());
+        assertEquals(14, task.getTotalNumberOfFiles());
 
         // if file sending completes before timeout then the task should be canceled.
+        session.state(StreamSession.State.STREAMING);
         Future f = task.scheduleTimeout(0, 0, TimeUnit.NANOSECONDS);
         f.get();
 
@@ -122,9 +125,9 @@ public class StreamTransferTaskTest
     public void testFailSessionDuringTransferShouldNotReleaseReferences() throws Exception
     {
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, null, PreviewKind.NONE);
-        StreamResultFuture future = StreamResultFuture.init(UUID.randomUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
-        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, null, 0, null, PreviewKind.NONE);
+        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
+        StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.OTHER, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
+        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, peer, null, false, 0, null, PreviewKind.NONE);
         session.init(future);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD);
 
@@ -146,7 +149,7 @@ public class StreamTransferTaskTest
             refs.add(ref);
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, ref, sstable.getPositionsForRanges(ranges), ranges, 1));
         }
-        assertEquals(2, task.getTotalNumberOfFiles());
+        assertEquals(14, task.getTotalNumberOfFiles());
 
         //add task to stream session, so it is aborted when stream session fails
         session.transfers.put(TableId.generate(), task);
@@ -167,6 +170,16 @@ public class StreamTransferTaskTest
         for (Ref<SSTableReader> ref : refs)
         {
             assertEquals(1, ref.globalCount());
+        }
+
+        //wait for stream to abort asynchronously
+        int tries = 10;
+        while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() > 0)
+        {
+            if(tries < 1)
+                throw new RuntimeException("test did not complete in time");
+            Thread.sleep(10);
+            tries--;
         }
 
         //simulate finish transfer

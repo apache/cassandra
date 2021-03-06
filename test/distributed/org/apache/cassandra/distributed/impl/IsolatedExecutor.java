@@ -39,6 +39,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +47,7 @@ import ch.qos.logback.classic.LoggerContext;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
+import org.apache.cassandra.utils.Throwables;
 
 public class IsolatedExecutor implements IIsolatedExecutor
 {
@@ -64,7 +66,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
 
     public Future<Void> shutdown()
     {
-        isolatedExecutor.shutdown();
+        isolatedExecutor.shutdownNow();
 
         /* Use a thread pool with a core pool size of zero to terminate the thread as soon as possible
         ** so the instance class loader can be garbage collected.  Uses a custom thread factory
@@ -77,7 +79,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
             return t;
         };
         ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
-                                                                  new LinkedBlockingQueue<Runnable>(), threadFactory);
+                                                                  new LinkedBlockingQueue<>(), threadFactory);
         return shutdownExecutor.submit(() -> {
             try
             {
@@ -100,6 +102,9 @@ public class IsolatedExecutor implements IIsolatedExecutor
             return null;
         });
     }
+
+    public <O> Supplier<Future<O>> supplyAsync(SerializableSupplier<O> call) { return () -> isolatedExecutor.submit(call::get); }
+    public <O> Supplier<O> supplySync(SerializableSupplier<O> call) { return () -> waitOn(supplyAsync(call).get()); }
 
     public <O> CallableNoExcept<Future<O>> async(CallableNoExcept<O> call) { return () -> isolatedExecutor.submit(call); }
     public <O> CallableNoExcept<O> sync(CallableNoExcept<O> call) { return () -> waitOn(async(call).call()); }
@@ -145,7 +150,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
         catch (IllegalAccessException | InvocationTargetException e)
         {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error while transfering object to " + classLoader, e);
         }
     }
 
@@ -165,7 +170,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
     public static Object deserializeOneObject(byte[] bytes)
     {
         try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-             ObjectInputStream ois = new ObjectInputStream(bais);)
+             ObjectInputStream ois = new ObjectInputStream(bais))
         {
             return ois.readObject();
         }
@@ -190,7 +195,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
     }
 
-    private static <T> T waitOn(Future<T> f)
+    public static <T> T waitOn(Future<T> f)
     {
         try
         {
@@ -198,11 +203,12 @@ public class IsolatedExecutor implements IIsolatedExecutor
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            Thread.currentThread().interrupt();
+            throw Throwables.throwAsUncheckedException(e);
         }
         catch (ExecutionException e)
         {
-            throw new RuntimeException(e.getCause());
+            throw Throwables.throwAsUncheckedException(e.getCause());
         }
     }
 

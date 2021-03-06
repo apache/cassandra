@@ -32,7 +32,9 @@ import org.slf4j.LoggerFactory;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.schema.TableId;
@@ -82,14 +84,14 @@ public abstract class AbstractCommitLogSegmentManager
      */
     private final AtomicLong size = new AtomicLong();
 
-    private Thread managerThread;
+    @VisibleForTesting
+    Thread managerThread;
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
     private final WaitQueue managerThreadWaitQueue = new WaitQueue();
 
-    private static final SimpleCachedBufferPool bufferPool =
-        new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(), DatabaseDescriptor.getCommitLogSegmentSize());
+    private volatile SimpleCachedBufferPool bufferPool;
 
     AbstractCommitLogSegmentManager(final CommitLog commitLog, String storageDirectory)
     {
@@ -132,7 +134,6 @@ public abstract class AbstractCommitLogSegmentManager
                     }
                     catch (Throwable t)
                     {
-                        JVMStabilityInspector.inspectThrowable(t);
                         if (!CommitLog.handleCommitError("Failed managing commit log segments", t))
                             return;
                         // sleep some arbitrary period to avoid spamming CL
@@ -148,7 +149,18 @@ public abstract class AbstractCommitLogSegmentManager
             }
         };
 
+        // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
+        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
+        BufferType bufferType = commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
+                              ? BufferType.ON_HEAP
+                              : commitLog.configuration.getCompressor().preferredBufferType();
+
+        this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                                     DatabaseDescriptor.getCommitLogSegmentSize(),
+                                                     bufferType);
+
         shutdown = false;
+
         managerThread = NamedThreadFactory.createThread(runnable, "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
 
@@ -485,13 +497,17 @@ public abstract class AbstractCommitLogSegmentManager
      */
     public void awaitTermination() throws InterruptedException
     {
-        managerThread.join();
-        managerThread = null;
+        if (managerThread != null)
+        {
+            managerThread.join();
+            managerThread = null;
+        }
 
         for (CommitLogSegment segment : activeSegments)
             segment.close();
 
-        bufferPool.shutdown();
+        if (bufferPool != null)
+            bufferPool.emptyBufferPool();
     }
 
     /**

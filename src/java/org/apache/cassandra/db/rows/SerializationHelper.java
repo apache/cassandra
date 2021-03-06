@@ -15,135 +15,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
-import java.util.*;
-
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.schema.DroppedColumn;
+import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 
 public class SerializationHelper
 {
-    /**
-     * Flag affecting deserialization behavior (this only affect counters in practice).
-     *  - LOCAL: for deserialization of local data (Expired columns are
-     *      converted to tombstones (to gain disk space)).
-     *  - FROM_REMOTE: for deserialization of data received from remote hosts
-     *      (Expired columns are converted to tombstone and counters have
-     *      their delta cleared)
-     *  - PRESERVE_SIZE: used when no transformation must be performed, i.e,
-     *      when we must ensure that deserializing and reserializing the
-     *      result yield the exact same bytes. Streaming uses this.
-     */
-    public enum Flag
+    public final SerializationHeader header;
+    private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> statics = null;
+    private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> regulars = null;
+
+    public SerializationHelper(SerializationHeader header)
     {
-        LOCAL, FROM_REMOTE, PRESERVE_SIZE
+        this.header = header;
     }
 
-    private final Flag flag;
-    public final int version;
-
-    private final ColumnFilter columnsToFetch;
-    private ColumnFilter.Tester tester;
-
-    private final boolean hasDroppedColumns;
-    private final Map<ByteBuffer, DroppedColumn> droppedColumns;
-    private DroppedColumn currentDroppedComplex;
-
-
-    public SerializationHelper(TableMetadata metadata, int version, Flag flag, ColumnFilter columnsToFetch)
+    private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> statics()
     {
-        this.flag = flag;
-        this.version = version;
-        this.columnsToFetch = columnsToFetch;
-        this.droppedColumns = metadata.droppedColumns;
-        this.hasDroppedColumns = droppedColumns.size() > 0;
+        if (statics == null)
+            statics = header.columns().statics.iterator();
+        return statics;
     }
 
-    public SerializationHelper(TableMetadata metadata, int version, Flag flag)
+    private BTreeSearchIterator<ColumnMetadata, ColumnMetadata> regulars()
     {
-        this(metadata, version, flag, null);
+        if (regulars == null)
+            regulars = header.columns().regulars.iterator();
+        return regulars;
     }
 
-    public boolean includes(ColumnMetadata column)
+    public SearchIterator<ColumnMetadata, ColumnMetadata> iterator(boolean isStatic)
     {
-        return columnsToFetch == null || columnsToFetch.fetches(column);
+        BTreeSearchIterator<ColumnMetadata, ColumnMetadata> iterator = isStatic ? statics() : regulars();
+        iterator.rewind();
+        return iterator;
     }
 
-    public boolean includes(Cell cell, LivenessInfo rowLiveness)
+    public boolean hasAllColumns(Row row, boolean isStatic)
     {
-        if (columnsToFetch == null)
-            return true;
-
-        // During queries, some columns are included even though they are not queried by the user because
-        // we always need to distinguish between having a row (with potentially only null values) and not
-        // having a row at all (see #CASSANDRA-7085 for background). In the case where the column is not
-        // actually requested by the user however (canSkipValue), we can skip the full cell if the cell
-        // timestamp is lower than the row one, because in that case, the row timestamp is enough proof
-        // of the liveness of the row. Otherwise, we'll only be able to skip the values of those cells.
-        ColumnMetadata column = cell.column();
-        if (column.isComplex())
+        SearchIterator<ColumnMetadata, ColumnData> rowIter = row.searchIterator();
+        Iterable<ColumnMetadata> columns = isStatic ? header.columns().statics : header.columns().regulars;
+        for (ColumnMetadata column : columns)
         {
-            if (!includes(cell.path()))
+            if (rowIter.next(column) == null)
                 return false;
-
-            return !canSkipValue(cell.path()) || cell.timestamp() >= rowLiveness.timestamp();
         }
-        else
-        {
-            return columnsToFetch.fetchedColumnIsQueried(column) || cell.timestamp() >= rowLiveness.timestamp();
-        }
-    }
-
-    public boolean includes(CellPath path)
-    {
-        return path == null || tester == null || tester.fetches(path);
-    }
-
-    public boolean canSkipValue(ColumnMetadata column)
-    {
-        return columnsToFetch != null && !columnsToFetch.fetchedColumnIsQueried(column);
-    }
-
-    public boolean canSkipValue(CellPath path)
-    {
-        return path != null && tester != null && !tester.fetchedCellIsQueried(path);
-    }
-
-    public void startOfComplexColumn(ColumnMetadata column)
-    {
-        this.tester = columnsToFetch == null ? null : columnsToFetch.newTester(column);
-        this.currentDroppedComplex = droppedColumns.get(column.name.bytes);
-    }
-
-    public void endOfComplexColumn()
-    {
-        this.tester = null;
-    }
-
-    public boolean isDropped(Cell cell, boolean isComplex)
-    {
-        if (!hasDroppedColumns)
-            return false;
-
-        DroppedColumn dropped = isComplex ? currentDroppedComplex : droppedColumns.get(cell.column().name.bytes);
-        return dropped != null && cell.timestamp() <= dropped.droppedTime;
-    }
-
-    public boolean isDroppedComplexDeletion(DeletionTime complexDeletion)
-    {
-        return currentDroppedComplex != null && complexDeletion.markedForDeleteAt() <= currentDroppedComplex.droppedTime;
-    }
-
-    public ByteBuffer maybeClearCounterValue(ByteBuffer value)
-    {
-        return flag == Flag.FROM_REMOTE || (flag == Flag.LOCAL && CounterContext.instance().shouldClearLocal(value))
-             ? CounterContext.instance().clearAllLocal(value)
-             : value;
+        return true;
     }
 }

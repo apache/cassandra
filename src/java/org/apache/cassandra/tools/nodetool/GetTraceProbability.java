@@ -28,6 +28,6 @@ public class GetTraceProbability extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Current trace probability: " + probe.getTraceProbability());
+        probe.output().out.println("Current trace probability: " + probe.getTraceProbability());
     }
 }

@@ -198,13 +198,12 @@ public final class SchemaEvent extends DiagnosticEvent
         ret.put("columns", Lists.newArrayList(table.columns.values().stream().map(this::repr).iterator()));
         ret.put("droppedColumns", Lists.newArrayList(table.droppedColumns.values().stream().map(this::repr).iterator()));
         ret.put("isCompactTable", table.isCompactTable());
-        ret.put("isCompound", table.isCompound());
+        ret.put("isCompound", TableMetadata.Flag.isCompound(table.flags));
         ret.put("isCounter", table.isCounter());
-        ret.put("isCQLTable", table.isCQLTable());
-        ret.put("isDense", table.isDense());
+        ret.put("isCQLTable", TableMetadata.Flag.isCQLTable(table.flags));
+        ret.put("isDense", TableMetadata.Flag.isDense(table.flags));
         ret.put("isIndex", table.isIndex());
-        ret.put("isStaticCompactTable", table.isStaticCompactTable());
-        ret.put("isSuper", table.isSuper());
+        ret.put("isStaticCompactTable", TableMetadata.Flag.isStaticCompactTable(table.flags));
         ret.put("isView", table.isView());
         ret.put("isVirtual", table.isVirtual());
         return ret;

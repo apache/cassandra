@@ -78,8 +78,6 @@ public class EncryptedSegment extends FileDirectSegment
             throw new FSWriteError(e, logFile);
         }
         logger.debug("created a new encrypted commit log segment: {}", logFile);
-        // Keep reusable buffers on-heap regardless of compression preference so we avoid copy off/on repeatedly during decryption
-        manager.getBufferPool().setPreferredReusableBufferType(BufferType.ON_HEAP);
     }
 
     protected Map<String, String> additionalHeaderParameters()
@@ -93,7 +91,7 @@ public class EncryptedSegment extends FileDirectSegment
     {
         // Note: we want to keep the compression buffers on-heap as we need those bytes for encryption,
         // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        return manager.getBufferPool().createBuffer(BufferType.ON_HEAP);
+        return manager.getBufferPool().createBuffer();
     }
 
     void write(int startMarker, int nextMarker)

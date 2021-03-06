@@ -20,28 +20,28 @@ package org.apache.cassandra.locator;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
@@ -51,10 +51,8 @@ public abstract class AbstractReplicationStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
 
-    @VisibleForTesting
-    final String keyspaceName;
-    private Keyspace keyspace;
     public final Map<String, String> configOptions;
+    protected final String keyspaceName;
     private final TokenMetadata tokenMetadata;
 
     // track when the token range changes, signaling we need to invalidate our endpoint cache
@@ -64,14 +62,12 @@ public abstract class AbstractReplicationStrategy
 
     protected AbstractReplicationStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
-        assert keyspaceName != null;
         assert snitch != null;
         assert tokenMetadata != null;
         this.tokenMetadata = tokenMetadata;
         this.snitch = snitch;
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
         this.keyspaceName = keyspaceName;
-        // lazy-initialize keyspace itself since we don't create them until after the replication strategies
     }
 
     private final Map<Token, EndpointsForRange> cachedReplicas = new NonBlockingHashMap<>();
@@ -204,13 +200,6 @@ public abstract class AbstractReplicationStrategy
         return resultResponseHandler;
     }
 
-    private Keyspace getKeyspace()
-    {
-        if (keyspace == null)
-            keyspace = Keyspace.open(keyspaceName);
-        return keyspace;
-    }
-
     /**
      * calculate the RF based on strategy_options. When overwriting, ensure that this get()
      *  is FAST, as this is called often.
@@ -308,6 +297,8 @@ public abstract class AbstractReplicationStrategy
     }
 
     public abstract void validateOptions() throws ConfigurationException;
+
+    public abstract void maybeWarnOnOptions();
 
     /*
      * The options recognized by the strategy.
@@ -410,6 +401,7 @@ public abstract class AbstractReplicationStrategy
         AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
         strategy.validateExpectedOptions();
         strategy.validateOptions();
+        strategy.maybeWarnOnOptions();
         if (strategy.hasTransientReplicas() && !DatabaseDescriptor.isTransientReplicationEnabled())
         {
             throw new ConfigurationException("Transient replication is disabled. Enable in cassandra.yaml to use.");
@@ -419,6 +411,10 @@ public abstract class AbstractReplicationStrategy
     public static Class<AbstractReplicationStrategy> getClass(String cls) throws ConfigurationException
     {
         String className = cls.contains(".") ? cls : "org.apache.cassandra.locator." + cls;
+
+        if ("org.apache.cassandra.locator.OldNetworkTopologyStrategy".equals(className)) // see CASSANDRA-16301 
+            throw new ConfigurationException("The support for the OldNetworkTopologyStrategy has been removed in C* version 4.0. The keyspace strategy should be switch to NetworkTopologyStrategy");
+
         Class<AbstractReplicationStrategy> strategyClass = FBUtilities.classForName(className, "replication strategy");
         if (!AbstractReplicationStrategy.class.isAssignableFrom(strategyClass))
         {

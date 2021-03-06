@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +44,10 @@ public class DescribeCluster extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         // display cluster name, snitch and partitioner
-        System.out.println("Cluster Information:");
-        System.out.println("\tName: " + probe.getClusterName());
+        out.println("Cluster Information:");
+        out.println("\tName: " + probe.getClusterName());
         String snitch = probe.getEndpointSnitchInfoProxy().getSnitchName();
         boolean dynamicSnitchEnabled = false;
         if (snitch.equals(DynamicEndpointSnitch.class.getName()))
@@ -53,16 +55,16 @@ public class DescribeCluster extends NodeToolCmd
             snitch = probe.getDynamicEndpointSnitchInfoProxy().getSubsnitchClassName();
             dynamicSnitchEnabled = true;
         }
-        System.out.println("\tSnitch: " + snitch);
-        System.out.println("\tDynamicEndPointSnitch: " + (dynamicSnitchEnabled ? "enabled" : "disabled"));
-        System.out.println("\tPartitioner: " + probe.getPartitioner());
+        out.println("\tSnitch: " + snitch);
+        out.println("\tDynamicEndPointSnitch: " + (dynamicSnitchEnabled ? "enabled" : "disabled"));
+        out.println("\tPartitioner: " + probe.getPartitioner());
 
         // display schema version for each node
-        System.out.println("\tSchema versions:");
+        out.println("\tSchema versions:");
         Map<String, List<String>> schemaVersions = printPort ? probe.getSpProxy().getSchemaVersionsWithPort() : probe.getSpProxy().getSchemaVersions();
         for (String version : schemaVersions.keySet())
         {
-            System.out.println(format("\t\t%s: %s%n", version, schemaVersions.get(version)));
+            out.println(format("\t\t%s: %s%n", version, schemaVersions.get(version)));
         }
 
         // Collect status information of all nodes
@@ -76,12 +78,12 @@ public class DescribeCluster extends NodeToolCmd
         // Get the list of all keyspaces
         List<String> keyspaces = probe.getKeyspaces();
 
-        System.out.println("Stats for all nodes:");
-        System.out.println("\tLive: " + liveNodes.size());
-        System.out.println("\tJoining: " + joiningNodes.size());
-        System.out.println("\tMoving: " + movingNodes.size());
-        System.out.println("\tLeaving: " + leavingNodes.size());
-        System.out.println("\tUnreachable: " + unreachableNodes.size());
+        out.println("Stats for all nodes:");
+        out.println("\tLive: " + liveNodes.size());
+        out.println("\tJoining: " + joiningNodes.size());
+        out.println("\tMoving: " + movingNodes.size());
+        out.println("\tLeaving: " + leavingNodes.size());
+        out.println("\tUnreachable: " + unreachableNodes.size());
 
         Map<String, String> tokensToEndpoints = probe.getTokenToEndpointMap(withPort);
         Map<String, Float> ownerships = null;
@@ -92,24 +94,24 @@ public class DescribeCluster extends NodeToolCmd
         catch (IllegalStateException ex)
         {
             ownerships = probe.getOwnershipWithPort();
-            System.out.println("Error: " + ex.getMessage());
+            out.println("Error: " + ex.getMessage());
         }
         catch (IllegalArgumentException ex)
         {
-            System.out.println("%nError: " + ex.getMessage());
+            out.println("%nError: " + ex.getMessage());
             System.exit(1);
         }
 
         SortedMap<String, SetHostStatWithPort> dcs = NodeTool.getOwnershipByDcWithPort(probe, resolveIp, tokensToEndpoints, ownerships);
 
-        System.out.println("\nData Centers: ");
+        out.println("\nData Centers: ");
         for (Map.Entry<String, SetHostStatWithPort> dc : dcs.entrySet())
         {
-            System.out.print("\t" + dc.getKey());
+            out.print("\t" + dc.getKey());
 
             ArrayListMultimap<InetAddressAndPort, HostStatWithPort> hostToTokens = ArrayListMultimap.create();
             for (HostStatWithPort stat : dc.getValue())
-                hostToTokens.put(stat.endpoint, stat);
+                hostToTokens.put(stat.endpointWithPort, stat);
 
             int totalNodes = 0; // total number of nodes in a datacenter
             int downNodes = 0; // number of down nodes in a datacenter
@@ -120,27 +122,27 @@ public class DescribeCluster extends NodeToolCmd
                 if (unreachableNodes.contains(endpoint.toString()))
                     downNodes++;
             }
-            System.out.print(" #Nodes: " + totalNodes);
-            System.out.println(" #Down: " + downNodes);
+            out.print(" #Nodes: " + totalNodes);
+            out.println(" #Down: " + downNodes);
         }
 
         // display database version for each node
-        System.out.println("\nDatabase versions:");
+        out.println("\nDatabase versions:");
         Map<String, List<String>> databaseVersions = probe.getGossProxy().getReleaseVersionsWithPort();
         for (String version : databaseVersions.keySet())
         {
-            System.out.println(format("\t%s: %s%n", version, databaseVersions.get(version)));
+            out.println(format("\t%s: %s%n", version, databaseVersions.get(version)));
         }
 
-        System.out.println("Keyspaces:");
+        out.println("Keyspaces:");
         for (String keyspaceName : keyspaces)
         {
             String replicationInfo = probe.getKeyspaceReplicationInfo(keyspaceName);
             if (replicationInfo == null)
             {
-                System.out.println("something went wrong for keyspace: " + keyspaceName);
+                out.println("something went wrong for keyspace: " + keyspaceName);
             }
-            System.out.println("\t" + keyspaceName + " -> Replication class: " + replicationInfo);
+            out.println("\t" + keyspaceName + " -> Replication class: " + replicationInfo);
         }
     }
 }

@@ -19,6 +19,8 @@ package org.apache.cassandra.metrics;
 
 import java.util.function.DoubleSupplier;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.codahale.metrics.*;
 import org.apache.cassandra.cache.CacheSize;
 
@@ -41,7 +43,7 @@ public class CacheMetrics
     /** Total number of cache misses */
     public final Meter misses;
     /** Total number of cache requests */
-    public final Metered requests;
+    public final Meter requests;
 
     /** all time cache hit rate */
     public final Gauge<Double> hitRate;
@@ -70,7 +72,7 @@ public class CacheMetrics
 
         hits = Metrics.meter(factory.createMetricName("Hits"));
         misses = Metrics.meter(factory.createMetricName("Misses"));
-        requests = Metrics.register(factory.createMetricName("Requests"), sumMeters(hits, misses));
+        requests = Metrics.meter(factory.createMetricName("Requests"));
 
         hitRate =
             Metrics.register(factory.createMetricName("HitRate"),
@@ -86,40 +88,16 @@ public class CacheMetrics
                              ratioGauge(hits::getFifteenMinuteRate, requests::getFifteenMinuteRate));
     }
 
-    private static Metered sumMeters(Metered first, Metered second)
+    @VisibleForTesting
+    public void reset()
     {
-        return new Metered()
-        {
-            @Override
-            public long getCount()
-            {
-                return first.getCount() + second.getCount();
-            }
-
-            @Override
-            public double getMeanRate()
-            {
-                return first.getMeanRate() + second.getMeanRate();
-            }
-
-            @Override
-            public double getOneMinuteRate()
-            {
-                return first.getOneMinuteRate() + second.getOneMinuteRate();
-            }
-
-            @Override
-            public double getFiveMinuteRate()
-            {
-                return first.getFiveMinuteRate() + second.getFiveMinuteRate();
-            }
-
-            @Override
-            public double getFifteenMinuteRate()
-            {
-                return first.getFifteenMinuteRate() + second.getFifteenMinuteRate();
-            }
-        };
+        // No actual reset happens. The Meter counter is put to zero but will not reset the moving averages
+        // It rather injects a weird value into them.
+        // This method is being only used by CacheMetricsTest and CachingBench so fixing this issue was acknowledged
+        // but not considered mandatory to be fixed now (CASSANDRA-16228)
+        hits.mark(-hits.getCount());
+        misses.mark(-misses.getCount());
+        requests.mark(-requests.getCount());
     }
 
     private static RatioGauge ratioGauge(DoubleSupplier numeratorSupplier, DoubleSupplier denominatorSupplier)

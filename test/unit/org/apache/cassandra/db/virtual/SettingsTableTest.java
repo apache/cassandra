@@ -34,7 +34,9 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.security.SSLFactory;
 
 public class SettingsTableTest extends CQLTester
 {
@@ -53,6 +55,8 @@ public class SettingsTableTest extends CQLTester
     public void config()
     {
         config = new Config();
+        config.client_encryption_options.applyConfig();
+        config.server_encryption_options.applyConfig();
         table = new SettingsTable(KS_NAME, config);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
     }
@@ -136,21 +140,30 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        config.server_encryption_options = config.server_encryption_options.withEnabled(true);
         Assert.assertEquals(9, executeNet(all).all().size());
-        check(pre + "enabled", "true");
 
         check(pre + "algorithm", null);
         config.server_encryption_options = config.server_encryption_options.withAlgorithm("SUPERSSL");
         check(pre + "algorithm", "SUPERSSL");
 
-        check(pre + "cipher_suites", "[]");
+        check(pre + "cipher_suites", null);
         config.server_encryption_options = config.server_encryption_options.withCipherSuites("c1", "c2");
         check(pre + "cipher_suites", "[c1, c2]");
 
-        check(pre + "protocol", config.server_encryption_options.protocol);
+        check(pre + "protocol", null);
         config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv5");
-        check(pre + "protocol", "TLSv5");
+        check(pre + "protocol", "[TLSv5]");
+
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
+        check(pre + "protocol", SSLFactory.tlsInstanceProtocolSubstitution().toString());
+
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLS");
+        config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
+        check(pre + "protocol", "[TLSv1.2, TLSv1.1]");
+
+        config.server_encryption_options = config.server_encryption_options.withProtocol("TLSv2");
+        config.server_encryption_options = config.server_encryption_options.withAcceptedProtocols(ImmutableList.of("TLSv1.2","TLSv1.1"));
+        check(pre + "protocol", "[TLSv1.2, TLSv1.1, TLSv2]"); // protocol goes after the explicit accept list if non-TLS
 
         check(pre + "optional", "false");
         config.server_encryption_options = config.server_encryption_options.withOptional(true);
@@ -167,6 +180,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "internode_encryption", "none");
         config.server_encryption_options = config.server_encryption_options.withInternodeEncryption(InternodeEncryption.all);
         check(pre + "internode_encryption", "all");
+        check(pre + "enabled", "true");
 
         check(pre + "legacy_ssl_storage_port", "false");
         config.server_encryption_options = config.server_encryption_options.withLegacySslStoragePort(true);
@@ -186,7 +200,7 @@ public class SettingsTableTest extends CQLTester
         check(pre + "enabled", "true");
 
         check(pre + "logger", "BinAuditLogger");
-        config.audit_logging_options.logger = "logger";
+        config.audit_logging_options.logger = new ParameterizedClass("logger", null);
         check(pre + "logger", "logger");
 
         config.audit_logging_options.audit_logs_dir = "dir";

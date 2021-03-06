@@ -27,7 +27,6 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
@@ -55,20 +54,20 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public ByteBuffer compose(ByteBuffer bytes)
+    public <V> ByteBuffer compose(V value, ValueAccessor<V> accessor)
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }
 
     @Override
-    public ByteBuffer decompose(ByteBuffer bytes)
+    public ByteBuffer decompose(ByteBuffer value)
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
-        return ByteBufferUtil.bytesToHex(bytes);
+        return accessor.toHex(value);
     }
 
     public ByteBuffer fromString(String source)
@@ -88,10 +87,10 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         throw new UnsupportedOperationException();
     }
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         // o1 and o2 can be empty so we need to use PartitionPosition, not DecoratedKey
-        return PartitionPosition.ForKey.get(o1, partitioner).compareTo(PartitionPosition.ForKey.get(o2, partitioner));
+        return PartitionPosition.ForKey.get(accessorL.toBuffer(left), partitioner).compareTo(PartitionPosition.ForKey.get(accessorR.toBuffer(right), partitioner));
     }
 
     @Override

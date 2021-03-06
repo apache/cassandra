@@ -34,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.*;
 import org.apache.cassandra.cache.AutoSavingCache.CacheSerializer;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
@@ -47,6 +46,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -360,7 +360,7 @@ public class CacheService implements CacheServiceMBean
             if (!cfs.metadata().isCounter() || !cfs.isCounterCacheEnabled())
                 return null;
 
-            return StageManager.getStage(Stage.READ).submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
+            return Stage.READ.submit(new Callable<Pair<CounterCacheKey, ClockAndCount>>()
             {
                 public Pair<CounterCacheKey, ClockAndCount> call() throws Exception
                 {
@@ -381,7 +381,7 @@ public class CacheService implements CacheServiceMBean
             TableMetadata tableMetadata = cfs.metadata();
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
-            ByteBufferUtil.writeWithLength(key.key, out);
+            ByteArrayUtil.writeWithLength(key.key, out);
         }
 
         public Future<Pair<RowCacheKey, IRowCacheEntry>> deserialize(DataInputPlus in, final ColumnFamilyStore cfs) throws IOException
@@ -394,7 +394,7 @@ public class CacheService implements CacheServiceMBean
             final int rowsToCache = cfs.metadata().params.caching.rowsPerPartitionToCache();
             assert(!cfs.isIndex());//Shouldn't have row cache entries for indexes
 
-            return StageManager.getStage(Stage.READ).submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
+            return Stage.READ.submit(new Callable<Pair<RowCacheKey, IRowCacheEntry>>()
             {
                 public Pair<RowCacheKey, IRowCacheEntry> call() throws Exception
                 {
@@ -422,7 +422,7 @@ public class CacheService implements CacheServiceMBean
             TableMetadata tableMetadata = cfs.metadata();
             tableMetadata.id.serialize(out);
             out.writeUTF(tableMetadata.indexName().orElse(""));
-            ByteBufferUtil.writeWithLength(key.key, out);
+            ByteArrayUtil.writeWithLength(key.key, out);
             out.writeInt(key.desc.generation);
             out.writeBoolean(true);
 

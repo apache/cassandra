@@ -20,7 +20,7 @@ package org.apache.cassandra.db.streaming;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -42,15 +42,18 @@ import org.apache.cassandra.utils.FBUtilities;
 public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 {
     private static final int CHUNK_SIZE = 1 << 16;
+    private static final int CRC_LENGTH = 4;
 
     private static final Logger logger = LoggerFactory.getLogger(CassandraCompressedStreamWriter.class);
 
     private final CompressionInfo compressionInfo;
+    private final long totalSize;
 
-    public CassandraCompressedStreamWriter(SSTableReader sstable, Collection<SSTableReader.PartitionPositionBounds> sections, CompressionInfo compressionInfo, StreamSession session)
+    public CassandraCompressedStreamWriter(SSTableReader sstable, CassandraStreamHeader header, StreamSession session)
     {
-        super(sstable, sections, session);
-        this.compressionInfo = compressionInfo;
+        super(sstable, header, session);
+        this.compressionInfo = header.compressionInfo;
+        this.totalSize = header.size();
     }
 
     @Override
@@ -60,19 +63,20 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
         long totalSize = totalSize();
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
-        try (ChannelProxy fc = sstable.getDataChannel().sharedCopy())
+        try (ChannelProxy fc = sstable.getDataChannel().newChannel())
         {
             long progress = 0L;
-            // calculate chunks to transfer. we want to send continuous chunks altogether.
-            List<SSTableReader.PartitionPositionBounds> sections = getTransferSections(compressionInfo.chunks);
+
+            // we want to send continuous chunks together to minimise reads from disk and network writes
+            List<Section> sections = fuseAdjacentChunks(compressionInfo.chunks());
 
             int sectionIdx = 0;
 
             // stream each of the required sections of the file
-            for (final SSTableReader.PartitionPositionBounds section : sections)
+            for (Section section : sections)
             {
                 // length of the section to stream
-                long length = section.upperPosition - section.lowerPosition;
+                long length = section.end - section.start;
 
                 logger.debug("[Stream #{}] Writing section {} with length {} to stream.", session.planId(), sectionIdx++, length);
 
@@ -81,7 +85,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
                 while (bytesTransferred < length)
                 {
                     int toTransfer = (int) Math.min(CHUNK_SIZE, length - bytesTransferred);
-                    long position = section.lowerPosition + bytesTransferred;
+                    long position = section.start + bytesTransferred;
 
                     out.writeToChannel(bufferSupplier -> {
                         ByteBuffer outBuffer = bufferSupplier.get(toTransfer);
@@ -103,40 +107,52 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
     @Override
     protected long totalSize()
     {
-        long size = 0;
-        // calculate total length of transferring chunks
-        for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
-            size += chunk.length + 4; // 4 bytes for CRC
-        return size;
+        return totalSize;
     }
 
     // chunks are assumed to be sorted by offset
-    private List<SSTableReader.PartitionPositionBounds> getTransferSections(CompressionMetadata.Chunk[] chunks)
+    private List<Section> fuseAdjacentChunks(CompressionMetadata.Chunk[] chunks)
     {
-        List<SSTableReader.PartitionPositionBounds> transferSections = new ArrayList<>();
-        SSTableReader.PartitionPositionBounds lastSection = null;
-        for (CompressionMetadata.Chunk chunk : chunks)
+        if (chunks.length == 0)
+            return Collections.emptyList();
+
+        long start = chunks[0].offset;
+        long end = start + chunks[0].length + CRC_LENGTH;
+
+        List<Section> sections = new ArrayList<>();
+
+        for (int i = 1; i < chunks.length; i++)
         {
-            if (lastSection != null)
+            CompressionMetadata.Chunk chunk = chunks[i];
+
+            if (chunk.offset == end)
             {
-                if (chunk.offset == lastSection.upperPosition)
-                {
-                    // extend previous section to end of this chunk
-                    lastSection = new SSTableReader.PartitionPositionBounds(lastSection.lowerPosition, chunk.offset + chunk.length + 4); // 4 bytes for CRC
-                }
-                else
-                {
-                    transferSections.add(lastSection);
-                    lastSection = new SSTableReader.PartitionPositionBounds(chunk.offset, chunk.offset + chunk.length + 4);
-                }
+                end += (chunk.length + CRC_LENGTH);
             }
             else
             {
-                lastSection = new SSTableReader.PartitionPositionBounds(chunk.offset, chunk.offset + chunk.length + 4);
+                sections.add(new Section(start, end));
+
+                start = chunk.offset;
+                end = start + chunk.length + CRC_LENGTH;
             }
         }
-        if (lastSection != null)
-            transferSections.add(lastSection);
-        return transferSections;
+        sections.add(new Section(start, end));
+
+        return sections;
+    }
+
+    // [start, end) positions in the compressed sstable file that we want to stream;
+    // each section contains 1..n adjacent compressed chunks in it.
+    private static class Section
+    {
+        private final long start;
+        private final long end;
+
+        private Section(long start, long end)
+        {
+            this.start = start;
+            this.end = end;
+        }
     }
 }

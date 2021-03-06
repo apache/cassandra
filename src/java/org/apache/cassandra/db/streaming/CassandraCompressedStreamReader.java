@@ -85,7 +85,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
             int sectionIdx = 0;
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
-                assert cis.getTotalCompressedBytesRead() <= totalSize;
+                assert cis.chunkBytesRead() <= totalSize;
                 long sectionLength = section.upperPosition - section.lowerPosition;
 
                 logger.trace("[Stream #{}] Reading section {} with length {} from stream.", session.planId(), sectionIdx++, sectionLength);
@@ -97,12 +97,12 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 {
                     writePartition(deserializer, writer);
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
-                    session.progress(filename, ProgressInfo.Direction.IN, cis.getTotalCompressedBytesRead(), totalSize);
+                    session.progress(filename + '-' + fileSeqNum, ProgressInfo.Direction.IN, cis.chunkBytesRead(), totalSize);
                 }
                 assert in.getBytesRead() == sectionLength;
             }
             logger.trace("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}", session.planId(), fileSeqNum,
-                         session.peer, FBUtilities.prettyPrintMemory(cis.getTotalCompressedBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
+                         session.peer, FBUtilities.prettyPrintMemory(cis.chunkBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
             return writer;
         }
         catch (Throwable e)
@@ -123,10 +123,6 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
     @Override
     protected long totalSize()
     {
-        long size = 0;
-        // calculate total length of transferring chunks
-        for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
-            size += chunk.length + 4; // 4 bytes for CRC
-        return size;
+        return compressionInfo.getTotalSize();
     }
 }

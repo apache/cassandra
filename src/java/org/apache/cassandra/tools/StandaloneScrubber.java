@@ -19,27 +19,41 @@
 package org.apache.cassandra.tools;
 
 import java.io.File;
-import java.util.*;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.ParseException;
 
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.compaction.AbstractStrategyHolder;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.CompactionStrategyManager;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.LeveledManifest;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
-
-import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
+import org.apache.cassandra.utils.Pair;
 
 public class StandaloneScrubber
 {
@@ -57,11 +71,16 @@ public class StandaloneScrubber
     private static final String SKIP_CORRUPTED_OPTION = "skip-corrupted";
     private static final String NO_VALIDATE_OPTION = "no-validate";
     private static final String REINSERT_OVERFLOWED_TTL_OPTION = "reinsert-overflowed-ttl";
+    private static final String HEADERFIX_OPTION = "header-fix";
 
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        Util.initDatabaseDescriptor();
+
+        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+            DatabaseDescriptor.toolInitialization(false); //Necessary for testing
+        else
+            Util.initDatabaseDescriptor();
 
         try
         {
@@ -93,34 +112,106 @@ public class StandaloneScrubber
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
             Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
+            List<Pair<Descriptor, Set<Component>>> listResult = new ArrayList<>();
+
+            // create snapshot
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+            {
+                Descriptor descriptor = entry.getKey();
+                Set<Component> components = entry.getValue();
+                if (!components.contains(Component.DATA))
+                    continue;
+
+                listResult.add(Pair.create(descriptor, components));
+
+                File snapshotDirectory = Directories.getSnapshotDirectory(descriptor, snapshotName);
+                SSTableReader.createLinks(descriptor, components, snapshotDirectory.getPath());
+            }
+            System.out.println(String.format("Pre-scrub sstables snapshotted into snapshot %s", snapshotName));
+
+            if (options.headerFixMode != Options.HeaderFixMode.OFF)
+            {
+                // Run the frozen-UDT checks _before_ the sstables are opened
+
+                List<String> logOutput = new ArrayList<>();
+
+                SSTableHeaderFix.Builder headerFixBuilder = SSTableHeaderFix.builder()
+                                                                            .logToList(logOutput)
+                                                                            .schemaCallback(() -> Schema.instance::getTableMetadata);
+                if (options.headerFixMode == Options.HeaderFixMode.VALIDATE)
+                    headerFixBuilder = headerFixBuilder.dryRun();
+
+                for (Pair<Descriptor, Set<Component>> p : listResult)
+                    headerFixBuilder.withPath(Paths.get(p.left.filenameFor(Component.DATA)));
+
+                SSTableHeaderFix headerFix = headerFixBuilder.build();
+                try
+                {
+                    headerFix.execute();
+                }
+                catch (Exception e)
+                {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    if (options.debug)
+                        e.printStackTrace(System.err);
+                }
+
+                if (headerFix.hasChanges() || headerFix.hasError())
+                    logOutput.forEach(System.out::println);
+
+                if (headerFix.hasError())
+                {
+                    System.err.println("Errors in serialization-header detected, aborting.");
+                    System.exit(1);
+                }
+
+                switch (options.headerFixMode)
+                {
+                    case VALIDATE_ONLY:
+                    case FIX_ONLY:
+                        System.out.printf("Not continuing with scrub, since '--%s %s' was specified.%n",
+                                          HEADERFIX_OPTION,
+                                          options.headerFixMode.asCommandLineOption());
+                        System.exit(0);
+                    case VALIDATE:
+                        if (headerFix.hasChanges())
+                        {
+                            System.err.printf("Unfixed, but fixable errors in serialization-header detected, aborting. " +
+                                              "Use a non-validating mode ('-e %s' or '-e %s') for --%s%n",
+                                              Options.HeaderFixMode.FIX.asCommandLineOption(),
+                                              Options.HeaderFixMode.FIX_ONLY.asCommandLineOption(),
+                                              HEADERFIX_OPTION);
+                            System.exit(2);
+                        }
+                        break;
+                    case FIX:
+                        break;
+                }
+            }
 
             List<SSTableReader> sstables = new ArrayList<>();
 
-            // Scrub sstables
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+            // Open sstables
+            for (Pair<Descriptor, Set<Component>> pair : listResult)
             {
-                Set<Component> components = entry.getValue();
+                Descriptor descriptor = pair.left;
+                Set<Component> components = pair.right;
                 if (!components.contains(Component.DATA))
                     continue;
 
                 try
                 {
-                    SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
+                    SSTableReader sstable = SSTableReader.openNoValidation(descriptor, components, cfs);
                     sstables.add(sstable);
-
-                    File snapshotDirectory = Directories.getSnapshotDirectory(sstable.descriptor, snapshotName);
-                    sstable.createLinks(snapshotDirectory.getPath());
-
                 }
                 catch (Exception e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
-                    System.err.println(String.format("Error Loading %s: %s", entry.getKey(), e.getMessage()));
+                    System.err.println(String.format("Error Loading %s: %s", descriptor, e.getMessage()));
                     if (options.debug)
                         e.printStackTrace(System.err);
                 }
             }
-            System.out.println(String.format("Pre-scrub sstables snapshotted into snapshot %s", snapshotName));
 
             if (!options.manifestCheckOnly)
             {
@@ -170,29 +261,15 @@ public class StandaloneScrubber
         if (strategyManager.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
             int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
-
-            System.out.println("Checking leveled manifest");
-            Predicate<SSTableReader> repairedPredicate = new Predicate<SSTableReader>()
+            int fanOut = cfs.getCompactionStrategyManager().getLevelFanoutSize();
+            for (AbstractStrategyHolder.GroupedSSTableContainer sstableGroup : strategyManager.groupSSTables(sstables))
             {
-                @Override
-                public boolean apply(SSTableReader sstable)
+                for (int i = 0; i < sstableGroup.numGroups(); i++)
                 {
-                    return sstable.isRepaired();
+                    List<SSTableReader> groupSSTables = new ArrayList<>(sstableGroup.getGroup(i));
+                    // creating the manifest makes sure the leveling is sane:
+                    LeveledManifest.create(cfs, maxSizeInMB, fanOut, groupSSTables);
                 }
-            };
-
-            List<SSTableReader> repaired = Lists.newArrayList(Iterables.filter(sstables, repairedPredicate));
-            List<SSTableReader> unRepaired = Lists.newArrayList(Iterables.filter(sstables, Predicates.not(repairedPredicate)));
-
-            LeveledManifest repairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), repaired);
-            for (int i = 1; i < repairedManifest.getLevelCount(); i++)
-            {
-                repairedManifest.repairOverlappingSSTables(i);
-            }
-            LeveledManifest unRepairedManifest = LeveledManifest.create(cfs, maxSizeInMB, cfs.getLevelFanoutSize(), unRepaired);
-            for (int i = 1; i < unRepairedManifest.getLevelCount(); i++)
-            {
-                unRepairedManifest.repairOverlappingSSTables(i);
             }
         }
     }
@@ -208,6 +285,26 @@ public class StandaloneScrubber
         public boolean skipCorrupted;
         public boolean noValidate;
         public boolean reinserOverflowedTTL;
+        public HeaderFixMode headerFixMode = HeaderFixMode.VALIDATE;
+
+        enum HeaderFixMode
+        {
+            VALIDATE_ONLY,
+            VALIDATE,
+            FIX_ONLY,
+            FIX,
+            OFF;
+
+            static HeaderFixMode fromCommandLine(String value)
+            {
+                return valueOf(value.replace('-', '_').toUpperCase().trim());
+            }
+
+            String asCommandLineOption()
+            {
+                return name().toLowerCase().replace('_', '-');
+            }
+        }
 
         private Options(String keyspaceName, String cfName)
         {
@@ -249,7 +346,18 @@ public class StandaloneScrubber
                 opts.skipCorrupted = cmd.hasOption(SKIP_CORRUPTED_OPTION);
                 opts.noValidate = cmd.hasOption(NO_VALIDATE_OPTION);
                 opts.reinserOverflowedTTL = cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION);
-
+                if (cmd.hasOption(HEADERFIX_OPTION))
+                {
+                    try
+                    {
+                        opts.headerFixMode = HeaderFixMode.fromCommandLine(cmd.getOptionValue(HEADERFIX_OPTION));
+                    }
+                    catch (Exception e)
+                    {
+                        errorMsg(String.format("Invalid argument value '%s' for --%s", cmd.getOptionValue(HEADERFIX_OPTION), HEADERFIX_OPTION), options);
+                        return null;
+                    }
+                }
                 return opts;
             }
             catch (ParseException e)
@@ -275,6 +383,22 @@ public class StandaloneScrubber
             options.addOption("m",  MANIFEST_CHECK_OPTION, "only check and repair the leveled manifest, without actually scrubbing the sstables");
             options.addOption("s",  SKIP_CORRUPTED_OPTION, "skip corrupt rows in counter tables");
             options.addOption("n",  NO_VALIDATE_OPTION,    "do not validate columns using column validator");
+            options.addOption("e",  HEADERFIX_OPTION,      true, "Option whether and how to perform a " +
+                                                                 "check of the sstable serialization-headers and fix known, " +
+                                                                 "fixable issues.\n" +
+                                                                 "Possible argument values:\n" +
+                                                                 "- validate-only: validate the serialization-headers, " +
+                                                                 "but do not fix those. Do not continue with scrub - " +
+                                                                 "i.e. only validate the header (dry-run of fix-only).\n" +
+                                                                 "- validate: (default) validate the serialization-headers, " +
+                                                                 "but do not fix those and only continue with scrub if no " +
+                                                                 "error were detected.\n" +
+                                                                 "- fix-only: validate and fix the serialization-headers, " +
+                                                                 "don't continue with scrub.\n" +
+                                                                 "- fix: validate and fix the serialization-headers, do not " +
+                                                                 "fix and do not continue with scrub if the serialization-header " +
+                                                                 "check encountered errors.\n" +
+                                                                 "- off: don't perform the serialization-header checks.");
             options.addOption("r", REINSERT_OVERFLOWED_TTL_OPTION, REINSERT_OVERFLOWED_TTL_OPTION_DESCRIPTION);
             return options;
         }
@@ -287,7 +411,7 @@ public class StandaloneScrubber
             header.append("Scrub the sstable for the provided table." );
             header.append("\n--\n");
             header.append("Options are:");
-            new HelpFormatter().printHelp(usage, header.toString(), options, "");
+            new HelpFormatter().printHelp(120, usage, header.toString(), options, "");
         }
     }
 }

@@ -77,8 +77,6 @@ Many large users of Cassandra run in various clouds, including AWS, Azure, and G
 of these environments. Users should choose similar hardware to what would be needed in physical space. In EC2, popular
 options include:
 
-- m1.xlarge instances, which provide 1.6TB of local ephemeral spinning storage and sufficient RAM to run moderate
-  workloads
 - i2 instances, which provide both a high RAM:CPU ratio and local ephemeral SSDs
 - m4.2xlarge / c4.4xlarge instances, which provide modern CPUs, enhanced networking and work well with EBS GP2 (SSD)
   storage

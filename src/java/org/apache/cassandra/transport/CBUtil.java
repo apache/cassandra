@@ -38,7 +38,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import io.netty.util.CharsetUtil;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -137,17 +136,37 @@ public abstract class CBUtil
         }
     }
 
+    /**
+     * Write US-ASCII strings. It does not work if containing any char > 0x007F (127)
+     * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
+     *             i.e. seven-bit ASCII, a.k.a. ISO646-US
+     */
+    public static void writeAsciiString(String str, ByteBuf cb)
+    {
+        cb.writeShort(str.length());
+        ByteBufUtil.writeAscii(cb, str);
+    }
+
     public static void writeString(String str, ByteBuf cb)
     {
-        int writerIndex = cb.writerIndex();
-        cb.writeShort(0);
-        int written = ByteBufUtil.writeUtf8(cb, str);
-        cb.setShort(writerIndex, written);
+        int length = TypeSizes.encodedUTF8Length(str);
+        cb.writeShort(length);
+        ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfString(String str)
     {
         return 2 + TypeSizes.encodedUTF8Length(str);
+    }
+
+    /**
+     * Returns the ecoding size of a US-ASCII string. It does not work if containing any char > 0x007F (127)
+     * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
+     *             i.e. seven-bit ASCII, a.k.a. ISO646-US
+     */
+    public static int sizeOfAsciiString(String str)
+    {
+        return 2 + str.length();
     }
 
     public static String readLongString(ByteBuf cb)
@@ -165,10 +184,9 @@ public abstract class CBUtil
 
     public static void writeLongString(String str, ByteBuf cb)
     {
-        int writerIndex = cb.writerIndex();
-        cb.writeInt(0);
-        int written = ByteBufUtil.writeUtf8(cb, str);
-        cb.setInt(writerIndex, written);
+        int length = TypeSizes.encodedUTF8Length(str);
+        cb.writeInt(length);
+        ByteBufUtil.reserveAndWriteUtf8(cb, str, length);
     }
 
     public static int sizeOfLongString(String str)
@@ -266,12 +284,14 @@ public abstract class CBUtil
 
     public static <T extends Enum<T>> void writeEnumValue(T enumValue, ByteBuf cb)
     {
-        writeString(enumValue.toString(), cb);
+        // UTF-8 (non-ascii) literals can be used for as a valid identifier in Java. It is possible for an enum to be named using those characters.
+        // There is no such occurence in the code base.
+        writeAsciiString(enumValue.toString(), cb);
     }
 
     public static <T extends Enum<T>> int sizeOfEnumValue(T enumValue)
     {
-        return sizeOfString(enumValue.toString());
+        return sizeOfAsciiString(enumValue.toString());
     }
 
     public static UUID readUUID(ByteBuf cb)
@@ -580,10 +600,4 @@ public abstract class CBUtil
         return bytes;
     }
 
-    public static int readUnsignedShort(ByteBuf buf)
-    {
-        int ch1 = buf.readByte() & 0xFF;
-        int ch2 = buf.readByte() & 0xFF;
-        return (ch1 << 8) + (ch2);
-    }
 }

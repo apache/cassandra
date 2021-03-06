@@ -20,6 +20,8 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.util.Objects;
 
+import io.netty.channel.Channel;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.util.DataInputPlus;
 
@@ -35,21 +37,21 @@ public class IncomingStreamMessage extends StreamMessage
     public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
         @SuppressWarnings("resource")
-        public IncomingStreamMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
+        public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
-            session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex);
+            StreamSession session = StreamManager.instance.findSession(header.sender, header.planId, header.sessionIndex, header.sendByFollower);
             if (session == null)
                 throw new IllegalStateException(String.format("unknown stream session: %s - %d", header.planId, header.sessionIndex));
             ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(header.tableId);
             if (cfs == null)
                 throw new StreamReceiveException(session, "CF " + header.tableId + " was dropped during streaming");
 
-            IncomingStream incomingData = cfs.getStreamManager().prepareIncomingStream(session, header);
-            incomingData.read(input, version);
-
             try
             {
+                IncomingStream incomingData = cfs.getStreamManager().prepareIncomingStream(session, header);
+                incomingData.read(input, version);
+
                 return new IncomingStreamMessage(incomingData, header);
             }
             catch (Throwable t)
@@ -70,14 +72,20 @@ public class IncomingStreamMessage extends StreamMessage
         }
     };
 
-    public StreamMessageHeader header;
-    public IncomingStream stream;
+    public final StreamMessageHeader header;
+    public final IncomingStream stream;
 
     public IncomingStreamMessage(IncomingStream stream, StreamMessageHeader header)
     {
         super(Type.STREAM);
         this.stream = stream;
         this.header = header;
+    }
+
+    @Override
+    public StreamSession getOrCreateSession(Channel channel)
+    {
+        return stream.session();
     }
 
     @Override

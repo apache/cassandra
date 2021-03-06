@@ -25,6 +25,8 @@ import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
+
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
@@ -57,7 +59,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
 
     private final OperationType type;
-    private final CompactionController controller;
+    private final AbstractCompactionController controller;
     private final List<ISSTableScanner> scanners;
     private final ImmutableSet<SSTableReader> sstables;
     private final int nowInSec;
@@ -77,13 +79,13 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final UnfilteredPartitionIterator compacted;
     private final ActiveCompactionsTracker activeCompactions;
 
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId)
     {
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP);
     }
 
     @SuppressWarnings("resource") // We make sure to close mergedIterator in close() and CompactionIterator is itself an AutoCloseable
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, CompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, UUID compactionId, ActiveCompactionsTracker activeCompactions)
     {
         this.controller = controller;
         this.type = type;
@@ -97,6 +99,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             bytes += scanner.getLengthInBytes();
         this.totalBytes = bytes;
         this.mergeCounters = new long[scanners.size()];
+        // note that we leak `this` from the constructor when calling beginCompaction below, this means we have to get the sstables before
+        // calling that to avoid a NPE.
+        sstables = scanners.stream().map(ISSTableScanner::getBackingSSTables).flatMap(Collection::stream).collect(ImmutableSet.toImmutableSet());
         this.activeCompactions = activeCompactions == null ? ActiveCompactionsTracker.NOOP : activeCompactions;
         this.activeCompactions.beginCompaction(this); // note that CompactionTask also calls this, but CT only creates CompactionIterator with a NOOP ActiveCompactions
 
@@ -105,8 +110,8 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                            : UnfilteredPartitionIterators.merge(scanners, listener());
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
         merged = Transformation.apply(merged, new Purger(controller, nowInSec));
+        merged = DuplicateRowChecker.duringCompaction(merged, type);
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
-        sstables = scanners.stream().map(ISSTableScanner::getBackingSSTables).flatMap(Collection::stream).collect(ImmutableSet.toImmutableSet());
     }
 
     public TableMetadata metadata()
@@ -122,6 +127,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   totalBytes,
                                   compactionId,
                                   sstables);
+    }
+
+    public boolean isGlobal()
+    {
+        return false;
     }
 
     private void updateCounterFor(int rows)
@@ -147,8 +157,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
             {
                 int merged = 0;
-                for (UnfilteredRowIterator iter : versions)
+                for (int i=0, isize=versions.size(); i<isize; i++)
                 {
+                    @SuppressWarnings("resource")
+                    UnfilteredRowIterator iter = versions.get(i);
                     if (iter != null)
                         merged++;
                 }
@@ -162,8 +174,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 Columns statics = Columns.NONE;
                 Columns regulars = Columns.NONE;
-                for (UnfilteredRowIterator iter : versions)
+                for (int i=0, isize=versions.size(); i<isize; i++)
                 {
+                    @SuppressWarnings("resource")
+                    UnfilteredRowIterator iter = versions.get(i);
                     if (iter != null)
                     {
                         statics = statics.mergeTo(iter.columns().statics);
@@ -194,11 +208,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     {
                     }
 
-                    public void onMergedRows(Row merged, Row[] versions)
+                    public Row onMergedRows(Row merged, Row[] versions)
                     {
                         indexTransaction.start();
                         indexTransaction.onRowMerge(merged, versions);
                         indexTransaction.commit();
+                        return merged;
                     }
 
                     public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker mergedMarker, RangeTombstoneMarker[] versions)
@@ -259,14 +274,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private class Purger extends PurgeFunction
     {
-        private final CompactionController controller;
+        private final AbstractCompactionController controller;
 
         private DecoratedKey currentKey;
         private LongPredicate purgeEvaluator;
 
         private long compactedUnfiltered;
 
-        private Purger(CompactionController controller, int nowInSec)
+        private Purger(AbstractCompactionController controller, int nowInSec)
         {
             super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE,
                   controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
@@ -510,10 +525,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      */
     private static class GarbageSkipper extends Transformation<UnfilteredRowIterator>
     {
-        final CompactionController controller;
+        final AbstractCompactionController controller;
         final boolean cellLevelGC;
 
-        private GarbageSkipper(CompactionController controller)
+        private GarbageSkipper(AbstractCompactionController controller)
         {
             this.controller = controller;
             cellLevelGC = controller.tombstoneOption == TombstoneOption.CELL;

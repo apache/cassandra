@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.assertCommandIssued;
+import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.makeRow;
+import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.rows;
 import static org.junit.Assert.*;
 
 import java.util.*;
@@ -30,6 +33,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -40,10 +44,15 @@ import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
-public class CompactionIteratorTest
+public class CompactionIteratorTest extends CQLTester
 {
 
     private static final int NOW = 1000;
@@ -445,6 +454,59 @@ public class CompactionIteratorTest
         public Set<SSTableReader> getBackingSSTables()
         {
             return ImmutableSet.of();
+        }
+    }
+
+    @Test
+    public void duplicateRowsTest() throws Throwable
+    {
+        System.setProperty("cassandra.diagnostic_snapshot_interval_nanos", "0");
+        // Create a table and insert some data. The actual rows read in the test will be synthetic
+        // but this creates an sstable on disk to be snapshotted.
+        createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY (pk, ck1, ck2))");
+        for (int i = 0; i < 10; i++)
+            execute("insert into %s (pk, ck1, ck2, v) values (?, ?, ?, ?)", "key", i, i, i);
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+
+        DatabaseDescriptor.setSnapshotOnDuplicateRowDetection(true);
+        TableMetadata metadata = getCurrentColumnFamilyStore().metadata();
+
+        final HashMap<InetAddressAndPort, Message<?>> sentMessages = new HashMap<>();
+        MessagingService.instance().outboundSink.add((message, to) -> { sentMessages.put(to, message); return false;});
+
+        // no duplicates
+        sentMessages.clear();
+        iterate(makeRow(metadata,0, 0),
+                makeRow(metadata,0, 1),
+                makeRow(metadata,0, 2));
+        assertCommandIssued(sentMessages, false);
+
+        // now test with a duplicate row and see that we issue a snapshot command
+        sentMessages.clear();
+        iterate(makeRow(metadata, 0, 0),
+                makeRow(metadata, 0, 1),
+                makeRow(metadata, 0, 1));
+        assertCommandIssued(sentMessages, true);
+    }
+
+    private void iterate(Unfiltered...unfiltereds)
+    {
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        DecoratedKey key = cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes("key"));
+        try (CompactionController controller = new CompactionController(cfs, Integer.MAX_VALUE);
+             UnfilteredRowIterator rows = rows(cfs.metadata(), key, false, unfiltereds);
+             ISSTableScanner scanner = new Scanner(Collections.singletonList(rows));
+             CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
+                                                              Collections.singletonList(scanner),
+                                                              controller, FBUtilities.nowInSeconds(), null))
+        {
+            while (iter.hasNext())
+            {
+                try (UnfilteredRowIterator partition = iter.next())
+                {
+                    partition.forEachRemaining(u -> {});
+                }
+            }
         }
     }
 }

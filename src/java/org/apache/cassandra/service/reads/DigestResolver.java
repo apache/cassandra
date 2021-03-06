@@ -54,7 +54,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     public void preprocess(Message<ReadResponse> message)
     {
         super.preprocess(message);
-        Replica replica = replicaPlan().getReplicaFor(message.from());
+        Replica replica = replicaPlan().lookup(message.from());
         if (dataResponse == null && !message.payload.isDigestResponse() && replica.isFull())
             dataResponse = message;
     }
@@ -69,13 +69,11 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
     {
         return any(responses,
                 msg -> !msg.payload.isDigestResponse()
-                        && replicaPlan().getReplicaFor(msg.from()).isTransient());
+                        && replicaPlan().lookup(msg.from()).isTransient());
     }
 
     public PartitionIterator getData()
     {
-        assert isDataPresent();
-
         Collection<Message<ReadResponse>> responses = this.responses.snapshot();
 
         if (!hasTransientResponse(responses))
@@ -93,7 +91,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
             // Reconcile with transient replicas
             for (Message<ReadResponse> response : responses)
             {
-                Replica replica = replicaPlan().getReplicaFor(response.from());
+                Replica replica = replicaPlan().lookup(response.from());
                 if (replica.isTransient())
                     dataResolver.preprocess(response);
             }
@@ -109,13 +107,14 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         // validate digests against each other; return false immediately on mismatch.
         ByteBuffer digest = null;
         Collection<Message<ReadResponse>> snapshot = responses.snapshot();
-        if (snapshot.size() <= 1)
+        assert snapshot.size() > 0 : "Attempted response match comparison while no responses have been received.";
+        if (snapshot.size() == 1)
             return true;
 
         // TODO: should also not calculate if only one full node
         for (Message<ReadResponse> message : snapshot)
         {
-            if (replicaPlan().getReplicaFor(message.from()).isTransient())
+            if (replicaPlan().lookup(message.from()).isTransient())
                 continue;
 
             ByteBuffer newDigest = message.payload.digest(command);

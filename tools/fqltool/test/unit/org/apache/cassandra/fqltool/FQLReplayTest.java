@@ -36,11 +36,13 @@ import org.junit.Test;
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
-import org.apache.cassandra.audit.FullQueryLogger;
+import net.openhft.chronicle.wire.WireOut;
+import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.fqltool.commands.Compare;
@@ -51,6 +53,7 @@ import org.apache.cassandra.tools.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.binlog.BinLog;
 
 import static org.apache.cassandra.fqltool.QueryReplayer.ParsedTargetHost.fromString;
 import static org.junit.Assert.assertArrayEquals;
@@ -72,7 +75,7 @@ public class FQLReplayTest
     {
         File f = generateQueries(100, true);
         int queryCount = 0;
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(f).build();
              FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101))
         {
             long last = -1;
@@ -92,7 +95,7 @@ public class FQLReplayTest
     {
         File f = generateQueries(100, false);
         int queryCount = 0;
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(f).build();
              FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 1))
         {
             long last = -1;
@@ -113,8 +116,8 @@ public class FQLReplayTest
         File f = generateQueries(100, false);
         File f2 = generateQueries(100, false);
         int queryCount = 0;
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
-             ChronicleQueue queue2 = ChronicleQueueBuilder.single(f2).build();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(f).build();
+             ChronicleQueue queue2 = SingleChronicleQueueBuilder.single(f2).build();
              FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101);
              FQLQueryIterator iter2 = new FQLQueryIterator(queue2.createTailer(), 101);
              MergeIterator<FQLQuery, List<FQLQuery>> merger = MergeIterator.get(Lists.newArrayList(iter, iter2), FQLQuery::compareTo, new Replay.Reducer()))
@@ -139,7 +142,7 @@ public class FQLReplayTest
     {
         FQLQueryReader reader = new FQLQueryReader();
 
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(generateQueries(1000, true)).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(generateQueries(1000, true)).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             int queryCount = 0;
@@ -586,6 +589,88 @@ public class FQLReplayTest
         fromString("aaa:bbb@abc.com:xyz");
     }
 
+    @Test (expected = IORuntimeException.class)
+    public void testFutureVersion() throws Exception
+    {
+        FQLQueryReader reader = new FQLQueryReader();
+        File dir = Files.createTempDirectory("chronicle").toFile();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(dir).build())
+        {
+            ExcerptAppender appender = queue.acquireAppender();
+            appender.writeDocument(new BinLog.ReleaseableWriteMarshallable() {
+                protected long version()
+                {
+                    return 999;
+                }
+
+                protected String type()
+                {
+                    return FullQueryLogger.SINGLE_QUERY;
+                }
+
+                public void writeMarshallablePayload(WireOut wire)
+                {
+                    wire.write("future-field").text("future_value");
+                }
+
+                public void release()
+                {
+
+                }
+            });
+
+            ExcerptTailer tailer = queue.createTailer();
+            tailer.readDocument(reader);
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Unsupported record version"));
+            throw e;
+        }
+
+    }
+
+    @Test (expected = IORuntimeException.class)
+    public void testUnknownRecord() throws Exception
+    {
+        FQLQueryReader reader = new FQLQueryReader();
+        File dir = Files.createTempDirectory("chronicle").toFile();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(dir).build())
+        {
+            ExcerptAppender appender = queue.acquireAppender();
+            appender.writeDocument(new BinLog.ReleaseableWriteMarshallable() {
+                protected long version()
+                {
+                    return FullQueryLogger.CURRENT_VERSION;
+                }
+
+                protected String type()
+                {
+                    return "unknown-type";
+                }
+
+                public void writeMarshallablePayload(WireOut wire)
+                {
+                    wire.write("unknown-field").text("unknown_value");
+                }
+
+                public void release()
+                {
+
+                }
+            });
+
+            ExcerptTailer tailer = queue.createTailer();
+            tailer.readDocument(reader);
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().contains("Unsupported record type field"));
+            throw e;
+        }
+
+    }
+
     private void compareStatements(Statement statement1, Statement statement2)
     {
         assertTrue(statement1 instanceof SimpleStatement && statement2 instanceof SimpleStatement);
@@ -601,7 +686,7 @@ public class FQLReplayTest
     {
         Random r = new Random();
         File dir = Files.createTempDirectory("chronicle").toFile();
-        try (ChronicleQueue readQueue = ChronicleQueueBuilder.single(dir).build())
+        try (ChronicleQueue readQueue = SingleChronicleQueueBuilder.single(dir).build())
         {
             ExcerptAppender appender = readQueue.acquireAppender();
 
@@ -686,8 +771,8 @@ public class FQLReplayTest
     private static List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> readResultFile(File dir, File queryDir)
     {
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> resultSets = new ArrayList<>();
-        try (ChronicleQueue q = ChronicleQueueBuilder.single(dir).build();
-             ChronicleQueue queryQ = ChronicleQueueBuilder.single(queryDir).build())
+        try (ChronicleQueue q = SingleChronicleQueueBuilder.single(dir).build();
+             ChronicleQueue queryQ = SingleChronicleQueueBuilder.single(queryDir).build())
         {
             ExcerptTailer queryTailer = queryQ.createTailer();
             FQLQueryReader queryReader = new FQLQueryReader();

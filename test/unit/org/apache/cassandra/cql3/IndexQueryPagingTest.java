@@ -91,6 +91,60 @@ public class IndexQueryPagingTest extends CQLTester
         executePagingQuery("SELECT * FROM %s WHERE k1=0 AND c1>=0 AND c1<=3 AND v1=0", rowCount);
     }
 
+    @Test
+    public void testPagingOnPartitionsWithoutRows() throws Throwable
+    {
+        requireNetwork();
+
+        createTable("CREATE TABLE %s (pk int, ck int, s int static, v int, PRIMARY KEY (pk, ck))");
+        createIndex("CREATE INDEX on %s(s)");
+
+        execute("INSERT INTO %s (pk, s) VALUES (201, 200);");
+        execute("INSERT INTO %s (pk, s) VALUES (202, 200);");
+        execute("INSERT INTO %s (pk, s) VALUES (203, 200);");
+        execute("INSERT INTO %s (pk, s) VALUES (100, 100);");
+
+        for (int pageSize = 1; pageSize < 10; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("select * from %s where s = 200 and pk = 201;", pageSize),
+                          row(201, null, 200, null));
+
+            assertRowsNet(executeNetWithPaging("select * from %s where s = 200;", pageSize),
+                          row(201, null, 200, null),
+                          row(203, null, 200, null),
+                          row(202, null, 200, null));
+
+            assertRowsNet(executeNetWithPaging("select * from %s where s = 100;", pageSize),
+                          row(100, null, 100, null));
+        }
+    }
+
+    @Test
+    public void testPagingOnPartitionsWithoutClusteringColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v int)");
+        createIndex("CREATE INDEX on %s(v)");
+
+        execute("INSERT INTO %s (pk, v) VALUES (201, 200);");
+        execute("INSERT INTO %s (pk, v) VALUES (202, 200);");
+        execute("INSERT INTO %s (pk, v) VALUES (203, 200);");
+        execute("INSERT INTO %s (pk, v) VALUES (100, 100);");
+
+        for (int pageSize = 1; pageSize < 10; pageSize++)
+        {
+            assertRowsNet(executeNetWithPaging("select * from %s where v = 200 and pk = 201;", pageSize),
+                          row(201, 200));
+
+            assertRowsNet(executeNetWithPaging("select * from %s where v = 200;", pageSize),
+                          row(201, 200),
+                          row(203, 200),
+                          row(202, 200));
+
+            assertRowsNet(executeNetWithPaging("select * from %s where v = 100;", pageSize),
+                          row(100, 100));
+        }
+    }
+
     private void executePagingQuery(String cql, int rowCount)
     {
         // Execute an index query which should return all rows,

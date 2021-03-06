@@ -18,22 +18,18 @@
 package org.apache.cassandra.service.reads;
 
 import com.google.common.base.Preconditions;
-
-import com.google.common.base.Predicates;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -41,10 +37,12 @@ import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -105,7 +103,7 @@ public abstract class AbstractReadExecutor
         return ((SinglePartitionReadCommand) command).partitionKey();
     }
 
-    public ReadRepair getReadRepair()
+    public ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> getReadRepair()
     {
         return readRepair;
     }
@@ -157,7 +155,7 @@ public abstract class AbstractReadExecutor
         if (hasLocalEndpoint)
         {
             logger.trace("reading {} locally", readCommand.isDigestQuery() ? "digest" : "data");
-            StageManager.getStage(Stage.READ).maybeExecuteImmediately(new LocalReadRunnable(command, handler));
+            Stage.READ.maybeExecuteImmediately(new LocalReadRunnable(command, handler));
         }
     }
 
@@ -281,7 +279,7 @@ public abstract class AbstractReadExecutor
                 Replica extraReplica;
                 if (handler.resolver.isDataPresent())
                 {
-                    extraReplica = replicaPlan.firstUncontactedCandidate(Predicates.alwaysTrue());
+                    extraReplica = replicaPlan.firstUncontactedCandidate(replica -> true);
 
                     // we should only use a SpeculatingReadExecutor if we have an extra replica to speculate against
                     assert extraReplica != null;
@@ -359,7 +357,7 @@ public abstract class AbstractReadExecutor
     public void setResult(PartitionIterator result)
     {
         Preconditions.checkState(this.result == null, "Result can only be set once");
-        this.result = result;
+        this.result = DuplicateRowChecker.duringRead(result, this.replicaPlan.get().candidates().endpointList());
     }
 
     /**
@@ -370,6 +368,7 @@ public abstract class AbstractReadExecutor
         try
         {
             handler.awaitResults();
+            assert digestResolver.isDataPresent() : "awaitResults returned with no data present.";
         }
         catch (ReadTimeoutException e)
         {

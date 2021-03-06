@@ -69,6 +69,11 @@ public class LocalStrategy extends AbstractReplicationStrategy
     {
     }
 
+    @Override
+    public void maybeWarnOnOptions()
+    {
+    }
+
     public Collection<String> recognizedOptions()
     {
         // LocalStrategy doesn't expect any options.

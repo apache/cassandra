@@ -42,10 +42,10 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamReader;
 import org.apache.cassandra.db.streaming.CassandraEntireSSTableStreamWriter;
-import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.streaming.CassandraStreamHeader;
 import org.apache.cassandra.db.streaming.CassandraStreamReader;
 import org.apache.cassandra.db.streaming.CassandraStreamWriter;
+import org.apache.cassandra.db.streaming.ComponentContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
@@ -103,6 +103,7 @@ public class ZeroCopyStreamingBenchmark
         private static ColumnFamilyStore store;
         private StreamSession session;
         private CassandraEntireSSTableStreamWriter blockStreamWriter;
+        private ComponentContext context;
         private ByteBuf serializedBlockStream;
         private InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         private CassandraEntireSSTableStreamReader blockStreamReader;
@@ -119,7 +120,8 @@ public class ZeroCopyStreamingBenchmark
 
             sstable = store.getLiveSSTables().iterator().next();
             session = setupStreamingSessionForTest();
-            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, CassandraOutgoingFile.getComponentManifest(sstable));
+            context = ComponentContext.create(sstable.descriptor);
+            blockStreamWriter = new CassandraEntireSSTableStreamWriter(sstable, session, context);
 
             CapturingNettyChannel blockStreamCaptureChannel = new CapturingNettyChannel(STREAM_SIZE);
             AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(blockStreamCaptureChannel);
@@ -137,37 +139,37 @@ public class ZeroCopyStreamingBenchmark
                                      .withEstimatedKeys(sstable.estimatedKeys())
                                      .withSections(Collections.emptyList())
                                      .withSerializationHeader(sstable.header.toComponent())
-                                     .withComponentManifest(CassandraOutgoingFile.getComponentManifest(sstable))
+                                     .withComponentManifest(context.manifest())
                                      .isEntireSSTable(true)
                                      .withFirstKey(sstable.first)
                                      .withTableId(sstable.metadata().id)
                                      .build();
 
             blockStreamReader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id,
-                                                                                               peer, session.planId(),
+                                                                                               peer, session.planId(), false,
                                                                                                0, 0, 0,
                                                                                                null), entireSSTableStreamHeader, session);
 
             List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
-            partialStreamWriter = new CassandraStreamWriter(sstable, sstable.getPositionsForRanges(requestedRanges), session);
+            CassandraStreamHeader partialSSTableStreamHeader =
+            CassandraStreamHeader.builder()
+                                 .withSSTableFormat(sstable.descriptor.formatType)
+                                 .withSSTableVersion(sstable.descriptor.version)
+                                 .withSSTableLevel(0)
+                                 .withEstimatedKeys(sstable.estimatedKeys())
+                                 .withSections(sstable.getPositionsForRanges(requestedRanges))
+                                 .withSerializationHeader(sstable.header.toComponent())
+                                 .withTableId(sstable.metadata().id)
+                                 .build();
+
+            partialStreamWriter = new CassandraStreamWriter(sstable, partialSSTableStreamHeader, session);
 
             CapturingNettyChannel partialStreamChannel = new CapturingNettyChannel(STREAM_SIZE);
             partialStreamWriter.write(new AsyncStreamingOutputPlus(partialStreamChannel));
             serializedPartialStream = partialStreamChannel.getSerializedStream();
 
-            CassandraStreamHeader partialSSTableStreamHeader =
-                CassandraStreamHeader.builder()
-                                     .withSSTableFormat(sstable.descriptor.formatType)
-                                     .withSSTableVersion(sstable.descriptor.version)
-                                     .withSSTableLevel(0)
-                                     .withEstimatedKeys(sstable.estimatedKeys())
-                                     .withSections(sstable.getPositionsForRanges(requestedRanges))
-                                     .withSerializationHeader(sstable.header.toComponent())
-                                     .withTableId(sstable.metadata().id)
-                                     .build();
-
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
-                                                                                    peer, session.planId(),
+                                                                                    peer, session.planId(), false,
                                                                                     0, 0, 0,
                                                                                     null),
                                                             partialSSTableStreamHeader, session);
@@ -207,14 +209,15 @@ public class ZeroCopyStreamingBenchmark
         @TearDown
         public void tearDown() throws IOException
         {
+            context.close();
             SchemaLoader.cleanupAndLeaveDirs();
             CommitLog.instance.stopUnsafe(true);
         }
 
         private StreamSession setupStreamingSessionForTest()
         {
-            StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, null, PreviewKind.NONE);
-            StreamResultFuture future = StreamResultFuture.init(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
+            StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
+            StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
             InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
             streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));

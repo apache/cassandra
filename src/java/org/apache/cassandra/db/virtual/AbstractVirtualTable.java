@@ -19,6 +19,7 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Iterator;
 import java.util.NavigableMap;
+import java.util.function.Supplier;
 
 import com.google.common.collect.AbstractIterator;
 
@@ -217,6 +218,21 @@ public abstract class AbstractVirtualTable implements VirtualTable
                     return endOfData();
                 }
             };
+        }
+    }
+
+    public static class SimpleTable extends AbstractVirtualTable
+    {
+        private final Supplier<? extends AbstractVirtualTable.DataSet> supplier;
+        public SimpleTable(TableMetadata metadata, Supplier<AbstractVirtualTable.DataSet> supplier)
+        {
+            super(metadata);
+            this.supplier = supplier;
+        }
+
+        public AbstractVirtualTable.DataSet data()
+        {
+            return supplier.get();
         }
     }
 }

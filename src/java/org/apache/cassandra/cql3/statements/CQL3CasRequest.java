@@ -56,7 +56,7 @@ public class CQL3CasRequest implements CASRequest
     // We index RowCondition by the clustering of the row they applied to for 2 reasons:
     //   1) this allows to keep things sorted to build the read command below
     //   2) this allows to detect when contradictory conditions are set (not exists with some other conditions on the same row)
-    private final TreeMap<Clustering, RowCondition> conditions;
+    private final TreeMap<Clustering<?>, RowCondition> conditions;
 
     private final List<RowUpdate> updates = new ArrayList<>();
     private final List<RangeDeletion> rangeDeletions = new ArrayList<>();
@@ -75,7 +75,7 @@ public class CQL3CasRequest implements CASRequest
         this.updatesStaticRow = updatesStaticRow;
     }
 
-    void addRowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
+    void addRowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
     {
         updates.add(new RowUpdate(clustering, stmt, options, timestamp, nowInSeconds));
     }
@@ -85,17 +85,17 @@ public class CQL3CasRequest implements CASRequest
         rangeDeletions.add(new RangeDeletion(slice, stmt, options, timestamp, nowInSeconds));
     }
 
-    public void addNotExist(Clustering clustering) throws InvalidRequestException
+    public void addNotExist(Clustering<?> clustering) throws InvalidRequestException
     {
         addExistsCondition(clustering, new NotExistCondition(clustering), true);
     }
 
-    public void addExist(Clustering clustering) throws InvalidRequestException
+    public void addExist(Clustering<?> clustering) throws InvalidRequestException
     {
         addExistsCondition(clustering, new ExistCondition(clustering), false);
     }
 
-    private void addExistsCondition(Clustering clustering, RowCondition condition, boolean isNotExist)
+    private void addExistsCondition(Clustering<?> clustering, RowCondition condition, boolean isNotExist)
     {
         assert condition instanceof ExistCondition || condition instanceof NotExistCondition;
         RowCondition previous = getConditionsForRow(clustering);
@@ -128,7 +128,7 @@ public class CQL3CasRequest implements CASRequest
         hasExists = true;
     }
 
-    public void addConditions(Clustering clustering, Collection<ColumnCondition> conds, QueryOptions options) throws InvalidRequestException
+    public void addConditions(Clustering<?> clustering, Collection<ColumnCondition> conds, QueryOptions options) throws InvalidRequestException
     {
         RowCondition condition = getConditionsForRow(clustering);
         if (condition == null)
@@ -143,12 +143,12 @@ public class CQL3CasRequest implements CASRequest
         ((ColumnsConditions)condition).addConditions(conds, options);
     }
 
-    private RowCondition getConditionsForRow(Clustering clustering)
+    private RowCondition getConditionsForRow(Clustering<?> clustering)
     {
         return clustering == Clustering.STATIC_CLUSTERING ? staticConditions : conditions.get(clustering);
     }
 
-    private void setConditionsForRow(Clustering clustering, RowCondition condition)
+    private void setConditionsForRow(Clustering<?> clustering, RowCondition condition)
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
@@ -164,21 +164,16 @@ public class CQL3CasRequest implements CASRequest
 
     private RegularAndStaticColumns columnsToRead()
     {
-        // If all our conditions are columns conditions (IF x = ?), then it's enough to query
-        // the columns from the conditions. If we have a IF EXISTS or IF NOT EXISTS however,
-        // we need to query all columns for the row since if the condition fails, we want to
-        // return everything to the user. Static columns make this a bit more complex, in that
-        // if an insert only static columns, then the existence condition applies only to the
-        // static columns themselves, and so we don't want to include regular columns in that
-        // case.
-        if (hasExists)
-        {
-            RegularAndStaticColumns allColumns = metadata.regularAndStaticColumns();
-            Columns statics = updatesStaticRow ? allColumns.statics : Columns.NONE;
-            Columns regulars = updatesRegularRows ? allColumns.regulars : Columns.NONE;
-            return new RegularAndStaticColumns(statics, regulars);
-        }
-        return conditionColumns;
+        RegularAndStaticColumns allColumns = metadata.regularAndStaticColumns();
+
+        // If we update static row, we won't have any conditions on regular rows.
+        // If we update regular row, we have to fetch all regular rows (which would satisfy column condition) and
+        // static rows that take part in column condition.
+        // In both cases, we're fetching enough rows to distinguish between "all conditions are nulls" and "row does not exist".
+        // We have to do this as we can't rely on row marker for that (see #6623)
+        Columns statics = updatesStaticRow ? allColumns.statics : conditionColumns.statics;
+        Columns regulars = updatesRegularRows ? allColumns.regulars : conditionColumns.regulars;
+        return new RegularAndStaticColumns(statics, regulars);
     }
 
     public SinglePartitionReadQuery readCommand(int nowInSec)
@@ -186,7 +181,7 @@ public class CQL3CasRequest implements CASRequest
         assert staticConditions != null || !conditions.isEmpty();
 
         // Fetch all columns, but query only the selected ones
-        ColumnFilter columnFilter = ColumnFilter.selection(metadata, columnsToRead());
+        ColumnFilter columnFilter = ColumnFilter.selection(columnsToRead());
 
         // With only a static condition, we still want to make the distinction between a non-existing partition and one
         // that exists (has some live data) but has not static content. So we query the first live row of the partition.
@@ -255,13 +250,13 @@ public class CQL3CasRequest implements CASRequest
      */
     private class RowUpdate
     {
-        private final Clustering clustering;
+        private final Clustering<?> clustering;
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
         private final int nowInSeconds;
 
-        private RowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
+        private RowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
         {
             this.clustering = clustering;
             this.stmt = stmt;
@@ -320,9 +315,9 @@ public class CQL3CasRequest implements CASRequest
 
     private static abstract class RowCondition
     {
-        public final Clustering clustering;
+        public final Clustering<?> clustering;
 
-        protected RowCondition(Clustering clustering)
+        protected RowCondition(Clustering<?> clustering)
         {
             this.clustering = clustering;
         }
@@ -332,7 +327,7 @@ public class CQL3CasRequest implements CASRequest
 
     private static class NotExistCondition extends RowCondition
     {
-        private NotExistCondition(Clustering clustering)
+        private NotExistCondition(Clustering<?> clustering)
         {
             super(clustering);
         }
@@ -345,7 +340,7 @@ public class CQL3CasRequest implements CASRequest
 
     private static class ExistCondition extends RowCondition
     {
-        private ExistCondition(Clustering clustering)
+        private ExistCondition(Clustering<?> clustering)
         {
             super(clustering);
         }
@@ -360,7 +355,7 @@ public class CQL3CasRequest implements CASRequest
     {
         private final Multimap<Pair<ColumnIdentifier, ByteBuffer>, ColumnCondition.Bound> conditions = HashMultimap.create();
 
-        private ColumnsConditions(Clustering clustering)
+        private ColumnsConditions(Clustering<?> clustering)
         {
             super(clustering);
         }

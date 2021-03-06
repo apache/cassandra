@@ -1,22 +1,62 @@
-18,19c18,19
-<     CCM_MAX_HEAP_SIZE: 1024M
-<     CCM_HEAP_NEWSIZE: 256M
----
->     CCM_MAX_HEAP_SIZE: 2048M
->     CCM_HEAP_NEWSIZE: 512M
-24,25c24,25
-<     #exec_resource_class: xlarge
-<   parallelism: 4
----
->     exec_resource_class: xlarge
->   parallelism: 100
-30c30
-<     #exec_resource_class: xlarge
----
->     exec_resource_class: xlarge
-36,37c36,37
-<     #exec_resource_class: xlarge
-<   parallelism: 4
----
->     exec_resource_class: xlarge
->   parallelism: 100
+@@ -19,14 +19,14 @@ default_env_vars: &default_env_vars
+ j8_par_executor: &j8_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_small_par_executor: &j8_small_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: xlarge
++  parallelism: 5
+ 
+ j8_small_executor: &j8_small_executor
+   executor:
+@@ -37,32 +37,32 @@ j8_small_executor: &j8_small_executor
+ j8_medium_par_executor: &j8_medium_par_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: xlarge
++  parallelism: 2
+ 
+ j8_seq_executor: &j8_seq_executor
+   executor:
+     name: java8-executor
+-    #exec_resource_class: xlarge
++    exec_resource_class: xlarge
+   parallelism: 1 # sequential, single container tests: no parallelism benefits
+ 
+ j11_par_executor: &j11_par_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
+-  parallelism: 4
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+-j11_small_par_executor: &j11_small_par_executor
++j11_small_executor: &j11_small_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: xlarge
++    exec_resource_class: medium
+   parallelism: 1
+ 
+-j11_small_executor: &j11_small_executor
++j11_small_par_executor: &j11_small_par_executor
+   executor:
+     name: java11-executor
+-    #exec_resource_class: medium
+-  parallelism: 1
++    exec_resource_class: xlarge
++  parallelism: 2
+ 
+ j8_with_dtests_jobs: &j8_with_dtests_jobs
+   jobs:

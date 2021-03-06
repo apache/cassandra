@@ -19,34 +19,37 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
+import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
-import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.UDTValue;
-import com.datastax.driver.core.UserType;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -54,17 +57,37 @@ import static org.junit.Assert.fail;
 
 public class CQLSSTableWriterTest
 {
+    private static final AtomicInteger idGen = new AtomicInteger(0);
+    private String keyspace;
+    private String table;
+    private String qualifiedTable;
+    private File dataDir;
+
     static
     {
         DatabaseDescriptor.daemonInitialization();
     }
 
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
+
     @BeforeClass
     public static void setup() throws Exception
     {
+        CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
         StorageService.instance.initServer();
+    }
+
+    @Before
+    public void perTestSetup() throws IOException
+    {
+        keyspace = "cql_keyspace" + idGen.incrementAndGet();
+        table = "table" + idGen.incrementAndGet();
+        qualifiedTable = keyspace + '.' + table;
+        dataDir = new File(tempFolder.newFolder().getAbsolutePath() + File.separator + keyspace + File.separator + table);
+        assert dataDir.mkdirs();
     }
 
     @Test
@@ -72,19 +95,12 @@ public class CQLSSTableWriterTest
     {
         try (AutoCloseable switcher = Util.switchPartitioner(ByteOrderedPartitioner.instance))
         {
-            String KS = "cql_keyspace";
-            String TABLE = "table1";
-
-            File tempdir = Files.createTempDir();
-            File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-            assert dataDir.mkdirs();
-
-            String schema = "CREATE TABLE cql_keyspace.table1 ("
+            String schema = "CREATE TABLE " + qualifiedTable + " ("
                           + "  k int PRIMARY KEY,"
                           + "  v1 text,"
                           + "  v2 int"
                           + ")";
-            String insert = "INSERT INTO cql_keyspace.table1 (k, v1, v2) VALUES (?, ?, ?)";
+            String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
             CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                       .inDirectory(dataDir)
                                                       .forTable(schema)
@@ -97,9 +113,9 @@ public class CQLSSTableWriterTest
 
             writer.close();
 
-            loadSSTables(dataDir, KS);
+            loadSSTables(dataDir, keyspace);
 
-            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1;");
+            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
             assertEquals(4, rs.size());
 
             Iterator<UntypedResultSet.Row> iter = rs.iterator();
@@ -131,19 +147,12 @@ public class CQLSSTableWriterTest
     @Test
     public void testForbidCounterUpdates() throws Exception
     {
-        String KS = "cql_keyspace";
-        String TABLE = "counter1";
-
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
-        String schema = "CREATE TABLE cql_keyspace.counter1 (" +
+        String schema = "CREATE TABLE " + qualifiedTable + " (" +
                         "  my_id int, " +
                         "  my_counter counter, " +
                         "  PRIMARY KEY (my_id)" +
                         ")";
-        String insert = String.format("UPDATE cql_keyspace.counter1 SET my_counter = my_counter - ? WHERE my_id = ?");
+        String insert = String.format("UPDATE " + qualifiedTable + " SET my_counter = my_counter - ? WHERE my_id = ?");
         try
         {
             CQLSSTableWriter.builder().inDirectory(dataDir)
@@ -164,17 +173,11 @@ public class CQLSSTableWriterTest
         // Check that the write respect the buffer size even if we only insert rows withing the same partition (#7360)
         // To do that simply, we use a writer with a buffer of 1MB, and write 2 rows in the same partition with a value
         // > 1MB and validate that this created more than 1 sstable.
-        String KS = "ks";
-        String TABLE = "test";
-
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-        String schema = "CREATE TABLE ks.test ("
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
                       + "  k int PRIMARY KEY,"
                       + "  v blob"
                       + ")";
-        String insert = "INSERT INTO ks.test (k, v) VALUES (?, ?)";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .using(insert)
@@ -203,15 +206,14 @@ public class CQLSSTableWriterTest
     public void testSyncNoEmptyRows() throws Exception
     {
         // Check that the write does not throw an empty partition error (#9071)
-        File tempdir = Files.createTempDir();
-        String schema = "CREATE TABLE ks.test2 ("
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
                         + "  k UUID,"
                         + "  c int,"
                         + "  PRIMARY KEY (k)"
                         + ")";
-        String insert = "INSERT INTO ks.test2 (k, c) VALUES (?, ?)";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                  .inDirectory(tempdir)
+                                                  .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using(insert)
                                                   .withBufferSizeInMB(1)
@@ -231,23 +233,25 @@ public class CQLSSTableWriterTest
     {
         private final File dataDir;
         private final int id;
+        private final String qualifiedTable;
         public volatile Exception exception;
 
-        public WriterThread(File dataDir, int id)
+        public WriterThread(File dataDir, int id, String qualifiedTable)
         {
             this.dataDir = dataDir;
             this.id = id;
+            this.qualifiedTable = qualifiedTable;
         }
 
         @Override
         public void run()
         {
-            String schema = "CREATE TABLE cql_keyspace2.table2 ("
+            String schema = "CREATE TABLE " + qualifiedTable + " ("
                     + "  k int,"
                     + "  v int,"
                     + "  PRIMARY KEY (k, v)"
                     + ")";
-            String insert = "INSERT INTO cql_keyspace2.table2 (k, v) VALUES (?, ?)";
+            String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
             CQLSSTableWriter writer = CQLSSTableWriter.builder()
                     .inDirectory(dataDir)
                     .forTable(schema)
@@ -271,17 +275,10 @@ public class CQLSSTableWriterTest
     @Test
     public void testConcurrentWriters() throws Exception
     {
-        final String KS = "cql_keyspace2";
-        final String TABLE = "table2";
-
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
         WriterThread[] threads = new WriterThread[5];
         for (int i = 0; i < threads.length; i++)
         {
-            WriterThread thread = new WriterThread(dataDir, i);
+            WriterThread thread = new WriterThread(dataDir, i, qualifiedTable);
             threads[i] = thread;
             thread.start();
         }
@@ -296,9 +293,9 @@ public class CQLSSTableWriterTest
             }
         }
 
-        loadSSTables(dataDir, KS);
+        loadSSTables(dataDir, keyspace);
 
-        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + ";");
         assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
     }
 
@@ -306,26 +303,19 @@ public class CQLSSTableWriterTest
     @SuppressWarnings("unchecked")
     public void testWritesWithUdts() throws Exception
     {
-        final String KS = "cql_keyspace3";
-        final String TABLE = "table3";
-
-        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
                               + "  v1 list<frozen<tuple2>>,"
                               + "  v2 frozen<tuple3>,"
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
-                                                  .withType("CREATE TYPE " + KS + ".tuple2 (a int, b int)")
-                                                  .withType("CREATE TYPE " + KS + ".tuple3 (a int, b int, c int)")
+                                                  .withType("CREATE TYPE " + keyspace + ".tuple2 (a int, b int)")
+                                                  .withType("CREATE TYPE " + keyspace + ".tuple3 (a int, b int, c int)")
                                                   .forTable(schema)
-                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, v1, v2) " +
+                                                  .using("INSERT INTO " + keyspace + "." + table + " (k, v1, v2) " +
                                                          "VALUES (?, ?, ?)").build();
 
         UserType tuple2Type = writer.getUDType("tuple2");
@@ -348,10 +338,10 @@ public class CQLSSTableWriterTest
         }
 
         writer.close();
-        loadSSTables(dataDir, KS);
+        loadSSTables(dataDir, keyspace);
 
-        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
-        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.frozenList(tuple2Type));
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
+        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.list(tuple2Type));
         TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
 
         assertEquals(resultSet.size(), 100);
@@ -360,13 +350,13 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             List<UDTValue> values = (List<UDTValue>) collectionCodec.deserialize(row.getBytes("v1"),
-                                                                                 ProtocolVersion.NEWEST_SUPPORTED);
+                                                                                 ProtocolVersion.CURRENT);
             assertEquals(values.get(0).getInt("a"), cnt * 10);
             assertEquals(values.get(0).getInt("b"), cnt * 20);
             assertEquals(values.get(1).getInt("a"), cnt * 30);
             assertEquals(values.get(1).getInt("b"), cnt * 40);
 
-            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.NEWEST_SUPPORTED);
+            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.CURRENT);
 
             assertEquals(v2.getInt("a"), cnt * 100);
             assertEquals(v2.getInt("b"), cnt * 200);
@@ -379,25 +369,18 @@ public class CQLSSTableWriterTest
     @SuppressWarnings("unchecked")
     public void testWritesWithDependentUdts() throws Exception
     {
-        final String KS = "cql_keyspace4";
-        final String TABLE = "table4";
-
-        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
                               + "  v1 frozen<nested_tuple>,"
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
-                                                  .withType("CREATE TYPE " + KS + ".nested_tuple (c int, tpl frozen<tuple2>)")
-                                                  .withType("CREATE TYPE " + KS + ".tuple2 (a int, b int)")
+                                                  .withType("CREATE TYPE " + keyspace + ".nested_tuple (c int, tpl frozen<tuple2>)")
+                                                  .withType("CREATE TYPE " + keyspace + ".tuple2 (a int, b int)")
                                                   .forTable(schema)
-                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, v1) " +
+                                                  .using("INSERT INTO " + keyspace + "." + table + " (k, v1) " +
                                                          "VALUES (?, ?)")
                                                   .build();
 
@@ -419,9 +402,9 @@ public class CQLSSTableWriterTest
         }
 
         writer.close();
-        loadSSTables(dataDir, KS);
+        loadSSTables(dataDir, keyspace);
 
-        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
 
         assertEquals(resultSet.size(), 100);
         int cnt = 0;
@@ -429,7 +412,7 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             UDTValue nestedTpl = (UDTValue) nestedTupleCodec.deserialize(row.getBytes("v1"),
-                                                                         ProtocolVersion.NEWEST_SUPPORTED);
+                                                                         ProtocolVersion.CURRENT);
             assertEquals(nestedTpl.getInt("c"), cnt * 100);
             UDTValue tpl = nestedTpl.getUDTValue("tpl");
             assertEquals(tpl.getInt("a"), cnt * 200);
@@ -442,10 +425,7 @@ public class CQLSSTableWriterTest
     @Test
     public void testUnsetValues() throws Exception
     {
-        final String KS = "cql_keyspace5";
-        final String TABLE = "table5";
-
-        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
                               + "  c1 int,"
                               + "  c2 int,"
@@ -453,14 +433,10 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, c1, c2, v) " +
+                                                  .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) " +
                                                          "VALUES (?, ?, ?, ?)")
                                                   .build();
 
@@ -510,9 +486,9 @@ public class CQLSSTableWriterTest
         writer.addRow(5, 5, 5, "5");
 
         writer.close();
-        loadSSTables(dataDir, KS);
+        loadSSTables(dataDir, keyspace);
 
-        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
         UntypedResultSet.Row r1 = iter.next();
         assertEquals(1, r1.getInt("k"));
@@ -545,10 +521,7 @@ public class CQLSSTableWriterTest
     @Test
     public void testUpdateStatement() throws Exception
     {
-        final String KS = "cql_keyspace6";
-        final String TABLE = "table6";
-
-        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
                               + "  c1 int,"
                               + "  c2 int,"
@@ -556,14 +529,10 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .using("UPDATE " + KS + "." + TABLE + " SET v = ? " +
+                                                  .using("UPDATE " + qualifiedTable + " SET v = ? " +
                                                          "WHERE k = ? AND c1 = ? AND c2 = ?")
                                                   .build();
 
@@ -572,9 +541,9 @@ public class CQLSSTableWriterTest
         writer.addRow(null, 7, 8, 9);
         writer.addRow(CQLSSTableWriter.UNSET_VALUE, 10, 11, 12);
         writer.close();
-        loadSSTables(dataDir, KS);
+        loadSSTables(dataDir, keyspace);
 
-        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         assertEquals(2, resultSet.size());
 
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
@@ -594,10 +563,7 @@ public class CQLSSTableWriterTest
     @Test
     public void testNativeFunctions() throws Exception
     {
-        final String KS = "cql_keyspace7";
-        final String TABLE = "table7";
-
-        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
                               + "  c1 int,"
                               + "  c2 int,"
@@ -605,23 +571,19 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
-
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, c1, c2, v) VALUES (?, ?, ?, textAsBlob(?))")
+                                                  .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) VALUES (?, ?, ?, textAsBlob(?))")
                                                   .build();
 
         writer.addRow(1, 2, 3, "abc");
         writer.addRow(4, 5, 6, "efg");
 
         writer.close();
-        loadSSTables(dataDir, KS);
+        loadSSTables(dataDir, keyspace);
 
-        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         assertEquals(2, resultSet.size());
 
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
@@ -638,6 +600,38 @@ public class CQLSSTableWriterTest
         assertEquals(ByteBufferUtil.bytes("efg"), r2.getBytes("v"));
 
         assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void testWriteWithNestedTupleUdt() throws Exception
+    {
+        // Check the writer does not throw "InvalidRequestException: Non-frozen tuples are not allowed inside collections: list<tuple<int, int>>"
+        // See CASSANDRA-15857
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 frozen<nested_type>,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .withType("CREATE TYPE " + keyspace + ".nested_type (a list<tuple<int, int>>)")
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable + " (k, v1) " +
+                                                         "VALUES (?, ?)").build();
+
+        UserType nestedType = writer.getUDType("nested_type");
+        for (int i = 0; i < 100; i++)
+        {
+            writer.addRow(i, nestedType.newValue()
+                                       .setList("a", Collections.emptyList()));
+        }
+
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(100, resultSet.size());
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException

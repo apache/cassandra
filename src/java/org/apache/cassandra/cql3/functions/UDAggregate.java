@@ -25,7 +25,9 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.TypeCodec;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -41,7 +43,7 @@ import static com.google.common.collect.Iterables.transform;
 /**
  * Base class for user-defined-aggregates.
  */
-public class UDAggregate extends AbstractFunction implements AggregateFunction
+public class UDAggregate extends AbstractFunction implements AggregateFunction, SchemaElement
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDAggregate.class);
 
@@ -321,5 +323,48 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
     public int hashCode()
     {
         return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), stateFunction, finalFunction, stateType, initcond);
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.AGGREGATE;
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    {
+        CqlBuilder builder = new CqlBuilder();
+        builder.append("CREATE AGGREGATE ");
+
+        if (ifNotExists)
+        {
+            builder.append("IF NOT EXISTS ");
+        }
+
+        builder.append(name())
+               .append('(')
+               .appendWithSeparators(argTypes, (b, t) -> b.append(toCqlString(t)), ", ")
+               .append(')')
+               .newLine()
+               .increaseIndent()
+               .append("SFUNC ")
+               .append(stateFunction().name().name)
+               .newLine()
+               .append("STYPE ")
+               .append(toCqlString(stateType()));
+
+        if (finalFunction() != null)
+            builder.newLine()
+                   .append("FINALFUNC ")
+                   .append(finalFunction().name().name);
+
+        if (initialCondition() != null)
+            builder.newLine()
+                   .append("INITCOND ")
+                   .append(stateType().asCQL3Type().toCQLLiteral(initialCondition(), ProtocolVersion.CURRENT));
+
+        return builder.append(";")
+                      .toString();
     }
 }

@@ -19,11 +19,10 @@ package org.apache.cassandra.db;
 
 import java.util.Objects;
 
-import com.google.common.hash.Hasher;
-
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.HashingUtils;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Stores the information relating to the liveness of the primary key columns of a row.
@@ -38,7 +37,7 @@ import org.apache.cassandra.utils.HashingUtils;
  * unaffected (of course, the rest of said row data might be ttl'ed on its own but this is
  * separate).
  */
-public class LivenessInfo
+public class LivenessInfo implements IMeasurableMemory
 {
     public static final long NO_TIMESTAMP = Long.MIN_VALUE;
     public static final int NO_TTL = Cell.NO_TTL;
@@ -52,6 +51,7 @@ public class LivenessInfo
     public static final int NO_EXPIRATION_TIME = Cell.NO_DELETION_TIME;
 
     public static final LivenessInfo EMPTY = new LivenessInfo(NO_TIMESTAMP);
+    private static final long UNSHARED_HEAP_SIZE = ObjectSizes.measure(EMPTY);
 
     protected final long timestamp;
 
@@ -153,11 +153,11 @@ public class LivenessInfo
     /**
      * Adds this liveness information to the provided digest.
      *
-     * @param hasher the hasher digest to add this liveness information to.
+     * @param digest the digest to add this liveness information to.
      */
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
-        HashingUtils.updateWithLong(hasher, timestamp());
+        digest.updateWithLong(timestamp());
     }
 
     /**
@@ -258,6 +258,11 @@ public class LivenessInfo
         return Objects.hash(timestamp(), ttl(), localExpirationTime());
     }
 
+    public long unsharedHeapSize()
+    {
+        return this == EMPTY ? 0 : UNSHARED_HEAP_SIZE;
+    }
+
     /**
      * Effectively acts as a PK tombstone. This is used for Materialized Views to shadow
      * updated entries while co-existing with row tombstones.
@@ -297,6 +302,7 @@ public class LivenessInfo
     {
         private final int ttl;
         private final int localExpirationTime;
+        private static final long UNSHARED_HEAP_SIZE = ObjectSizes.measure(new ExpiringLivenessInfo(-1, -1, -1));
 
         private ExpiringLivenessInfo(long timestamp, int ttl, int localExpirationTime)
         {
@@ -331,11 +337,11 @@ public class LivenessInfo
         }
 
         @Override
-        public void digest(Hasher hasher)
+        public void digest(Digest digest)
         {
-            super.digest(hasher);
-            HashingUtils.updateWithInt(hasher, localExpirationTime);
-            HashingUtils.updateWithInt(hasher, ttl);
+            super.digest(digest);
+            digest.updateWithInt(localExpirationTime)
+                  .updateWithInt(ttl);
         }
 
         @Override
@@ -366,6 +372,11 @@ public class LivenessInfo
         public String toString()
         {
             return String.format("[ts=%d ttl=%d, let=%d]", timestamp, ttl, localExpirationTime);
+        }
+
+        public long unsharedHeapSize()
+        {
+            return UNSHARED_HEAP_SIZE;
         }
     }
 }

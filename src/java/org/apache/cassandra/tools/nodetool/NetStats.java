@@ -20,7 +20,10 @@ package org.apache.cassandra.tools.nodetool;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
+import java.io.PrintStream;
 import java.util.Set;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingServiceMBean;
@@ -41,94 +44,129 @@ public class NetStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.printf("Mode: %s%n", probe.getOperationMode());
+        PrintStream out = probe.output().out;
+        out.printf("Mode: %s%n", probe.getOperationMode());
         Set<StreamState> statuses = probe.getStreamStatus();
         if (statuses.isEmpty())
-            System.out.println("Not sending any streams.");
+            out.println("Not sending any streams.");
         for (StreamState status : statuses)
         {
-            System.out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
+            out.printf("%s %s%n", status.streamOperation.getDescription(), status.planId.toString());
             for (SessionInfo info : status.sessions)
             {
-                System.out.printf("    %s", info.peer.toString(printPort));
+                out.printf("    %s", info.peer.toString(printPort));
                 // print private IP when it is used
                 if (!info.peer.equals(info.connecting))
                 {
-                    System.out.printf(" (using %s)", info.connecting.toString(printPort));
+                    out.printf(" (using %s)", info.connecting.toString(printPort));
                 }
-                System.out.printf("%n");
+                out.printf("%n");
                 if (!info.receivingSummaries.isEmpty())
                 {
-                    if (humanReadable)
-                        System.out.printf("        Receiving %d files, %s total. Already received %d files, %s total%n", info.getTotalFilesToReceive(), FileUtils.stringifyFileSize(info.getTotalSizeToReceive()), info.getTotalFilesReceived(), FileUtils.stringifyFileSize(info.getTotalSizeReceived()));
-                    else
-                        System.out.printf("        Receiving %d files, %d bytes total. Already received %d files, %d bytes total%n", info.getTotalFilesToReceive(), info.getTotalSizeToReceive(), info.getTotalFilesReceived(), info.getTotalSizeReceived());
-                    for (ProgressInfo progress : info.getReceivingFiles())
-                    {
-                        System.out.printf("            %s%n", progress.toString(printPort));
-                    }
+                    printReceivingSummaries(out, info, humanReadable);
                 }
                 if (!info.sendingSummaries.isEmpty())
                 {
-                    if (humanReadable)
-                        System.out.printf("        Sending %d files, %s total. Already sent %d files, %s total%n", info.getTotalFilesToSend(), FileUtils.stringifyFileSize(info.getTotalSizeToSend()), info.getTotalFilesSent(), FileUtils.stringifyFileSize(info.getTotalSizeSent()));
-                    else
-                        System.out.printf("        Sending %d files, %d bytes total. Already sent %d files, %d bytes total%n", info.getTotalFilesToSend(), info.getTotalSizeToSend(), info.getTotalFilesSent(), info.getTotalSizeSent());
-                    for (ProgressInfo progress : info.getSendingFiles())
-                    {
-                        System.out.printf("            %s%n", progress.toString(printPort));
-                    }
+                    printSendingSummaries(out, info, humanReadable);
                 }
             }
         }
 
         if (!probe.isStarting())
         {
-            System.out.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
+            out.printf("Read Repair Statistics:%nAttempted: %d%nMismatch (Blocking): %d%nMismatch (Background): %d%n", probe.getReadRepairAttempted(), probe.getReadRepairRepairedBlocking(), probe.getReadRepairRepairedBackground());
 
-            MessagingServiceMBean ms = probe.msProxy;
-            System.out.printf("%-25s", "Pool Name");
-            System.out.printf("%10s", "Active");
-            System.out.printf("%10s", "Pending");
-            System.out.printf("%15s", "Completed");
-            System.out.printf("%10s%n", "Dropped");
+            MessagingServiceMBean ms = probe.getMessagingServiceProxy();
+            out.printf("%-25s", "Pool Name");
+            out.printf("%10s", "Active");
+            out.printf("%10s", "Pending");
+            out.printf("%15s", "Completed");
+            out.printf("%10s%n", "Dropped");
 
             int pending;
             long completed;
             long dropped;
 
             pending = 0;
-            for (int n : ms.getLargeMessagePendingTasks().values())
+            for (int n : ms.getLargeMessagePendingTasksWithPort().values())
                 pending += n;
             completed = 0;
-            for (long n : ms.getLargeMessageCompletedTasks().values())
+            for (long n : ms.getLargeMessageCompletedTasksWithPort().values())
                 completed += n;
             dropped = 0;
-            for (long n : ms.getLargeMessageDroppedTasks().values())
+            for (long n : ms.getLargeMessageDroppedTasksWithPort().values())
                 dropped += n;
-            System.out.printf("%-25s%10s%10s%15s%10s%n", "Large messages", "n/a", pending, completed, dropped);
+            out.printf("%-25s%10s%10s%15s%10s%n", "Large messages", "n/a", pending, completed, dropped);
 
             pending = 0;
-            for (int n : ms.getSmallMessagePendingTasks().values())
+            for (int n : ms.getSmallMessagePendingTasksWithPort().values())
                 pending += n;
             completed = 0;
-            for (long n : ms.getSmallMessageCompletedTasks().values())
+            for (long n : ms.getSmallMessageCompletedTasksWithPort().values())
                 completed += n;
             dropped = 0;
-            for (long n : ms.getSmallMessageDroppedTasks().values())
+            for (long n : ms.getSmallMessageDroppedTasksWithPort().values())
                 dropped += n;
-            System.out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
+            out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
 
             pending = 0;
-            for (int n : ms.getGossipMessagePendingTasks().values())
+            for (int n : ms.getGossipMessagePendingTasksWithPort().values())
                 pending += n;
             completed = 0;
-            for (long n : ms.getGossipMessageCompletedTasks().values())
+            for (long n : ms.getGossipMessageCompletedTasksWithPort().values())
                 completed += n;
             dropped = 0;
-            for (long n : ms.getGossipMessageDroppedTasks().values())
+            for (long n : ms.getGossipMessageDroppedTasksWithPort().values())
                 dropped += n;
-            System.out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
+            out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
+        }
+    }
+
+    @VisibleForTesting
+    public void printReceivingSummaries(PrintStream out, SessionInfo info, boolean printHumanReadable)
+    {
+        long totalFilesToReceive = info.getTotalFilesToReceive();
+        long totalBytesToReceive = info.getTotalSizeToReceive();
+        long totalFilesReceived = info.getTotalFilesReceived();
+        long totalSizeReceived = info.getTotalSizeReceived();
+        double percentageFilesReceived = ((double) totalFilesReceived / totalFilesToReceive) * 100;
+        double percentageSizesReceived = ((double) totalSizeReceived / totalBytesToReceive) * 100;
+
+        out.printf("        Receiving %d files, %s total. Already received %d files (%.2f%%), %s total (%.2f%%)%n",
+                   totalFilesToReceive,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalBytesToReceive) : Long.toString(totalBytesToReceive) + " bytes",
+                   totalFilesReceived,
+                   percentageFilesReceived,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalSizeReceived) : Long.toString(totalSizeReceived) + " bytes",
+                   percentageSizesReceived);
+
+        for (ProgressInfo progress : info.getReceivingFiles())
+        {
+            out.printf("            %s%n", progress.toString(printPort));
+        }
+    }
+
+    @VisibleForTesting
+    public void printSendingSummaries(PrintStream out, SessionInfo info, boolean printHumanReadable)
+    {
+        long totalFilesToSend = info.getTotalFilesToSend();
+        long totalSizeToSend = info.getTotalSizeToSend();
+        long totalFilesSent = info.getTotalFilesSent();
+        long totalSizeSent = info.getTotalSizeSent();
+        double percentageFilesSent = ((double) totalFilesSent / totalFilesToSend) * 100;
+        double percentageSizeSent = ((double) totalSizeSent / totalSizeToSend) * 100;
+
+        out.printf("        Sending %d files, %s total. Already sent %d files (%.2f%%), %s total (%.2f%%)%n",
+                   totalFilesToSend,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalSizeToSend) : Long.toString(totalSizeToSend) + " bytes",
+                   totalFilesSent,
+                   percentageFilesSent,
+                   printHumanReadable ? FileUtils.stringifyFileSize(totalSizeSent) : Long.toString(totalSizeSent) + " bytes",
+                   percentageSizeSent);
+
+        for (ProgressInfo progress : info.getSendingFiles())
+        {
+            out.printf("            %s%n", progress.toString(printPort));
         }
     }
 }

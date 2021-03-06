@@ -28,6 +28,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.junit.AfterClass;
 import org.junit.Test;
@@ -51,6 +52,7 @@ public class ColumnsTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     private static final TableMetadata TABLE_METADATA = MockSchema.newCFS().metadata();
@@ -137,7 +139,7 @@ public class ColumnsTest
         {
             Columns.serializer.serialize(columns, out);
             Assert.assertEquals(Columns.serializer.serializedSize(columns), out.buffer().remaining());
-            Columns deserialized = Columns.serializer.deserialize(new DataInputBuffer(out.buffer(), false), mock(columns));
+            Columns deserialized = Columns.serializer.deserializeRegulars(new DataInputBuffer(out.buffer(), false), mock(columns));
             Assert.assertEquals(columns, deserialized);
             Assert.assertEquals(columns.hashCode(), deserialized.hashCode());
             assertContents(deserialized, definitions);

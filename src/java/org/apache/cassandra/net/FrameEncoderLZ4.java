@@ -27,7 +27,6 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.BufferPool;
 
 import static org.apache.cassandra.net.Crc.*;
 
@@ -35,9 +34,10 @@ import static org.apache.cassandra.net.Crc.*;
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.
  */
 @ChannelHandler.Sharable
+public
 class FrameEncoderLZ4 extends FrameEncoder
 {
-    static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
+    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
 
     private final LZ4Compressor compressor;
 
@@ -47,7 +47,7 @@ class FrameEncoderLZ4 extends FrameEncoder
     }
 
     private static final int HEADER_LENGTH = 8;
-    static final int HEADER_AND_TRAILER_LENGTH = 12;
+    public static final int HEADER_AND_TRAILER_LENGTH = 12;
 
     private static void writeHeader(ByteBuffer frame, boolean isSelfContained, long compressedLength, long uncompressedLength)
     {
@@ -74,7 +74,7 @@ class FrameEncoderLZ4 extends FrameEncoder
                 throw new IllegalArgumentException("Maximum uncompressed payload size is 128KiB");
 
             int maxOutputLength = compressor.maxCompressedLength(uncompressedLength);
-            frame = BufferPool.getAtLeast(HEADER_AND_TRAILER_LENGTH + maxOutputLength, BufferType.OFF_HEAP);
+            frame = bufferPool.getAtLeast(HEADER_AND_TRAILER_LENGTH + maxOutputLength, BufferType.OFF_HEAP);
 
             int compressedLength = compressor.compress(in, in.position(), uncompressedLength, frame, HEADER_LENGTH, maxOutputLength);
 
@@ -101,18 +101,18 @@ class FrameEncoderLZ4 extends FrameEncoder
             frame.putInt(frameCrc);
             frame.position(0);
 
-            BufferPool.putUnusedPortion(frame);
+            bufferPool.putUnusedPortion(frame);
             return GlobalBufferPoolAllocator.wrap(frame);
         }
         catch (Throwable t)
         {
             if (frame != null)
-                BufferPool.put(frame);
+                bufferPool.put(frame);
             throw t;
         }
         finally
         {
-            BufferPool.put(in);
+            bufferPool.put(in);
         }
     }
 }

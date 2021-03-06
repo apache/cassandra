@@ -18,20 +18,14 @@
 
 package org.apache.cassandra.streaming.async;
 
-import java.io.EOFException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,16 +38,11 @@ import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
-import org.apache.cassandra.net.AsyncStreamingInputPlus.InputTimeoutException;
-import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
-import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
-import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.streaming.async.NettyStreamingMessageSender.createLogTag;
@@ -66,7 +55,6 @@ import static org.apache.cassandra.streaming.async.NettyStreamingMessageSender.c
 public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingInboundHandler.class);
-    private static final Function<SessionIdentifier, StreamSession> DEFAULT_SESSION_PROVIDER = sid -> StreamManager.instance.findSession(sid.from, sid.planId, sid.sessionIndex);
     private static volatile boolean trackInboundHandlers = false;
     private static Collection<StreamingInboundHandler> inboundHandlers;
     private final InetAddressAndPort remoteAddress;
@@ -100,7 +88,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     public void handlerAdded(ChannelHandlerContext ctx)
     {
         buffers = new AsyncStreamingInputPlus(ctx.channel());
-        Thread blockingIOThread = new FastThreadLocalThread(new StreamDeserializingTask(DEFAULT_SESSION_PROVIDER, session, ctx.channel()),
+        Thread blockingIOThread = new FastThreadLocalThread(new StreamDeserializingTask(session, ctx.channel()),
                                                             String.format("Stream-Deserializer-%s-%s", remoteAddress.toString(), ctx.channel().id()));
         blockingIOThread.setDaemon(true);
         blockingIOThread.start();
@@ -151,15 +139,13 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
      */
     class StreamDeserializingTask implements Runnable
     {
-        private final Function<SessionIdentifier, StreamSession> sessionProvider;
         private final Channel channel;
 
         @VisibleForTesting
         StreamSession session;
 
-        StreamDeserializingTask(Function<SessionIdentifier, StreamSession> sessionProvider, StreamSession session, Channel channel)
+        StreamDeserializingTask(StreamSession session, Channel channel)
         {
-            this.sessionProvider = sessionProvider;
             this.session = session;
             this.channel = channel;
         }
@@ -183,7 +169,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
                         Uninterruptibles.sleepUninterruptibly(400, TimeUnit.MILLISECONDS);
                     }
 
-                    StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion, null);
+                    StreamMessage message = StreamMessage.deserialize(buffers, protocolVersion);
 
                     // keep-alives don't necessarily need to be tied to a session (they could be arrive before or after
                     // wrt session lifecycle, due to races), just log that we received the message and carry on
@@ -202,10 +188,6 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
                     session.messageReceived(message);
                 }
-            }
-            catch (InputTimeoutException | EOFException e)
-            {
-                // ignore
             }
             catch (Throwable t)
             {
@@ -241,46 +223,14 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
 
         StreamSession deriveSession(StreamMessage message)
         {
-            StreamSession streamSession = null;
-            // StreamInitMessage starts a new channel, and IncomingStreamMessage potentially, as well.
-            // IncomingStreamMessage needs a session to be established a priori, though
-            if (message instanceof StreamInitMessage)
-            {
-                assert session == null : "initiator of stream session received a StreamInitMessage";
-                StreamInitMessage init = (StreamInitMessage) message;
-                StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.streamOperation, init.from, channel, init.pendingRepair, init.previewKind);
-                streamSession = sessionProvider.apply(new SessionIdentifier(init.from, init.planId, init.sessionIndex));
-            }
-            else if (message instanceof IncomingStreamMessage)
-            {
-                // TODO: it'd be great to check if the session actually exists before slurping in the entire stream,
-                // but that's a refactoring for another day
-                StreamMessageHeader header = ((IncomingStreamMessage) message).header;
-                streamSession = sessionProvider.apply(new SessionIdentifier(header.sender, header.planId, header.sessionIndex));
-            }
+            // StreamInitMessage starts a new channel here, but IncomingStreamMessage needs a session
+            // to be established a priori
+            StreamSession streamSession = message.getOrCreateSession(channel);
 
-            if (streamSession == null)
-                throw new IllegalStateException(createLogTag(null, channel) + " no session found for message " + message);
-
-            streamSession.attach(channel);
+            // Attach this channel to the session: this only happens upon receiving the first init message as a follower;
+            // in all other cases, no new control channel will be added, as the proper control channel will be already attached.
+            streamSession.attachInbound(channel, message instanceof StreamInitMessage);
             return streamSession;
-        }
-    }
-
-    /**
-     * A simple struct to wrap the data points required to lookup a {@link StreamSession}
-     */
-    static class SessionIdentifier
-    {
-        final InetAddressAndPort from;
-        final UUID planId;
-        final int sessionIndex;
-
-        SessionIdentifier(InetAddressAndPort from, UUID planId, int sessionIndex)
-        {
-            this.from = from;
-            this.planId = planId;
-            this.sessionIndex = sessionIndex;
         }
     }
 
@@ -292,7 +242,7 @@ public class StreamingInboundHandler extends ChannelInboundHandlerAdapter
     @VisibleForTesting
     public static void shutdown()
     {
-        assert trackInboundHandlers == true : "in-JVM tests required tracking of inbound streaming handlers";
+        assert trackInboundHandlers : "in-JVM tests required tracking of inbound streaming handlers";
 
         inboundHandlers.forEach(StreamingInboundHandler::close);
         inboundHandlers.clear();

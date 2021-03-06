@@ -46,6 +46,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
@@ -263,10 +264,77 @@ class PendingRepairManager
     @SuppressWarnings("resource")
     private RepairFinishedCompactionTask getRepairFinishedCompactionTask(UUID sessionID)
     {
-        Set<SSTableReader> sstables = get(sessionID).getSSTables();
+        Preconditions.checkState(canCleanup(sessionID));
+        AbstractCompactionStrategy compactionStrategy = get(sessionID);
+        if (compactionStrategy == null)
+            return null;
+        Set<SSTableReader> sstables = compactionStrategy.getSSTables();
         long repairedAt = ActiveRepairService.instance.consistent.local.getFinalSessionRepairedAt(sessionID);
         LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         return txn == null ? null : new RepairFinishedCompactionTask(cfs, txn, sessionID, repairedAt);
+    }
+
+    public static class CleanupTask
+    {
+        private final ColumnFamilyStore cfs;
+        private final List<Pair<UUID, RepairFinishedCompactionTask>> tasks;
+
+        public CleanupTask(ColumnFamilyStore cfs, List<Pair<UUID, RepairFinishedCompactionTask>> tasks)
+        {
+            this.cfs = cfs;
+            this.tasks = tasks;
+        }
+
+        public CleanupSummary cleanup()
+        {
+            Set<UUID> successful = new HashSet<>();
+            Set<UUID> unsuccessful = new HashSet<>();
+            for (Pair<UUID, RepairFinishedCompactionTask> pair : tasks)
+            {
+                UUID session = pair.left;
+                RepairFinishedCompactionTask task = pair.right;
+
+                if (task != null)
+                {
+                    try
+                    {
+                        task.run();
+                        successful.add(session);
+                    }
+                    catch (Throwable t)
+                    {
+                        t = task.transaction.abort(t);
+                        logger.error("Failed cleaning up " + session, t);
+                        unsuccessful.add(session);
+                    }
+                }
+                else
+                {
+                    unsuccessful.add(session);
+                }
+            }
+            return new CleanupSummary(cfs, successful, unsuccessful);
+        }
+
+        public Throwable abort(Throwable accumulate)
+        {
+            for (Pair<UUID, RepairFinishedCompactionTask> pair : tasks)
+                accumulate = pair.right.transaction.abort(accumulate);
+            return accumulate;
+        }
+    }
+
+    public CleanupTask releaseSessionData(Collection<UUID> sessionIDs)
+    {
+        List<Pair<UUID, RepairFinishedCompactionTask>> tasks = new ArrayList<>(sessionIDs.size());
+        for (UUID session : sessionIDs)
+        {
+            if (hasDataForSession(session))
+            {
+                tasks.add(Pair.create(session, getRepairFinishedCompactionTask(session)));
+            }
+        }
+        return new CleanupTask(cfs, tasks);
     }
 
     synchronized int getNumPendingRepairFinishedTasks()
@@ -443,13 +511,13 @@ class PendingRepairManager
             {
                 if (obsoleteSSTables)
                 {
-                    logger.info("Obsoleting transient repaired ssatbles");
+                    logger.info("Obsoleting transient repaired sstables for {}", sessionID);
                     Preconditions.checkState(Iterables.all(transaction.originals(), SSTableReader::isTransient));
                     transaction.obsoleteOriginals();
                 }
                 else
                 {
-                    logger.debug("Setting repairedAt to {} on {} for {}", repairedAt, transaction.originals(), sessionID);
+                    logger.info("Moving {} from pending to repaired with repaired at = {} and session id = {}", transaction.originals(), repairedAt, sessionID);
                     cfs.getCompactionStrategyManager().mutateRepaired(transaction.originals(), repairedAt, ActiveRepairService.NO_PENDING_REPAIR, false);
                 }
                 completed = true;

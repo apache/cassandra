@@ -6,15 +6,17 @@ FROM python:2.7
 
 WORKDIR /usr/src/code
 
-RUN pip install --no-cache-dir \
-        sphinx \
-        sphinx_rtd_theme
+RUN pip install --no-cache-dir sphinx sphinx_rtd_theme
 
-RUN apt-get update \
-    && apt-get install -y \
-        ant \
-        default-jdk \
-    && apt-get clean
+RUN apt-get update && apt-get install -y software-properties-common
 
-CMD ant gen-doc \
+RUN wget -qO - https://adoptopenjdk.jfrog.io/adoptopenjdk/api/gpg/key/public | apt-key add - \
+    && add-apt-repository --yes https://adoptopenjdk.jfrog.io/adoptopenjdk/deb/ \
+    && apt-get update \
+    && apt-get install -y adoptopenjdk-11-hotspot ant
+
+
+RUN apt-get clean
+
+CMD CASSANDRA_USE_JDK11=true ant gen-doc \
     && echo "The locally built documentation can be found here:\n\n    build/html/index.html\n\n"

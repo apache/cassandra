@@ -23,6 +23,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -49,6 +50,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
+import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -76,6 +78,7 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
@@ -214,6 +217,55 @@ public class LegacySSTableTest
     }
 
     @Test
+    public void testMutateMetadataCSM() throws Exception
+    {
+        // we need to make sure we write old version metadata in the format for that version
+        for (String legacyVersion : legacyVersions)
+        {
+            // Skip 2.0.1 sstables as it doesn't have repaired information
+            if (legacyVersion.equals("jb"))
+                continue;
+            truncateTables(legacyVersion);
+            loadLegacyTables(legacyVersion);
+
+            for (ColumnFamilyStore cfs : Keyspace.open("legacy_tables").getColumnFamilyStores())
+            {
+                // set pending
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    UUID random = UUID.randomUUID();
+                    try
+                    {
+                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, random, false);
+                        if (!sstable.descriptor.version.hasPendingRepair())
+                            fail("We should fail setting pending repair on unsupported sstables "+sstable);
+                    }
+                    catch (IllegalStateException e)
+                    {
+                        if (sstable.descriptor.version.hasPendingRepair())
+                            fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
+                    }
+                }
+                // set transient
+                for (SSTableReader sstable : cfs.getLiveSSTables())
+                {
+                    try
+                    {
+                        cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), UNREPAIRED_SSTABLE, UUID.randomUUID(), true);
+                        if (!sstable.descriptor.version.hasIsTransient())
+                            fail("We should fail setting pending repair on unsupported sstables "+sstable);
+                    }
+                    catch (IllegalStateException e)
+                    {
+                        if (sstable.descriptor.version.hasIsTransient())
+                            fail("We should succeed setting pending repair on "+legacyVersion + " sstables, failed on "+sstable);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     public void testMutateLevel() throws Exception
     {
         // we need to make sure we write old version metadata in the format for that version
@@ -317,6 +369,25 @@ public class LegacySSTableTest
     }
 
     @Test
+    public void testPendingAntiCompactionOldSSTables() throws Exception
+    {
+        for (String legacyVersion : legacyVersions)
+        {
+            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
+            loadLegacyTable("legacy_%s_simple", legacyVersion);
+
+            boolean shouldFail = !cfs.getLiveSSTables().stream().allMatch(sstable -> sstable.descriptor.version.hasPendingRepair());
+            IPartitioner p = Iterables.getFirst(cfs.getLiveSSTables(), null).getPartitioner();
+            Range<Token> r = new Range<>(p.getMinimumToken(), p.getMinimumToken());
+            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, Collections.singleton(r), UUIDGen.getTimeUUID(), 0, 0);
+            PendingAntiCompaction.AcquireResult res = acquisitionCallable.call();
+            assertEquals(shouldFail, res == null);
+            if (res != null)
+                res.abort();
+        }
+    }
+
+    @Test
     public void testAutomaticUpgrade() throws Exception
     {
         for (String legacyVersion : legacyVersions)
@@ -374,7 +445,7 @@ public class LegacySSTableTest
         new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
     }
 
-    private static void truncateLegacyTables(String legacyVersion) throws Exception
+    public static void truncateLegacyTables(String legacyVersion) throws Exception
     {
         logger.info("Truncating legacy version {}", legacyVersion);
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).truncateBlocking();
@@ -392,7 +463,7 @@ public class LegacySSTableTest
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).forceMajorCompaction();
     }
 
-    private static void loadLegacyTables(String legacyVersion) throws Exception
+    public static void loadLegacyTables(String legacyVersion) throws Exception
     {
             logger.info("Preparing legacy version {}", legacyVersion);
             loadLegacyTable("legacy_%s_simple", legacyVersion);

@@ -21,12 +21,14 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
-public class NativeClustering extends AbstractClusteringPrefix implements Clustering
+public class NativeClustering implements Clustering<ByteBuffer>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new NativeClustering());
 
@@ -34,7 +36,12 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
 
     private NativeClustering() { peer = 0; }
 
-    public NativeClustering(NativeAllocator allocator, OpOrder.Group writeOp, Clustering clustering)
+    public ClusteringPrefix<ByteBuffer> minimize()
+    {
+        return this;
+    }
+
+    public NativeClustering(NativeAllocator allocator, OpOrder.Group writeOp, Clustering<?> clustering)
     {
         int count = clustering.size();
         int metadataSize = (count * 2) + 4;
@@ -56,7 +63,7 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
         {
             MemoryUtil.setShort(peer + 2 + i * 2, (short) dataOffset);
 
-            ByteBuffer value = clustering.get(i);
+            ByteBuffer value = clustering.bufferAt(i);
             if (value == null)
             {
                 long boffset = bitmapStart + (i >>> 3);
@@ -77,6 +84,11 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
     public Kind kind()
     {
         return Kind.CLUSTERING;
+    }
+
+    public ClusteringPrefix<ByteBuffer> clustering()
+    {
+        return this;
     }
 
     public int size()
@@ -113,6 +125,17 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
         return values;
     }
 
+    public ByteBuffer[] getBufferArray()
+    {
+        return getRawValues();
+    }
+
+    public ValueAccessor<ByteBuffer> accessor()
+    {
+        // TODO: add a native accessor
+        return ByteBufferAccessor.instance;
+    }
+
     public long unsharedHeapSize()
     {
         return EMPTY_SIZE;
@@ -121,5 +144,17 @@ public class NativeClustering extends AbstractClusteringPrefix implements Cluste
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE;
+    }
+
+    @Override
+    public final int hashCode()
+    {
+        return ClusteringPrefix.hashCode(this);
+    }
+
+    @Override
+    public final boolean equals(Object o)
+    {
+        return ClusteringPrefix.equals(this, o);
     }
 }

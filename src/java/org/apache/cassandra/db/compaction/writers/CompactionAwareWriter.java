@@ -35,6 +35,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
@@ -64,17 +65,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     private final List<Directories.DataDirectory> locations;
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
-
-    @Deprecated
-    public CompactionAwareWriter(ColumnFamilyStore cfs,
-                                 Directories directories,
-                                 LifecycleTransaction txn,
-                                 Set<SSTableReader> nonExpiredSSTables,
-                                 boolean offline,
-                                 boolean keepOriginals)
-    {
-        this(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
-    }
 
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
@@ -208,18 +198,18 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      */
     public Directories.DataDirectory getWriteDirectory(Iterable<SSTableReader> sstables, long estimatedWriteSize)
     {
-        File directory = null;
+        Descriptor descriptor = null;
         for (SSTableReader sstable : sstables)
         {
-            if (directory == null)
-                directory = sstable.descriptor.directory;
-            if (!directory.equals(sstable.descriptor.directory))
+            if (descriptor == null)
+                descriptor = sstable.descriptor;
+            if (!descriptor.directory.equals(sstable.descriptor.directory))
             {
-                logger.trace("All sstables not from the same disk - putting results in {}", directory);
+                logger.trace("All sstables not from the same disk - putting results in {}", descriptor.directory);
                 break;
             }
         }
-        Directories.DataDirectory d = getDirectories().getDataDirectoryForFile(directory);
+        Directories.DataDirectory d = getDirectories().getDataDirectoryForFile(descriptor);
         if (d != null)
         {
             long availableSpace = d.getAvailableSpace();
@@ -228,7 +218,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                                                          FBUtilities.prettyPrintMemory(estimatedWriteSize),
                                                          d.location,
                                                          FBUtilities.prettyPrintMemory(availableSpace)));
-            logger.trace("putting compaction results in {}", directory);
+            logger.trace("putting compaction results in {}", descriptor.directory);
             return d;
         }
         d = getDirectories().getWriteableLocation(estimatedWriteSize);

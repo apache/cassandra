@@ -38,10 +38,10 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.Validator;
@@ -79,14 +79,14 @@ public class SerializationsTest extends AbstractSerializationsTester
         partitionerSwitcher.close();
     }
 
-    private void testRepairMessageWrite(String fileName, RepairMessage... messages) throws IOException
+    private <T extends RepairMessage> void testRepairMessageWrite(String fileName, IVersionedSerializer<T> serializer, T... messages) throws IOException
     {
         try (DataOutputStreamPlus out = getOutput(fileName))
         {
-            for (RepairMessage message : messages)
+            for (T message : messages)
             {
-                testSerializedSize(message, RepairMessage.serializer);
-                RepairMessage.serializer.serialize(message, out, getVersion());
+                testSerializedSize(message, serializer);
+                serializer.serialize(message, out, getVersion());
             }
         }
     }
@@ -94,7 +94,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testValidationRequestWrite() throws IOException
     {
         ValidationRequest message = new ValidationRequest(DESC, 1234);
-        testRepairMessageWrite("service.ValidationRequest.bin", message);
+        testRepairMessageWrite("service.ValidationRequest.bin", ValidationRequest.serializer, message);
     }
 
     @Test
@@ -105,10 +105,9 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         try (DataInputStreamPlus in = getInput("service.ValidationRequest.bin"))
         {
-            RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.VALIDATION_REQUEST;
+            ValidationRequest message = ValidationRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
-            assert ((ValidationRequest) message).nowInSec == 1234;
+            assert message.nowInSec == 1234;
         }
     }
 
@@ -121,7 +120,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         // empty validation
         mt.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
         Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
-        ValidationComplete c0 = new ValidationComplete(DESC, mt);
+        ValidationResponse c0 = new ValidationResponse(DESC, mt);
 
         // validation with a tree
         mt = new MerkleTrees(p);
@@ -129,12 +128,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         for (int i = 0; i < 10; i++)
             mt.split(p.getRandomToken());
         Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddressAndPort(), -1, PreviewKind.NONE);
-        ValidationComplete c1 = new ValidationComplete(DESC, mt);
+        ValidationResponse c1 = new ValidationResponse(DESC, mt);
 
         // validation failed
-        ValidationComplete c3 = new ValidationComplete(DESC);
+        ValidationResponse c3 = new ValidationResponse(DESC);
 
-        testRepairMessageWrite("service.ValidationComplete.bin", c0, c1, c3);
+        testRepairMessageWrite("service.ValidationComplete.bin", ValidationResponse.serializer, c0, c1, c3);
     }
 
     @Test
@@ -146,28 +145,25 @@ public class SerializationsTest extends AbstractSerializationsTester
         try (DataInputStreamPlus in = getInput("service.ValidationComplete.bin"))
         {
             // empty validation
-            RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.VALIDATION_COMPLETE;
+            ValidationResponse message = ValidationResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 
-            assert ((ValidationComplete) message).success();
-            assert ((ValidationComplete) message).trees != null;
+            assert message.success();
+            assert message.trees != null;
 
             // validation with a tree
-            message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.VALIDATION_COMPLETE;
+            message = ValidationResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 
-            assert ((ValidationComplete) message).success();
-            assert ((ValidationComplete) message).trees != null;
+            assert message.success();
+            assert message.trees != null;
 
             // failed validation
-            message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.VALIDATION_COMPLETE;
+            message = ValidationResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 
-            assert !((ValidationComplete) message).success();
-            assert ((ValidationComplete) message).trees == null;
+            assert !message.success();
+            assert message.trees == null;
         }
     }
 
@@ -177,8 +173,8 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
-        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE);
-        testRepairMessageWrite("service.SyncRequest.bin", message);
+        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE, false);
+        testRepairMessageWrite("service.SyncRequest.bin", SyncRequest.serializer, message);
     }
 
     @Test
@@ -193,13 +189,13 @@ public class SerializationsTest extends AbstractSerializationsTester
 
         try (DataInputStreamPlus in = getInput("service.SyncRequest.bin"))
         {
-            RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.SYNC_REQUEST;
+            SyncRequest message = SyncRequest.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
-            assert local.equals(((SyncRequest) message).initiator);
-            assert src.equals(((SyncRequest) message).src);
-            assert dest.equals(((SyncRequest) message).dst);
-            assert ((SyncRequest) message).ranges.size() == 1 && ((SyncRequest) message).ranges.contains(FULL_RANGE);
+            assert local.equals(message.initiator);
+            assert src.equals(message.src);
+            assert dest.equals(message.dst);
+            assert message.ranges.size() == 1 && message.ranges.contains(FULL_RANGE);
+            assert !message.asymmetric;
         }
     }
 
@@ -213,11 +209,11 @@ public class SerializationsTest extends AbstractSerializationsTester
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 5, 100)),
                                          Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUIDGen.getTimeUUID()), 500, 10))
         ));
-        SyncComplete success = new SyncComplete(DESC, src, dest, true, summaries);
+        SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
         // sync fail
-        SyncComplete fail = new SyncComplete(DESC, src, dest, false, Collections.emptyList());
+        SyncResponse fail = new SyncResponse(DESC, src, dest, false, Collections.emptyList());
 
-        testRepairMessageWrite("service.SyncComplete.bin", success, fail);
+        testRepairMessageWrite("service.SyncComplete.bin", SyncResponse.serializer, success, fail);
     }
 
     @Test
@@ -233,22 +229,20 @@ public class SerializationsTest extends AbstractSerializationsTester
         try (DataInputStreamPlus in = getInput("service.SyncComplete.bin"))
         {
             // success
-            RepairMessage message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.SYNC_COMPLETE;
+            SyncResponse message = SyncResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 
             System.out.println(nodes);
-            System.out.println(((SyncComplete) message).nodes);
-            assert nodes.equals(((SyncComplete) message).nodes);
-            assert ((SyncComplete) message).success;
+            System.out.println(message.nodes);
+            assert nodes.equals(message.nodes);
+            assert message.success;
 
             // fail
-            message = RepairMessage.serializer.deserialize(in, getVersion());
-            assert message.messageType == RepairMessage.Type.SYNC_COMPLETE;
+            message = SyncResponse.serializer.deserialize(in, getVersion());
             assert DESC.equals(message.desc);
 
-            assert nodes.equals(((SyncComplete) message).nodes);
-            assert !((SyncComplete) message).success;
+            assert nodes.equals(message.nodes);
+            assert !message.success;
         }
     }
 }

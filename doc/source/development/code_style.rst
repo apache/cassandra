@@ -35,7 +35,6 @@ Exception handling
 Boilerplate
 -----------
 
- - Avoid redundant ``@Override`` annotations when implementing abstract or interface methods.
  - Do not implement equals or hashcode methods unless they are actually needed.
  - Prefer public final fields to private fields with getters. (But prefer encapsulating behavior in "real" methods to either.)
  - Prefer requiring initialization in the constructor to setters.

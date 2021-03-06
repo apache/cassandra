@@ -18,7 +18,10 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import org.junit.Test;
@@ -30,9 +33,6 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
 
 import static org.apache.cassandra.cql3.functions.TimeFcts.*;
 import static org.junit.Assert.assertEquals;
@@ -40,15 +40,21 @@ import static org.junit.Assert.assertNull;
 
 public class TimeFctsTest
 {
+    private static final LocalDate LOCAL_DATE = LocalDate.of(2019, 8, 3);
+
+    private static final ZonedDateTime DATE = LOCAL_DATE.atStartOfDay(ZoneOffset.UTC);
+    private static final LocalTime LOCAL_TIME = LocalTime.of(11, 3, 2);
+    private static final ZonedDateTime DATE_TIME =
+            ZonedDateTime.of(LOCAL_DATE, LOCAL_TIME, ZoneOffset.UTC);
+    private static final String DATE_STRING = DATE.format(DateTimeFormatter.ISO_LOCAL_DATE);
+    private static final String DATE_TIME_STRING =
+            DATE_STRING + " " + LOCAL_TIME.format(DateTimeFormatter.ISO_LOCAL_TIME);
+
     @Test
     public void testMinTimeUuid()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
-
-        long timeInMillis = dateTime.getMillis();
-        ByteBuffer input = TimestampType.instance.fromString("2015-05-21 11:03:02+00");
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
+        ByteBuffer input = TimestampType.instance.fromString(DATE_TIME_STRING + "+00");
         ByteBuffer output = executeFunction(TimeFcts.minTimeuuidFct, input);
         assertEquals(UUIDGen.minTimeUUID(timeInMillis), TimeUUIDType.instance.compose(output));
     }
@@ -56,12 +62,8 @@ public class TimeFctsTest
     @Test
     public void testMaxTimeUuid()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
-
-        long timeInMillis = dateTime.getMillis();
-        ByteBuffer input = TimestampType.instance.fromString("2015-05-21 11:03:02+00");
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
+        ByteBuffer input = TimestampType.instance.fromString(DATE_TIME_STRING + "+00");
         ByteBuffer output = executeFunction(TimeFcts.maxTimeuuidFct, input);
         assertEquals(UUIDGen.maxTimeUUID(timeInMillis), TimeUUIDType.instance.compose(output));
     }
@@ -69,37 +71,26 @@ public class TimeFctsTest
     @Test
     public void testDateOf()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
 
-        long timeInMillis = dateTime.getMillis();
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(TimeFcts.dateOfFct, input);
-        assertEquals(dateTime.toDate(), TimestampType.instance.compose(output));
+        assertEquals(Date.from(DATE_TIME.toInstant()), TimestampType.instance.compose(output));
     }
 
     @Test
     public void testTimeUuidToTimestamp()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
-
-        long timeInMillis = dateTime.getMillis();
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(toTimestamp(TimeUUIDType.instance), input);
-        assertEquals(dateTime.toDate(), TimestampType.instance.compose(output));
+        assertEquals(Date.from(DATE_TIME.toInstant()), TimestampType.instance.compose(output));
     }
 
     @Test
     public void testUnixTimestampOfFct()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
-
-        long timeInMillis = dateTime.getMillis();
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(TimeFcts.unixTimestampOfFct, input);
         assertEquals(timeInMillis, LongType.instance.compose(output).longValue());
@@ -108,11 +99,7 @@ public class TimeFctsTest
     @Test
     public void testTimeUuidToUnixTimestamp()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
-
-        long timeInMillis = dateTime.getMillis();
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(toUnixTimestamp(TimeUUIDType.instance), input);
         assertEquals(timeInMillis, LongType.instance.compose(output).longValue());
@@ -121,18 +108,11 @@ public class TimeFctsTest
     @Test
     public void testTimeUuidToDate()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                .withZone(DateTimeZone.UTC)
-                .parseDateTime("2015-05-21 11:03:02");
-
-        long timeInMillis = dateTime.getMillis();
+        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(toDate(TimeUUIDType.instance), input);
 
-        long expectedTime = DateTimeFormat.forPattern("yyyy-MM-dd")
-                                          .withZone(DateTimeZone.UTC)
-                                          .parseDateTime("2015-05-21")
-                                          .getMillis();
+        long expectedTime = DATE.toInstant().toEpochMilli();
 
         assertEquals(expectedTime, SimpleDateType.instance.toTimeInMillis(output));
     }
@@ -140,37 +120,25 @@ public class TimeFctsTest
     @Test
     public void testDateToTimestamp()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd")
-                                          .withZone(DateTimeZone.UTC)
-                                          .parseDateTime("2015-05-21");
-
-        ByteBuffer input = SimpleDateType.instance.fromString("2015-05-21");
+        ByteBuffer input = SimpleDateType.instance.fromString(DATE_STRING);
         ByteBuffer output = executeFunction(toTimestamp(SimpleDateType.instance), input);
-        assertEquals(dateTime.toDate(), TimestampType.instance.compose(output));
+        assertEquals(Date.from(DATE.toInstant()), TimestampType.instance.compose(output));
     }
 
     @Test
     public void testDateToUnixTimestamp()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd")
-                                          .withZone(DateTimeZone.UTC)
-                                          .parseDateTime("2015-05-21");
-
-        ByteBuffer input = SimpleDateType.instance.fromString("2015-05-21");
+        ByteBuffer input = SimpleDateType.instance.fromString(DATE_STRING);
         ByteBuffer output = executeFunction(toUnixTimestamp(SimpleDateType.instance), input);
-        assertEquals(dateTime.getMillis(), LongType.instance.compose(output).longValue());
+        assertEquals(DATE.toInstant().toEpochMilli(), LongType.instance.compose(output).longValue());
     }
 
     @Test
     public void testTimestampToDate()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd")
-                                          .withZone(DateTimeZone.UTC)
-                                          .parseDateTime("2015-05-21");
-
-        ByteBuffer input = TimestampType.instance.fromString("2015-05-21 11:03:02+00");
+        ByteBuffer input = TimestampType.instance.fromString(DATE_TIME_STRING + "+00");
         ByteBuffer output = executeFunction(toDate(TimestampType.instance), input);
-        assertEquals(dateTime.getMillis(), SimpleDateType.instance.toTimeInMillis(output));
+        assertEquals(DATE.toInstant().toEpochMilli(), SimpleDateType.instance.toTimeInMillis(output));
     }
 
     @Test
@@ -183,13 +151,9 @@ public class TimeFctsTest
     @Test
     public void testTimestampToUnixTimestamp()
     {
-        DateTime dateTime = DateTimeFormat.forPattern("yyyy-MM-dd hh:mm:ss")
-                                          .withZone(DateTimeZone.UTC)
-                                          .parseDateTime("2015-05-21 11:03:02");
-
-        ByteBuffer input = TimestampType.instance.decompose(dateTime.toDate());
+        ByteBuffer input = TimestampType.instance.decompose(Date.from(DATE_TIME.toInstant()));
         ByteBuffer output = executeFunction(toUnixTimestamp(TimestampType.instance), input);
-        assertEquals(dateTime.getMillis(), LongType.instance.compose(output).longValue());
+        assertEquals(DATE_TIME.toInstant().toEpochMilli(), LongType.instance.compose(output).longValue());
     }
 
     @Test
@@ -201,7 +165,7 @@ public class TimeFctsTest
 
     private static ByteBuffer executeFunction(Function function, ByteBuffer input)
     {
-        List<ByteBuffer> params = Arrays.asList(input);
+        List<ByteBuffer> params = Collections.singletonList(input);
         return ((ScalarFunction) function).execute(ProtocolVersion.CURRENT, params);
     }
 }

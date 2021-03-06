@@ -16,6 +16,8 @@
 
 .. highlight:: none
 
+.. _snitch:
+
 Snitch
 ------
 
@@ -63,9 +65,11 @@ PropertyFileSnitch
     ``cassandra-topology.properties``.
 
 Ec2Snitch
-    Appropriate for EC2 deployments in a single Region. Loads Region and Availability Zone information from the EC2 API.
-    The Region is treated as the datacenter, and the Availability Zone as the rack. Only private IPs are used, so this
-    will not work across multiple regions.
+    Appropriate for EC2 deployments in a single Region, or in multiple regions with inter-region VPC enabled (available
+    since the end of 2017, see `AWS announcement <https://aws.amazon.com/about-aws/whats-new/2017/11/announcing-support-for-inter-region-vpc-peering/>`_).
+    Loads Region and Availability Zone information from the EC2 API. The Region is treated as the datacenter, and the
+    Availability Zone as the rack. Only private IPs are used, so this will work across multiple regions only if
+    inter-region VPC is enabled.
 
 Ec2MultiRegionSnitch
     Uses public IPs as broadcast_address to allow cross-region connectivity (thus, you should set seed addresses to the

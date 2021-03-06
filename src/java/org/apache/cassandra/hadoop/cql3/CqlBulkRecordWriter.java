@@ -51,6 +51,8 @@ import org.apache.hadoop.mapreduce.RecordWriter;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
+
 /**
  * The <code>CqlBulkRecordWriter</code> maps the output &lt;key, value&gt;
  * pairs to a Cassandra column family. In particular, it applies the binded variables
@@ -152,7 +154,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
 
     protected String getOutputLocation() throws IOException
     {
-        String dir = conf.get(OUTPUT_LOCATION, System.getProperty("java.io.tmpdir"));
+        String dir = conf.get(OUTPUT_LOCATION, JAVA_IO_TMPDIR.getString());
         if (dir == null)
             throw new IOException("Output directory not defined, if hadoop is not setting java.io.tmpdir then define " + OUTPUT_LOCATION);
         return dir;
@@ -287,12 +289,10 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         public ExternalClient(Configuration conf)
         {
             super(resolveHostAddresses(conf),
-                  CqlConfigHelper.getOutputNativePort(conf),
                   ConfigHelper.getOutputInitialPort(conf),
                   ConfigHelper.getOutputKeyspaceUserName(conf),
                   ConfigHelper.getOutputKeyspacePassword(conf),
-                  CqlConfigHelper.getSSLOptions(conf).orNull(),
-                  CqlConfigHelper.getAllowServerPortDiscovery(conf));
+                  CqlConfigHelper.getSSLOptions(conf).orNull());
         }
 
         private static Collection<InetSocketAddress> resolveHostAddresses(Configuration conf)

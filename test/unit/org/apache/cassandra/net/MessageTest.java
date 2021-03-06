@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -34,8 +35,10 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
@@ -193,6 +196,34 @@ public class MessageTest
         assertTrue(msg.isFailureResponse());
 
         testCycle(msg);
+    }
+
+    @Test
+    public void testBuilderAddTraceHeaderWhenTraceSessionPresent()
+    {
+        Stream.of(TraceType.values()).forEach(this::testAddTraceHeaderWithType);
+    }
+
+    @Test
+    public void testBuilderNotAddTraceHeaderWithNoTraceSession()
+    {
+        Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
+        assertNull(msg.header.traceSession());
+    }
+
+    private void testAddTraceHeaderWithType(TraceType traceType)
+    {
+        try
+        {
+            UUID sessionId = Tracing.instance.newSession(traceType);
+            Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
+            assertEquals(sessionId, msg.header.traceSession());
+            assertEquals(traceType, msg.header.traceType());
+        }
+        finally
+        {
+            Tracing.instance.stopSession();
+        }
     }
 
     private void testCycle(Message msg) throws IOException

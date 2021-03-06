@@ -54,9 +54,9 @@ import static org.apache.cassandra.net.Crc.updateCrc32;
  * |                        CRC32 of Payload                       |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
-final class FrameDecoderCrc extends FrameDecoderWith8bHeader
+public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
 {
-    private FrameDecoderCrc(BufferPoolAllocator allocator)
+    public FrameDecoderCrc(BufferPoolAllocator allocator)
     {
         super(allocator);
     }

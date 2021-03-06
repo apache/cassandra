@@ -21,16 +21,17 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class TimeSerializer implements TypeSerializer<Long>
+public class TimeSerializer extends TypeSerializer<Long>
 {
     public static final Pattern timePattern = Pattern.compile("^-?\\d+$");
     public static final TimeSerializer instance = new TimeSerializer();
 
-    public Long deserialize(ByteBuffer bytes)
+    public <V> Long deserialize(V value, ValueAccessor<V> accessor)
     {
-        return bytes.remaining() == 0 ? null : ByteBufferUtil.toLong(bytes);
+        return accessor.isEmpty(value) ? null : accessor.toLong(value);
     }
 
     public ByteBuffer serialize(Long value)
@@ -67,10 +68,10 @@ public class TimeSerializer implements TypeSerializer<Long>
         }
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (bytes.remaining() != 8)
-            throw new MarshalException(String.format("Expected 8 byte long for time (%d)", bytes.remaining()));
+        if (accessor.size(value) != 8)
+            throw new MarshalException(String.format("Expected 8 byte long for time (%d)", accessor.size(value)));
     }
 
     public String toString(Long value)

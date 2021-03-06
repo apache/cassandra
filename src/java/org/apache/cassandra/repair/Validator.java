@@ -34,9 +34,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.Range;
@@ -44,7 +44,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.messages.ValidationComplete;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tracing.Tracing;
@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTree.RowHash;
 import org.apache.cassandra.utils.MerkleTrees;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.VALIDATION_RSP;
 
 /**
  * Handles the building of a merkle tree for a column family.
@@ -196,171 +196,15 @@ public class Validator implements Runnable
         return range.contains(t);
     }
 
-    /**
-     * Hasher that concatenates the hash code from 2 hash functions (murmur3_128) with different
-     * seeds and counts the number of bytes we hashed.
-     *
-     * Everything hashed by this class is hashed by both hash functions and the
-     * resulting hashcode is a concatenation of the output bytes from each.
-     *
-     * Idea from Guavas Hashing.ConcatenatedHashFunction, but that is package-private so we can't use it
-     */
-    @VisibleForTesting
-    static class CountingHasher implements Hasher
-    {
-        @VisibleForTesting
-        static final HashFunction[] hashFunctions = new HashFunction[2];
-
-        static
-        {
-            for (int i = 0; i < hashFunctions.length; i++)
-                hashFunctions[i] = Hashing.murmur3_128(i * 1000);
-        }
-        private long count;
-        private final int bits;
-        private final Hasher[] underlying = new Hasher[2];
-
-        CountingHasher()
-        {
-            int bits = 0;
-            for (int i = 0; i < underlying.length; i++)
-            {
-                this.underlying[i] = hashFunctions[i].newHasher();
-                bits += hashFunctions[i].bits();
-            }
-            this.bits = bits;
-        }
-
-        public Hasher putByte(byte b)
-        {
-            count += 1;
-            for (Hasher h : underlying)
-                h.putByte(b);
-            return this;
-        }
-
-        public Hasher putBytes(byte[] bytes)
-        {
-            count += bytes.length;
-            for (Hasher h : underlying)
-                h.putBytes(bytes);
-            return this;
-        }
-
-        public Hasher putBytes(byte[] bytes, int offset, int length)
-        {
-            count += length;
-            for (Hasher h : underlying)
-                h.putBytes(bytes, offset, length);
-            return this;
-        }
-
-        public Hasher putBytes(ByteBuffer byteBuffer)
-        {
-            count += byteBuffer.remaining();
-            for (Hasher h : underlying)
-                h.putBytes(byteBuffer.duplicate());
-            return this;
-        }
-
-        public Hasher putShort(short i)
-        {
-            count += Short.BYTES;
-            for (Hasher h : underlying)
-                h.putShort(i);
-            return this;
-        }
-
-        public Hasher putInt(int i)
-        {
-            count += Integer.BYTES;
-            for (Hasher h : underlying)
-                h.putInt(i);
-            return this;
-        }
-
-        public Hasher putLong(long l)
-        {
-            count += Long.BYTES;
-            for (Hasher h : underlying)
-                h.putLong(l);
-            return this;
-        }
-
-        public Hasher putFloat(float v)
-        {
-            count += Float.BYTES;
-            for (Hasher h : underlying)
-                h.putFloat(v);
-            return this;
-        }
-
-        public Hasher putDouble(double v)
-        {
-            count += Double.BYTES;
-            for (Hasher h : underlying)
-                h.putDouble(v);
-            return this;
-        }
-
-        public Hasher putBoolean(boolean b)
-        {
-            count += Byte.BYTES;
-            for (Hasher h : underlying)
-                h.putBoolean(b);
-            return this;
-        }
-
-        public Hasher putChar(char c)
-        {
-            count += Character.BYTES;
-            for (Hasher h : underlying)
-                h.putChar(c);
-            return this;
-        }
-
-        public Hasher putUnencodedChars(CharSequence charSequence)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public Hasher putString(CharSequence charSequence, Charset charset)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public <T> Hasher putObject(T t, Funnel<? super T> funnel)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        public HashCode hash()
-        {
-            byte[] res = new byte[bits / 8];
-            int i = 0;
-            for (Hasher hasher : underlying)
-            {
-                HashCode newHash = hasher.hash();
-                i += newHash.writeBytesTo(res, i, newHash.bits() / 8);
-            }
-            return HashCode.fromBytes(res);
-        }
-
-        public long getCount()
-        {
-            return count;
-        }
-    }
-
     private MerkleTree.RowHash rowHash(UnfilteredRowIterator partition)
     {
         validated++;
         // MerkleTree uses XOR internally, so we want lots of output bits here
-        CountingHasher hasher = new CountingHasher();
-        UnfilteredRowIterators.digest(partition, hasher, MessagingService.current_version);
+        Digest digest = Digest.forValidator();
+        UnfilteredRowIterators.digest(partition, digest, MessagingService.current_version);
         // only return new hash for merkle tree in case digest was updated - see CASSANDRA-8979
-        return hasher.count > 0
-             ? new MerkleTree.RowHash(partition.partitionKey().getToken(), hasher.hash().asBytes(), hasher.count)
+        return digest.inputBytes() > 0
+             ? new MerkleTree.RowHash(partition.partitionKey().getToken(), digest.digest(), digest.inputBytes())
              : null;
     }
 
@@ -380,7 +224,7 @@ public class Validator implements Runnable
             trees.logRowSizePerLeaf(logger);
         }
 
-        StageManager.getStage(Stage.ANTI_ENTROPY).execute(this);
+        Stage.ANTI_ENTROPY.execute(this);
     }
 
     /**
@@ -391,7 +235,7 @@ public class Validator implements Runnable
     public void fail()
     {
         logger.error("Failed creating a merkle tree for {}, {} (see log for details)", desc, initiator);
-        respond(new ValidationComplete(desc));
+        respond(new ValidationResponse(desc));
     }
 
     /**
@@ -410,7 +254,7 @@ public class Validator implements Runnable
             Tracing.traceRepair("Local completed merkle tree for {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
 
         }
-        respond(new ValidationComplete(desc, trees));
+        respond(new ValidationResponse(desc, trees));
     }
 
     private boolean initiatorIsRemote()
@@ -418,11 +262,11 @@ public class Validator implements Runnable
         return !FBUtilities.getBroadcastAddressAndPort().equals(initiator);
     }
 
-    private void respond(ValidationComplete response)
+    private void respond(ValidationResponse response)
     {
         if (initiatorIsRemote())
         {
-            MessagingService.instance().send(Message.out(REPAIR_REQ, response), initiator);
+            MessagingService.instance().send(Message.out(VALIDATION_RSP, response), initiator);
             return;
         }
 
@@ -432,9 +276,9 @@ public class Validator implements Runnable
          * directly, since this method will only be called from {@code Stage.ENTI_ENTROPY}, but we do instead
          * execute a {@code Runnable} on the stage - in case that assumption ever changes by accident.
          */
-        StageManager.getStage(Stage.ANTI_ENTROPY).execute(() ->
+        Stage.ANTI_ENTROPY.execute(() ->
         {
-            ValidationComplete movedResponse = response;
+            ValidationResponse movedResponse = response;
             try
             {
                 movedResponse = response.tryMoveOffHeap();
@@ -443,7 +287,7 @@ public class Validator implements Runnable
             {
                 logger.error("Failed to move local merkle tree for {} off heap", desc, e);
             }
-            ActiveRepairService.instance.handleMessage(initiator, movedResponse);
+            ActiveRepairService.instance.handleMessage(Message.out(VALIDATION_RSP, movedResponse));
         });
     }
 }

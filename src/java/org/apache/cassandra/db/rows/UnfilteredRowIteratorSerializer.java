@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.io.IOException;
 import java.io.IOError;
+import java.nio.BufferOverflowException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,11 +90,18 @@ public class UnfilteredRowIteratorSerializer
                                                              iterator.columns(),
                                                              iterator.stats());
 
-        serialize(iterator, header, selection, out, version, rowEstimate);
+        try
+        {
+            serialize(iterator, header, selection, out, version, rowEstimate);
+        }
+        catch (BufferOverflowException boe)
+        {
+            throw new PartitionSerializationException(iterator, boe);
+        }
     }
 
     // Should only be used for the on-wire format.
-    public void serialize(UnfilteredRowIterator iterator, SerializationHeader header, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
+    private void serialize(UnfilteredRowIterator iterator, SerializationHeader header, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
         assert !header.isForSSTable();
 
@@ -123,18 +131,19 @@ public class UnfilteredRowIteratorSerializer
         out.writeByte((byte)flags);
 
         SerializationHeader.serializer.serializeForMessaging(header, selection, out, hasStatic);
+        SerializationHelper helper = new SerializationHelper(header);
 
         if (!partitionDeletion.isLive())
             header.writeDeletionTime(partitionDeletion, out);
 
         if (hasStatic)
-            UnfilteredSerializer.serializer.serialize(staticRow, header, out, version);
+            UnfilteredSerializer.serializer.serialize(staticRow, helper, out, version);
 
         if (rowEstimate >= 0)
             out.writeUnsignedVInt(rowEstimate);
 
         while (iterator.hasNext())
-            UnfilteredSerializer.serializer.serialize(iterator.next(), header, out, version);
+            UnfilteredSerializer.serializer.serialize(iterator.next(), helper, out, version);
         UnfilteredSerializer.serializer.writeEndOfPartition(out);
     }
 
@@ -146,6 +155,8 @@ public class UnfilteredRowIteratorSerializer
                                                              iterator.metadata(),
                                                              iterator.columns(),
                                                              iterator.stats());
+
+        SerializationHelper helper = new SerializationHelper(header);
 
         assert rowEstimate >= 0;
 
@@ -165,19 +176,19 @@ public class UnfilteredRowIteratorSerializer
             size += header.deletionTimeSerializedSize(partitionDeletion);
 
         if (hasStatic)
-            size += UnfilteredSerializer.serializer.serializedSize(staticRow, header, version);
+            size += UnfilteredSerializer.serializer.serializedSize(staticRow, helper, version);
 
         if (rowEstimate >= 0)
             size += TypeSizes.sizeofUnsignedVInt(rowEstimate);
 
         while (iterator.hasNext())
-            size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), header, version);
+            size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), helper, version);
         size += UnfilteredSerializer.serializer.serializedSizeEndOfPartition();
 
         return size;
     }
 
-    public Header deserializeHeader(TableMetadata metadata, ColumnFilter selection, DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
+    public Header deserializeHeader(TableMetadata metadata, ColumnFilter selection, DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
     {
         DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithVIntLength(in));
         int flags = in.readUnsignedByte();
@@ -198,18 +209,18 @@ public class UnfilteredRowIteratorSerializer
 
         Row staticRow = Rows.EMPTY_STATIC_ROW;
         if (hasStatic)
-            staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new SerializationHelper(metadata, version, flag));
+            staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new DeserializationHelper(metadata, version, flag));
 
         int rowEstimate = hasRowEstimate ? (int)in.readUnsignedVInt() : -1;
         return new Header(header, key, isReversed, false, partitionDeletion, staticRow, rowEstimate);
     }
 
-    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, TableMetadata metadata, SerializationHelper.Flag flag, Header header) throws IOException
+    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, TableMetadata metadata, DeserializationHelper.Flag flag, Header header) throws IOException
     {
         if (header.isEmpty)
             return EmptyIterators.unfilteredRow(metadata, header.key, header.isReversed);
 
-        final SerializationHelper helper = new SerializationHelper(metadata, version, flag);
+        final DeserializationHelper helper = new DeserializationHelper(metadata, version, flag);
         final SerializationHeader sHeader = header.sHeader;
         return new AbstractUnfilteredRowIterator(metadata, header.key, header.partitionDeletion, sHeader.columns(), header.staticRow, header.isReversed, sHeader.stats())
         {
@@ -230,7 +241,7 @@ public class UnfilteredRowIteratorSerializer
         };
     }
 
-    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, TableMetadata metadata, ColumnFilter selection, SerializationHelper.Flag flag) throws IOException
+    public UnfilteredRowIterator deserialize(DataInputPlus in, int version, TableMetadata metadata, ColumnFilter selection, DeserializationHelper.Flag flag) throws IOException
     {
         return deserialize(in, version, metadata, flag, deserializeHeader(metadata, selection, in, version, flag));
     }

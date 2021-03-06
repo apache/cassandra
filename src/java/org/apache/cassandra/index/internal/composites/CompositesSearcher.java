@@ -123,7 +123,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                                                                     RowFilter.NONE,
                                                                     DataLimits.NONE,
                                                                     partitionKey,
-                                                                    new ClusteringIndexSliceFilter(Slices.ALL, false));
+                                                                    command.clusteringIndexFilter(partitionKey));
                         entries.add(nextEntry);
                         nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
                     }
@@ -135,7 +135,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         // in memory so we should consider adding some paging mechanism. However, index hits should
                         // be relatively small so it's much better than the previous code that was materializing all
                         // *data* for a given partition.
-                        BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
+                        BTreeSet.Builder<Clustering<?>> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
                         while (nextEntry != null && partitionKey.getKey().equals(nextEntry.indexedKey))
                         {
                             // We're queried a slice of the index, but some hits may not match some of the clustering column constraints
@@ -267,27 +267,40 @@ public class CompositesSearcher extends CassandraIndexSearcher
                     return null;
                 }
 
-                private IndexEntry findEntry(Clustering clustering)
+                private IndexEntry findEntry(Clustering<?> clustering)
                 {
                     assert entriesIdx < entries.size();
                     while (entriesIdx < entries.size())
                     {
                         IndexEntry entry = entries.get(entriesIdx++);
+                        Clustering<?> indexedEntryClustering = entry.indexedEntryClustering;
                         // The entries are in clustering order. So that the requested entry should be the
                         // next entry, the one at 'entriesIdx'. However, we can have stale entries, entries
                         // that have no corresponding row in the base table typically because of a range
                         // tombstone or partition level deletion. Delete such stale entries.
                         // For static column, we only need to compare the partition key, otherwise we compare
                         // the whole clustering.
-                        int cmp = comparator.compare(entry.indexedEntryClustering, clustering);
+                        int cmp = comparator.compare(indexedEntryClustering, clustering);
                         assert cmp <= 0; // this would means entries are not in clustering order, which shouldn't happen
                         if (cmp == 0)
                             return entry;
-                        else
-                            staleEntries.add(entry);
+
+                        // COMPACT COMPOSITE tables support null values in there clustering key but
+                        // those tables do not support static columns. By consequence if a table
+                        // has some static columns and all its clustering key elements are null
+                        // it means that the partition exists and contains only static data
+                       if (!dataIter.metadata().hasStaticColumns() || !containsOnlyNullValues(indexedEntryClustering))
+                           staleEntries.add(entry);
                     }
                     // entries correspond to the rows we've queried, so we shouldn't have a row that has no corresponding entry.
                     throw new AssertionError();
+                }
+
+                private boolean containsOnlyNullValues(Clustering<?> indexedEntryClustering)
+                {
+                    int i = 0;
+                    for (; i < indexedEntryClustering.size() && indexedEntryClustering.get(i) == null; i++);
+                    return i == indexedEntryClustering.size();
                 }
 
                 @Override

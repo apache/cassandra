@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +43,6 @@ import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.streaming.messages.StreamMessage;
 
 import static java.lang.String.format;
 
@@ -71,6 +71,13 @@ public final class CompressionParams
                                                                           calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                           DEFAULT_MIN_COMPRESS_RATIO,
                                                                           Collections.emptyMap());
+
+    public static final CompressionParams NOOP = new CompressionParams(NoopCompressor.create(Collections.emptyMap()),
+                                                                       // 4 KiB is often the underlying disk block size
+                                                                       1024 * 4,
+                                                                       Integer.MAX_VALUE,
+                                                                       DEFAULT_MIN_COMPRESS_RATIO,
+                                                                       Collections.emptyMap());
 
     private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
                                                            "You should specify it as a top-level table option instead";
@@ -188,6 +195,13 @@ public final class CompressionParams
     {
         ZstdCompressor compressor = ZstdCompressor.create(Collections.emptyMap());
         return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
+    }
+
+    @VisibleForTesting
+    public static CompressionParams noop()
+    {
+        NoopCompressor compressor = NoopCompressor.create(Collections.emptyMap());
+        return new CompressionParams(compressor, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
     }
 
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException

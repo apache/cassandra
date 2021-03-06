@@ -53,6 +53,7 @@ public class ColumnIndex
     public int columnIndexCount;
     private int[] indexOffsets;
 
+    private final SerializationHelper helper;
     private final SerializationHeader header;
     private final int version;
     private final SequentialWriter writer;
@@ -64,10 +65,12 @@ public class ColumnIndex
     private int written;
     private long previousRowStart;
 
-    private ClusteringPrefix firstClustering;
-    private ClusteringPrefix lastClustering;
+    private ClusteringPrefix<?> firstClustering;
+    private ClusteringPrefix<?> lastClustering;
 
     private DeletionTime openMarker;
+
+    private int cacheSizeThreshold;
 
     private final Collection<SSTableFlushObserver> observers;
 
@@ -77,6 +80,7 @@ public class ColumnIndex
                         Collection<SSTableFlushObserver> observers,
                         ISerializer<IndexInfo> indexInfoSerializer)
     {
+        this.helper = new SerializationHelper(header);
         this.header = header;
         this.writer = writer;
         this.version = version.correspondingMessagingVersion();
@@ -97,9 +101,12 @@ public class ColumnIndex
         this.firstClustering = null;
         this.lastClustering = null;
         this.openMarker = null;
-        if (this.buffer != null)
+
+        int newCacheSizeThreshold = DatabaseDescriptor.getColumnIndexCacheSize();
+        if (this.buffer != null && this.cacheSizeThreshold == newCacheSizeThreshold)
             this.reusableBuffer = this.buffer;
         this.buffer = null;
+        this.cacheSizeThreshold = newCacheSizeThreshold;
     }
 
     public void buildRowIndex(UnfilteredRowIterator iterator) throws IOException
@@ -121,7 +128,7 @@ public class ColumnIndex
         {
             Row staticRow = iterator.staticRow();
 
-            UnfilteredSerializer.serializer.serializeStaticRow(staticRow, header, writer, version);
+            UnfilteredSerializer.serializer.serializeStaticRow(staticRow, helper, writer, version);
             if (!observers.isEmpty())
                 observers.forEach((o) -> o.nextUnfilteredCluster(staticRow));
         }
@@ -139,7 +146,7 @@ public class ColumnIndex
 
     public List<IndexInfo> indexSamples()
     {
-        if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= DatabaseDescriptor.getColumnIndexCacheSize())
+        if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) <= cacheSizeThreshold)
         {
             return indexSamples;
         }
@@ -197,7 +204,7 @@ public class ColumnIndex
         if (buffer == null)
         {
             indexSamplesSerializedSize += idxSerializer.serializedSize(cIndexInfo);
-            if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > DatabaseDescriptor.getColumnIndexCacheSize())
+            if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > cacheSizeThreshold)
             {
                 buffer = reuseOrAllocateBuffer();
                 for (IndexInfo indexSample : indexSamples)
@@ -210,7 +217,7 @@ public class ColumnIndex
                 indexSamples.add(cIndexInfo);
             }
         }
-        // don't put an else here...
+        // don't put an else here since buffer may be allocated in preceding if block
         if (buffer != null)
         {
             idxSerializer.serialize(cIndexInfo, buffer);
@@ -229,7 +236,7 @@ public class ColumnIndex
             return buffer;
         }
         // don't use the standard RECYCLER as that only recycles up to 1MB and requires proper cleanup
-        return new DataOutputBuffer(DatabaseDescriptor.getColumnIndexCacheSize() * 2);
+        return new DataOutputBuffer(cacheSizeThreshold * 2);
     }
 
     private void add(Unfiltered unfiltered) throws IOException
@@ -243,7 +250,7 @@ public class ColumnIndex
             startPosition = pos;
         }
 
-        UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version);
+        UnfilteredSerializer.serializer.serialize(unfiltered, helper, writer, pos - previousRowStart, version);
 
         // notify observers about each new row
         if (!observers.isEmpty())

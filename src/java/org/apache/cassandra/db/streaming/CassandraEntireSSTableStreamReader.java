@@ -21,6 +21,7 @@ package org.apache.cassandra.db.streaming;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.function.UnaryOperator;
 
 import com.google.common.base.Throwables;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -29,12 +30,12 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.ProgressInfo;
@@ -54,6 +55,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
     private final TableId tableId;
     private final StreamSession session;
+    private final StreamMessageHeader messageHeader;
     private final CassandraStreamHeader header;
     private final int fileSequenceNumber;
 
@@ -71,6 +73,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
         this.header = streamHeader;
         this.session = session;
+        this.messageHeader = messageHeader;
         this.tableId = messageHeader.tableId;
         this.fileSequenceNumber = messageHeader.sequenceNumber;
     }
@@ -132,7 +135,11 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(totalSize));
             }
 
-            writer.descriptor.getMetadataSerializer().mutateLevel(writer.descriptor, header.sstableLevel);
+            UnaryOperator<StatsMetadata> transform = stats -> stats.mutateLevel(header.sstableLevel)
+                                                                   .mutateRepairedMetadata(messageHeader.repairedAt, messageHeader.pendingRepair, false);
+            String description = String.format("level %s and repairedAt time %s and pendingRepair %s",
+                                               header.sstableLevel, messageHeader.repairedAt, messageHeader.pendingRepair);
+            writer.descriptor.getMetadataSerializer().mutate(writer.descriptor, description, transform);
             return writer;
         }
         catch (Throwable e)

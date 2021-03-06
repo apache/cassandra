@@ -88,12 +88,18 @@ public class BTreeTest
         }
     };
 
-    private static List<Integer> seq(int count)
+    private static List<Integer> seq(int count, int interval)
     {
         List<Integer> r = new ArrayList<>();
         for (int i = 0 ; i < count ; i++)
-            r.add(i);
+            if (i % interval == 0)
+                r.add(i);
         return r;
+    }
+
+    private static List<Integer> seq(int count)
+    {
+        return seq(count, 1);
     }
 
     private static List<Integer> rand(int count)
@@ -133,27 +139,60 @@ public class BTreeTest
     }
 
     @Test
-    public void testApplyForwards()
+    public void testApply()
     {
         List<Integer> input = seq(71);
         Object[] btree = BTree.build(input, noOp);
 
         final List<Integer> result = new ArrayList<>();
-        BTree.<Integer>apply(btree, i -> result.add(i), false);
+        BTree.<Integer>apply(btree, i -> result.add(i));
 
         org.junit.Assert.assertArrayEquals(input.toArray(),result.toArray());
     }
 
     @Test
-    public void testApplyReverse()
+    public void inOrderAccumulation()
     {
         List<Integer> input = seq(71);
         Object[] btree = BTree.build(input, noOp);
+        long result = BTree.<Integer>accumulate(btree, (o, l) -> {
+            Assert.assertEquals((long) o, l + 1);
+            return o;
+        }, -1);
+        Assert.assertEquals(result, 70);
+    }
 
-        final List<Integer> result = new ArrayList<>();
-        BTree.<Integer>apply(btree, i -> result.add(i), true);
+    @Test
+    public void accumulateFrom()
+    {
+        int limit = 100;
+        for (int interval=1; interval<=5; interval++)
+        {
+            List<Integer> input = seq(limit, interval);
+            Object[] btree = BTree.build(input, noOp);
+            for (int start=0; start<=limit; start+=interval)
+            {
+                int thisInterval = interval;
+                String errMsg = String.format("interval=%s, start=%s", interval, start);
+                long result = BTree.accumulate(btree, (o, l) -> {
+                    Assert.assertEquals(errMsg, (long) o, l + thisInterval);
+                    return o;
+                }, Comparator.naturalOrder(), start, start - thisInterval);
+                Assert.assertEquals(errMsg, result, (limit-1)/interval*interval);
+            }
+        }
+    }
 
-        org.junit.Assert.assertArrayEquals(Lists.reverse(input).toArray(),result.toArray());
+    /**
+     * accumulate function should not be called if we ask it to start past the end of the btree
+     */
+    @Test
+    public void accumulateFromEnd()
+    {
+        List<Integer> input = seq(100);
+        Object[] btree = BTree.build(input, noOp);
+        long result = BTree.accumulate(btree, (o, l) -> 1, Integer::compareTo, 101, 0L);
+        Assert.assertEquals(0, result);
     }
 
     /**

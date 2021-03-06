@@ -42,17 +42,19 @@ public class StreamCoordinator
     private final Map<InetAddressAndPort, HostStreamingData> peerSessions = new HashMap<>();
     private final StreamOperation streamOperation;
     private final int connectionsPerHost;
+    private final boolean follower;
     private StreamConnectionFactory factory;
     private Iterator<StreamSession> sessionsToConnect = null;
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
 
     public StreamCoordinator(StreamOperation streamOperation, int connectionsPerHost, StreamConnectionFactory factory,
-                             boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
+                             boolean follower, boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.connectionsPerHost = connectionsPerHost;
         this.factory = factory;
+        this.follower = follower;
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
@@ -86,9 +88,9 @@ public class StreamCoordinator
         return results;
     }
 
-    public boolean isReceiving()
+    public boolean isFollower()
     {
-        return connectionsPerHost == 0;
+        return follower;
     }
 
     public void connect(StreamResultFuture future)
@@ -272,8 +274,7 @@ public class StreamCoordinator
         {
             for (StreamSession session : streamSessions.values())
             {
-                StreamSession.State state = session.state();
-                if (state != StreamSession.State.COMPLETE && state != StreamSession.State.FAILED)
+                if (!session.state().isFinalState())
                     return true;
             }
             return false;
@@ -284,9 +285,10 @@ public class StreamCoordinator
             // create
             if (streamSessions.size() < connectionsPerHost)
             {
-                StreamSession session = new StreamSession(streamOperation, peer, factory, streamSessions.size(),
+                StreamSession session = new StreamSession(streamOperation, peer, factory, isFollower(), streamSessions.size(),
                                                           pendingRepair, previewKind);
                 streamSessions.put(++lastReturned, session);
+                sessionInfos.put(lastReturned, session.getSessionInfo());
                 return session;
             }
             // get
@@ -317,8 +319,9 @@ public class StreamCoordinator
             StreamSession session = streamSessions.get(id);
             if (session == null)
             {
-                session = new StreamSession(streamOperation, peer, factory, id, pendingRepair, previewKind);
+                session = new StreamSession(streamOperation, peer, factory, isFollower(), id, pendingRepair, previewKind);
                 streamSessions.put(id, session);
+                sessionInfos.put(id, session.getSessionInfo());
             }
             return session;
         }

@@ -349,7 +349,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt row deletion
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
-        int maxSizePre = DatabaseDescriptor.getColumnIndexSize();
+        int maxSizePre = DatabaseDescriptor.getColumnIndexSizeInKB();
         DatabaseDescriptor.setColumnIndexSize(1024);
         prepareWide();
         RowUpdateBuilder.deleteRowAt(getCurrentColumnFamilyStore().metadata(), System.currentTimeMillis() * 1000, -1, 22, 33).apply();
@@ -364,7 +364,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt standard tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
-        int maxSizePre = DatabaseDescriptor.getColumnIndexSize();
+        int maxSizePre = DatabaseDescriptor.getColumnIndexSizeInKB();
         DatabaseDescriptor.setColumnIndexSize(1024);
         prepareWide();
         RowUpdateBuilder rub = new RowUpdateBuilder(getCurrentColumnFamilyStore().metadata(), -1, System.currentTimeMillis() * 1000, 22).clustering(33).delete("b");
@@ -380,7 +380,7 @@ public class CompactionsCQLTest extends CQLTester
     {
         // write enough data to make sure we use an IndexedReader when doing a read, and make sure it fails when reading a corrupt range tombstone
         DatabaseDescriptor.setCorruptedTombstoneStrategy(Config.CorruptedTombstoneStrategy.exception);
-        int maxSizePre = DatabaseDescriptor.getColumnIndexSize();
+        final int maxSizePreKB = DatabaseDescriptor.getColumnIndexSizeInKB();
         DatabaseDescriptor.setColumnIndexSize(1024);
         prepareWide();
         RangeTombstone rt = new RangeTombstone(Slice.ALL, new DeletionTime(System.currentTimeMillis(), -1));
@@ -389,7 +389,7 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().forceBlockingFlush();
         readAndValidate(true);
         readAndValidate(false);
-        DatabaseDescriptor.setColumnIndexSize(maxSizePre);
+        DatabaseDescriptor.setColumnIndexSize(maxSizePreKB);
     }
 
 
@@ -586,7 +586,7 @@ public class CompactionsCQLTest extends CQLTester
                     {
                         Unfiltered unfiltered = iter.next();
                         assertTrue(unfiltered instanceof Row);
-                        for (Cell c : ((Row)unfiltered).cells())
+                        for (Cell<?> c : ((Row)unfiltered).cells())
                         {
                             if (c.isTombstone())
                                 foundTombstone = true;

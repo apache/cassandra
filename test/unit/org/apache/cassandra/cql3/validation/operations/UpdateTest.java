@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.Arrays;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.Attributes;
@@ -30,8 +29,8 @@ import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
-import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 public class UpdateTest extends CQLTester
 {
@@ -474,24 +473,24 @@ public class UpdateTest extends CQLTester
 
         execute("UPDATE %s SET b = 1 WHERE a = 1");
         UntypedResultSet resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 1");
-        Assert.assertEquals(1, resultSet.size());
+        assertEquals(1, resultSet.size());
         Row row = resultSet.one();
-        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+        assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
 
         execute("UPDATE %s USING TTL ? SET b = 3 WHERE a = 1", 0);
         assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 1"), row(new Object[]{null}));
 
         execute("UPDATE %s SET b = 3 WHERE a = 1");
         resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 1");
-        Assert.assertEquals(1, resultSet.size());
+        assertEquals(1, resultSet.size());
         row = resultSet.one();
-        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+        assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
 
         execute("UPDATE %s USING TTL ? SET b = 2 WHERE a = 2", unset());
         resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 2");
-        Assert.assertEquals(1, resultSet.size());
+        assertEquals(1, resultSet.size());
         row = resultSet.one();
-        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+        assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
 
         execute("UPDATE %s USING TTL ? SET b = ? WHERE a = ?", null, 3, 3);
         assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 3"), row(new Object[] { null }));

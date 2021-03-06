@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSet;
@@ -40,14 +39,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.schema.CachingParams;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -65,7 +60,8 @@ public class MockSchema
     public static final Keyspace ks = Keyspace.mockKS(KeyspaceMetadata.create("mockks", KeyspaceParams.simpleTransient(1)));
 
     public static final IndexSummary indexSummary;
-    private static final FileHandle RANDOM_ACCESS_READER_FACTORY = new FileHandle.Builder(temp("mocksegmentedfile").getAbsolutePath()).complete();
+
+    private static final File tempFile = temp("mocksegmentedfile");
 
     public static Memtable memtable(ColumnFamilyStore cfs)
     {
@@ -96,7 +92,17 @@ public class MockSchema
         return sstable(generation, size, keepRef, generation, generation, cfs);
     }
 
+    public static SSTableReader sstableWithLevel(int generation, long firstToken, long lastToken, int level, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, 0, false, firstToken, lastToken, level, cfs);
+    }
+
     public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, size, keepRef, firstToken, lastToken, 0, cfs);
+    }
+
+    public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs)
     {
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
@@ -114,33 +120,40 @@ public class MockSchema
             {
             }
         }
-        if (size > 0)
+        // .complete() with size to make sstable.onDiskLength work
+        try (FileHandle.Builder builder = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size);
+             FileHandle fileHandle = builder.complete(size))
         {
-            try
+            if (size > 0)
             {
-                File file = new File(descriptor.filenameFor(Component.DATA));
-                try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
+                try
                 {
-                    raf.setLength(size);
+                    File file = new File(descriptor.filenameFor(Component.DATA));
+                    try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
+                    {
+                        raf.setLength(size);
+                    }
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
                 }
             }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+            StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
+                                                     .sstableLevel(level)
+                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
+                                                     .get(MetadataType.STATS);
+            SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
+                                                              fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
+                                                              new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
+            reader.first = readerBounds(firstToken);
+            reader.last = readerBounds(lastToken);
+            if (!keepRef)
+                reader.selfRef().release();
+            return reader;
         }
-        SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
-        StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
-                                                 .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
-                                                 .get(MetadataType.STATS);
-        SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
-                                                          RANDOM_ACCESS_READER_FACTORY.sharedCopy(), RANDOM_ACCESS_READER_FACTORY.sharedCopy(), indexSummary.sharedCopy(),
-                                                          new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
-        reader.first = readerBounds(firstToken);
-        reader.last = readerBounds(lastToken);
-        if (!keepRef)
-            reader.selfRef().release();
-        return reader;
+
     }
 
     public static ColumnFamilyStore newCFS()

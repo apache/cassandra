@@ -25,11 +25,13 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -53,8 +55,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -67,6 +71,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -119,6 +124,7 @@ public class ConnectionTest
     public static void startup()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     @AfterClass
@@ -173,7 +179,6 @@ public class ConnectionTest
 
     static final EncryptionOptions.ServerEncryptionOptions encryptionOptions =
             new EncryptionOptions.ServerEncryptionOptions()
-            .withEnabled(true)
             .withLegacySslStoragePort(true)
             .withOptional(true)
             .withInternodeEncryption(EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.all)
@@ -564,6 +569,96 @@ public class ConnectionTest
     }
 
     @Test
+    public void testPendingOutboundConnectionUpdatesMessageVersionOnReconnectAttempt() throws Throwable
+    {
+        final String storagePortProperty = Config.PROPERTY_PREFIX + "ssl_storage_port";
+        final String originalStoragePort = System.getProperty(storagePortProperty);
+        try
+        {
+            // Set up an inbound connection listening *only* on the SSL storage port to
+            // replicate a 3.x node.  Force the messaging version to be incorrectly set to 4.0
+            // before the outbound connection attempt.
+            final Settings settings = Settings.LARGE;
+            final InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
+
+            MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
+                                                     MessagingService.VERSION_40);
+
+            System.setProperty(storagePortProperty, "7011");
+            final InetAddressAndPort legacySSLAddrsAndPort = endpoint.withPort(DatabaseDescriptor.getSSLStoragePort());
+            InboundConnectionSettings inboundSettings = settings.inbound.apply(new InboundConnectionSettings().withEncryption(encryptionOptions))
+                                                                        .withBindAddress(legacySSLAddrsAndPort)
+                                                                        .withAcceptMessaging(new AcceptVersions(VERSION_30, VERSION_3014))
+                                                                        .withSocketFactory(factory);
+            InboundSockets inbound = new InboundSockets(Collections.singletonList(inboundSettings));
+            OutboundConnectionSettings outboundTemplate = settings.outbound.apply(new OutboundConnectionSettings(endpoint).withEncryption(encryptionOptions))
+                                                                           .withDefaultReserveLimits()
+                                                                           .withSocketFactory(factory)
+                                                                           .withDefaults(ConnectionCategory.MESSAGING);
+            ResourceLimits.EndpointAndGlobal reserveCapacityInBytes = new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Concurrent(outboundTemplate.applicationSendQueueReserveEndpointCapacityInBytes), outboundTemplate.applicationSendQueueReserveGlobalCapacityInBytes);
+            OutboundConnection outbound = new OutboundConnection(settings.type, outboundTemplate, reserveCapacityInBytes);
+            try
+            {
+                logger.info("Running {} {} -> {}", outbound.messagingVersion(), outbound.settings(), inboundSettings);
+                inbound.open().sync();
+
+                CountDownLatch done = new CountDownLatch(1);
+                unsafeSetHandler(Verb._TEST_1,
+                                 () -> (msg) -> done.countDown());
+
+                // Enqueuing outbound message will initiate an outbound
+                // connection with pending data in the pipeline
+                Message<?> message = Message.out(Verb._TEST_1, noPayload);
+                outbound.enqueue(message);
+
+                // Wait until the first connection attempt has taken place
+                // before updating the endpoint messaging version so that the
+                // connection takes place to a 4.0 node.
+                int attempts = 0;
+                final long waitForAttemptMillis = TimeUnit.SECONDS.toMillis(15);
+                while (outbound.connectionAttempts() == 0 && attempts < waitForAttemptMillis / 10)
+                {
+                    Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+                    attempts++;
+                }
+
+                // Now that the connection is being attempted, set the endpoint version so
+                // that on the reconnect attempt the messaging version is rechecked and the
+                // legacy ssl logic picks the storage port instead.  This should trigger a
+                // TRACE level log message "Endpoint version changed from 12 to 10 since
+                // connection initialized, updating."
+                outbound.settings().endpointToVersion.set(endpoint, VERSION_30);
+
+                // The connection should have successfully connected and delivered the _TEST_1
+                // message within the timout.
+                Assert.assertTrue(done.await(15, SECONDS));
+                Assert.assertTrue(outbound.isConnected());
+                Assert.assertTrue(String.format("expect less successful connections (%d) than attempts (%d)",
+                                                outbound.successfulConnections(), outbound.connectionAttempts()),
+                                  outbound.successfulConnections() < outbound.connectionAttempts());
+
+            }
+            finally
+            {
+                outbound.close(false);
+                inbound.close().get(30L, SECONDS);
+                outbound.close(false).get(30L, SECONDS);
+                resetVerbs();
+                MessagingService.instance().messageHandlers.clear();
+            }
+        }
+        finally
+        {
+            MessagingService.instance().versions.set(FBUtilities.getBroadcastAddressAndPort(),
+                                                     current_version);
+            if (originalStoragePort != null)
+                System.setProperty(storagePortProperty, originalStoragePort);
+            else
+                System.clearProperty(storagePortProperty);
+        }
+    }
+
+    @Test
     public void testCloseIfEndpointDown() throws Throwable
     {
         testManual((settings, inbound, outbound, endpoint) -> {
@@ -590,9 +685,21 @@ public class ConnectionTest
                         Message<?> message = Message.builder(Verb._TEST_1, noPayload)
                                                     .withExpiresAt(System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(50L))
                                                     .build();
-                        outbound.enqueue(message);
-                        Assert.assertFalse(outbound.isConnected());
-                        Assert.assertEquals(1, outbound.pendingCount());
+                        OutboundMessageQueue queue = outbound.queue;
+                        while (true)
+                        {
+                            try (OutboundMessageQueue.WithLock withLock = queue.lockOrCallback(System.nanoTime(), null))
+                            {
+                                if (withLock != null)
+                                {
+                                    outbound.enqueue(message);
+                                    Assert.assertFalse(outbound.isConnected());
+                                    Assert.assertEquals(1, outbound.pendingCount());
+                                    break;
+                                }
+                            }
+                        }
+
                         CompletableFuture.runAsync(() -> {
                             while (outbound.pendingCount() > 0 && !Thread.interrupted()) {}
                         }).get(10, SECONDS);
@@ -611,17 +718,16 @@ public class ConnectionTest
             try
             {
                 inbound.open().sync();
-                CountDownLatch receiveDone = new CountDownLatch(1);
                 CountDownLatch deliveryDone = new CountDownLatch(1);
 
-                unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
+                unsafeSetHandler(Verb._TEST_1, () -> msg -> {
+                    outbound.unsafeRunOnDelivery(deliveryDone::countDown);
+                });
                 outbound.enqueue(Message.out(Verb._TEST_1, noPayload));
                 Assert.assertEquals(1, outbound.pendingCount());
-                outbound.unsafeRunOnDelivery(deliveryDone::countDown);
 
-                Assert.assertTrue(receiveDone.await(10, SECONDS));
                 Assert.assertTrue(deliveryDone.await(10, SECONDS));
-                Assert.assertEquals(0, receiveDone.getCount());
+                Assert.assertEquals(0, deliveryDone.getCount());
                 Assert.assertEquals(0, outbound.pendingCount());
             }
             finally
@@ -764,38 +870,87 @@ public class ConnectionTest
     @Test
     public void testAcquireReleaseOutbound() throws Throwable
     {
+        // In each test round, K capacity is reserved upfront.
+        // Two groups of threads each release/acquire for K capacity in total accordingly,
+        //   i.e. if only the release threads run, at the end, the reserved capacity is 0 (K - K).
+        // During the test, we expect N (N <= maxFailures) acquire attempts (for M capacity) to fail.
+        // The reserved capacity (pendingBytes) at the end of the round should equal to K - N * M,
+        //   which you can find in the assertion.
         test((inbound, outbound, endpoint) -> {
-            ExecutorService executor = Executors.newFixedThreadPool(100);
-            int acquireStep = 123;
-            Assert.assertTrue(outbound.unsafeAcquireCapacity(100 * 10000, 100 * 10000 * acquireStep));
+            // max capacity equals to permit-free sendQueueCapcity + the minimun of endpoint and global reserve
+            double maxSendQueueCapacity = outbound.settings().applicationSendQueueCapacityInBytes +
+                                          Double.min(outbound.settings().applicationSendQueueReserveEndpointCapacityInBytes,
+                                                     outbound.settings().applicationSendQueueReserveGlobalCapacityInBytes.limit());
+            int concurrency = 100;
+            int attempts = 10000;
+            int acquireCount = concurrency * attempts;
+            long acquireStep = Math.round(maxSendQueueCapacity * 1.2 / acquireCount / 2); // It is guranteed to acquire (~20%) more
+            // The total overly acquired amount divides the amount acquired in each step. Get the ceil value so not to miss the acquire that just exceeds.
+            long maxFailures = (long) Math.ceil((acquireCount * acquireStep * 2 - maxSendQueueCapacity) / acquireStep); // The result must be in the range of lone
             AtomicLong acquisitionFailures = new AtomicLong();
-            for (int i = 0; i < 100; i++)
+            Runnable acquirer = () -> {
+                for (int j = 0; j < attempts; j++)
+                {
+                    if (!outbound.unsafeAcquireCapacity(acquireStep))
+                        acquisitionFailures.incrementAndGet();
+                }
+            };
+            Runnable releaser = () -> {
+                for (int j = 0; j < attempts; j++)
+                    outbound.unsafeReleaseCapacity(acquireStep);
+            };
+
+            // Start N acquirer and releaser to contend for capcaity
+            List<Runnable> submitOrder = new ArrayList<>(concurrency * 2);
+            for (int i = 0 ; i < concurrency ; ++i)
+                submitOrder.add(acquirer);
+            for (int i = 0 ; i < concurrency ; ++i)
+                submitOrder.add(releaser);
+            // randomize their start order
+            randomize(submitOrder);
+
+            try
             {
-                executor.submit(() -> {
-                    for (int j = 0; j < 10000; j++)
-                    {
-                        if (!outbound.unsafeAcquireCapacity(acquireStep))
-                            acquisitionFailures.incrementAndGet();
-                    }
+                // Reserve enough capacity upfront to ensure the releaser threads cannot release all reserved capacity.
+                // i.e. the pendingBytes is always positive during the test.
+                Assert.assertTrue("Unable to reserve enough capacity",
+                                  outbound.unsafeAcquireCapacity(acquireCount, acquireCount * acquireStep));
+                ExecutorService executor = Executors.newFixedThreadPool(concurrency);
 
-                });
+                submitOrder.forEach(executor::submit);
+
+                executor.shutdown();
+                Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
+
+                Assert.assertEquals(acquireCount * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
+                Assert.assertEquals(acquireCount - acquisitionFailures.get(), outbound.pendingCount());
+                Assert.assertTrue(String.format("acquisitionFailures should be capped by maxFailure. acquisitionFailures: %d, acquisitionFailures: %d",
+                                                maxFailures, acquisitionFailures.get()),
+                                  acquisitionFailures.get() <= maxFailures);
             }
-
-            for (int i = 0; i < 100; i++)
-            {
-                executor.submit(() -> {
-                    for (int j = 0; j < 10000; j++)
-                        outbound.unsafeReleaseCapacity(acquireStep);
-                });
+            finally
+            {   // release the acquired capacity from this round
+                outbound.unsafeReleaseCapacity(outbound.pendingCount(), outbound.pendingBytes());
             }
-
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
-
-            // We can release more than we acquire, which certainly should not happen in
-            // real life, but since it's a test just for acquisition and release, it is fine
-            Assert.assertEquals(100 * 10000 * acquireStep - (acquisitionFailures.get() * acquireStep), outbound.pendingBytes());
         });
+    }
+
+    private static <V> void randomize(List<V> list)
+    {
+        long seed = ThreadLocalRandom.current().nextLong();
+        logger.info("Seed used for randomize: " + seed);
+        Random random = new Random(seed);
+        switch (random.nextInt(3))
+        {
+            case 0:
+                Collections.shuffle(list, random);
+                break;
+            case 1:
+                Collections.reverse(list);
+                break;
+            case 2:
+                // leave as is
+        }
     }
 
     private void connect(OutboundConnection outbound) throws Throwable

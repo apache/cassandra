@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.locator;
 
-import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.annotations.VisibleForTesting;
@@ -320,6 +320,11 @@ public class ReplicaPlans
         return result;
     }
 
+    public static ReplicaPlan.ForTokenWrite forReadRepair(Token token, ReplicaPlan.ForRead<?> readPlan) throws UnavailableException
+    {
+        return forWrite(readPlan.keyspace, readPlan.consistencyLevel, token, writeReadRepair(readPlan));
+    }
+
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Selector selector) throws UnavailableException
     {
         return forWrite(keyspace, consistencyLevel, ReplicaLayout.forTokenWriteLiveAndDown(keyspace, token), selector);
@@ -345,7 +350,7 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
     {
-        EndpointsForToken contacts = selector.select(keyspace, liveAndDown, live);
+        EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, live);
         assureSufficientLiveReplicasForWrite(keyspace, consistencyLevel, live.all(), liveAndDown.pending());
         return new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
@@ -353,7 +358,7 @@ public class ReplicaPlans
     public interface Selector
     {
         <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, L liveAndDown, L live);
+        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live);
     }
 
     /**
@@ -366,7 +371,7 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, L liveAndDown, L live)
+        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             return liveAndDown.all();
         }
@@ -385,7 +390,7 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, L liveAndDown, L live)
+        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             if (!any(liveAndDown.all(), Replica::isTransient))
                 return liveAndDown.all();
@@ -401,7 +406,7 @@ public class ReplicaPlans
              * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
              * even if we don't wait for ACK, we have in both cases sent sufficient messages.
               */
-            ObjectIntOpenHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
             addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
             addToCountPerDc(requiredPerDc, live.pending(), -1);
 
@@ -415,6 +420,62 @@ public class ReplicaPlans
             return contacts.build();
         }
     };
+
+    /**
+     * TODO: Transient Replication C-14404/C-14665
+     * TODO: We employ this even when there is no monotonicity to guarantee,
+     *          e.g. in case of CL.TWO, CL.ONE with speculation, etc.
+     *
+     * Construct a read-repair write plan to provide monotonicity guarantees on any data we return as part of a read.
+     *
+     * Since this is not a regular write, this is just to guarantee future reads will read this data, we select only
+     * the minimal number of nodes to meet the consistency level, and prefer nodes we contacted on read to minimise
+     * data transfer.
+     */
+    public static Selector writeReadRepair(ReplicaPlan.ForRead<?> readPlan)
+    {
+        return new Selector()
+        {
+            @Override
+            public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
+            E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+            {
+                assert !any(liveAndDown.all(), Replica::isTransient);
+
+                ReplicaCollection.Builder<E> contacts = live.all().newBuilder(live.all().size());
+                // add all live nodes we might write to that we have already contacted on read
+                contacts.addAll(filter(live.all(), r -> readPlan.contacts().endpoints().contains(r.endpoint())));
+
+                // finally, add sufficient nodes to achieve our consistency level
+                if (consistencyLevel != EACH_QUORUM)
+                {
+                    int add = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - contacts.size();
+                    if (add > 0)
+                    {
+                        for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
+                        {
+                            contacts.add(replica);
+                            if (--add == 0)
+                                break;
+                        }
+                    }
+                }
+                else
+                {
+                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+                    addToCountPerDc(requiredPerDc, contacts.snapshot(), -1);
+                    IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+                    for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
+                    {
+                        String dc = snitch.getDatacenter(replica);
+                        if (requiredPerDc.addTo(dc, -1) >= 0)
+                            contacts.add(replica);
+                    }
+                }
+                return contacts.build();
+            }
+        };
+    }
 
     /**
      * Construct the plan for a paxos round - NOT the write or read consistency level for either the write or comparison,
@@ -469,7 +530,7 @@ public class ReplicaPlans
     private static <E extends Endpoints<E>> E contactForEachQuorumRead(Keyspace keyspace, E candidates)
     {
         assert keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy;
-        ObjectIntOpenHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
 
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {
@@ -509,11 +570,11 @@ public class ReplicaPlans
     /**
      * Construct a plan for reading from a single node - this permits no speculation or read-repair
      */
-    public static ReplicaPlan.ForRangeRead forSingleReplicaRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica)
+    public static ReplicaPlan.ForRangeRead forSingleReplicaRead(Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica, int vnodeCount)
     {
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
         EndpointsForRange one = EndpointsForRange.of(replica);
-        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one);
+        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one, vnodeCount);
     }
 
     /**
@@ -540,13 +601,13 @@ public class ReplicaPlans
      *
      * There is no speculation for range read queries at present, so we never 'always speculate' here, and a failed response fails the query.
      */
-    public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range)
+    public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, int vnodeCount)
     {
         EndpointsForRange candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(keyspace, range).natural());
         EndpointsForRange contacts = contactForRead(keyspace, consistencyLevel, false, candidates);
 
         assureSufficientLiveReplicasForRead(keyspace, consistencyLevel, contacts);
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates, contacts);
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates, contacts, vnodeCount);
     }
 
     /**
@@ -569,6 +630,6 @@ public class ReplicaPlans
             return null;
 
         // If we get there, merge this range and the next one
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts);
+        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts, left.vnodeCount() + right.vnodeCount());
     }
 }

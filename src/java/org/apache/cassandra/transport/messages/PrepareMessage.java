@@ -17,14 +17,13 @@
  */
 package org.apache.cassandra.transport.messages;
 
+import java.util.function.Supplier;
+
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.audit.AuditLogEntry;
-import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.audit.AuditLogManager;
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.QueryEvents;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
@@ -63,7 +62,7 @@ public class PrepareMessage extends Message.Request
                     dest.writeInt(0x0);
                 else {
                     dest.writeInt(0x1);
-                    CBUtil.writeString(msg.keyspace, dest);
+                    CBUtil.writeAsciiString(msg.keyspace, dest);
                 }
             }
         }
@@ -79,7 +78,7 @@ public class PrepareMessage extends Message.Request
                 // If we have a keyspace, we'd write it out. Otherwise, we'd write nothing.
                 size += msg.keyspace == null
                     ? 0
-                    : CBUtil.sizeOfString(msg.keyspace);
+                    : CBUtil.sizeOfAsciiString(msg.keyspace);
             }
             return size;
         }
@@ -104,53 +103,24 @@ public class PrepareMessage extends Message.Request
     @Override
     protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
-        AuditLogManager auditLogManager = AuditLogManager.getInstance();
-
         try
         {
             if (traceRequest)
                 Tracing.instance.begin("Preparing CQL3 query", state.getClientAddress(), ImmutableMap.of("query", query));
 
             ClientState clientState = state.getClientState().cloneWithKeyspaceIfSet(keyspace);
-            Message.Response response = ClientState.getCQLQueryHandler().prepare(query, clientState, getCustomPayload());
-
-            if (auditLogManager.isAuditingEnabled())
-                logSuccess(state);
-
+            QueryHandler queryHandler = ClientState.getCQLQueryHandler();
+            long queryTime = System.currentTimeMillis();
+            ResultMessage.Prepared response = queryHandler.prepare(query, clientState, getCustomPayload());
+            QueryEvents.instance.notifyPrepareSuccess(() -> queryHandler.getPrepared(response.statementId), query, state, queryTime, response);
             return response;
         }
         catch (Exception e)
         {
-            if (auditLogManager.isAuditingEnabled())
-                logException(state, e);
+            QueryEvents.instance.notifyPrepareFailure(null, query, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
-    }
-
-    private void logSuccess(QueryState state)
-    {
-        // The statement gets parsed twice. Not a big deal given that this is PREPARE, but still, why?
-        CQLStatement statement = QueryProcessor.parseStatement(query, state.getClientState());
-        AuditLogEntry entry =
-            new AuditLogEntry.Builder(state)
-                             .setOperation(query)
-                             .setType(AuditLogEntryType.PREPARE_STATEMENT)
-                             .setScope(statement)
-                             .setKeyspace(statement)
-                             .build();
-        AuditLogManager.getInstance().log(entry);
-    }
-
-    private void logException(QueryState state, Exception e)
-    {
-        AuditLogEntry entry =
-            new AuditLogEntry.Builder(state)
-                             .setOperation(query)
-                             .setKeyspace(keyspace)
-                             .setType(AuditLogEntryType.PREPARE_STATEMENT)
-                             .build();
-        AuditLogManager.getInstance().log(entry, e);
     }
 
     @Override

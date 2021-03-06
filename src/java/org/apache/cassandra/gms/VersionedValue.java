@@ -87,17 +87,18 @@ public class VersionedValue implements Comparable<VersionedValue>
     private VersionedValue(String value, int version)
     {
         assert value != null;
-        // blindly interning everything is somewhat suboptimal -- lots of VersionedValues are unique --
-        // but harmless, and interning the non-unique ones saves significant memory.  (Unfortunately,
-        // we don't really have enough information here in VersionedValue to tell the probably-unique
-        // values apart.)  See CASSANDRA-6410.
-        this.value = value.intern();
+        this.value = value;
         this.version = version;
     }
 
     private VersionedValue(String value)
     {
         this(value, VersionGenerator.getNextVersion());
+    }
+
+    public static VersionedValue unsafeMakeVersionedValue(String value, int version)
+    {
+        return new VersionedValue(value, version);
     }
 
     public int compareTo(VersionedValue value)
@@ -143,7 +144,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue bootReplacingWithPort(InetAddressAndPort oldNode)
         {
-            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.toString()));
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddressAndPort()));
         }
 
         public VersionedValue bootstrapping(Collection<Token> tokens)
@@ -258,7 +259,7 @@ public class VersionedValue implements Comparable<VersionedValue>
 
         public VersionedValue nativeaddressAndPort(InetAddressAndPort address)
         {
-            return new VersionedValue(address.toString());
+            return new VersionedValue(address.getHostAddressAndPort());
         }
 
         public VersionedValue releaseVersion()
@@ -272,19 +273,25 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(version);
         }
 
+        @VisibleForTesting
+        public VersionedValue networkVersion(int version)
+        {
+            return new VersionedValue(String.valueOf(version));
+        }
+
         public VersionedValue networkVersion()
         {
             return new VersionedValue(String.valueOf(MessagingService.current_version));
         }
 
-        public VersionedValue internalIP(String private_ip)
+        public VersionedValue internalIP(InetAddress private_ip)
         {
-            return new VersionedValue(private_ip);
+            return new VersionedValue(private_ip.getHostAddress());
         }
 
-        public VersionedValue internalAddressAndPort(InetAddressAndPort address)
+        public VersionedValue internalAddressAndPort(InetAddressAndPort private_ip_and_port)
         {
-            return new VersionedValue(address.toString());
+            return new VersionedValue(private_ip_and_port.getHostAddressAndPort());
         }
 
         public VersionedValue severity(double value)

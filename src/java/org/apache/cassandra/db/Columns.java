@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
-import com.google.common.hash.Hasher;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.exceptions.UnknownColumnException;
@@ -37,7 +36,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HashingUtils;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
@@ -54,8 +53,9 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
 {
     public static final Serializer serializer = new Serializer();
     public static final Columns NONE = new Columns(BTree.empty(), 0);
+    static final long EMPTY_SIZE = ObjectSizes.measure(NONE);
 
-    private static final ColumnMetadata FIRST_COMPLEX_STATIC =
+    public static final ColumnMetadata FIRST_COMPLEX_STATIC =
         new ColumnMetadata("",
                            "",
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
@@ -63,7 +63,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            ColumnMetadata.NO_POSITION,
                            ColumnMetadata.Kind.STATIC);
 
-    private static final ColumnMetadata FIRST_COMPLEX_REGULAR =
+    public static final ColumnMetadata FIRST_COMPLEX_REGULAR =
         new ColumnMetadata("",
                            "",
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
@@ -375,20 +375,19 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         return column -> iter.next(column) != null;
     }
 
-    public void digest(Hasher hasher)
+    public void digest(Digest digest)
     {
         for (ColumnMetadata c : this)
-            HashingUtils.updateBytes(hasher, c.name.bytes.duplicate());
+            digest.update(c.name.bytes);
     }
 
     /**
      * Apply a function to each column definition in forwards or reversed order.
      * @param function
-     * @param reversed
      */
-    public void apply(Consumer<ColumnMetadata> function, boolean reversed)
+    public void apply(Consumer<ColumnMetadata> function)
     {
-        BTree.apply(columns, function, reversed);
+        BTree.apply(columns, function);
     }
 
     @Override
@@ -407,6 +406,14 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
     public int hashCode()
     {
         return Objects.hash(complexIdx, BTree.hashCode(columns));
+    }
+
+    public long unsharedHeapSize()
+    {
+        if(this == NONE)
+            return 0;
+
+        return EMPTY_SIZE;
     }
 
     @Override
@@ -439,7 +446,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             return size;
         }
 
-        public Columns deserialize(DataInputPlus in, TableMetadata metadata) throws IOException
+        private Columns deserialize(DataInputPlus in, TableMetadata metadata, boolean isStatic) throws IOException
         {
             int length = (int)in.readUnsignedVInt();
             BTree.Builder<ColumnMetadata> builder = BTree.builder(Comparator.naturalOrder());
@@ -454,12 +461,27 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     // fail deserialization because of that. So we grab a "fake" ColumnMetadata that ensure proper
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumn(name);
+
+                    // If there's no dropped column, it may be for a column we haven't received a schema update for yet
+                    // so we create a placeholder column. If this is a read, the placeholder column will let the response
+                    // serializer know we're not serializing all requested columns when it writes the row flags, but it
+                    // will cause mutations that try to write values for this column to fail.
                     if (column == null)
-                        throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                        column = ColumnMetadata.placeholder(metadata, name, isStatic);
                 }
                 builder.add(column);
             }
             return new Columns(builder.build());
+        }
+
+        public Columns deserializeStatics(DataInputPlus in, TableMetadata metadata) throws IOException
+        {
+            return deserialize(in, metadata, true);
+        }
+
+        public Columns deserializeRegulars(DataInputPlus in, TableMetadata metadata) throws IOException
+        {
+            return deserialize(in, metadata, false);
         }
 
         /**

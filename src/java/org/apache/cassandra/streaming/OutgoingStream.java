@@ -47,6 +47,12 @@ public interface OutgoingStream
     UUID getPendingRepair();
 
     String getName();
-    long getSize();
+
+    /**
+     * @return estimated file size to be streamed. This should only be used for metrics, because concurrent
+     * stats metadata update and index redistribution will change file sizes.
+     */
+    long getEstimatedSize();
     TableId getTableId();
+    int getNumFiles();
 }

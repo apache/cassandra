@@ -32,20 +32,21 @@ import net.openhft.chronicle.wire.WireIn;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-import static org.apache.cassandra.audit.FullQueryLogger.GENERATED_NOW_IN_SECONDS;
-import static org.apache.cassandra.audit.FullQueryLogger.GENERATED_TIMESTAMP;
-import static org.apache.cassandra.audit.FullQueryLogger.KEYSPACE;
-import static org.apache.cassandra.audit.FullQueryLogger.PROTOCOL_VERSION;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERY_OPTIONS;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERY_START_TIME;
-import static org.apache.cassandra.audit.FullQueryLogger.TYPE;
-import static org.apache.cassandra.audit.FullQueryLogger.VERSION;
-import static org.apache.cassandra.audit.FullQueryLogger.BATCH;
-import static org.apache.cassandra.audit.FullQueryLogger.BATCH_TYPE;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERIES;
-import static org.apache.cassandra.audit.FullQueryLogger.QUERY;
-import static org.apache.cassandra.audit.FullQueryLogger.SINGLE_QUERY;
-import static org.apache.cassandra.audit.FullQueryLogger.VALUES;
+import static org.apache.cassandra.fql.FullQueryLogger.CURRENT_VERSION;
+import static org.apache.cassandra.fql.FullQueryLogger.GENERATED_NOW_IN_SECONDS;
+import static org.apache.cassandra.fql.FullQueryLogger.GENERATED_TIMESTAMP;
+import static org.apache.cassandra.fql.FullQueryLogger.KEYSPACE;
+import static org.apache.cassandra.fql.FullQueryLogger.PROTOCOL_VERSION;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY_OPTIONS;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY_START_TIME;
+import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
+import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
+import static org.apache.cassandra.fql.FullQueryLogger.BATCH;
+import static org.apache.cassandra.fql.FullQueryLogger.BATCH_TYPE;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERIES;
+import static org.apache.cassandra.fql.FullQueryLogger.QUERY;
+import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
+import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
 
 public class FQLQueryReader implements ReadMarshallable
 {
@@ -53,8 +54,9 @@ public class FQLQueryReader implements ReadMarshallable
 
     public void readMarshallable(WireIn wireIn) throws IORuntimeException
     {
-        int currentVersion = wireIn.read(VERSION).int16();
-        String type = wireIn.read(TYPE).text();
+        verifyVersion(wireIn);
+        String type = readType(wireIn);
+
         long queryStartTime = wireIn.read(QUERY_START_TIME).int64();
         int protocolVersion = wireIn.read(PROTOCOL_VERSION).int32();
         QueryOptions queryOptions = QueryOptions.codec.decode(Unpooled.wrappedBuffer(wireIn.read(QUERY_OPTIONS).bytes()), ProtocolVersion.decode(protocolVersion, true));
@@ -105,8 +107,31 @@ public class FQLQueryReader implements ReadMarshallable
                                            values);
                 break;
             default:
-                throw new RuntimeException("Unknown type: " + type);
+                throw new IORuntimeException("Unhandled record type: " + type);
         }
+    }
+
+    private void verifyVersion(WireIn wireIn)
+    {
+        int version = wireIn.read(VERSION).int16();
+
+        if (version > CURRENT_VERSION)
+        {
+            throw new IORuntimeException("Unsupported record version [" + version
+                                         + "] - highest supported version is [" + CURRENT_VERSION + ']');
+        }
+    }
+
+    private String readType(WireIn wireIn) throws IORuntimeException
+    {
+        String type = wireIn.read(TYPE).text();
+        if (!SINGLE_QUERY.equals(type) && !BATCH.equals(type))
+        {
+            throw new IORuntimeException("Unsupported record type field [" + type
+                                         + "] - supported record types are [" + SINGLE_QUERY + ", " + BATCH + ']');
+        }
+
+        return type;
     }
 
     public FQLQuery getQuery()

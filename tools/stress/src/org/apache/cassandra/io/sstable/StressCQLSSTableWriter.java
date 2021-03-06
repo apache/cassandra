@@ -27,8 +27,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ArrayUtils;
 
-import com.datastax.driver.core.ProtocolVersion;
-import com.datastax.driver.core.TypeCodec;
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -43,9 +41,9 @@ import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.functions.UDHelper;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -57,6 +55,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -244,7 +243,7 @@ public class StressCQLSSTableWriter implements Closeable
 
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
-        SortedSet<Clustering> clusterings = insert.createClustering(options);
+        SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
 
         long now = System.currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
@@ -261,7 +260,7 @@ public class StressCQLSSTableWriter implements Closeable
         {
             for (ByteBuffer key : keys)
             {
-                for (Clustering clustering : clusterings)
+                for (Clustering<?> clustering : clusterings)
                     insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
             }
             return this;
@@ -303,20 +302,6 @@ public class StressCQLSSTableWriter implements Closeable
     }
 
     /**
-     * Returns the User Defined type, used in this SSTable Writer, that can
-     * be used to create UDTValue instances.
-     *
-     * @param dataType name of the User Defined type
-     * @return user defined type
-     */
-    public com.datastax.driver.core.UserType getUDType(String dataType)
-    {
-        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(insert.keyspace());
-        UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
-        return (com.datastax.driver.core.UserType) UDHelper.driverType(userType);
-    }
-
-    /**
      * Close this writer.
      * <p>
      * This method should be called, otherwise the produced sstables are not
@@ -332,7 +317,7 @@ public class StressCQLSSTableWriter implements Closeable
         if (value == null || value == UNSET_VALUE)
             return (ByteBuffer) value;
 
-        return codec.serialize(value, ProtocolVersion.NEWEST_SUPPORTED);
+        return codec.serialize(value, ProtocolVersion.CURRENT);
     }
     /**
      * The writer loads data in directories corresponding to how they laid out on the server.

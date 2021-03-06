@@ -47,7 +47,7 @@ public final class UDFByteCodeVerifier
 
     public static final String JAVA_UDF_NAME = JavaUDF.class.getName().replace('.', '/');
     public static final String OBJECT_NAME = Object.class.getName().replace('.', '/');
-    public static final String CTOR_SIG = "(Lcom/datastax/driver/core/TypeCodec;[Lcom/datastax/driver/core/TypeCodec;Lorg/apache/cassandra/cql3/functions/UDFContext;)V";
+    public static final String CTOR_SIG = "(Lorg/apache/cassandra/cql3/functions/types/TypeCodec;[Lorg/apache/cassandra/cql3/functions/types/TypeCodec;Lorg/apache/cassandra/cql3/functions/UDFContext;)V";
 
     private final Set<String> disallowedClasses = new HashSet<>();
     private final Multimap<String, String> disallowedMethodCalls = HashMultimap.create();

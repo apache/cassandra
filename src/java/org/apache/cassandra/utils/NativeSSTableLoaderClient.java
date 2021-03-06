@@ -17,12 +17,10 @@
  */
 package org.apache.cassandra.utils;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 import com.datastax.driver.core.*;
 
@@ -46,37 +44,28 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 {
     protected final Map<String, TableMetadataRef> tables;
     private final Collection<InetSocketAddress> hosts;
-    private final int port;
     private final int storagePort;
     private final AuthProvider authProvider;
     private final SSLOptions sslOptions;
-    private final boolean allowServerPortDiscovery;
 
-
-    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int nativePort, int storagePort, String username, String password, SSLOptions sslOptions, boolean allowServerPortDiscovery)
+    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int storagePort, String username, String password, SSLOptions sslOptions)
     {
-        this(hosts, nativePort, storagePort, new PlainTextAuthProvider(username, password), sslOptions, allowServerPortDiscovery);
+        this(hosts, storagePort, new PlainTextAuthProvider(username, password), sslOptions);
     }
 
-    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int nativePort, int storagePort, AuthProvider authProvider, SSLOptions sslOptions, boolean allowServerPortDiscovery)
+    public NativeSSTableLoaderClient(Collection<InetSocketAddress> hosts, int storagePort, AuthProvider authProvider, SSLOptions sslOptions)
     {
         super();
         this.tables = new HashMap<>();
         this.hosts = hosts;
-        this.port = nativePort;
         this.authProvider = authProvider;
         this.sslOptions = sslOptions;
-        this.allowServerPortDiscovery = allowServerPortDiscovery;
         this.storagePort = storagePort;
     }
 
     public void init(String keyspace)
     {
-        Set<InetAddress> hostAddresses = hosts.stream().map(host -> host.getAddress()).collect(Collectors.toSet());
-        Cluster.Builder builder = Cluster.builder().addContactPoints(hostAddresses).withPort(port).allowBetaProtocolVersion();
-
-        if (allowServerPortDiscovery)
-            builder = builder.allowServerPortDiscovery();
+        Cluster.Builder builder = Cluster.builder().addContactPointsWithPorts(hosts).allowBetaProtocolVersion();
 
         if (sslOptions != null)
             builder.withSSL(sslOptions);
@@ -100,15 +89,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                                                  tokenFactory.fromString(tokenRange.getEnd().getValue().toString()));
                 for (Host endpoint : endpoints)
                 {
-                    int portToUse;
-                    if (allowServerPortDiscovery)
-                    {
-                        portToUse = endpoint.getBroadcastAddressOptPort().portOrElse(storagePort);
-                    }
-                    else
-                    {
-                        portToUse = storagePort;
-                    }
+                    int broadcastPort = endpoint.getBroadcastSocketAddress().getPort();
+                    // use port from broadcast address if set.
+                    int portToUse = broadcastPort != 0 ? broadcastPort : storagePort;
                     addRangeForEndpoint(range, InetAddressAndPort.getByNameOverrideDefaults(endpoint.getAddress().getHostAddress(), portToUse));
                 }
             }

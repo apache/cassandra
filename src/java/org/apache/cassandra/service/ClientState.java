@@ -194,7 +194,7 @@ public class ClientState
      * This clock guarantees that updates for the same ClientState will be ordered
      * in the sequence seen, even if multiple updates happen in the same millisecond.
      */
-    public long getTimestamp()
+    public static long getTimestamp()
     {
         while (true)
         {

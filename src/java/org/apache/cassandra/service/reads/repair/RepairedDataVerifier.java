@@ -18,33 +18,53 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.SnapshotCommand;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public interface RepairedDataVerifier
 {
     public void verify(RepairedDataTracker tracker);
 
+    static RepairedDataVerifier verifier(ReadCommand command)
+    {
+        return DatabaseDescriptor.snapshotOnRepairedDataMismatch() ? snapshotting(command) : simple(command);
+    }
+
     static RepairedDataVerifier simple(ReadCommand command)
     {
         return new SimpleVerifier(command);
     }
 
+    static RepairedDataVerifier snapshotting(ReadCommand command)
+    {
+        return new SnapshottingVerifier(command);
+    }
+
     static class SimpleVerifier implements RepairedDataVerifier
     {
         private static final Logger logger = LoggerFactory.getLogger(SimpleVerifier.class);
-        private final ReadCommand command;
+        protected final ReadCommand command;
 
         private static final String INCONSISTENCY_WARNING = "Detected mismatch between repaired datasets for table {}.{} during read of {}. {}";
 
@@ -71,7 +91,7 @@ public interface RepairedDataVerifier
                     metrics.confirmedRepairedInconsistencies.mark();
                     NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
                                      INCONSISTENCY_WARNING, command.metadata().keyspace,
-                                     command.metadata().name, getCommandString(), tracker);
+                                     command.metadata().name, command.toString(), tracker);
                 }
                 else if (DatabaseDescriptor.reportUnconfirmedRepairedDataMismatches())
                 {
@@ -79,17 +99,34 @@ public interface RepairedDataVerifier
                     metrics.unconfirmedRepairedInconsistencies.mark();
                     NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
                                      INCONSISTENCY_WARNING, command.metadata().keyspace,
-                                     command.metadata().name, getCommandString(), tracker);
+                                     command.metadata().name, command.toString(), tracker);
                 }
             }
         }
+    }
 
-        private String getCommandString()
+    static class SnapshottingVerifier extends SimpleVerifier
+    {
+        private static final Logger logger = LoggerFactory.getLogger(SnapshottingVerifier.class);
+        private static final String SNAPSHOTTING_WARNING = "Issuing snapshot command for mismatch between repaired datasets for table {}.{} during read of {}. {}";
+
+        SnapshottingVerifier(ReadCommand command)
         {
-            return command instanceof SinglePartitionReadCommand
-                   ? ((SinglePartitionReadCommand)command).partitionKey().toString()
-                   : ((PartitionRangeReadCommand)command).dataRange().keyRange().getString(command.metadata().partitionKeyType);
+            super(command);
+        }
 
+        public void verify(RepairedDataTracker tracker)
+        {
+            super.verify(tracker);
+            if (tracker.digests.keySet().size() > 1)
+            {
+                if (tracker.inconclusiveDigests.isEmpty() ||  DatabaseDescriptor.reportUnconfirmedRepairedDataMismatches())
+                {
+                    logger.warn(SNAPSHOTTING_WARNING, command.metadata().keyspace, command.metadata().name, command.toString(), tracker);
+                    DiagnosticSnapshotService.repairedDataMismatch(command.metadata(), tracker.digests.values());
+                }
+            }
         }
     }
 }
+

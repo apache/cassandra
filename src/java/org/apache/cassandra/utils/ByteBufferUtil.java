@@ -83,6 +83,8 @@ public class ByteBufferUtil
     /** Represents an unset value in bound variables */
     public static final ByteBuffer UNSET_BYTE_BUFFER = ByteBuffer.wrap(new byte[]{});
 
+    public static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
+
     @Inline
     public static int compareUnsigned(ByteBuffer o1, ByteBuffer o2)
     {
@@ -340,24 +342,9 @@ public class ByteBufferUtil
         out.write(bytes);
     }
 
-    public static void writeWithLength(byte[] bytes, DataOutput out) throws IOException
-    {
-        out.writeInt(bytes.length);
-        out.write(bytes);
-    }
-
     public static void writeWithShortLength(ByteBuffer buffer, DataOutputPlus out) throws IOException
     {
         int length = buffer.remaining();
-        assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT
-            : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
-        out.writeShort(length);
-        out.write(buffer);
-    }
-
-    public static void writeWithShortLength(byte[] buffer, DataOutput out) throws IOException
-    {
-        int length = buffer.length;
         assert 0 <= length && length <= FBUtilities.MAX_UNSIGNED_SHORT
             : String.format("Attempted serializing to buffer exceeded maximum of %s bytes: %s", FBUtilities.MAX_UNSIGNED_SHORT, length);
         out.writeShort(length);
@@ -535,6 +522,8 @@ public class ByteBufferUtil
             return ByteBufferUtil.bytes((InetAddress) obj);
         else if (obj instanceof String)
             return ByteBufferUtil.bytes((String) obj);
+        else if (obj instanceof ByteBuffer)
+            return (ByteBuffer) obj;
         else
             throw new IllegalArgumentException(String.format("Cannot convert value %s of type %s",
                                                              obj,
@@ -683,17 +672,44 @@ public class ByteBufferUtil
         return prefix.equals(value.duplicate().limit(value.remaining() - diff));
     }
 
+    public static boolean canMinimize(ByteBuffer buf)
+    {
+        return buf != null && (buf.capacity() > buf.remaining() || !buf.hasArray());
+    }
+
     /** trims size of bytebuffer to exactly number of bytes in it, to do not hold too much memory */
     public static ByteBuffer minimalBufferFor(ByteBuffer buf)
     {
         return buf.capacity() > buf.remaining() || !buf.hasArray() ? ByteBuffer.wrap(getArray(buf)) : buf;
     }
 
-    // doesn't change bb position
+    public static ByteBuffer[] minimizeBuffers(ByteBuffer[] src)
+    {
+        ByteBuffer[] dst = new ByteBuffer[src.length];
+        for (int i=0; i<src.length; i++)
+            dst[i] = src[i] != null ? minimalBufferFor(src[i]) : null;
+        return dst;
+    }
+
+    public static boolean canMinimize(ByteBuffer[] src)
+    {
+        for (ByteBuffer buffer : src)
+        {
+            if (canMinimize(buffer))
+                return true;
+        }
+        return false;
+    }
+
+    public static int getUnsignedShort(ByteBuffer bb, int position)
+    {
+        return ((bb.get(position) & 0xFF) << 8) | (bb.get(position + 1) & 0xFF);
+    }
+
+    // Doesn't change bb position
     public static int getShortLength(ByteBuffer bb, int position)
     {
-        int length = (bb.get(position) & 0xFF) << 8;
-        return length | (bb.get(position + 1) & 0xFF);
+        return getUnsignedShort(bb, position);
     }
 
     // changes bb position

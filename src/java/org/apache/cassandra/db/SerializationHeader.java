@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
@@ -288,6 +289,18 @@ public class SerializationHeader
             this.stats = stats;
         }
 
+        /**
+         * <em>Only</em> exposed for {@link org.apache.cassandra.io.sstable.SSTableHeaderFix}.
+         */
+        public static Component buildComponentForTools(AbstractType<?> keyType,
+                                                       List<AbstractType<?>> clusteringTypes,
+                                                       Map<ByteBuffer, AbstractType<?>> staticColumns,
+                                                       Map<ByteBuffer, AbstractType<?>> regularColumns,
+                                                       EncodingStats stats)
+        {
+            return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
+        }
+
         public MetadataType getType()
         {
             return MetadataType.HEADER;
@@ -413,8 +426,8 @@ public class SerializationHeader
             Columns statics, regulars;
             if (selection == null)
             {
-                statics = hasStatic ? Columns.serializer.deserialize(in, metadata) : Columns.NONE;
-                regulars = Columns.serializer.deserialize(in, metadata);
+                statics = hasStatic ? Columns.serializer.deserializeStatics(in, metadata) : Columns.NONE;
+                regulars = Columns.serializer.deserializeRegulars(in, metadata);
             }
             else
             {

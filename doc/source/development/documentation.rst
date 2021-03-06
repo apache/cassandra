@@ -100,5 +100,5 @@ Make sure to add a proper commit message including a "Closes #<PR-ID>" text to a
 Publishing
 ----------
 
-Details for building and publishing of the site at cassandra.apache.org can be found `here <https://svn.apache.org/repos/asf/cassandra/site/src/README>`_.
+Details for building and publishing of the site at cassandra.apache.org can be found `here <https://github.com/apache/cassandra-website/blob/trunk/README.md>`_.
 

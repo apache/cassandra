@@ -66,7 +66,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
         pageSize = Math.min(pageSize, remaining);
         Pager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
-        return Transformation.apply(nextPageReadQuery(pageSize).execute(consistency, clientState, queryStartNanoTime), pager);
+        ReadQuery readQuery = nextPageReadQuery(pageSize);
+        if (readQuery == null)
+        {
+            exhausted = true;
+            return EmptyIterators.partition();
+        }
+        return Transformation.apply(readQuery.execute(consistency, clientState, queryStartNanoTime), pager);
     }
 
     public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController)
@@ -76,7 +82,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
         pageSize = Math.min(pageSize, remaining);
         RowPager pager = new RowPager(limits.forPaging(pageSize), query.nowInSec());
-        return Transformation.apply(nextPageReadQuery(pageSize).executeInternal(executionController), pager);
+        ReadQuery readQuery = nextPageReadQuery(pageSize);
+        if (readQuery == null)
+        {
+            exhausted = true;
+            return EmptyIterators.partition();
+        }
+        return Transformation.apply(readQuery.executeInternal(executionController), pager);
     }
 
     public UnfilteredPartitionIterator fetchPageUnfiltered(TableMetadata metadata, int pageSize, ReadExecutionController executionController)
@@ -86,8 +98,13 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
 
         pageSize = Math.min(pageSize, remaining);
         UnfilteredPager pager = new UnfilteredPager(limits.forPaging(pageSize), query.nowInSec());
-
-        return Transformation.apply(nextPageReadQuery(pageSize).executeLocally(executionController), pager);
+        ReadQuery readQuery = nextPageReadQuery(pageSize);
+        if (readQuery == null)
+        {
+            exhausted = true;
+            return EmptyIterators.unfilteredPartition(metadata);
+        }
+        return Transformation.apply(readQuery.executeLocally(executionController), pager);
     }
 
     private class UnfilteredPager extends Pager<Unfiltered>
@@ -171,7 +188,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             // it means that there is only one row per partition. Therefore, in both cases there are no data remaining
             // within the partition.
             if (lastRow != null && (lastRow.clustering() == Clustering.STATIC_CLUSTERING
-                    || lastRow.clustering() == Clustering.EMPTY))
+                    || lastRow.clustering().isEmpty()))
             {
                 remainingInPartition = 0;
             }
@@ -186,7 +203,8 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         {
             if (!row.isEmpty())
             {
-                remainingInPartition = limits.perPartitionCount();
+                if (!currentKey.equals(lastKey))
+                    remainingInPartition = limits.perPartitionCount();
                 lastKey = currentKey;
                 lastRow = row;
             }

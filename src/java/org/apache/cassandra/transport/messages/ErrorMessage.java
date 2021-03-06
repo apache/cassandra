@@ -18,14 +18,15 @@
 package org.apache.cassandra.transport.messages;
 
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.CodecException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,15 +90,21 @@ public class ErrorMessage extends Message.Response
                         // The number of failures is also present in protocol v5, but used instead to specify the size of the failure map
                         int failure = body.readInt();
 
-                        Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new ConcurrentHashMap<>();
+                        Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
+                            ImmutableMap.Builder<InetAddressAndPort, RequestFailureReason> builder = ImmutableMap.builderWithExpectedSize(failure);
                             for (int i = 0; i < failure; i++)
                             {
                                 InetAddress endpoint = CBUtil.readInetAddr(body);
                                 RequestFailureReason failureReason = RequestFailureReason.fromCode(body.readUnsignedShort());
-                                failureReasonByEndpoint.put(InetAddressAndPort.getByAddress(endpoint), failureReason);
+                                builder.put(InetAddressAndPort.getByAddress(endpoint), failureReason);
                             }
+                            failureReasonByEndpoint = builder.build();
+                        }
+                        else
+                        {
+                            failureReasonByEndpoint = Collections.emptyMap();
                         }
 
                         if (code == ExceptionCode.WRITE_FAILURE)
@@ -114,20 +121,30 @@ public class ErrorMessage extends Message.Response
                     break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
-                    ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
-                    int received = body.readInt();
-                    int blockFor = body.readInt();
-                    if (code == ExceptionCode.WRITE_TIMEOUT)
                     {
-                        WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
-                        te = new WriteTimeoutException(writeType, cl, received, blockFor);
+                        ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
+                        int received = body.readInt();
+                        int blockFor = body.readInt();
+                        if (code == ExceptionCode.WRITE_TIMEOUT)
+                        {
+                            WriteType writeType = Enum.valueOf(WriteType.class, CBUtil.readString(body));
+                            if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && writeType == WriteType.CAS)
+                            {
+                                int contentions = body.readShort();
+                                te = new CasWriteTimeoutException(writeType, cl, received, blockFor, contentions);
+                            }
+                            else
+                            {
+                                te = new WriteTimeoutException(writeType, cl, received, blockFor);
+                            }
+                        }
+                        else
+                        {
+                            byte dataPresent = body.readByte();
+                            te = new ReadTimeoutException(cl, received, blockFor, dataPresent != 0);
+                        }
+                        break;
                     }
-                    else
-                    {
-                        byte dataPresent = body.readByte();
-                        te = new ReadTimeoutException(cl, received, blockFor, dataPresent != 0);
-                    }
-                    break;
                 case FUNCTION_FAILURE:
                     String fKeyspace = CBUtil.readString(body);
                     String fName = CBUtil.readString(body);
@@ -163,6 +180,14 @@ public class ErrorMessage extends Message.Response
                     else
                         te = new AlreadyExistsException(ksName, cfName);
                     break;
+                case CAS_WRITE_UNKNOWN:
+                    assert version.isGreaterOrEqualTo(ProtocolVersion.V5);
+
+                    ConsistencyLevel cl = CBUtil.readConsistencyLevel(body);
+                    int received = body.readInt();
+                    int blockFor = body.readInt();
+                    te = new CasWriteUnknownResultException(cl, received, blockFor);
+                    break;
             }
             return new ErrorMessage(te);
         }
@@ -185,8 +210,7 @@ public class ErrorMessage extends Message.Response
                 case WRITE_FAILURE:
                 case READ_FAILURE:
                     {
-                        RequestFailureException rfe = (RequestFailureException)err;
-                        boolean isWrite = err.code() == ExceptionCode.WRITE_FAILURE;
+                        RequestFailureException rfe = (RequestFailureException) err;
 
                         CBUtil.writeConsistencyLevel(rfe.consistency, dest);
                         dest.writeInt(rfe.received);
@@ -203,29 +227,35 @@ public class ErrorMessage extends Message.Response
                             }
                         }
 
-                        if (isWrite)
-                            CBUtil.writeString(((WriteFailureException)rfe).writeType.toString(), dest);
+                        if (err.code() == ExceptionCode.WRITE_FAILURE)
+                            CBUtil.writeAsciiString(((WriteFailureException) rfe).writeType.toString(), dest);
                         else
-                            dest.writeByte((byte)(((ReadFailureException)rfe).dataPresent ? 1 : 0));
+                            dest.writeByte((byte) (((ReadFailureException) rfe).dataPresent ? 1 : 0));
+                        break;
                     }
-                    break;
                 case WRITE_TIMEOUT:
                 case READ_TIMEOUT:
                     RequestTimeoutException rte = (RequestTimeoutException)err;
-                    boolean isWrite = err.code() == ExceptionCode.WRITE_TIMEOUT;
 
                     CBUtil.writeConsistencyLevel(rte.consistency, dest);
                     dest.writeInt(rte.received);
                     dest.writeInt(rte.blockFor);
-                    if (isWrite)
-                        CBUtil.writeString(((WriteTimeoutException)rte).writeType.toString(), dest);
+                    if (err.code() == ExceptionCode.WRITE_TIMEOUT)
+                    {
+                        CBUtil.writeAsciiString(((WriteTimeoutException)rte).writeType.toString(), dest);
+                        // CasWriteTimeoutException already implies protocol V5, but double check to be safe.
+                        if (version.isGreaterOrEqualTo(ProtocolVersion.V5) && rte instanceof CasWriteTimeoutException)
+                            dest.writeShort(((CasWriteTimeoutException)rte).contentions);
+                    }
                     else
+                    {
                         dest.writeByte((byte)(((ReadTimeoutException)rte).dataPresent ? 1 : 0));
+                    }
                     break;
                 case FUNCTION_FAILURE:
                     FunctionExecutionException fee = (FunctionExecutionException)msg.error;
-                    CBUtil.writeString(fee.functionName.keyspace, dest);
-                    CBUtil.writeString(fee.functionName.name, dest);
+                    CBUtil.writeAsciiString(fee.functionName.keyspace, dest);
+                    CBUtil.writeAsciiString(fee.functionName.name, dest);
                     CBUtil.writeStringList(fee.argTypes, dest);
                     break;
                 case UNPREPARED:
@@ -234,15 +264,21 @@ public class ErrorMessage extends Message.Response
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)err;
-                    CBUtil.writeString(aee.ksName, dest);
-                    CBUtil.writeString(aee.cfName, dest);
+                    CBUtil.writeAsciiString(aee.ksName, dest);
+                    CBUtil.writeAsciiString(aee.cfName, dest);
                     break;
+                case CAS_WRITE_UNKNOWN:
+                    assert version.isGreaterOrEqualTo(ProtocolVersion.V5);
+                    CasWriteUnknownResultException cwue = (CasWriteUnknownResultException)err;
+                    CBUtil.writeConsistencyLevel(cwue.consistency, dest);
+                    dest.writeInt(cwue.received);
+                    dest.writeInt(cwue.blockFor);
             }
         }
 
         public int encodedSize(ErrorMessage msg, ProtocolVersion version)
         {
-            final TransportException err = getBackwardsCompatibleException(msg, version);
+            TransportException err = getBackwardsCompatibleException(msg, version);
             String errorString = err.getMessage() == null ? "" : err.getMessage();
             int size = 4 + CBUtil.sizeOfString(errorString);
             switch (err.code())
@@ -255,9 +291,12 @@ public class ErrorMessage extends Message.Response
                 case READ_FAILURE:
                     {
                         RequestFailureException rfe = (RequestFailureException)err;
-                        boolean isWrite = err.code() == ExceptionCode.WRITE_FAILURE;
+
                         size += CBUtil.sizeOfConsistencyLevel(rfe.consistency) + 4 + 4 + 4;
-                        size += isWrite ? CBUtil.sizeOfString(((WriteFailureException)rfe).writeType.toString()) : 1;
+                        if (err.code() == ExceptionCode.WRITE_FAILURE)
+                            size += CBUtil.sizeOfAsciiString(((WriteFailureException)rfe).writeType.toString());
+                        else
+                            size += 1;
 
                         if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                         {
@@ -274,12 +313,19 @@ public class ErrorMessage extends Message.Response
                     RequestTimeoutException rte = (RequestTimeoutException)err;
                     boolean isWrite = err.code() == ExceptionCode.WRITE_TIMEOUT;
                     size += CBUtil.sizeOfConsistencyLevel(rte.consistency) + 8;
-                    size += isWrite ? CBUtil.sizeOfString(((WriteTimeoutException)rte).writeType.toString()) : 1;
+                    if (isWrite)
+                        size += CBUtil.sizeOfAsciiString(((WriteTimeoutException)rte).writeType.toString());
+                    else
+                        size += 1;
+
+                    // CasWriteTimeoutException already implies protocol V5, but double check to be safe.
+                    if (isWrite && version.isGreaterOrEqualTo(ProtocolVersion.V5) && rte instanceof CasWriteTimeoutException)
+                        size += 2; // CasWriteTimeoutException appends a short for contentions occured.
                     break;
                 case FUNCTION_FAILURE:
                     FunctionExecutionException fee = (FunctionExecutionException)msg.error;
-                    size += CBUtil.sizeOfString(fee.functionName.keyspace);
-                    size += CBUtil.sizeOfString(fee.functionName.name);
+                    size += CBUtil.sizeOfAsciiString(fee.functionName.keyspace);
+                    size += CBUtil.sizeOfAsciiString(fee.functionName.name);
                     size += CBUtil.sizeOfStringList(fee.argTypes);
                     break;
                 case UNPREPARED:
@@ -288,8 +334,13 @@ public class ErrorMessage extends Message.Response
                     break;
                 case ALREADY_EXISTS:
                     AlreadyExistsException aee = (AlreadyExistsException)err;
-                    size += CBUtil.sizeOfString(aee.ksName);
-                    size += CBUtil.sizeOfString(aee.cfName);
+                    size += CBUtil.sizeOfAsciiString(aee.ksName);
+                    size += CBUtil.sizeOfAsciiString(aee.cfName);
+                    break;
+                case CAS_WRITE_UNKNOWN:
+                    assert version.isGreaterOrEqualTo(ProtocolVersion.V5);
+                    CasWriteUnknownResultException cwue = (CasWriteUnknownResultException)err;
+                    size += CBUtil.sizeOfConsistencyLevel(cwue.consistency) + 4 + 4; // receivedFor: 4, blockFor: 4
                     break;
             }
             return size;
@@ -309,9 +360,25 @@ public class ErrorMessage extends Message.Response
                     WriteFailureException wfe = (WriteFailureException) msg.error;
                     return new WriteTimeoutException(wfe.writeType, wfe.consistency, wfe.received, wfe.blockFor);
                 case FUNCTION_FAILURE:
-                    return new InvalidRequestException(msg.toString());
                 case CDC_WRITE_FAILURE:
                     return new InvalidRequestException(msg.toString());
+            }
+        }
+
+        if (version.isSmallerThan(ProtocolVersion.V5))
+        {
+            switch (msg.error.code())
+            {
+                case WRITE_TIMEOUT:
+                    if (msg.error instanceof CasWriteTimeoutException)
+                    {
+                        CasWriteTimeoutException cwte = (CasWriteTimeoutException) msg.error;
+                        return new WriteTimeoutException(WriteType.CAS, cwte.consistency, cwte.received, cwte.blockFor);
+                    }
+                    break;
+                case CAS_WRITE_UNKNOWN:
+                    CasWriteUnknownResultException cwue = (CasWriteUnknownResultException) msg.error;
+                    return new WriteTimeoutException(WriteType.CAS, cwue.consistency, cwue.received, cwue.blockFor);
             }
         }
 

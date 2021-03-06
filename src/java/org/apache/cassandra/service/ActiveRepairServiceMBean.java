@@ -20,12 +20,13 @@ package org.apache.cassandra.service;
 
 import java.util.List;
 import java.util.Map;
+import javax.management.openmbean.CompositeData;
 
 public interface ActiveRepairServiceMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=RepairService";
 
-    public List<Map<String, String>> getSessions(boolean all);
+    public List<Map<String, String>> getSessions(boolean all, String rangesStr);
     public void failSession(String session, boolean force);
 
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes);
@@ -33,4 +34,20 @@ public interface ActiveRepairServiceMBean
 
     public boolean getUseOffheapMerkleTrees();
     public void setUseOffheapMerkleTrees(boolean value);
+
+    public int getRepairPendingCompactionRejectThreshold();
+    public void setRepairPendingCompactionRejectThreshold(int value);
+
+    public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString);
+    public List<CompositeData> getPendingStats(List<String> schemaArgs, String rangeString);
+    public List<CompositeData> cleanupPending(List<String> schemaArgs, String rangeString, boolean force);
+
+    /**
+     * Each ongoing repair (incremental and non-incremental) is represented by a
+     * {@link ActiveRepairService.ParentRepairSession} entry in the {@link ActiveRepairService} cache.
+     * Returns the current number of ongoing repairs (the current number of cached entries).
+     *
+     * @return current size of the internal cache holding {@link ActiveRepairService.ParentRepairSession} instances
+     */
+    int parentRepairSessionsCount();
 }

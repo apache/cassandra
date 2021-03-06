@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +39,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -256,12 +256,37 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                          sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
+            long oldSize = sstable.bytesOnDisk();
             SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
+            long newSize = replacement.bytesOnDisk();
             newSSTables.add(replacement);
             transactions.get(sstable.metadata().id).update(replacement, true);
+            addHooks(cfs, transactions, oldSize, newSize);
         }
 
         return newSSTables;
+    }
+
+    /**
+     * Add hooks to correctly update the storage load metrics once the transaction is closed/aborted
+     */
+    @SuppressWarnings("resource") // Transactions are closed in finally outside of this method
+    private void addHooks(ColumnFamilyStore cfs, Map<TableId, LifecycleTransaction> transactions, long oldSize, long newSize)
+    {
+        LifecycleTransaction txn = transactions.get(cfs.metadata.id);
+        txn.runOnCommit(() -> {
+            // The new size will be added in Transactional.commit() as an updated SSTable, more details: CASSANDRA-13738
+            StorageMetrics.load.dec(oldSize);
+            cfs.metric.liveDiskSpaceUsed.dec(oldSize);
+            cfs.metric.totalDiskSpaceUsed.dec(oldSize);
+        });
+        txn.runOnAbort(() -> {
+            // the local disk was modified but book keeping couldn't be commited, apply the delta
+            long delta = oldSize - newSize; // if new is larger this will be negative, so dec will become a inc
+            StorageMetrics.load.dec(delta);
+            cfs.metric.liveDiskSpaceUsed.dec(delta);
+            cfs.metric.totalDiskSpaceUsed.dec(delta);
+        });
     }
 
     @VisibleForTesting
@@ -306,6 +331,11 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     public CompactionInfo getCompactionInfo()
     {
         return CompactionInfo.withoutSSTables(null, OperationType.INDEX_SUMMARY, (memoryPoolBytes - remainingSpace), memoryPoolBytes, Unit.BYTES, compactionId);
+    }
+
+    public boolean isGlobal()
+    {
+        return true;
     }
 
     /** Utility class for sorting sstables by their read rates. */

@@ -46,6 +46,7 @@ public class CassandraIncomingFile implements IncomingStream
 
     private volatile SSTableMultiWriter sstable;
     private volatile long size = -1;
+    private volatile int numFiles = 1;
 
     private static final Logger logger = LoggerFactory.getLogger(CassandraIncomingFile.class);
 
@@ -57,6 +58,12 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
+    public StreamSession session()
+    {
+        return session;
+    }
+
+    @Override
     public synchronized void read(DataInputPlus in, int version) throws IOException
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);
@@ -64,7 +71,10 @@ public class CassandraIncomingFile implements IncomingStream
 
         IStreamReader reader;
         if (streamHeader.isEntireSSTable)
+        {
             reader = new CassandraEntireSSTableStreamReader(header, streamHeader, session);
+            numFiles = streamHeader.componentManifest.components().size();
+        }
         else if (streamHeader.isCompressed())
             reader = new CassandraCompressedStreamReader(header, streamHeader, session);
         else
@@ -85,6 +95,12 @@ public class CassandraIncomingFile implements IncomingStream
     {
         Preconditions.checkState(size > 0, "Stream hasn't been read yet");
         return size;
+    }
+
+    @Override
+    public int getNumFiles()
+    {
+        return numFiles;
     }
 
     @Override

@@ -216,7 +216,14 @@ public class ResultSet
         // when re-preparing we create the intermediate object
         public ResultMetadata(List<ColumnSpecification> names)
         {
-            this(computeResultMetadataId(names), EnumSet.noneOf(Flag.class), names, names.size(), null);
+            this(names, null);
+        }
+
+        // Problem is that we compute the metadata from the columns on creation;
+        // when re-preparing we create the intermediate object
+        public ResultMetadata(List<ColumnSpecification> names, PagingState pagingState)
+        {
+            this(computeResultMetadataId(names), EnumSet.noneOf(Flag.class), names, names.size(), pagingState);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
                 flags.add(Flag.GLOBAL_TABLES_SPEC);
         }
@@ -433,8 +440,8 @@ public class ResultSet
                 {
                     if (globalTablesSpec)
                     {
-                        CBUtil.writeString(m.names.get(0).ksName, dest);
-                        CBUtil.writeString(m.names.get(0).cfName, dest);
+                        CBUtil.writeAsciiString(m.names.get(0).ksName, dest);
+                        CBUtil.writeAsciiString(m.names.get(0).cfName, dest);
                     }
 
                     for (int i = 0; i < m.columnCount; i++)
@@ -442,8 +449,8 @@ public class ResultSet
                         ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
-                            CBUtil.writeString(name.ksName, dest);
-                            CBUtil.writeString(name.cfName, dest);
+                            CBUtil.writeAsciiString(name.ksName, dest);
+                            CBUtil.writeAsciiString(name.cfName, dest);
                         }
                         CBUtil.writeString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
@@ -469,8 +476,8 @@ public class ResultSet
                 {
                     if (globalTablesSpec)
                     {
-                        size += CBUtil.sizeOfString(m.names.get(0).ksName);
-                        size += CBUtil.sizeOfString(m.names.get(0).cfName);
+                        size += CBUtil.sizeOfAsciiString(m.names.get(0).ksName);
+                        size += CBUtil.sizeOfAsciiString(m.names.get(0).cfName);
                     }
 
                     for (int i = 0; i < m.columnCount; i++)
@@ -478,8 +485,8 @@ public class ResultSet
                         ColumnSpecification name = m.names.get(i);
                         if (!globalTablesSpec)
                         {
-                            size += CBUtil.sizeOfString(name.ksName);
-                            size += CBUtil.sizeOfString(name.cfName);
+                            size += CBUtil.sizeOfAsciiString(name.ksName);
+                            size += CBUtil.sizeOfAsciiString(name.cfName);
                         }
                         size += CBUtil.sizeOfString(name.name.toString());
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
@@ -639,16 +646,16 @@ public class ResultSet
 
                 if (globalTablesSpec)
                 {
-                    CBUtil.writeString(m.names.get(0).ksName, dest);
-                    CBUtil.writeString(m.names.get(0).cfName, dest);
+                    CBUtil.writeAsciiString(m.names.get(0).ksName, dest);
+                    CBUtil.writeAsciiString(m.names.get(0).cfName, dest);
                 }
 
                 for (ColumnSpecification name : m.names)
                 {
                     if (!globalTablesSpec)
                     {
-                        CBUtil.writeString(name.ksName, dest);
-                        CBUtil.writeString(name.cfName, dest);
+                        CBUtil.writeAsciiString(name.ksName, dest);
+                        CBUtil.writeAsciiString(name.cfName, dest);
                     }
                     CBUtil.writeString(name.name.toString(), dest);
                     DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
@@ -661,8 +668,8 @@ public class ResultSet
                 int size = 8;
                 if (globalTablesSpec)
                 {
-                    size += CBUtil.sizeOfString(m.names.get(0).ksName);
-                    size += CBUtil.sizeOfString(m.names.get(0).cfName);
+                    size += CBUtil.sizeOfAsciiString(m.names.get(0).ksName);
+                    size += CBUtil.sizeOfAsciiString(m.names.get(0).cfName);
                 }
 
                 if (m.partitionKeyBindIndexes != null && version.isGreaterOrEqualTo(ProtocolVersion.V4))
@@ -672,8 +679,8 @@ public class ResultSet
                 {
                     if (!globalTablesSpec)
                     {
-                        size += CBUtil.sizeOfString(name.ksName);
-                        size += CBUtil.sizeOfString(name.cfName);
+                        size += CBUtil.sizeOfAsciiString(name.ksName);
+                        size += CBUtil.sizeOfAsciiString(name.cfName);
                     }
                     size += CBUtil.sizeOfString(name.name.toString());
                     size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);

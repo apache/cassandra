@@ -438,6 +438,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 logger.warn("Could not list files in {}", savedCachesDir);
             }
         }
+
+        public boolean isGlobal()
+        {
+            return false;
+        }
     }
 
     public interface CacheSerializer<K extends CacheKey, V>

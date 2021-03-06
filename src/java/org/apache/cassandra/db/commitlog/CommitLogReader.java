@@ -34,7 +34,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadErrorReason;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -253,7 +253,7 @@ public class CommitLogReader
                     throw (IOException) re.getCause();
                 throw re;
             }
-            logger.debug("Finished reading {}", file);
+            logger.info("Finished reading {}", file);
         }
     }
 
@@ -429,7 +429,7 @@ public class CommitLogReader
         {
             mutation = Mutation.serializer.deserialize(bufIn,
                                                        desc.getMessagingVersion(),
-                                                       SerializationHelper.Flag.LOCAL);
+                                                       DeserializationHelper.Flag.LOCAL);
             // doublecheck that what we read is still] valid for the current schema
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
                 upd.validate();

@@ -20,266 +20,215 @@ package org.apache.cassandra.db.streaming;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.ReadableByteChannel;
 import java.util.Iterator;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.DoubleSupplier;
 
 import com.google.common.collect.Iterators;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.primitives.Ints;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.db.streaming.CassandraStreamReader.StreamDeserializer;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ChecksumType;
-import org.apache.cassandra.utils.WrappedRunnable;
+
+import static java.lang.Math.max;
+import static java.lang.String.format;
 
 /**
- * InputStream which reads data from underlining source with given {@link CompressionInfo}. Uses {@link #buffer} as a buffer
- * for uncompressed data (which is read by stream consumers - {@link StreamDeserializer} in this case).
+ * InputStream which reads compressed chunks from the underlying input stream and deals with decompression
+ * and position tracking.
+ *
+ * The underlying input will be an instance of {@link RebufferingInputStream} except in some unit tests.
+ *
+ * Compressed chunks transferred will be a subset of all chunks in the source streamed sstable - just enough to
+ * deserialize the requested partition position ranges. Correctness of the entire operation depends on provided
+ * partition position ranges and compressed chunks properly matching, and there is no way on the receiving side to
+ * verify if that's the case, which arguably makes this a little brittle.
  */
 public class CompressedInputStream extends RebufferingInputStream implements AutoCloseable
 {
+    private static final double GROWTH_FACTOR = 1.5;
 
-    private static final Logger logger = LoggerFactory.getLogger(CompressedInputStream.class);
+    private final DataInputPlus input;
 
-    private final CompressionInfo info;
-    // chunk buffer
-    private final BlockingQueue<ByteBuffer> dataBuffer;
-    private final DoubleSupplier crcCheckChanceSupplier;
-
-    /**
-     * The base offset of the current {@link #buffer} from the beginning of the stream.
-     */
-    private long bufferOffset = 0;
-
-    /**
-     * The current {@link CassandraCompressedStreamReader#sections} offset in the stream.
-     */
-    private long current = 0;
+    private final Iterator<CompressionMetadata.Chunk> compressedChunks;
+    private final CompressionParams compressionParams;
 
     private final ChecksumType checksumType;
-
-    private static final int CHECKSUM_LENGTH = 4;
-
-    /**
-     * Indicates there was a problem when reading from source stream.
-     * When this is added to the <code>dataBuffer</code> by the stream Reader,
-     * it is expected that the <code>readException</code> variable is populated
-     * with the cause of the error when reading from source stream, so it is
-     * thrown to the consumer on subsequent read operation.
-     */
-    private static final ByteBuffer POISON_PILL = ByteBuffer.wrap(new byte[0]);
-
-    private volatile IOException readException = null;
-
-    private long totalCompressedBytesRead;
+    private final DoubleSupplier validateChecksumChance;
 
     /**
-     * @param source Input source to read compressed data from
-     * @param info Compression info
+     * The base offset of the current {@link #buffer} into the original sstable as if it were uncompressed.
      */
-    public CompressedInputStream(DataInputPlus source, CompressionInfo info, ChecksumType checksumType, DoubleSupplier crcCheckChanceSupplier)
+    private long uncompressedChunkPosition = Long.MIN_VALUE;
+
+    /**
+     * @param input Input input to read compressed data from
+     * @param compressionInfo Compression info
+     */
+    public CompressedInputStream(DataInputPlus input,
+                                 CompressionInfo compressionInfo,
+                                 ChecksumType checksumType,
+                                 DoubleSupplier validateChecksumChance)
     {
-        super(ByteBuffer.allocateDirect(info.parameters.chunkLength()));
-        buffer.limit(buffer.position()); // force the buffer to appear "consumed" so that it triggers reBuffer on the first read
-        this.info = info;
-        this.dataBuffer = new ArrayBlockingQueue<>(Math.min(info.chunks.length, 1024));
-        this.crcCheckChanceSupplier = crcCheckChanceSupplier;
-        this.checksumType = checksumType;
+        super(ByteBuffer.allocateDirect(compressionInfo.parameters().chunkLength()));
+        buffer.limit(0);
 
-        new FastThreadLocalThread(new Reader(source, info, dataBuffer)).start();
+        this.input = input;
+        this.checksumType = checksumType;
+        this.validateChecksumChance = validateChecksumChance;
+
+        compressionParams = compressionInfo.parameters();
+        compressedChunks = Iterators.forArray(compressionInfo.chunks());
+        compressedChunk = ByteBuffer.allocateDirect(compressionParams.chunkLength());
     }
 
     /**
-     * Invoked when crossing into the next stream boundary in {@link CassandraCompressedStreamReader#sections}.
+     * Invoked when crossing into the next {@link SSTableReader.PartitionPositionBounds} section
+     * in {@link CassandraCompressedStreamReader#read(DataInputPlus)}.
+     * Will skip 1..n compressed chunks of the original sstable.
      */
     public void position(long position) throws IOException
     {
-        if (readException != null)
-            throw readException;
+        if (position < uncompressedChunkPosition + buffer.position())
+            throw new IllegalStateException("stream can only move forward");
 
-        assert position >= current : "stream can only read forward.";
-        current = position;
+        if (position >= uncompressedChunkPosition + buffer.limit())
+        {
+            loadNextChunk();
+            // uncompressedChunkPosition = position - (position % compressionParams.chunkLength())
+            uncompressedChunkPosition = position & -compressionParams.chunkLength();
+        }
 
-        if (current > bufferOffset + buffer.limit())
-            reBuffer(false);
-
-        buffer.position((int)(current - bufferOffset));
+        buffer.position(Ints.checkedCast(position - uncompressedChunkPosition));
     }
 
+    @Override
     protected void reBuffer() throws IOException
     {
-        reBuffer(true);
-    }
+        if (uncompressedChunkPosition < 0)
+            throw new IllegalStateException("position(long position) wasn't called first");
 
-    private void reBuffer(boolean updateCurrent) throws IOException
-    {
-        if (readException != null)
-        {
-            FileUtils.clean(buffer);
-            buffer = null;
-            throw readException;
-        }
-
-        // increment the offset into the stream based on the current buffer's read count
-        if (updateCurrent)
-            current += buffer.position();
-
-        try
-        {
-            ByteBuffer compressedWithCRC = dataBuffer.take();
-            if (compressedWithCRC == POISON_PILL)
-            {
-                assert readException != null;
-                throw readException;
-            }
-
-            decompress(compressedWithCRC);
-        }
-        catch (InterruptedException e)
-        {
-            throw new EOFException("No chunk available");
-        }
-    }
-
-    private void decompress(ByteBuffer compressed) throws IOException
-    {
-        int length = compressed.remaining();
-
-        // uncompress if the buffer size is less than the max chunk size. else, if the buffer size is greater than or equal to the maxCompressedLength,
-        // we assume the buffer is not compressed. see CASSANDRA-10520
-        final boolean releaseCompressedBuffer;
-        if (length - CHECKSUM_LENGTH < info.parameters.maxCompressedLength())
-        {
-            buffer.clear();
-            compressed.limit(length - CHECKSUM_LENGTH);
-            info.parameters.getSstableCompressor().uncompress(compressed, buffer);
-            buffer.flip();
-            releaseCompressedBuffer = true;
-        }
-        else
-        {
-            FileUtils.clean(buffer);
-            buffer = compressed;
-            buffer.limit(length - CHECKSUM_LENGTH);
-            releaseCompressedBuffer = false;
-        }
-        totalCompressedBytesRead += length;
-
-        // validate crc randomly
-        double crcCheckChance = this.crcCheckChanceSupplier.getAsDouble();
-        if (crcCheckChance >= 1d ||
-            (crcCheckChance > 0d && crcCheckChance > ThreadLocalRandom.current().nextDouble()))
-        {
-            ByteBuffer crcBuf = compressed.duplicate();
-            crcBuf.limit(length - CHECKSUM_LENGTH).position(0);
-            int checksum = (int) checksumType.of(crcBuf);
-
-            crcBuf.limit(length);
-            if (crcBuf.getInt() != checksum)
-                throw new IOException("CRC unmatched");
-        }
-
-        if (releaseCompressedBuffer)
-            FileUtils.clean(compressed);
-
-        // buffer offset is always aligned
-        final int compressedChunkLength = info.parameters.chunkLength();
-        bufferOffset = current & ~(compressedChunkLength - 1);
-    }
-
-    public long getTotalCompressedBytesRead()
-    {
-        return totalCompressedBytesRead;
+        /*
+         * reBuffer() will only be called if a partition range spanning multiple (adjacent) compressed chunks
+         * has consumed the current uncompressed buffer, and needs to move to the next adjacent chunk;
+         * uncompressedChunkPosition in this scenario *always* increases by the fixed chunk length.
+         */
+        loadNextChunk();
+        uncompressedChunkPosition += compressionParams.chunkLength();
     }
 
     /**
-     * {@inheritDoc}
+     * Reads the next chunk, decompresses if necessary, and probabilistically verifies the checksum/CRC.
      *
-     * Releases the resources specific to this instance, but not the {@link DataInputPlus} that is used by the {@link Reader}.
+     * Doesn't adjust uncompressedChunkPosition - it's up to the caller to do so.
      */
+    private void loadNextChunk() throws IOException
+    {
+        if (!compressedChunks.hasNext())
+            throw new EOFException();
+
+        int chunkLength = compressedChunks.next().length;
+        chunkBytesRead += (chunkLength + 4); // chunk length + checksum or CRC length
+
+        /*
+         * uncompress if the buffer size is less than the max chunk size; else, if the buffer size is greater than
+         * or equal to the maxCompressedLength, we assume the buffer is not compressed (see CASSANDRA-10520)
+         */
+        if (chunkLength < compressionParams.maxCompressedLength())
+        {
+            if (compressedChunk.capacity() < chunkLength)
+            {
+                // with poorly compressible data, it's possible for a compressed chunk to be larger than
+                // configured uncompressed chunk size - depending on data, min_compress_ratio, and compressor;
+                // we may need to resize the compressed buffer.
+                FileUtils.clean(compressedChunk);
+                compressedChunk = ByteBuffer.allocateDirect(max((int) (compressedChunk.capacity() * GROWTH_FACTOR), chunkLength));
+            }
+
+            compressedChunk.position(0).limit(chunkLength);
+            readChunk(compressedChunk);
+            compressedChunk.position(0);
+
+            maybeValidateChecksum(compressedChunk, input.readInt());
+
+            buffer.clear();
+            compressionParams.getSstableCompressor().uncompress(compressedChunk, buffer);
+            buffer.flip();
+        }
+        else
+        {
+            buffer.position(0).limit(chunkLength);
+            readChunk(buffer);
+            buffer.position(0);
+
+            maybeValidateChecksum(buffer, input.readInt());
+        }
+    }
+    private ByteBuffer compressedChunk;
+
+    private void readChunk(ByteBuffer dst) throws IOException
+    {
+        if (input instanceof RebufferingInputStream)
+            ((RebufferingInputStream) input).readFully(dst);
+        else
+            readChunkSlow(dst);
+    }
+
+    // slow path that involves an intermediate copy into a byte array; only used by some of the unit tests
+    private void readChunkSlow(ByteBuffer dst) throws IOException
+    {
+        if (copyArray == null)
+            copyArray = new byte[dst.remaining()];
+        else if (copyArray.length < dst.remaining())
+            copyArray = new byte[max((int)(copyArray.length * GROWTH_FACTOR), dst.remaining())];
+
+        input.readFully(copyArray, 0, dst.remaining());
+        dst.put(copyArray, 0, dst.remaining());
+    }
+    private byte[] copyArray;
+
+    private void maybeValidateChecksum(ByteBuffer buffer, int expectedChecksum) throws IOException
+    {
+        double validateChance = validateChecksumChance.getAsDouble();
+
+        if (validateChance >= 1.0d || (validateChance > 0.0d && validateChance > ThreadLocalRandom.current().nextDouble()))
+        {
+            int position = buffer.position();
+            int actualChecksum = (int) checksumType.of(buffer);
+            buffer.position(position); // checksum calculation consumes the buffer, so we must reset its position afterwards
+
+            if (expectedChecksum != actualChecksum)
+                throw new IOException(format("Checksum didn't match (expected: %d, actual: %d)", expectedChecksum, actualChecksum));
+        }
+    }
+
     @Override
     public void close()
     {
-        if (buffer != null)
+        if (null != buffer)
         {
             FileUtils.clean(buffer);
             buffer = null;
         }
+
+        if (null != compressedChunk)
+        {
+            FileUtils.clean(compressedChunk);
+            compressedChunk = null;
+        }
     }
 
-    class Reader extends WrappedRunnable
+    /**
+     * @return accumulated size of all chunks read so far - including checksums
+     */
+    long chunkBytesRead()
     {
-        private final DataInputPlus source;
-        private final Iterator<CompressionMetadata.Chunk> chunks;
-        private final BlockingQueue<ByteBuffer> dataBuffer;
-
-        Reader(DataInputPlus source, CompressionInfo info, BlockingQueue<ByteBuffer> dataBuffer)
-        {
-            this.source = source;
-            this.chunks = Iterators.forArray(info.chunks);
-            this.dataBuffer = dataBuffer;
-        }
-
-        protected void runMayThrow() throws Exception
-        {
-            byte[] tmp = null;
-            while (chunks.hasNext())
-            {
-                CompressionMetadata.Chunk chunk = chunks.next();
-
-                int readLength = chunk.length + 4; // read with CRC
-                ByteBuffer compressedWithCRC = null;
-                try
-                {
-                    final int r;
-                    if (source instanceof ReadableByteChannel)
-                    {
-                        compressedWithCRC = ByteBuffer.allocateDirect(readLength);
-                        r = ((ReadableByteChannel)source).read(compressedWithCRC);
-                        compressedWithCRC.flip();
-                    }
-                    else
-                    {
-                        // read into an on-heap araay, then copy over to an off-heap buffer. at a minumum snappy requires
-                        // off-heap buffers for decompression, else we could have just wrapped the plain byte array in a ByteBuffer
-                        if (tmp == null || tmp.length < info.parameters.chunkLength() + CHECKSUM_LENGTH)
-                            tmp = new byte[info.parameters.chunkLength() + CHECKSUM_LENGTH];
-                        source.readFully(tmp, 0, readLength);
-                        compressedWithCRC = ByteBuffer.allocateDirect(readLength);
-                        compressedWithCRC.put(tmp, 0, readLength);
-                        compressedWithCRC.position(0);
-                        r = readLength;
-                    }
-
-                    if (r < 0)
-                    {
-                        FileUtils.clean(compressedWithCRC);
-                        readException = new EOFException("No chunk available");
-                        dataBuffer.put(POISON_PILL);
-                        return; // throw exception where we consume dataBuffer
-                    }
-                }
-                catch (IOException e)
-                {
-                    if (!(e instanceof EOFException))
-                        logger.warn("Error while reading compressed input stream.", e);
-                    if (compressedWithCRC != null)
-                        FileUtils.clean(compressedWithCRC);
-
-                    readException = e;
-                    dataBuffer.put(POISON_PILL);
-                    return; // throw exception where we consume dataBuffer
-                }
-                dataBuffer.put(compressedWithCRC);
-            }
-        }
+        return chunkBytesRead;
     }
+    private long chunkBytesRead = 0;
 }

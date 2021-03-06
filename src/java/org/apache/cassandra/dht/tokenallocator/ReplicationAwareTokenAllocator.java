@@ -60,11 +60,14 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         assert !unitToTokens.containsKey(newUnit);
 
         if (unitCount() < replicas)
-            // Allocation does not matter; everything replicates everywhere.
-            return generateRandomTokens(newUnit, numTokens);
+            // Allocation does not matter for now; everything replicates everywhere. However, at this point it is
+            // important to start the cluster/datacenter with suitably varied token range sizes so that the algorithm
+            // can maintain good balance for any number of nodes.
+            return generateSplits(newUnit, numTokens);
         if (numTokens > sortedTokens.size())
-            // Some of the heuristics below can't deal with this case. Use random for now, later allocations can fix any problems this may cause.
-            return generateRandomTokens(newUnit, numTokens);
+            // Some of the heuristics below can't deal with this very unlikely case. Use splits for now,
+            // later allocations can fix any problems this may cause.
+            return generateSplits(newUnit, numTokens);
 
         // ============= construct our initial token ring state =============
 
@@ -74,10 +77,10 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         if (groups.size() < replicas)
         {
             // We need at least replicas groups to do allocation correctly. If there aren't enough,
-            // use random allocation.
+            // use splits as above.
             // This part of the code should only be reached via the RATATest. StrategyAdapter should disallow
             // token allocation in this case as the algorithm is not able to cover the behavior of NetworkTopologyStrategy.
-            return generateRandomTokens(newUnit, numTokens);
+            return generateSplits(newUnit, numTokens);
         }
 
         // initialise our new unit's state (with an idealised ownership)
@@ -137,20 +140,19 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         return newTokens;
     }
 
-    private Collection<Token> generateRandomTokens(Unit newUnit, int numTokens)
+    /**
+     * Selects tokens by repeatedly splitting the largest range in the ring at the given ratio.
+     * This is used to choose tokens for the first nodes in the ring where the algorithm cannot be applied (e.g. when
+     * number of nodes < RF). It generates a reasonably chaotic initial token split, after which the algorithm behaves
+     * well for an unbounded number of nodes.
+     */
+
+    @Override
+    Collection<Token> generateSplits(Unit newUnit, int numTokens)
     {
-        Set<Token> tokens = new HashSet<>(numTokens);
-        while (tokens.size() < numTokens)
-        {
-            Token token = partitioner.getRandomToken();
-            if (!sortedTokens.containsKey(token))
-            {
-                tokens.add(token);
-                sortedTokens.put(token, newUnit);
-                unitToTokens.put(newUnit, token);
-            }
-        }
-        TokenAllocatorDiagnostics.randomTokensGenerated(this, numTokens, unitToTokens, sortedTokens, newUnit, tokens);
+        Collection<Token> tokens = super.generateSplits(newUnit, numTokens);
+        unitToTokens.putAll(newUnit, tokens);
+        TokenAllocatorDiagnostics.splitsGenerated(this, numTokens, unitToTokens, sortedTokens, newUnit, tokens);
         return tokens;
     }
 
@@ -561,16 +563,6 @@ class ReplicationAwareTokenAllocator<Unit> extends TokenAllocatorBase<Unit>
         {
             return split.prev;
         }
-    }
-
-    static void dumpTokens(String lead, BaseTokenInfo<?, ?> tokens)
-    {
-        BaseTokenInfo<?, ?> token = tokens;
-        do
-        {
-            System.out.format("%s%s: rs %s rt %s size %.2e%n", lead, token, token.replicationStart, token.replicationThreshold, token.replicatedOwnership);
-            token = token.next;
-        } while (token != null && token != tokens);
     }
 }
 

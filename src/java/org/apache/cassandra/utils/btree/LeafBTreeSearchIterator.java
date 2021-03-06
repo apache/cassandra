@@ -45,8 +45,13 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
         this.comparator = comparator;
         this.lowerBound = lowerBound;
         this.upperBound = upperBound;
-        this.nextPos = forwards ? lowerBound : upperBound;
-        this.hasNext = nextPos >= lowerBound && nextPos <= upperBound;
+        rewind();
+    }
+
+    public void rewind()
+    {
+        nextPos = forwards ? lowerBound : upperBound;
+        hasNext = nextPos >= lowerBound && nextPos <= upperBound;
     }
 
     public V next()
@@ -73,12 +78,30 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
         return Arrays.binarySearch(keys, lb, ub + 1, key, comparator);
     }
 
+    private void updateHasNext()
+    {
+        hasNext = nextPos >= lowerBound && nextPos <= upperBound;
+    }
+
     public V next(K key)
     {
         if (!hasNext)
             return null;
         V result = null;
 
+        // first check the current position in case of sequential access
+        if (comparator.compare(keys[nextPos], key) == 0)
+        {
+            hasCurrent = true;
+            result = (V) keys[nextPos];
+            nextPos += forwards ? 1 : -1;
+        }
+        updateHasNext();
+
+        if (result != null || !hasNext)
+            return result;
+
+        // otherwise search against the remaining values
         int find = searchNext(key);
         if (find >= 0)
         {
@@ -91,7 +114,7 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
             nextPos = (forwards ? -1 : -2) - find;
             hasCurrent = false;
         }
-        hasNext = nextPos >= lowerBound && nextPos <= upperBound;
+        updateHasNext();
         return result;
     }
 

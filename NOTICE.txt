@@ -1,8 +1,12 @@
 Apache Cassandra
-Copyright 2009-2019 The Apache Software Foundation
+Copyright 2009-2021 The Apache Software Foundation
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
+
+Parts of the DataStax Java Driver included in source form
+(https://github.com/datastax/java-driver)
+Copyright DataStax, Inc.
 
 Some alternate data structures provided by high-scale-lib from
 http://sourceforge.net/projects/high-scale-lib/.

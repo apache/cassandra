@@ -41,5 +41,11 @@ public interface IncomingStream
 
     String getName();
     long getSize();
+    int getNumFiles();
     TableId getTableId();
+
+    /**
+     * @return stream session used to receive given file
+     */
+    StreamSession session();
 }

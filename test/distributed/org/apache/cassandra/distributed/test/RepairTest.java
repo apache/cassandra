@@ -21,40 +21,46 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.apache.cassandra.distributed.impl.ExecUtil.rethrow;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
 
-public class RepairTest extends DistributedTestBase
+public class RepairTest extends TestBaseImpl
 {
-    private static final String insert = withKeyspace("INSERT INTO %s.test (k, c1, c2) VALUES (?, 'value1', 'value2');");
-    private static final String query = withKeyspace("SELECT k, c1, c2 FROM %s.test WHERE k = ?;");
-    private static Cluster cluster;
+    private static ICluster<IInvokableInstance> cluster;
 
-    private static void insert(Cluster cluster, int start, int end, int ... nodes)
+    private static void insert(ICluster<IInvokableInstance> cluster, String keyspace, int start, int end, int ... nodes)
     {
+        String insert = String.format("INSERT INTO %s.test (k, c1, c2) VALUES (?, 'value1', 'value2');", keyspace);
         for (int i = start ; i < end ; ++i)
             for (int node : nodes)
                 cluster.get(node).executeInternal(insert, Integer.toString(i));
     }
 
-    private static void verify(Cluster cluster, int start, int end, int ... nodes)
+    private static void verify(ICluster<IInvokableInstance> cluster, String keyspace, int start, int end, int ... nodes)
     {
+        String query = String.format("SELECT k, c1, c2 FROM %s.test WHERE k = ?;", keyspace);
         for (int i = start ; i < end ; ++i)
         {
             for (int node = 1 ; node <= cluster.size() ; ++node)
@@ -68,13 +74,13 @@ public class RepairTest extends DistributedTestBase
         }
     }
 
-    private static void flush(Cluster cluster, int ... nodes)
+    private static void flush(ICluster<IInvokableInstance> cluster, String keyspace, int ... nodes)
     {
         for (int node : nodes)
-            cluster.get(node).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush(KEYSPACE)));
+            cluster.get(node).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush(keyspace)));
     }
 
-    private static Cluster create(Consumer<InstanceConfig> configModifier) throws IOException
+    private static ICluster create(Consumer<IInstanceConfig> configModifier) throws IOException
     {
         configModifier = configModifier.andThen(
         config -> config.set("hinted_handoff_enabled", false)
@@ -83,15 +89,14 @@ public class RepairTest extends DistributedTestBase
                         .with(GOSSIP)
         );
 
-        Cluster cluster = init(Cluster.build(3).withConfig(configModifier).start());
-        return cluster;
+        return init(Cluster.build().withNodes(3).withConfig(configModifier).start());
     }
 
-    private void repair(Cluster cluster, Map<String, String> options)
+    static void repair(ICluster<IInvokableInstance> cluster, String keyspace, Map<String, String> options)
     {
         cluster.get(1).runOnInstance(rethrow(() -> {
             SimpleCondition await = new SimpleCondition();
-            StorageService.instance.repair(KEYSPACE, options, ImmutableList.of((tag, event) -> {
+            StorageService.instance.repair(keyspace, options, ImmutableList.of((tag, event) -> {
                 if (event.getType() == ProgressEventType.COMPLETE)
                     await.signalAll();
             })).right.get();
@@ -99,23 +104,22 @@ public class RepairTest extends DistributedTestBase
         }));
     }
 
-    void populate(Cluster cluster, boolean compression)
+    static void populate(ICluster<IInvokableInstance> cluster, String keyspace, String compression) throws Exception
     {
         try
         {
-            cluster.schemaChange(withKeyspace("DROP TABLE IF EXISTS %s.test;"));
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.test (k text, c1 text, c2 text, PRIMARY KEY (k))") +
-                                 (compression == false ? " WITH compression = {'enabled' : false};" : ";"));
+            cluster.schemaChange(String.format("DROP TABLE IF EXISTS %s.test;", keyspace));
+            cluster.schemaChange(String.format("CREATE TABLE %s.test (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compression = %s", keyspace, compression));
 
-            insert(cluster,    0, 1000, 1, 2, 3);
-            flush(cluster, 1);
-            insert(cluster, 1000, 1001, 1, 2);
-            insert(cluster, 1001, 2001, 1, 2, 3);
-            flush(cluster, 1, 2, 3);
+            insert(cluster, keyspace, 0, 1000, 1, 2, 3);
+            flush(cluster, keyspace, 1);
+            insert(cluster, keyspace, 1000, 1001, 1, 2);
+            insert(cluster, keyspace, 1001, 2001, 1, 2, 3);
+            flush(cluster, keyspace, 1, 2, 3);
 
-            verify(cluster,    0, 1000, 1, 2, 3);
-            verify(cluster, 1000, 1001, 1, 2);
-            verify(cluster, 1001, 2001, 1, 2, 3);
+            verify(cluster, keyspace, 0, 1000, 1, 2, 3);
+            verify(cluster, keyspace, 1000, 1001, 1, 2);
+            verify(cluster, keyspace, 1001, 2001, 1, 2, 3);
         }
         catch (Throwable t)
         {
@@ -125,11 +129,18 @@ public class RepairTest extends DistributedTestBase
 
     }
 
-    void simpleRepair(Cluster cluster, boolean sequential, boolean compression) throws IOException
+    void repair(ICluster<IInvokableInstance> cluster, boolean sequential, String compression) throws Exception
     {
-        populate(cluster, compression);
-        repair(cluster, ImmutableMap.of("parallelism", sequential ? "sequential" : "parallel"));
-        verify(cluster, 0, 2001, 1, 2, 3);
+        populate(cluster, KEYSPACE, compression);
+        repair(cluster, KEYSPACE, ImmutableMap.of("parallelism", sequential ? "sequential" : "parallel"));
+        verify(cluster, KEYSPACE, 0, 2001, 1, 2, 3);
+    }
+
+    void shutDownNodesAndForceRepair(ICluster<IInvokableInstance> cluster, String keyspace, int downNode) throws Exception
+    {
+        populate(cluster, keyspace, "{'enabled': false}");
+        cluster.get(downNode).shutdown().get(5, TimeUnit.SECONDS);
+        repair(cluster, keyspace, ImmutableMap.of("forceRepair", "true"));
     }
 
     @BeforeClass
@@ -138,15 +149,75 @@ public class RepairTest extends DistributedTestBase
         cluster = create(config -> {});
     }
 
-    @Ignore("Test requires CASSANDRA-13938 to be merged")
-    public void testSimpleSequentialRepairDefaultCompression() throws IOException
+    @AfterClass
+    public static void closeCluster() throws Exception
     {
-        simpleRepair(cluster, true, true);
+        if (cluster != null)
+            cluster.close();
     }
 
     @Test
-    public void testSimpleSequentialRepairCompressionOff() throws IOException
+    public void testSequentialRepairWithDefaultCompression() throws Exception
     {
-        simpleRepair(cluster, true, false);
+        repair(cluster, true, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}");
+    }
+
+    @Test
+    public void testParallelRepairWithDefaultCompression() throws Exception
+    {
+        repair(cluster, false, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}");
+    }
+
+    @Test
+    public void testSequentialRepairWithMinCompressRatio() throws Exception
+    {
+        repair(cluster, true, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': 4.0}");
+    }
+
+    @Test
+    public void testParallelRepairWithMinCompressRatio() throws Exception
+    {
+        repair(cluster, false, "{'class': 'org.apache.cassandra.io.compress.LZ4Compressor', 'min_compress_ratio': 4.0}");
+    }
+
+    @Test
+    public void testSequentialRepairWithoutCompression() throws Exception
+    {
+        repair(cluster, true, "{'enabled': false}");
+    }
+
+    @Test
+    public void testParallelRepairWithoutCompression() throws Exception
+    {
+        repair(cluster, false, "{'enabled': false}");
+    }
+
+    @Test
+    public void testForcedNormalRepairWithOneNodeDown() throws Exception
+    {
+        // The test uses its own keyspace with rf == 2
+        String forceRepairKeyspace = "test_force_repair_keyspace";
+        int rf = 2;
+        cluster.schemaChange("CREATE KEYSPACE " + forceRepairKeyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + rf + "};");
+
+        try
+        {
+            shutDownNodesAndForceRepair(cluster, forceRepairKeyspace, 3); // shutdown node 3 after inserting
+            DistributedRepairUtils.assertParentRepairSuccess(cluster, 1, forceRepairKeyspace, "test", row -> {
+                Set<String> successfulRanges = row.getSet("successful_ranges");
+                Set<String> requestedRanges = row.getSet("requested_ranges");
+                Assert.assertNotNull("Found no successful ranges", successfulRanges);
+                Assert.assertNotNull("Found no requested ranges", requestedRanges);
+                Assert.assertEquals("Requested ranges count should equals to replication factor", rf, requestedRanges.size());
+                Assert.assertTrue("Given clusterSize = 3, RF = 2 and 1 node down in the replica set, it should yield only 1 successful repaired range.",
+                                  successfulRanges.size() == 1 && !successfulRanges.contains("")); // the successful ranges set should not only contain empty string
+            });
+        }
+        finally
+        {
+            // bring the node 3 back up
+            if (cluster.get(3).isShutdown())
+                cluster.get(3).startup(cluster);
+        }
     }
 }

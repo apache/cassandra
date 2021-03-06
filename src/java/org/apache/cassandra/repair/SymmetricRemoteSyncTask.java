@@ -36,7 +36,7 @@ import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.REPAIR_REQ;
+import static org.apache.cassandra.net.Verb.SYNC_REQ;
 
 /**
  * SymmetricRemoteSyncTask sends {@link SyncRequest} to remote(non-coordinator) node
@@ -53,9 +53,9 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
         super(desc, r1, r2, differences, previewKind);
     }
 
-    void sendRequest(RepairMessage request, InetAddressAndPort to)
+    void sendRequest(SyncRequest request, InetAddressAndPort to)
     {
-        MessagingService.instance().send(Message.out(REPAIR_REQ, request), to);
+        MessagingService.instance().send(Message.out(SYNC_REQ, request), to);
     }
 
     @Override
@@ -63,7 +63,7 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
     {
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
 
-        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind);
+        SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, false);
         Preconditions.checkArgument(nodePair.coordinator.equals(request.src));
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);

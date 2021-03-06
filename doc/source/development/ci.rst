@@ -40,13 +40,25 @@ You can install any missing plugins through the install manager.
 
 Go to ``Manage Jenkins -> Manage Plugins -> Available`` and install the following plugins and respective dependencies:
 
-* Job DSL
-* Javadoc Plugin
+* Copy Artifact Plugin
 * description setter plugin
-* Throttle Concurrent Builds Plug-in
+* Javadoc Plugin
+* Job DSL
+* Post build task
+* Publish Over SSH
+* JMH Report
+* Slack Notification Plugin
 * Test stability history
-* Hudson Post build task
+* Throttle Concurrent Builds Plug-in
+* Timestamper
 
+
+Configure Throttle Category
+---------------------------
+
+Builds that are not containerized (e.g. cqlshlib tests and in-jvm dtests) use local resources for Cassandra (ccm). To prevent these builds running concurrently the ``Cassandra`` throttle category needs to be created.
+
+This is done under ``Manage Jenkins -> System Configuration -> Throttle Concurrent Builds``. Enter "Cassandra" for the ``Category Name`` and "1" for ``Maximum Concurrent Builds Per Node``.
 
 Setup seed job
 --------------
@@ -68,5 +80,5 @@ You should now find a new entry with the given name in your project list. Howeve
 
 Jobs are triggered by either changes in Git or are scheduled to execute periodically, e.g. on daily basis. Jenkins will use any available executor with the label "cassandra", once the job is to be run. Please make sure to make any executors available by selecting ``Build Executor Status`` -> ``Configure`` -> Add "``cassandra``" as label and save.
 
-
+Executors need to have "JDK 1.8 (latest)" installed. This is done under ``Manage Jenkins -> Global Tool Configuration -> JDK Installations…``. Executors also need to have the virtualenv package installed on their system.
 

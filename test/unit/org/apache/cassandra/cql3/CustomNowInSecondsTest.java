@@ -54,7 +54,6 @@ public class CustomNowInSecondsTest extends CQLTester
 
     private void testSelectQuery(boolean prepared)
     {
-        int now = (int) (System.currentTimeMillis() / 1000);
         int day = 86400;
 
         String ks = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
@@ -62,6 +61,8 @@ public class CustomNowInSecondsTest extends CQLTester
 
         // insert a row with TTL = 1 day.
         executeModify(format("INSERT INTO %s.%s (id, val) VALUES (0, 0) USING TTL %d", ks, tbl, day), Integer.MIN_VALUE, prepared);
+
+        int now = (int) (System.currentTimeMillis() / 1000);
 
         // execute a SELECT query without overriding nowInSeconds - make sure we observe one row.
         assertEquals(1, executeSelect(format("SELECT * FROM %s.%s", ks, tbl), Integer.MIN_VALUE, prepared).size());
@@ -186,7 +187,8 @@ public class CustomNowInSecondsTest extends CQLTester
         }
         else
         {
-            return QueryProcessor.instance.process(query, qs, queryOptions(nowInSeconds), Collections.emptyMap(), System.nanoTime());
+            CQLStatement statement = QueryProcessor.instance.parse(query, qs, queryOptions(nowInSeconds));
+            return QueryProcessor.instance.process(statement, qs, queryOptions(nowInSeconds), Collections.emptyMap(), System.nanoTime());
         }
     }
 

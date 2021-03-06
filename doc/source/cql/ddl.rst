@@ -98,6 +98,8 @@ The ``replication`` property is mandatory and must at least contains the ``'clas
 :ref:`replication strategy <replication-strategy>` class to use. The rest of the sub-options depends on what replication
 strategy is used. By default, Cassandra support the following ``'class'``:
 
+.. _replication-strategy:
+
 ``SimpleStrategy``
 """"""""""""""""""
 
@@ -165,8 +167,8 @@ An example that excludes a datacenter while using ``replication_factor``::
     DESCRIBE KEYSPACE excalibur
         CREATE KEYSPACE excalibur WITH replication = {'class': 'NetworkTopologyStrategy', 'DC1': '3'} AND durable_writes = true;
 
-If :ref:`transient replication <transient-replication>` has been enabled, transient replicas can be configured for both
-SimpleStrategy and NetworkTopologyStrategy by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
+If transient replication has been enabled, transient replicas can be configured for both
+``SimpleStrategy`` and ``NetworkTopologyStrategy`` by defining replication factors in the format ``'<total_replicas>/<transient_replicas>'``
 
 For instance, this keyspace will have 3 replicas in DC1, 1 of which is transient, and 5 replicas in DC2, 2 of which are transient::
 
@@ -242,8 +244,7 @@ Creating a new table uses the ``CREATE TABLE`` statement:
    partition_key: `column_name`
                 : | '(' `column_name` ( ',' `column_name` )* ')'
    clustering_columns: `column_name` ( ',' `column_name` )*
-   table_options: COMPACT STORAGE [ AND `table_options` ]
-                   : | CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `table_options` ]
+   table_options: CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `options` ]
                    : | `options`
    clustering_order: `column_name` (ASC | DESC) ( ',' `column_name` (ASC | DESC) )*
 
@@ -328,7 +329,6 @@ that example being ``pk``, both rows are in that same partition): the 2nd insert
 
 The use of static columns as the following restrictions:
 
-- tables with the ``COMPACT STORAGE`` option (see below) cannot use them.
 - a table without clustering columns cannot have static columns (in a table without clustering columns, every partition
   has only one row, and so every column is inherently static).
 - only non ``PRIMARY KEY`` columns can be static.
@@ -450,32 +450,11 @@ Table options
 ~~~~~~~~~~~~~
 
 A CQL table has a number of options that can be set at creation (and, for most of them, :ref:`altered
-<alter-table-statement>` later). These options are specified after the ``WITH`` keyword.
+<alter-table-statement>` later). These options are specified after the ``WITH`` keyword and are described
+in the following sections.
 
-Amongst those options, two important ones cannot be changed after creation and influence which queries can be done
-against the table: the ``COMPACT STORAGE`` option and the ``CLUSTERING ORDER`` option. Those, as well as the other
-options of a table are described in the following sections.
-
-.. _compact-tables:
-
-Compact tables
-``````````````
-
-.. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
-   same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
-   and usage. It only exists for historical reason and is preserved for backward compatibility And as ``COMPACT
-   STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
-   ``COMPACT STORAGE`` option.
-
-A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
-compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. Declaring a
-table with this option creates limitations for the table which are largely arbitrary (and exists for historical
-reasons). Amongst those limitation:
-
-- a compact table cannot use collections nor static columns.
-- if a compact table has at least one clustering column, then it must have *exactly* one column outside of the primary
-  key ones. This imply you cannot add or remove columns after creation in particular.
-- a compact table is limited in the indexes it can create, and no materialized view can be created on it.
+But please bear in mind that the ``CLUSTERING ORDER`` option cannot be changed after table creation and
+has influences on the performance of some queries.
 
 .. _clustering-order:
 
@@ -519,9 +498,10 @@ A table supports the following options:
 | option                         | kind     | default     | description                                               |
 +================================+==========+=============+===========================================================+
 | ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
-+--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``speculative_retry``          | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``cdc``                        | *boolean*| false       | Create a Change Data Capture (CDC) log on the table.      |
 +--------------------------------+----------+-------------+-----------------------------------------------------------+
 | ``additional_write_policy``    | *simple* | 99PERCENTILE| :ref:`Speculative retry options                           |
 |                                |          |             | <speculative-retry-options>`.                             |
@@ -556,8 +536,32 @@ Speculative retry options
 By default, Cassandra read coordinators only query as many replicas as necessary to satisfy
 consistency levels: one for consistency level ``ONE``, a quorum for ``QUORUM``, and so on.
 ``speculative_retry`` determines when coordinators may query additional replicas, which is useful
-when replicas are slow or unresponsive.  ``additional_write_policy`` specifies the threshold at which
-a cheap quorum write will be upgraded to include transient replicas.  The following are legal values (case-insensitive):
+when replicas are slow or unresponsive.  Speculative retries are used to reduce the latency.  The speculative_retry option may be
+used to configure rapid read protection with which a coordinator sends more requests than needed to satisfy the Consistency level.
+
+Pre-4.0 speculative Retry Policy takes a single string as a parameter, this can be ``NONE``, ``ALWAYS``, ``99PERCENTILE`` (PERCENTILE), ``50MS`` (CUSTOM).
+
+Examples of setting speculative retry are:
+
+::
+
+  ALTER TABLE users WITH speculative_retry = '10ms';
+
+
+Or,
+
+::
+
+  ALTER TABLE users WITH speculative_retry = '99PERCENTILE';
+
+The problem with these settings is when a single host goes into an unavailable state this drags up the percentiles. This means if we
+are set to use ``p99`` alone, we might not speculate when we intended to to because the value at the specified percentile has gone so high.
+As a fix 4.0 adds  support for hybrid ``MIN()``, ``MAX()`` speculative retry policies (`CASSANDRA-14293
+<https://issues.apache.org/jira/browse/CASSANDRA-14293>`_). This means if the normal ``p99`` for the
+table is <50ms, we will still speculate at this value and not drag the tail latencies up... but if the ``p99th`` goes above what we know we
+should never exceed we use that instead.
+
+In 4.0 the values (case-insensitive) discussed in the following table are supported:
 
 ============================ ======================== =============================================================================
  Format                       Example                  Description
@@ -586,10 +590,37 @@ a cheap quorum write will be upgraded to include transient replicas.  The follow
  ``NEVER``                                            Coordinators never query additional replicas.
 ============================ =================== =============================================================================
 
+As of version 4.0 speculative retry allows more friendly params (`CASSANDRA-13876
+<https://issues.apache.org/jira/browse/CASSANDRA-13876>`_). The ``speculative_retry`` is more flexible with case. As an example a
+value does not have to be ``NONE``, and the following are supported alternatives.
+
+::
+
+  alter table users WITH speculative_retry = 'none';
+  alter table users WITH speculative_retry = 'None';
+
+The text component is case insensitive and for ``nPERCENTILE`` version 4.0 allows ``nP``, for instance ``99p``.
+In a hybrid value for speculative retry, one of the two values must be a fixed millisecond value and the other a percentile value.
+
+Some examples:
+
+::
+
+ min(99percentile,50ms)
+ max(99p,50MS)
+ MAX(99P,50ms)
+ MIN(99.9PERCENTILE,50ms)
+ max(90percentile,100MS)
+ MAX(100.0PERCENTILE,60ms)
+
+Two values of the same kind cannot be specified such as ``min(90percentile,99percentile)`` as it wouldn’t be a hybrid value.
 This setting does not affect reads with consistency level ``ALL`` because they already query all replicas.
 
 Note that frequently reading from additional replicas can hurt cluster performance.
 When in doubt, keep the default ``99PERCENTILE``.
+
+
+``additional_write_policy`` specifies the threshold at which a cheap quorum write will be upgraded to include transient replicas.
 
 .. _cql-compaction-options:
 
@@ -597,10 +628,10 @@ Compaction options
 ##################
 
 The ``compaction`` options must at least define the ``'class'`` sub-option, that defines the compaction strategy class
-to use. The default supported class are ``'SizeTieredCompactionStrategy'`` (:ref:`STCS <STCS>`),
+to use. The supported class are ``'SizeTieredCompactionStrategy'`` (:ref:`STCS <STCS>`),
 ``'LeveledCompactionStrategy'`` (:ref:`LCS <LCS>`) and ``'TimeWindowCompactionStrategy'`` (:ref:`TWCS <TWCS>`) (the
 ``'DateTieredCompactionStrategy'`` is also supported but is deprecated and ``'TimeWindowCompactionStrategy'`` should be
-preferred instead). Custom strategy can be provided by specifying the full class name as a :ref:`string constant
+preferred instead). The default is ``'SizeTieredCompactionStrategy'``. Custom strategy can be provided by specifying the full class name as a :ref:`string constant
 <constants>`.
 
 All default strategies support a number of :ref:`common options <compaction-options>`, as well as options specific to
@@ -612,27 +643,36 @@ the strategy chosen (see the section corresponding to your strategy for details:
 Compression options
 ###################
 
-The ``compression`` options define if and how the sstables of the table are compressed. The following sub-options are
+The ``compression`` options define if and how the sstables of the table are compressed. Compression is configured on a per-table
+basis as an optional argument to ``CREATE TABLE`` or ``ALTER TABLE``. The following sub-options are
 available:
 
 ========================= =============== =============================================================================
  Option                    Default         Description
 ========================= =============== =============================================================================
  ``class``                 LZ4Compressor   The compression algorithm to use. Default compressor are: LZ4Compressor,
-                                           SnappyCompressor and DeflateCompressor. Use ``'enabled' : false`` to disable
+                                           SnappyCompressor, DeflateCompressor and ZstdCompressor. Use ``'enabled' : false`` to disable
                                            compression. Custom compressor can be provided by specifying the full class
                                            name as a “string constant”:#constants.
- ``enabled``               true            Enable/disable sstable compression.
+
+ ``enabled``               true            Enable/disable sstable compression. If the ``enabled`` option is set to ``false`` no other
+                                           options must be specified.
+
  ``chunk_length_in_kb``    64              On disk SSTables are compressed by block (to allow random reads). This
                                            defines the size (in KB) of said block. Bigger values may improve the
                                            compression rate, but increases the minimum size of data to be read from disk
-                                           for a read
- ``crc_check_chance``      1.0             When compression is enabled, each compressed block includes a checksum of
-                                           that block for the purpose of detecting disk bitrot and avoiding the
-                                           propagation of corruption to other replica. This option defines the
-                                           probability with which those checksums are checked during read. By default
-                                           they are always checked. Set to 0 to disable checksum checking and to 0.5 for
-                                           instance to check them every other read   |
+                                           for a read. The default value is an optimal value for compressing tables. Chunk length must
+                                           be a power of 2 because so is assumed so when computing the chunk number from an uncompressed
+                                           file offset.  Block size may be adjusted based on read/write access patterns such as:
+
+                                             - How much data is typically requested at once
+                                             - Average size of rows in the table
+
+ ``crc_check_chance``      1.0             Determines how likely Cassandra is to verify the checksum on each compression chunk during
+                                           reads.
+
+  ``compression_level``    3               Compression level. It is only applicable for ``ZstdCompressor`` and accepts values between
+                                           ``-131072`` and ``22``.
 ========================= =============== =============================================================================
 
 
@@ -651,7 +691,8 @@ For instance, to create a table with LZ4Compressor and a chunk_lenth_in_kb of 4K
 Caching options
 ###############
 
-The ``caching`` options allows to configure both the *key cache* and the *row cache* for the table. The following
+Caching optimizes the use of cache memory of a table. The cached data is weighed by size and access frequency. The ``caching``
+options allows to configure both the *key cache* and the *row cache* for the table. The following
 sub-options are available:
 
 ======================== ========= ====================================================================================
@@ -743,7 +784,7 @@ The ``ALTER TABLE`` statement can:
   below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
   cluster) time operation.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
-  <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
+  <create-table-options>` are the same that when creating a table (outside of ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
   erasing all previous ``compaction`` options, so you need to re-specify all the sub-options if you want to keep them.
   The same note applies to the set of ``compression`` sub-options.
@@ -786,3 +827,325 @@ Note that ``TRUNCATE TABLE foo`` is allowed for consistency with other DDL state
 that can be truncated currently and so the ``TABLE`` keyword can be omitted.
 
 Truncating a table permanently removes all existing data from the table, but without removing the table itself.
+
+.. _describe-statements:
+
+DESCRIBE
+^^^^^^^^
+
+Statements used to outputs information about the connected Cassandra cluster,
+or about the data objects stored in the cluster.
+
+.. warning:: Describe statement resultset that exceed the page size are paged. If a schema changes is detected between
+   two pages the query will fail with an ``InvalidRequestException``. It is safe to retry the whole ``DESCRIBE``
+   statement after such an error.
+ 
+DESCRIBE KEYSPACES
+""""""""""""""""""
+
+Output the names of all keyspaces.
+
+.. productionlist::
+   describe_keyspaces_statement: DESCRIBE KEYSPACES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE KEYSPACE
+"""""""""""""""""
+
+Output CQL commands that could be used to recreate the given keyspace, and the objects in it 
+(such as tables, types, functions, etc.).
+
+.. productionlist::
+   describe_keyspace_statement: DESCRIBE [ONLY] KEYSPACE [`keyspace_name`] [WITH INTERNALS]
+
+The ``keyspace_name`` argument may be omitted, in which case the current keyspace will be described.
+
+If ``WITH INTERNALS`` is specified, the output contains the table IDs and is adopted to represent the DDL necessary 
+to "re-create" dropped columns.
+
+If ``ONLY`` is specified, only the DDL to recreate the keyspace will be created. All keyspace elements, like tables,
+types, functions, etc will be omitted.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE TABLES
+"""""""""""""""
+
+Output the names of all tables in the current keyspace, or in all keyspaces if there is no current keyspace.
+
+.. productionlist::
+   describe_tables_statement: DESCRIBE TABLES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE TABLE
+""""""""""""""
+
+Output CQL commands that could be used to recreate the given table.
+
+.. productionlist::
+   describe_table_statement: DESCRIBE TABLE [`keyspace_name`.]`table_name` [WITH INTERNALS]
+
+If `WITH INTERNALS` is specified, the output contains the table ID and is adopted to represent the DDL necessary
+to "re-create" dropped columns.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE INDEX
+""""""""""""""
+
+Output the CQL command that could be used to recreate the given index.
+
+.. productionlist::
+   describe_index_statement: DESCRIBE INDEX [`keyspace_name`.]`index_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+
+DESCRIBE MATERIALIZED VIEW
+""""""""""""""""""""""""""
+
+Output the CQL command that could be used to recreate the given materialized view.
+
+.. productionlist::
+   describe_materialized_view_statement: DESCRIBE MATERIALIZED VIEW [`keyspace_name`.]`view_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE CLUSTER
+""""""""""""""""
+
+Output information about the connected Cassandra cluster, such as the cluster name, and the partitioner and snitch
+in use. When you are connected to a non-system keyspace, also shows endpoint-range ownership information for
+the Cassandra ring.
+
+.. productionlist::
+   describe_cluster_statement: DESCRIBE CLUSTER
+
+Returned columns:
+
+======================== ====================== ========================================================================
+ Columns                  Type                   Description
+======================== ====================== ========================================================================
+ cluster                                   text  The cluster name
+ partitioner                               text  The partitioner being used by the cluster
+ snitch                                    text  The snitch being used by the cluster
+ range_ownership          map<text, list<text>>  The CQL statement to use to recreate the schema element
+======================== ====================== ========================================================================
+
+DESCRIBE SCHEMA
+"""""""""""""""
+
+Output CQL commands that could be used to recreate the entire (non-system) schema.
+Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
+
+.. productionlist::
+   describe_schema_statement: DESCRIBE [FULL] SCHEMA [WITH INTERNALS]
+
+Use ``DESCRIBE FULL SCHEMA`` to include the system keyspaces.
+
+If ``WITH INTERNALS`` is specified, the output contains the table IDs and is adopted to represent the DDL necessary
+to "re-create" dropped columns.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE TYPES
+""""""""""""""
+
+Output the names of all user-defined-types in the current keyspace, or in all keyspaces if there is no current keyspace.
+
+.. productionlist::
+   describe_types_statement: DESCRIBE TYPES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE TYPE
+"""""""""""""
+
+Output the CQL command that could be used to recreate the given user-defined-type.
+
+.. productionlist::
+   describe_type_statement: DESCRIBE TYPE [`keyspace_name`.]`type_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE FUNCTIONS
+""""""""""""""""""
+
+Output the names of all user-defined-functions in the current keyspace, or in all keyspaces if there is no current
+keyspace.
+
+.. productionlist::
+   describe_functions_statement: DESCRIBE FUNCTIONS
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE FUNCTION
+"""""""""""""""""
+
+Output the CQL command that could be used to recreate the given user-defined-function.
+
+.. productionlist::
+   describe_function_statement: DESCRIBE FUNCTION [`keyspace_name`.]`function_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE AGGREGATES
+"""""""""""""""""""
+
+Output the names of all user-defined-aggregates in the current keyspace, or in all keyspaces if there is no current
+keyspace.
+
+.. productionlist::
+   describe_aggregates_statement: DESCRIBE AGGREGATES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE AGGREGATE
+""""""""""""""""""
+
+Output the CQL command that could be used to recreate the given user-defined-aggregate.
+
+.. productionlist::
+   describe_aggregate_statement: DESCRIBE AGGREGATE [`keyspace_name`.]`aggregate_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE object
+"""""""""""""""
+
+Output CQL commands that could be used to recreate the entire object schema, where object can be either a keyspace 
+or a table or an index or a materialized view (in this order).
+
+.. productionlist::
+   describe_object_statement: DESCRIBE `object_name` [WITH INTERNALS]
+
+If ``WITH INTERNALS`` is specified and ``object_name`` represents a keyspace or table the output contains the table IDs
+and is adopted to represent the DDL necessary to "re-create" dropped columns.
+
+``object_name`` cannot be any of the "describe what" qualifiers like "cluster", "table", etc.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+

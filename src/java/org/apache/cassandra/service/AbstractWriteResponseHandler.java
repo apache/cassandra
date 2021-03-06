@@ -63,7 +63,6 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
-    private volatile boolean supportsBackPressure = true;
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
@@ -72,6 +71,11 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
       * Will be same as "this" if this AWRH is the ideal consistency level
       */
     private AbstractWriteResponseHandler idealCLDelegate;
+
+    /**
+     * We don't want to increment the writeFailedIdealCL if we didn't achieve the original requested CL
+     */
+    private boolean requestedCLAchieved = false;
 
     /**
      * @param callback           A callback to be called when the write is successful.
@@ -232,6 +236,13 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     protected void signal()
     {
+        //The ideal CL should only count as a strike if the requested CL was achieved.
+        //If the requested CL is not achieved it's fine for the ideal CL to also not be achieved.
+        if (idealCLDelegate != null)
+        {
+            idealCLDelegate.requestedCLAchieved = true;
+        }
+
         condition.signalAll();
         if (callback != null)
             callback.run();
@@ -258,17 +269,6 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         return true;
     }
 
-    @Override
-    public boolean supportsBackPressure()
-    {
-        return supportsBackPressure;
-    }
-
-    public void setSupportsBackPressure(boolean supportsBackPressure)
-    {
-        this.supportsBackPressure = supportsBackPressure;
-    }
-
     /**
      * Decrement the counter for all responses/expirations and if the counter
      * hits 0 check to see if the ideal consistency level (this write response handler)
@@ -279,8 +279,9 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         int decrementedValue = responsesAndExpirations.decrementAndGet();
         if (decrementedValue == 0)
         {
-            //The condition being signaled is a valid proxy for the CL being achieved
-            if (!condition.isSignaled())
+            // The condition being signaled is a valid proxy for the CL being achieved
+            // Only mark it as failed if the requested CL was achieved.
+            if (!condition.isSignaled() && requestedCLAchieved)
             {
                 replicaPlan.keyspace().metric.writeFailedIdealCL.inc();
             }

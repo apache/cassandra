@@ -43,7 +43,7 @@ public class CollectionKeyIndex extends CollectionKeyIndexBase
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path,
                                       ByteBuffer cellValue)
     {
@@ -52,7 +52,7 @@ public class CollectionKeyIndex extends CollectionKeyIndexBase
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        Cell cell = data.getCell(indexedColumn, CellPath.create(indexValue));
+        Cell<?> cell = data.getCell(indexedColumn, CellPath.create(indexValue));
         return cell == null || !cell.isLive(nowInSec);
     }
 

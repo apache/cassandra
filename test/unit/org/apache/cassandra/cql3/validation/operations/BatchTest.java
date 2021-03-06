@@ -168,6 +168,26 @@ public class BatchTest extends CQLTester
     }
 
     @Test
+    public void testBatchMultipleTablePrepare() throws Throwable
+    {
+        String tbl1 = KEYSPACE + "." + createTableName();
+        String tbl2 = KEYSPACE + "." + createTableName();
+
+        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v1 int)", tbl1));
+        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v2 int)", tbl2));
+
+        String query = "BEGIN BATCH " +
+                   String.format("UPDATE %s SET v1 = 1 WHERE k1 = ?;", tbl1) +
+                   String.format("UPDATE %s SET v2 = 2 WHERE k2 = ?;", tbl2) +
+                   "APPLY BATCH;";
+        prepare(query);
+        execute(query, 0, 1);
+
+        assertRows(execute(String.format("SELECT * FROM %s", tbl1)), row(0, 1));
+        assertRows(execute(String.format("SELECT * FROM %s", tbl2)), row(1, 2));
+    }
+
+    @Test
     public void testBatchWithInRestriction() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a,b))");

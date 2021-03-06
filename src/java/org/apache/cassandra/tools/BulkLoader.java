@@ -21,15 +21,17 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Set;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 import com.datastax.driver.core.AuthProvider;
-import com.datastax.driver.core.JdkSSLOptions;
+import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
+import com.datastax.shaded.netty.channel.socket.SocketChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -57,13 +59,11 @@ public class BulkLoader
                 options.directory.getAbsoluteFile(),
                 new ExternalClient(
                         options.hosts,
-                        options.nativePort,
                         options.storagePort,
                         options.authProvider,
                         options.sslStoragePort,
                         options.serverEncOptions,
-                        buildSSLOptions(options.clientEncOptions),
-                        options.allowServerPortDiscovery),
+                        buildSSLOptions(options.clientEncOptions)),
                         handler,
                         options.connectionsPerHost,
                         options.targetKeyspace);
@@ -248,7 +248,7 @@ public class BulkLoader
     private static SSLOptions buildSSLOptions(EncryptionOptions clientEncryptionOptions)
     {
 
-        if (!clientEncryptionOptions.enabled)
+        if (!clientEncryptionOptions.isEnabled())
         {
             return null;
         }
@@ -263,10 +263,22 @@ public class BulkLoader
             throw new RuntimeException("Could not create SSL Context.", e);
         }
 
-        return JdkSSLOptions.builder()
-                            .withSSLContext(sslContext)
-                            .withCipherSuites(clientEncryptionOptions.cipher_suites.toArray(new String[0]))
-                            .build();
+        // Temporarily override newSSLEngine to set accepted protocols until it is added to
+        // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
+        RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
+        {
+            protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)
+            {
+                SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
+
+                String[] acceptedProtocols = clientEncryptionOptions.acceptedProtocolsArray();
+                if (acceptedProtocols != null && acceptedProtocols.length > 0)
+                    engine.setEnabledProtocols(acceptedProtocols);
+
+                return engine;
+            }
+        };
+        return sslOptions;
     }
 
     static class ExternalClient extends NativeSSTableLoaderClient
@@ -275,15 +287,13 @@ public class BulkLoader
         private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
 
         public ExternalClient(Set<InetSocketAddress> hosts,
-                              int nativePort,
                               int storagePort,
                               AuthProvider authProvider,
                               int sslStoragePort,
                               EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
-                              SSLOptions sslOptions,
-                              boolean allowServerPortDiscovery)
+                              SSLOptions sslOptions)
         {
-            super(hosts, nativePort, storagePort, authProvider, sslOptions, allowServerPortDiscovery);
+            super(hosts, storagePort, authProvider, sslOptions);
             this.sslStoragePort = sslStoragePort;
             serverEncOptions = serverEncryptionOptions;
         }
@@ -309,6 +319,23 @@ public class BulkLoader
         {
             Option option = new Option(opt, longOpt, true, description);
             option.setArgName(argName);
+
+            return addOption(option);
+        }
+
+        /**
+         * Add option with argument and argument name that accepts being defined multiple times as a list
+         * @param opt shortcut for option name
+         * @param longOpt complete option name
+         * @param argName argument name
+         * @param description description of the option
+         * @return updated Options object
+         */
+        public Options addOptionList(String opt, String longOpt, String argName, String description)
+        {
+            Option option = new Option(opt, longOpt, true, description);
+            option.setArgName(argName);
+            option.setArgs(Option.UNLIMITED_VALUES);
 
             return addOption(option);
         }

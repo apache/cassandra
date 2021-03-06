@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSession;
 
 import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -51,7 +52,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.Errors;
-import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.DefaultEventExecutorChooserFactory;
@@ -228,13 +228,41 @@ public final class SocketFactory
         return sslHandler;
     }
 
-    static String encryptionLogStatement(EncryptionOptions options)
+    /**
+     * Summarizes the intended encryption options, suitable for logging. Once a connection is established, use
+     * {@link SocketFactory#encryptionConnectionSummary} below.
+     * @param options options to summarize
+     * @return description of encryption options
+     */
+    static String encryptionOptionsSummary(EncryptionOptions options)
     {
-        if (options == null)
-            return "disabled";
+        if (options == null || options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+            return EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED.description();
 
         String encryptionType = SSLFactory.openSslIsAvailable() ? "openssl" : "jdk";
-        return "enabled (" + encryptionType + ')';
+        return options.tlsEncryptionPolicy().description() + '(' + encryptionType + ')';
+    }
+
+    /**
+     * Summarizes the encryption status of a channel, suitable for logging.
+     * @return description of channel encryption
+     */
+    static String encryptionConnectionSummary(Channel channel)
+    {
+        final SslHandler sslHandler = channel.pipeline().get(SslHandler.class);
+        if (sslHandler == null)
+        {
+            return EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED.description();
+        }
+        SSLSession session = sslHandler.engine().getSession();
+
+        return  "encrypted(factory=" +
+                (SSLFactory.openSslIsAvailable() ? "openssl" : "jdk") +
+                ";protocol=" +
+                (session != null ? session.getProtocol() : "MISSING SESSION") +
+                ";cipher=" +
+                (session != null ? session.getCipherSuite() : "MISSING SESSION") +
+                ')';
     }
 
     EventLoopGroup defaultGroup()

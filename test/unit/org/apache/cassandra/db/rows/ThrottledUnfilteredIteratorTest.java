@@ -50,6 +50,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
@@ -160,7 +161,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
             UnfilteredRowIterator iterator = throttled.next();
             assertFalse(throttled.hasNext());
             assertFalse(iterator.hasNext());
-            assertEquals(Int32Type.instance.getSerializer().deserialize(iterator.staticRow().cells().iterator().next().value()), new Integer(160));
+            assertEquals(Int32Type.instance.getSerializer().deserialize(iterator.staticRow().cells().iterator().next().buffer()), new Integer(160));
         }
 
         // test opt out
@@ -319,13 +320,12 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
                 }
                 else
                 {
-                    ByteBuffer[] byteBuffers = expected.clustering().getRawValues();
                     RangeTombstoneBoundMarker closeMarker = RangeTombstoneBoundMarker.exclusiveClose(isRevered,
-                                                                                                     byteBuffers,
+                                                                                                     expected.clustering(),
                                                                                                      openDeletionTime);
 
                     RangeTombstoneBoundMarker nextOpenMarker = RangeTombstoneBoundMarker.inclusiveOpen(isRevered,
-                                                                                                       byteBuffers,
+                                                                                                       expected.clustering(),
                                                                                                        openDeletionTime);
                     assertEquals(closeMarker, data);
                     assertEquals(nextOpenMarker, output.get(index + 1));
@@ -567,35 +567,35 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
     }
 
 
-    private static Row createRow(int ck, Cell... columns)
+    private static Row createRow(int ck, Cell<?>... columns)
     {
         return createRow(ck, ck, columns);
     }
 
-    private static Row createRow(int ck1, int ck2, Cell... columns)
+    private static Row createRow(int ck1, int ck2, Cell<?>... columns)
     {
         BTreeRow.Builder builder = new BTreeRow.Builder(true);
         builder.newRow(Util.clustering(metadata.comparator, ck1, ck2));
-        for (Cell cell : columns)
+        for (Cell<?> cell : columns)
             builder.addCell(cell);
         return builder.build();
     }
 
-    private static Row createStaticRow(Cell... columns)
+    private static Row createStaticRow(Cell<?>... columns)
     {
         Row.Builder builder = new BTreeRow.Builder(true);
         builder.newRow(Clustering.STATIC_CLUSTERING);
-        for (Cell cell : columns)
+        for (Cell<?> cell : columns)
             builder.addCell(cell);
         return builder.build();
     }
 
-    private static Cell createCell(ColumnMetadata metadata, int v)
+    private static Cell<?> createCell(ColumnMetadata metadata, int v)
     {
         return createCell(metadata, v, 100L, BufferCell.NO_DELETION_TIME);
     }
 
-    private static Cell createCell(ColumnMetadata metadata, int v, long timestamp, int localDeletionTime)
+    private static Cell<?> createCell(ColumnMetadata metadata, int v, long timestamp, int localDeletionTime)
     {
         return new BufferCell(metadata,
                               timestamp,

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import unicode_literals
+
 import binascii
 import calendar
 import datetime
@@ -21,15 +23,17 @@ import math
 import os
 import re
 import sys
-import six
 import platform
-import wcwidth
+
+from six import ensure_text
 
 from collections import defaultdict
-from displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
+
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
-from util import UTC
+from . import wcwidth
+from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
+from .util import UTC
 
 is_win = platform.system() == 'Windows'
 
@@ -204,7 +208,7 @@ class CqlType(object):
 
 
 def format_value_default(val, colormap, **_):
-    val = str(val)
+    val = ensure_text(str(val))
     escapedval = val.replace('\\', '\\\\')
     bval = controlchars_re.sub(_show_control_chars, escapedval)
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap)
@@ -218,7 +222,6 @@ _formatters = {}
 def format_value(val, cqltype, **kwargs):
     if val == EMPTY:
         return format_value_default('', **kwargs)
-
     formatter = get_formatter(val, cqltype)
     return formatter(val, cqltype=cqltype, **kwargs)
 
@@ -237,18 +240,27 @@ def formatter_for(typname):
     return registrator
 
 
-@formatter_for('bytearray')
+class BlobType(object):
+    def __init__(self, val):
+        self.val = val
+
+    def __str__(self):
+        return str(self.val)
+
+
+@formatter_for('BlobType')
 def format_value_blob(val, colormap, **_):
-    bval = '0x' + binascii.hexlify(val)
+    bval = ensure_text('0x') + ensure_text(binascii.hexlify(val))
     return colorme(bval, colormap, 'blob')
 
 
+formatter_for('bytearray')(format_value_blob)
 formatter_for('buffer')(format_value_blob)
 formatter_for('blob')(format_value_blob)
 
 
 def format_python_formatted_type(val, colormap, color, quote=False):
-    bval = str(val)
+    bval = ensure_text(str(val))
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, color)
@@ -318,6 +330,7 @@ formatter_for('double')(format_floating_point_type)
 def format_integer_type(val, colormap, thousands_sep=None, **_):
     # base-10 only for now; support others?
     bval = format_integer_with_thousands_sep(val, thousands_sep) if thousands_sep else str(val)
+    bval = ensure_text(bval)
     return colorme(bval, colormap, 'int')
 
 
@@ -352,7 +365,7 @@ def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
         if date_time_format.milliseconds_only:
             bval = round_microseconds(bval)
     else:
-        bval = str(val)
+        bval = ensure_text(str(val))
 
     if quote:
         bval = "'%s'" % bval
@@ -378,7 +391,7 @@ def strftime(time_format, seconds, microseconds=0, timezone=None):
         return '%d' % (seconds * 1000.0)
 
 
-microseconds_regex = re.compile("(.*)(?:\.(\d{1,6}))(.*)")
+microseconds_regex = re.compile(r"(.*)(?:\.(\d{1,6}))(.*)")
 
 
 def round_microseconds(val):
@@ -453,14 +466,14 @@ def decode_unsigned_vint(buf):
     For example, if we need to read 3 more bytes the first byte will start with 1110.
     """
 
-    first_byte = buf.next()
+    first_byte = next(buf)
     if (first_byte >> 7) == 0:
         return first_byte
 
     size = number_of_extra_bytes_to_read(first_byte)
     retval = first_byte & (0xff >> size)
     for i in range(size):
-        b = buf.next()
+        b = next(buf)
         retval <<= 8
         retval |= b & 0xff
 
@@ -477,15 +490,14 @@ def decode_zig_zag_64(n):
 
 @formatter_for('str')
 def format_value_text(val, encoding, colormap, quote=False, **_):
-    escapedval = val.replace(u'\\', u'\\\\')
+    escapedval = val.replace('\\', '\\\\')
     if quote:
         escapedval = escapedval.replace("'", "''")
     escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
-    bval = escapedval.encode(encoding, 'backslashreplace')
+    bval = escapedval
     if quote:
-        bval = "'%s'" % bval
-
-    return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcwidth.wcswidth(bval.decode(encoding)))
+        bval = "'{}'".format(bval)
+    return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcwidth.wcswidth(bval))
 
 
 # name alias
@@ -532,7 +544,7 @@ def format_value_tuple(val, cqltype, encoding, colormap, date_time_format, float
 @formatter_for('set')
 def format_value_set(val, cqltype, encoding, colormap, date_time_format, float_precision, nullval,
                      decimal_sep, thousands_sep, boolean_styles, **_):
-    return format_simple_collection(sorted(val), cqltype, '{', '}', encoding, colormap,
+    return format_simple_collection(val, cqltype, '{', '}', encoding, colormap,
                                     date_time_format, float_precision, nullval,
                                     decimal_sep, thousands_sep, boolean_styles)
 
@@ -584,7 +596,7 @@ def format_value_utype(val, cqltype, encoding, colormap, date_time_format, float
     def format_field_name(name):
         return format_value_text(name, encoding=encoding, colormap=colormap, quote=False)
 
-    subs = [(format_field_name(k), format_field_value(v, t)) for ((k, v), t) in zip(val._asdict().items(),
+    subs = [(format_field_name(k), format_field_value(v, t)) for ((k, v), t) in zip(list(val._asdict().items()),
                                                                                     cqltype.sub_types)]
     bval = '{' + ', '.join(get_str(k) + ': ' + get_str(v) for (k, v) in subs) + '}'
     if colormap is NO_COLOR_MAP:

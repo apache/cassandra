@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -41,9 +42,11 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class GossiperTest
@@ -52,6 +55,7 @@ public class GossiperTest
     {
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     static final IPartitioner partitioner = new RandomPartitioner();
@@ -78,40 +82,59 @@ public class GossiperTest
     }
 
     @Test
-    public void testHaveVersion3Nodes() throws Exception
+    public void testPaddingIntact() throws Exception
     {
+        // sanity check that all 10 pads still exist
+        assert ApplicationState.X1 == ApplicationState.X1;
+        assert ApplicationState.X2 == ApplicationState.X2;
+        assert ApplicationState.X3 == ApplicationState.X3;
+        assert ApplicationState.X4 == ApplicationState.X4;
+        assert ApplicationState.X5 == ApplicationState.X5;
+        assert ApplicationState.X6 == ApplicationState.X6;
+        assert ApplicationState.X7 == ApplicationState.X7;
+        assert ApplicationState.X8 == ApplicationState.X8;
+        assert ApplicationState.X9 == ApplicationState.X9;
+        assert ApplicationState.X10 == ApplicationState.X10;
+    }
+
+    @Test
+    public void testHasVersion3Nodes() throws Exception
+    {
+        Gossiper.instance.expireUpgradeFromVersion();
+
         VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState(null);
+        EndpointState es = new EndpointState((HeartBeatState) null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.0-SNAPSHOT"));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
 
 
-        es = new EndpointState(null);
+        es = new EndpointState((HeartBeatState) null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.11.3"));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
 
-
-        es = new EndpointState(null);
+        es = new EndpointState((HeartBeatState) null);
         es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.0.0"));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
 
+        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
+        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
+        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
 
-        assertTrue(Gossiper.instance.haveMajorVersion3NodesSupplier.get());
+        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
+        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
+
+        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
+        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
+        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.12")) < 0);
+        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
 
         Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
         Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
 
-
-        assertTrue(Gossiper.instance.haveMajorVersion3NodesSupplier.get());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.haveMajorVersion3NodesSupplier.get());
-
+        assertNull(Gossiper.instance.upgradeFromVersionSupplier.get().value());
     }
 
     @Test
@@ -321,7 +344,7 @@ public class GossiperTest
         loadedList = gossiper.reloadSeeds();
 
         // Check for the expected null response from a reload error
-        Assert.assertNull(loadedList);
+        assertNull(loadedList);
 
         // Check that the in memory seed node list was not modified and the exception was caught
         Assert.assertEquals(disjointSize, gossiper.getSeeds().size());

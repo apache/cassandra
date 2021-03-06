@@ -31,10 +31,16 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.consistent.ConsistentSession;
+import org.apache.cassandra.repair.consistent.LocalSession;
+import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
@@ -78,7 +84,8 @@ import org.apache.cassandra.utils.Pair;
  * all of them in parallel otherwise.
  */
 public class RepairSession extends AbstractFuture<RepairSessionResult> implements IEndpointStateChangeSubscriber,
-                                                                                 IFailureDetectionEventListener
+                                                                                  IFailureDetectionEventListener,
+                                                                                  LocalSessions.Listener
 {
     private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
@@ -89,9 +96,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private final String[] cfnames;
     public final RepairParallelism parallelismDegree;
     public final boolean pullRepair;
-
-    // indicates some replicas were not included in the repair. Only relevant for --force option
-    public final boolean skippedReplicas;
 
     /** Range to repair */
     public final CommonRange commonRange;
@@ -119,7 +123,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
-     * @param force true if the repair should ignore dead endpoints (instead of failing)
      * @param cfnames names of columnfamilies
      */
     public RepairSession(UUID parentRepairSession,
@@ -129,7 +132,6 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          RepairParallelism parallelismDegree,
                          boolean isIncremental,
                          boolean pullRepair,
-                         boolean force,
                          PreviewKind previewKind,
                          boolean optimiseStreams,
                          String... cfnames)
@@ -141,37 +143,10 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.parallelismDegree = parallelismDegree;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
-
-        //If force then filter out dead endpoints
-        boolean forceSkippedReplicas = false;
-        if (force)
-        {
-            logger.debug("force flag set, removing dead endpoints");
-            final Set<InetAddressAndPort> removeCandidates = new HashSet<>();
-            for (final InetAddressAndPort endpoint : commonRange.endpoints)
-            {
-                if (!FailureDetector.instance.isAlive(endpoint))
-                {
-                    logger.info("Removing a dead node from Repair due to -force {}", endpoint);
-                    removeCandidates.add(endpoint);
-                }
-            }
-            if (!removeCandidates.isEmpty())
-            {
-                // we shouldn't be recording a successful repair if
-                // any replicas are excluded from the repair
-                forceSkippedReplicas = true;
-                Set<InetAddressAndPort> filteredEndpoints = new HashSet<>(commonRange.endpoints);
-                filteredEndpoints.removeAll(removeCandidates);
-                commonRange = new CommonRange(filteredEndpoints, commonRange.transEndpoints, commonRange.ranges);
-            }
-        }
-
         this.commonRange = commonRange;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
-        this.skippedReplicas = forceSkippedReplicas;
         this.optimiseStreams = optimiseStreams;
         this.taskExecutor = MoreExecutors.listeningDecorator(createExecutor());
     }
@@ -278,7 +253,8 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         if (terminated)
             return;
 
-        logger.info("{} new session: will sync {} on range {} for {}.{}", previewKind.logPrefix(getId()), repairedNodes(), commonRange, keyspace, Arrays.toString(cfnames));
+        logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
+                    previewKind.logPrefix(getId()), parentRepairSession, repairedNodes(), commonRange, keyspace, Arrays.toString(cfnames));
         Tracing.traceRepair("Syncing range {}", commonRange);
         if (!previewKind.isPreview())
         {
@@ -289,7 +265,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         {
             logger.info("{} {}", previewKind.logPrefix(getId()), message = String.format("No neighbors to repair with on range %s: session completed", commonRange));
             Tracing.traceRepair(message);
-            set(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), skippedReplicas));
+            set(new RepairSessionResult(id, keyspace, commonRange.ranges, Lists.<RepairResult>newArrayList(), commonRange.hasSkippedReplicas));
             if (!previewKind.isPreview())
             {
                 SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
@@ -300,7 +276,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         // Checking all nodes are live
         for (InetAddressAndPort endpoint : commonRange.endpoints)
         {
-            if (!FailureDetector.instance.isAlive(endpoint) && !skippedReplicas)
+            if (!FailureDetector.instance.isAlive(endpoint) && !commonRange.hasSkippedReplicas)
             {
                 message = String.format("Cannot proceed on repair because a neighbor (%s) is dead: session failed", endpoint);
                 logger.error("{} {}", previewKind.logPrefix(getId()), message);
@@ -331,7 +307,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 // this repair session is completed
                 logger.info("{} {}", previewKind.logPrefix(getId()), "Session completed successfully");
                 Tracing.traceRepair("Completed sync of range {}", commonRange);
-                set(new RepairSessionResult(id, keyspace, commonRange.ranges, results, skippedReplicas));
+                set(new RepairSessionResult(id, keyspace, commonRange.ranges, results, commonRange.hasSkippedReplicas));
 
                 taskExecutor.shutdown();
                 // mark this session as terminated
@@ -344,7 +320,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }
-        });
+        }, MoreExecutors.directExecutor());
     }
 
     public void terminate()
@@ -400,5 +376,39 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         logger.error("{} session completed with the following error", previewKind.logPrefix(getId()), exception);
         // If a node failed, we stop everything (though there could still be some activity in the background)
         forceShutdown(exception);
+    }
+
+    public void onIRStateChange(LocalSession session)
+    {
+        // we should only be registered as listeners for PreviewKind.REPAIRED, but double check here
+        if (previewKind == PreviewKind.REPAIRED &&
+            session.getState() == ConsistentSession.State.FINALIZED &&
+            includesTables(session.tableIds))
+        {
+            for (Range<Token> range : session.ranges)
+            {
+                if (range.intersects(ranges()))
+                {
+                    logger.error("{} An intersecting incremental repair with session id = {} finished, preview repair might not be accurate", previewKind.logPrefix(getId()), session.sessionID);
+                    forceShutdown(new Exception("An incremental repair with session id "+session.sessionID+" finished during this preview repair runtime"));
+                    return;
+                }
+            }
+        }
+    }
+
+    private boolean includesTables(Set<TableId> tableIds)
+    {
+        Keyspace ks = Keyspace.open(keyspace);
+        if (ks != null)
+        {
+            for (String table : cfnames)
+            {
+                ColumnFamilyStore cfs = ks.getColumnFamilyStore(table);
+                if (tableIds.contains(cfs.metadata.id))
+                    return true;
+            }
+        }
+        return false;
     }
 }

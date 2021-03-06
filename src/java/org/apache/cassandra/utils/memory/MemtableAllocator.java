@@ -20,6 +20,9 @@ package org.apache.cassandra.utils.memory;
 
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -27,9 +30,10 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 public abstract class MemtableAllocator
 {
+    private static final Logger logger = LoggerFactory.getLogger(MemtableAllocator.class);
+
     private final SubAllocator onHeap;
     private final SubAllocator offHeap;
-    volatile LifeCycle state = LifeCycle.LIVE;
 
     enum LifeCycle
     {
@@ -78,10 +82,8 @@ public abstract class MemtableAllocator
      */
     public void setDiscarding()
     {
-        state = state.transition(LifeCycle.DISCARDING);
-        // mark the memory owned by this allocator as reclaiming
-        onHeap.markAllReclaiming();
-        offHeap.markAllReclaiming();
+        onHeap.setDiscarding();
+        offHeap.setDiscarding();
     }
 
     /**
@@ -90,15 +92,13 @@ public abstract class MemtableAllocator
      */
     public void setDiscarded()
     {
-        state = state.transition(LifeCycle.DISCARDED);
-        // release any memory owned by this allocator; automatically signals waiters
-        onHeap.releaseAll();
-        offHeap.releaseAll();
+        onHeap.setDiscarded();
+        offHeap.setDiscarded();
     }
 
     public boolean isLive()
     {
-        return state == LifeCycle.LIVE;
+        return onHeap.state == LifeCycle.LIVE || offHeap.state == LifeCycle.LIVE;
     }
 
     /** Mark the BB as unused, permitting it to be reclaimed */
@@ -106,6 +106,9 @@ public abstract class MemtableAllocator
     {
         // the tracker we are owning memory from
         private final MemtablePool.SubPool parent;
+
+        // the state of the memtable
+        private volatile LifeCycle state;
 
         // the amount of memory/resource owned by this object
         private volatile long owns;
@@ -116,17 +119,44 @@ public abstract class MemtableAllocator
         SubAllocator(MemtablePool.SubPool parent)
         {
             this.parent = parent;
+            this.state = LifeCycle.LIVE;
         }
 
-        // should only be called once we know we will never allocate to the object again.
-        // currently no corroboration/enforcement of this is performed.
+        /**
+         * Mark this allocator reclaiming; this will permit any outstanding allocations to temporarily
+         * overshoot the maximum memory limit so that flushing can begin immediately
+         */
+        void setDiscarding()
+        {
+            state = state.transition(LifeCycle.DISCARDING);
+            // mark the memory owned by this allocator as reclaiming
+            updateReclaiming();
+        }
+
+        /**
+         * Indicate the memory and resources owned by this allocator are no longer referenced,
+         * and can be reclaimed/reused.
+         */
+        void setDiscarded()
+        {
+            state = state.transition(LifeCycle.DISCARDED);
+            // release any memory owned by this allocator; automatically signals waiters
+            releaseAll();
+        }
+
+        /**
+         * Should only be called once we know we will never allocate to the object again.
+         * currently no corroboration/enforcement of this is performed.
+         */
         void releaseAll()
         {
             parent.released(ownsUpdater.getAndSet(this, 0));
             parent.reclaimed(reclaimingUpdater.getAndSet(this, 0));
         }
 
-        // like allocate, but permits allocations to be negative
+        /**
+         * Like allocate, but permits allocations to be negative.
+         */
         public void adjust(long size, OpOrder.Group opGroup)
         {
             if (size <= 0)
@@ -147,6 +177,11 @@ public abstract class MemtableAllocator
                     acquired(size);
                     return;
                 }
+                if (opGroup.isBlocking())
+                {
+                    allocated(size);
+                    return;
+                }
                 WaitQueue.Signal signal = opGroup.isBlockingSignal(parent.hasRoom().register(parent.blockedTimerContext()));
                 boolean allocated = parent.tryAllocate(size);
                 if (allocated || opGroup.isBlocking())
@@ -163,28 +198,74 @@ public abstract class MemtableAllocator
             }
         }
 
-        // retroactively mark an amount allocated and acquired in the tracker, and owned by us
+        /**
+         * Retroactively mark an amount allocated and acquired in the tracker, and owned by us. If the state is discarding,
+         * then also update reclaiming since the flush operation is waiting at the barrier for in-flight writes,
+         * and it will flush this memory too.
+         */
         private void allocated(long size)
         {
             parent.allocated(size);
             ownsUpdater.addAndGet(this, size);
+
+            if (state == LifeCycle.DISCARDING)
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("Allocated {} bytes whilst discarding", size);
+                updateReclaiming();
+            }
         }
 
-        // retroactively mark an amount acquired in the tracker, and owned by us
+        /**
+         * Retroactively mark an amount acquired in the tracker, and owned by us. If the state is discarding,
+         * then also update reclaiming since the flush operation is waiting at the barrier for in-flight writes,
+         * and it will flush this memory too.
+         */
         private void acquired(long size)
         {
-            parent.acquired(size);
+            parent.acquired();
             ownsUpdater.addAndGet(this, size);
+
+            if (state == LifeCycle.DISCARDING)
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("Allocated {} bytes whilst discarding", size);
+                updateReclaiming();
+            }
         }
 
+        /**
+         * If the state is still live, then we update the memory we own here and in the parent.
+         *
+         * However, if the state is not live, we do not update it because we would have to update
+         * reclaiming too, and it could cause problems to the memtable cleaner algorithm if reclaiming
+         * decreased. If the memtable is flushing, soon enough {@link this#releaseAll()} will be called.
+         *
+         * @param size the size that was released
+         */
         void released(long size)
         {
-            parent.released(size);
-            ownsUpdater.addAndGet(this, -size);
+            if (state == LifeCycle.LIVE)
+            {
+                parent.released(size);
+                ownsUpdater.addAndGet(this, -size);
+            }
+            else
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("Tried to release {} bytes whilst discarding", size);
+            }
         }
 
-        // mark everything we currently own as reclaiming, both here and in our parent
-        void markAllReclaiming()
+        /**
+         * Mark what we currently own as reclaiming, both here and in our parent.
+         * This method is called for the first time when the memtable is scheduled for flushing,
+         * in which case reclaiming will be zero and we mark everything that we own as reclaiming.
+         * Afterwards, if there are in flight writes that have not completed yet, we also mark any
+         * more memory that is allocated by these writes as reclaiming, since the memtable is waiting
+         * on the barrier for these writes to complete, before it can actually start flushing data.
+         */
+        void updateReclaiming()
         {
             while (true)
             {
@@ -201,6 +282,11 @@ public abstract class MemtableAllocator
         public long owns()
         {
             return owns;
+        }
+
+        public long getReclaiming()
+        {
+            return reclaiming;
         }
 
         public float ownershipRatio()
