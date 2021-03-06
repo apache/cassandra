@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -26,10 +28,14 @@ import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class NetworkTopologyTest extends TestBaseImpl
@@ -42,7 +48,7 @@ public class NetworkTopologyTest extends TestBaseImpl
                                                     .withRack("elsewhere", "firstrack", 1)
                                                     .withRack("elsewhere", "secondrack", 2)
                                                     .withDC("nearthere", 4)
-                                                    .start())
+                                                    .createWithoutStarting())
         {
             Assert.assertEquals(1, cluster.stream("somewhere").count());
             Assert.assertEquals(1, cluster.stream("elsewhere", "firstrack").count());
@@ -63,7 +69,7 @@ public class NetworkTopologyTest extends TestBaseImpl
 
     {
         try (ICluster cluster = builder().withRacks(2, 1, 3)
-                                         .start())
+                                         .createWithoutStarting())
         {
             Assert.assertEquals(6, cluster.stream().count());
             Assert.assertEquals(3, cluster.stream("datacenter1").count());
@@ -72,16 +78,18 @@ public class NetworkTopologyTest extends TestBaseImpl
     }
 
     @Test(expected = IllegalStateException.class)
-    public void noCountsAfterNamingDCsTest()
+    public void noCountsAfterNamingDCsTest() throws IOException
     {
         builder().withDC("nameddc", 1)
-                 .withDCs(1);
+                 .withDCs(1)
+                 .createWithoutStarting();
     }
 
     @Test(expected = IllegalStateException.class)
-    public void mustProvideNodeCountBeforeWithDCsTest()
+    public void mustProvideNodeCountBeforeWithDCsTest() throws IOException
     {
-        builder().withDCs(1);
+        builder().withDCs(1)
+                 .createWithoutStarting();
     }
 
     @Test(expected = IllegalStateException.class)
@@ -94,5 +102,24 @@ public class NetworkTopologyTest extends TestBaseImpl
     public void noHolesInNodeIdTopologyTest()
     {
         builder().withNodeIdTopology(Collections.singletonMap(2, NetworkTopology.dcAndRack("doomed", "rack")));
+    }
+
+    @Test
+    public void noWarningForNetworkTopologyStategyConfigOnRestart() throws Exception {
+        int nodesPerDc = 2;
+        try (Cluster cluster = builder().withConfig(c -> c.with(GOSSIP, NETWORK))
+                                        .withRacks(2, 1, nodesPerDc)
+                                        .start()) {
+            cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE +
+                                 " WITH replication = {'class': 'NetworkTopologyStrategy', " +
+                                 "'datacenter1' : " + nodesPerDc + ", 'datacenter2' : " + nodesPerDc + " };");
+            cluster.get(2).nodetool("flush");
+            // Stop node 2 in datacenter 1
+            cluster.get(2).shutdown().get();
+            // Restart node 2 in datacenter 1
+            cluster.get(2).startup();
+            List<String> result = cluster.get(2).logs().grep("Ignoring Unrecognized strategy option \\{datacenter2\\}").getResult();
+            Assert.assertTrue("Not expected to see the warning about unrecognized option", result.isEmpty());
+        }
     }
 }

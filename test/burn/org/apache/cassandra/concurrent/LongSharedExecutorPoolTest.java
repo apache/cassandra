@@ -106,7 +106,7 @@ public class LongSharedExecutorPoolTest
     {
         final int executorCount = 4;
         int threadCount = 8;
-        int maxQueued = 1024;
+        int scale = 1024;
         final WeibullDistribution workTime = new WeibullDistribution(3, 200000);
         final long minWorkTime = TimeUnit.MICROSECONDS.toNanos(1);
         final long maxWorkTime = TimeUnit.MILLISECONDS.toNanos(1);
@@ -116,11 +116,11 @@ public class LongSharedExecutorPoolTest
         final ExecutorService[] executors = new ExecutorService[executorCount];
         for (int i = 0 ; i < executors.length ; i++)
         {
-            executors[i] = SharedExecutorPool.SHARED.newExecutor(threadCount, maxQueued, "test" + i, "test" + i);
+            executors[i] = SharedExecutorPool.SHARED.newExecutor(threadCount, "test" + i, "test" + i);
             threadCounts[i] = threadCount;
-            workCount[i] = new WeibullDistribution(2, maxQueued);
+            workCount[i] = new WeibullDistribution(2, scale);
             threadCount *= 2;
-            maxQueued *= 2;
+            scale *= 2;
         }
 
         long runs = 0;

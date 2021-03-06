@@ -76,6 +76,33 @@ public class MetadataSerializerTest
         }
     }
 
+    @Test
+    public void testHistogramSterilization() throws IOException
+    {
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+
+        // Modify the histograms to overflow:
+        StatsMetadata originalStats = (StatsMetadata) originalMetadata.get(MetadataType.STATS);
+        originalStats.estimatedCellPerPartitionCount.add(Long.MAX_VALUE);
+        originalStats.estimatedPartitionSize.add(Long.MAX_VALUE);
+        assertTrue(originalStats.estimatedCellPerPartitionCount.isOverflowed());
+        assertTrue(originalStats.estimatedPartitionSize.isOverflowed());
+
+        // Serialize w/ overflowed histograms:
+        MetadataSerializer serializer = new MetadataSerializer();
+        File statsFile = serialize(originalMetadata, serializer, BigFormat.latestVersion);
+        Descriptor desc = new Descriptor(statsFile.getParentFile(), "", "", 0, SSTableFormat.Type.BIG);
+
+        try (RandomAccessReader in = RandomAccessReader.open(statsFile))
+        {
+            // Deserialie and verify that the two histograms have had their overflow buckets cleared:
+            Map<MetadataType, MetadataComponent> deserialized = serializer.deserialize(desc, in, EnumSet.allOf(MetadataType.class));
+            StatsMetadata deserializedStats = (StatsMetadata)deserialized.get(MetadataType.STATS);
+            assertFalse(deserializedStats.estimatedCellPerPartitionCount.isOverflowed());
+            assertFalse(deserializedStats.estimatedPartitionSize.isOverflowed());
+        }
+    }
+
     public File serialize(Map<MetadataType, MetadataComponent> metadata, MetadataSerializer serializer, Version version)
             throws IOException
     {

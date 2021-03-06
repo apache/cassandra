@@ -84,7 +84,7 @@ public class InboundConnectionSettings
     public String toString()
     {
         return format("address: (%s), nic: %s, encryption: %s",
-                      bindAddress, FBUtilities.getNetworkInterface(bindAddress.address), SocketFactory.encryptionLogStatement(encryption));
+                      bindAddress, FBUtilities.getNetworkInterface(bindAddress.address), SocketFactory.encryptionOptionsSummary(encryption));
     }
 
     public InboundConnectionSettings withAuthenticator(IInternodeAuthenticator authenticator)
@@ -152,12 +152,12 @@ public class InboundConnectionSettings
                                              acceptMessaging, acceptStreaming, socketFactory, handlers);
     }
 
-    public InboundConnectionSettings withLegacyDefaults()
+    public InboundConnectionSettings withLegacySslStoragePortDefaults()
     {
         ServerEncryptionOptions encryption = this.encryption;
         if (encryption == null)
             encryption = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
-        encryption = encryption.withOptional(false);
+        encryption = encryption.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
 
         return this.withBindAddress(bindAddress.withPort(DatabaseDescriptor.getSSLStoragePort()))
                    .withEncryption(encryption)

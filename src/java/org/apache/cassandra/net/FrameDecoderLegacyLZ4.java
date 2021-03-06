@@ -28,10 +28,11 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.compression.Lz4FrameDecoder;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import net.jpountz.xxhash.XXHash32;
 import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Integer.reverseBytes;
 import static java.lang.String.format;
@@ -46,6 +47,8 @@ import static org.apache.cassandra.utils.ByteBufferUtil.copyBytes;
  */
 class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
 {
+    private static final BufferPool bufferPool = BufferPools.forNetworking();
+
     FrameDecoderLegacyLZ4(BufferPoolAllocator allocator, int messagingVersion)
     {
         super(allocator, messagingVersion);
@@ -101,8 +104,8 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
         private static final XXHash32 xxhash =
             XXHashFactory.fastestInstance().hash32();
 
-        private static final LZ4FastDecompressor decompressor =
-            LZ4Factory.fastestInstance().fastDecompressor();
+        private static final LZ4SafeDecompressor decompressor =
+            LZ4Factory.fastestInstance().safeDecompressor();
 
         private final BufferPoolAllocator allocator;
 
@@ -122,7 +125,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             assert msg instanceof BufferPoolAllocator.Wrapped;
             ByteBuffer buf = ((BufferPoolAllocator.Wrapped) msg).adopt();
             // netty will probably have mis-predicted the space needed
-            BufferPool.putUnusedPortion(buf);
+            bufferPool.putUnusedPortion(buf);
 
             CorruptLZ4Frame error = null;
             try
@@ -245,13 +248,14 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             ByteBuffer out = allocator.get(header.uncompressedLength);
             try
             {
-                decompressor.decompress(buf, begin + HEADER_LENGTH, out, 0, header.uncompressedLength);
+                int sourceLength = end - (begin + HEADER_LENGTH);
+                decompressor.decompress(buf, begin + HEADER_LENGTH, sourceLength, out, 0, header.uncompressedLength);
                 validateChecksum(out, 0, header);
                 return ShareableBytes.wrap(out);
             }
             catch (Throwable t)
             {
-                BufferPool.put(out);
+                bufferPool.put(out);
                 throw t;
             }
         }
@@ -268,7 +272,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
         {
             if (null != stash)
             {
-                BufferPool.put(stash);
+                bufferPool.put(stash);
                 stash = null;
             }
 
@@ -347,7 +351,7 @@ class FrameDecoderLegacyLZ4 extends FrameDecoderLegacy
             ByteBuffer out = allocator.getAtLeast(capacity);
             in.flip();
             out.put(in);
-            BufferPool.put(in);
+            bufferPool.put(in);
             return out;
         }
 

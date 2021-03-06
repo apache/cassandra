@@ -23,6 +23,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -37,8 +38,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.base.Preconditions;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,9 +58,11 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SyncUtil;
 
 import static com.google.common.base.Throwables.propagate;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -62,6 +71,8 @@ public final class FileUtils
     public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
+    private static final NoSpamLogger nospam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     public static final long ONE_KB = 1024;
     public static final long ONE_MB = 1024 * ONE_KB;
     public static final long ONE_GB = 1024 * ONE_MB;
@@ -92,40 +103,18 @@ public final class FileUtils
             logger.error("FATAL: Cassandra is unable to access required classes. This usually means it has been " +
                 "run without the aid of the standard startup scripts or the scripts have been edited. If this was " +
                 "intentional, and you are attempting to use Java 11+ you may need to add the --add-exports and " +
-                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options");
+                "--add-opens jvm options from either jvm11-server.options or jvm11-client.options", e);
             throw new RuntimeException(e);  // causes ExceptionInInitializerError, will prevent startup
         }
         catch (Throwable t)
         {
-            logger.error("FATAL: Cannot initialize optimized memory deallocator.");
+            logger.error("FATAL: Cannot initialize optimized memory deallocator.", t);
             JVMStabilityInspector.inspectThrowable(t);
             throw new RuntimeException(t); // causes ExceptionInInitializerError, will prevent startup
         }
     }
 
-    public static void createHardLink(String from, String to)
-    {
-        createHardLink(new File(from), new File(to));
-    }
-
-    public static void createHardLink(File from, File to)
-    {
-        if (to.exists())
-            throw new RuntimeException("Tried to create duplicate hard link to " + to);
-        if (!from.exists())
-            throw new RuntimeException("Tried to hard link to file that does not exist " + from);
-
-        try
-        {
-            Files.createLink(to.toPath(), from.toPath());
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, to);
-        }
-    }
-
-    private static final File tempDir = new File(System.getProperty("java.io.tmpdir"));
+    private static final File tempDir = new File(JAVA_IO_TMPDIR.getString());
     private static final AtomicLong tempFileNum = new AtomicLong();
 
     public static File getTempDir()
@@ -182,18 +171,82 @@ public final class FileUtils
         return f;
     }
 
+    public static void createHardLink(String from, String to)
+    {
+        createHardLink(new File(from), new File(to));
+    }
+
+    public static void createHardLink(File from, File to)
+    {
+        if (to.exists())
+            throw new RuntimeException("Tried to create duplicate hard link to " + to);
+        if (!from.exists())
+            throw new RuntimeException("Tried to hard link to file that does not exist " + from);
+
+        try
+        {
+            Files.createLink(to.toPath(), from.toPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, to);
+        }
+    }
+
+    public static void createHardLinkWithConfirm(File from, File to)
+    {
+        try
+        {
+            createHardLink(from, to);
+        }
+        catch (FSWriteError ex)
+        {
+            throw ex;
+        }
+        catch (Throwable t)
+        {
+            throw new RuntimeException(String.format("Unable to hardlink from %s to %s", from, to), t);
+        }
+    }
+
+    public static void createHardLinkWithConfirm(String from, String to)
+    {
+        createHardLinkWithConfirm(new File(from), new File(to));
+    }
+
+    public static void createHardLinkWithoutConfirm(String from, String to)
+    {
+        try
+        {
+            createHardLink(new File(from), new File(to));
+        }
+        catch (FSWriteError fse)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Could not hardlink file " + from + " to " + to, fse);
+        }
+    }
+
     public static Throwable deleteWithConfirm(String filePath, Throwable accumulate)
     {
-        return deleteWithConfirm(new File(filePath), accumulate);
+        return deleteWithConfirm(new File(filePath), accumulate, null);
     }
 
     public static Throwable deleteWithConfirm(File file, Throwable accumulate)
     {
+        return deleteWithConfirm(file, accumulate, null);
+    }
+    
+    public static Throwable deleteWithConfirm(File file, Throwable accumulate, RateLimiter rateLimiter)
+    {
         try
         {
-            if (!StorageService.instance.isDaemonSetupCompleted())
-                logger.info("Deleting file during startup: {}", file);
-
+            if (rateLimiter != null)
+            {
+                double throttled = rateLimiter.acquire();
+                if (throttled > 0.0)
+                    nospam1m.warn("Throttling file deletion: waited {} seconds to delete {}", throttled, file);
+            }
             Files.delete(file.toPath());
         }
         catch (Throwable t)
@@ -217,7 +270,46 @@ public final class FileUtils
 
     public static void deleteWithConfirm(File file)
     {
-        maybeFail(deleteWithConfirm(file, null));
+        maybeFail(deleteWithConfirm(file, null, null));
+    }
+
+    public static void deleteWithConfirmWithThrottle(File file, RateLimiter rateLimiter)
+    {
+        maybeFail(deleteWithConfirm(file, null, rateLimiter));
+    }
+
+    public static void copyWithOutConfirm(String from, String to)
+    {
+        try
+        {
+            Files.copy(Paths.get(from), Paths.get(to));
+        }
+        catch (IOException e)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Could not copy file" + from + " to " + to, e);
+        }
+    }
+
+    public static void copyWithConfirm(String from, String to)
+    {
+        copyWithConfirm(new File(from), new File(to));
+    }
+
+    public static void copyWithConfirm(File from, File to)
+    {
+        assert from.exists();
+        if (logger.isTraceEnabled())
+            logger.trace("Copying {} to {}", from.getPath(), to.getPath());
+
+        try
+        {
+            Files.copy(from.toPath(), to.toPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, "Could not copy file" + from + " to " + to);
+        }
     }
 
     public static void renameWithOutConfirm(String from, String to)
@@ -274,15 +366,20 @@ public final class FileUtils
         }
 
     }
+
     public static void truncate(String path, long size)
     {
         try(FileChannel channel = FileChannel.open(Paths.get(path), StandardOpenOption.READ, StandardOpenOption.WRITE))
         {
             channel.truncate(size);
         }
+        catch (NoSuchFileException | FileNotFoundException nfe)
+        {
+            throw new RuntimeException(nfe);
+        }
         catch (IOException e)
         {
-            throw new RuntimeException(e);
+            throw new FSWriteError(e, path);
         }
     }
 
@@ -552,7 +649,41 @@ public final class FileUtils
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
      */
+    public static void deleteRecursiveWithThrottle(File dir, RateLimiter rateLimiter)
+    {
+        if (dir.isDirectory())
+        {
+            String[] children = dir.list();
+            for (String child : children)
+                deleteRecursiveWithThrottle(new File(dir, child), rateLimiter);
+        }
+
+        // The directory is now empty so now it can be smoked
+        deleteWithConfirmWithThrottle(dir, rateLimiter);
+    }
+
+
+    /**
+     * Deletes the specified directory after having deleted its content.
+     *
+     * @param dir Directory to be deleted
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
     public static void deleteRecursive(File dir)
+    {
+        deleteChildrenRecursive(dir);
+
+        // The directory is now empty so now it can be smoked
+        deleteWithConfirm(dir);
+    }
+
+    /**
+     * Deletes all files and subdirectories under "dir".
+     *
+     * @param dir Directory to be deleted
+     * @throws FSWriteError if any part of the tree cannot be deleted
+     */
+    public static void deleteChildrenRecursive(File dir)
     {
         if (dir.isDirectory())
         {
@@ -560,9 +691,6 @@ public final class FileUtils
             for (String child : children)
                 deleteRecursive(new File(dir, child));
         }
-
-        // The directory is now empty so now it can be smoked
-        deleteWithConfirm(dir);
     }
 
     /**
@@ -602,7 +730,7 @@ public final class FileUtils
      */
     public static void handleFSErrorAndPropagate(FSError e)
     {
-        handleFSError(e);
+        JVMStabilityInspector.inspectThrowable(e);
         throw propagate(e);
     }
 
@@ -730,9 +858,13 @@ public final class FileUtils
                 SyncUtil.force(fc, false);
             }
         }
+        catch (ClosedChannelException cce)
+        {
+            throw new RuntimeException(cce);
+        }
         catch (IOException ex)
         {
-            throw new RuntimeException(ex);
+            throw new FSWriteError(ex, file);
         }
     }
 
@@ -836,7 +968,7 @@ public final class FileUtils
      * signed long (2^63-1), if the filesystem is any bigger, then the size overflows. {@code SafeFileStore} will
      * return {@code Long.MAX_VALUE} if the size overflow.</p>
      *
-     * @see https://bugs.openjdk.java.net/browse/JDK-8162520.
+     * @see <a href="https://bugs.openjdk.java.net/browse/JDK-8162520">JDK-8162520</a>.
      */
     private static final class SafeFileStore extends FileStore
     {
@@ -908,6 +1040,70 @@ public final class FileUtils
         public Object getAttribute(String attribute) throws IOException
         {
             return fileStore.getAttribute(attribute);
+        }
+    }
+
+    /**
+     * Moves the contents of a directory to another directory.
+     * <p>Once a file has been copied to the target directory it will be deleted from the source directory.
+     * If a file already exists in the target directory a warning will be logged and the file will not
+     * be deleted.</p>
+     *
+     * @param source the directory containing the files to move
+     * @param target the directory where the files must be moved
+     */
+    public static void moveRecursively(Path source, Path target) throws IOException
+    {
+        logger.info("Moving {} to {}" , source, target);
+
+        if (Files.isDirectory(source))
+        {
+            Files.createDirectories(target);
+
+            for (File f : source.toFile().listFiles())
+            {
+                String fileName = f.getName();
+                moveRecursively(source.resolve(fileName), target.resolve(fileName));
+            }
+
+            deleteDirectoryIfEmpty(source);
+        }
+        else
+        {
+            if (Files.exists(target))
+            {
+                logger.warn("Cannot move the file {} to {} as the target file already exists." , source, target);
+            }
+            else
+            {
+                Files.copy(source, target, StandardCopyOption.COPY_ATTRIBUTES);
+                Files.delete(source);
+            }
+        }
+    }
+
+    /**
+     * Deletes the specified directory if it is empty
+     *
+     * @param path the path to the directory
+     */
+    public static void deleteDirectoryIfEmpty(Path path) throws IOException
+    {
+        Preconditions.checkArgument(Files.isDirectory(path), String.format("%s is not a directory", path));
+
+        try
+        {
+            logger.info("Deleting directory {}", path);
+            Files.delete(path);
+        }
+        catch (DirectoryNotEmptyException e)
+        {
+            try (Stream<Path> paths = Files.list(path))
+            {
+                String content = paths.map(p -> p.getFileName().toString()).collect(Collectors.joining(", "));
+
+                logger.warn("Cannot delete the directory {} as it is not empty. (Content: {})", path, content);
+            }
         }
     }
 }

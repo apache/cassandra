@@ -40,7 +40,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     private static final Map<InetAddressAndPort, InetSocketAddress> cache = new ConcurrentHashMap<>();
     private static final Map<InetSocketAddress, InetAddressAndPort> cacheInverse = new ConcurrentHashMap<>();
 
-    static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
+    public static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
     {
         InetAddressAndPort m = cacheInverse.get(addressAndPort);
         if (m == null)
@@ -51,7 +51,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         return m;
     }
 
-    static InetSocketAddress fromCassandraInetAddressAndPort(InetAddressAndPort addressAndPort)
+    public static InetSocketAddress fromCassandraInetAddressAndPort(InetAddressAndPort addressAndPort)
     {
         InetSocketAddress m = cache.get(addressAndPort);
         if (m == null)
@@ -123,6 +123,6 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT,
                                                    StorageService.instance.valueFactory.internalAddressAndPort(FBUtilities.getLocalAddressAndPort()));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,
-                                                   StorageService.instance.valueFactory.internalIP(FBUtilities.getJustLocalAddress().getHostAddress()));
+                                                   StorageService.instance.valueFactory.internalIP(FBUtilities.getJustLocalAddress()));
     }
 }

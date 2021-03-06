@@ -44,7 +44,7 @@ All mutations write optimized by storing in commitlog segments, reducing the num
     - ``commitlog_sync_period_in_ms``: Time to wait between "periodic" fsyncs
     *Default Value:* 10000
 
-*Default Value:* batch
+*Default Value:* periodic
 
 *** NOTE: In the event of an unexpected shutdown, Cassandra can lose up to the sync period or more if the sync is delayed. If using "batch" mode, it is recommended to store commitlogs in a separate, dedicated device.**
 

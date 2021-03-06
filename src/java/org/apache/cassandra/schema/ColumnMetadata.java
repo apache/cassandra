@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.github.jamm.Unmetered;
 
 @Unmetered
-public final class ColumnMetadata extends ColumnSpecification implements Selectable, Comparable<ColumnMetadata>
+public class ColumnMetadata extends ColumnSpecification implements Selectable, Comparable<ColumnMetadata>
 {
     public static final Comparator<Object> asymmetricColumnDataComparator =
         (a, b) -> ((ColumnData) a).column().compareTo((ColumnMetadata) b);
@@ -86,7 +86,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     private final Comparator<CellPath> cellPathComparator;
     private final Comparator<Object> asymmetricCellPathComparator;
-    private final Comparator<? super Cell> cellComparator;
+    private final Comparator<? super Cell<?>> cellComparator;
 
     private int hash;
 
@@ -149,7 +149,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         this(table.keyspace,
              table.name,
-             ColumnIdentifier.getInterned(name, table.columnDefinitionNameComparator(kind)),
+             ColumnIdentifier.getInterned(name, UTF8Type.instance),
              type,
              position,
              kind);
@@ -171,7 +171,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.position = position;
         this.cellPathComparator = makeCellPathComparator(kind, type);
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
-        this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
+        this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell<?>)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
     }
 
@@ -200,6 +200,29 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             assert path1.size() == 1 && path2.size() == 1;
             return nameComparator.compare(path1.get(0), path2.get(0));
         };
+    }
+
+    private static class Placeholder extends ColumnMetadata
+    {
+        Placeholder(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position, Kind kind)
+        {
+            super(table, name, type, position, kind);
+        }
+
+        public boolean isPlaceholder()
+        {
+            return true;
+        }
+    }
+
+    public static ColumnMetadata placeholder(TableMetadata table, ByteBuffer name, boolean isStatic)
+    {
+        return new Placeholder(table, name, EmptyType.instance, NO_POSITION, isStatic ? Kind.STATIC : Kind.REGULAR);
+    }
+
+    public boolean isPlaceholder()
+    {
+        return false;
     }
 
     public ColumnMetadata copy()
@@ -370,7 +393,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return asymmetricCellPathComparator;
     }
 
-    public Comparator<? super Cell> cellComparator()
+    public Comparator<? super Cell<?>> cellComparator()
     {
         return cellComparator;
     }
@@ -391,11 +414,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return CollectionType.cellPathSerializer;
     }
 
-    public void validateCell(Cell cell)
+    public <V> void validateCell(Cell<V> cell)
     {
         if (cell.isTombstone())
         {
-            if (cell.value().hasRemaining())
+            if (cell.valueSize() > 0)
                 throw new MarshalException("A tombstone should not have a value");
             if (cell.path() != null)
                 validateCellPath(cell.path());
@@ -408,7 +431,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         }
         else
         {
-            type.validateCellValue(cell.value());
+            type.validateCellValue(cell.value(), cell.accessor());
             if (cell.path() != null)
                 validateCellPath(cell.path());
         }
@@ -426,6 +449,16 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             ((UserType)type).nameComparator().validate(path.get(0));
     }
 
+    public void appendCqlTo(CqlBuilder builder)
+    {
+        builder.append(name)
+               .append(' ')
+               .append(type);
+
+        if (isStatic())
+            builder.append(" static");
+    }
+
     public static String toCQLString(Iterable<ColumnMetadata> defs)
     {
         return toCQLString(defs.iterator());
@@ -441,6 +474,14 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         while (defs.hasNext())
             sb.append(", ").append(defs.next().name);
         return sb.toString();
+    }
+
+
+    public void appendNameAndOrderTo(CqlBuilder builder)
+    {
+        builder.append(name.toCQLString())
+               .append(' ')
+               .append(clusteringOrder().toString());
     }
 
     /**
@@ -478,177 +519,4 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     {
         return type;
     }
-
-    /**
-     * Because legacy-created tables may have a non-text comparator, we cannot determine the proper 'key' until
-     * we know the comparator. ColumnMetadata.Raw is a placeholder that can be converted to a real ColumnIdentifier
-     * once the comparator is known with prepare(). This should only be used with identifiers that are actual
-     * column names. See CASSANDRA-8178 for more background.
-     */
-    public static abstract class Raw extends Selectable.Raw
-    {
-        /**
-         * Creates a {@code ColumnMetadata.Raw} from an unquoted identifier string.
-         */
-        public static Raw forUnquoted(String text)
-        {
-            return new Literal(text, false);
-        }
-
-        /**
-         * Creates a {@code ColumnMetadata.Raw} from a quoted identifier string.
-         */
-        public static Raw forQuoted(String text)
-        {
-            return new Literal(text, true);
-        }
-
-        /**
-         * Creates a {@code ColumnMetadata.Raw} from a pre-existing {@code ColumnMetadata}
-         * (useful in the rare cases where we already have the column but need
-         * a {@code ColumnMetadata.Raw} for typing purposes).
-         */
-        public static Raw forColumn(ColumnMetadata column)
-        {
-            return new ForColumn(column);
-        }
-
-        /**
-         * Get the identifier corresponding to this raw column, without assuming this is an
-         * existing column (unlike {@link Selectable.Raw#prepare}).
-         */
-        public abstract ColumnIdentifier getIdentifier(TableMetadata table);
-
-        public abstract String rawText();
-
-        @Override
-        public abstract ColumnMetadata prepare(TableMetadata table);
-
-        @Override
-        public final int hashCode()
-        {
-            return toString().hashCode();
-        }
-
-        @Override
-        public final boolean equals(Object o)
-        {
-            if(!(o instanceof Raw))
-                return false;
-
-            Raw that = (Raw)o;
-            return this.toString().equals(that.toString());
-        }
-
-        private static class Literal extends Raw
-        {
-            private final String text;
-
-            public Literal(String rawText, boolean keepCase)
-            {
-                this.text =  keepCase ? rawText : rawText.toLowerCase(Locale.US);
-            }
-
-            public ColumnIdentifier getIdentifier(TableMetadata table)
-            {
-                if (!table.isStaticCompactTable())
-                    return ColumnIdentifier.getInterned(text, true);
-
-                AbstractType<?> columnNameType = table.staticCompactOrSuperTableColumnNameType();
-                if (columnNameType instanceof UTF8Type)
-                    return ColumnIdentifier.getInterned(text, true);
-
-                // We have a legacy-created table with a non-text comparator. Check if we have a matching column, otherwise assume we should use
-                // columnNameType
-                ByteBuffer bufferName = ByteBufferUtil.bytes(text);
-                for (ColumnMetadata def : table.columns())
-                {
-                    if (def.name.bytes.equals(bufferName))
-                        return def.name;
-                }
-                return ColumnIdentifier.getInterned(columnNameType, columnNameType.fromString(text), text);
-            }
-
-            public ColumnMetadata prepare(TableMetadata table)
-            {
-                if (!table.isStaticCompactTable())
-                    return find(table);
-
-                AbstractType<?> columnNameType = table.staticCompactOrSuperTableColumnNameType();
-                if (columnNameType instanceof UTF8Type)
-                    return find(table);
-
-                // We have a legacy-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
-                // columnNameType
-                ByteBuffer bufferName = ByteBufferUtil.bytes(text);
-                for (ColumnMetadata def : table.columns())
-                {
-                    if (def.name.bytes.equals(bufferName))
-                        return def;
-                }
-                return find(columnNameType.fromString(text), table);
-            }
-
-            private ColumnMetadata find(TableMetadata table)
-            {
-                return find(ByteBufferUtil.bytes(text), table);
-            }
-
-            private ColumnMetadata find(ByteBuffer id, TableMetadata table)
-            {
-                ColumnMetadata def = table.getColumn(id);
-                if (def == null)
-                    throw new InvalidRequestException(String.format("Undefined column name %s", toString()));
-                return def;
-            }
-
-            public String rawText()
-            {
-                return text;
-            }
-
-            @Override
-            public String toString()
-            {
-                return ColumnIdentifier.maybeQuote(text);
-            }
-        }
-
-        // Use internally in the rare case where we need a ColumnMetadata.Raw for type-checking but
-        // actually already have the column itself.
-        private static class ForColumn extends Raw
-        {
-            private final ColumnMetadata column;
-
-            private ForColumn(ColumnMetadata column)
-            {
-                this.column = column;
-            }
-
-            public ColumnIdentifier getIdentifier(TableMetadata table)
-            {
-                return column.name;
-            }
-
-            public ColumnMetadata prepare(TableMetadata table)
-            {
-                assert table.getColumn(column.name) != null; // Sanity check that we're not doing something crazy
-                return column;
-            }
-
-            public String rawText()
-            {
-                return column.name.toString();
-            }
-
-            @Override
-            public String toString()
-            {
-                return column.name.toCQLString();
-            }
-        }
-    }
-
-
-
 }

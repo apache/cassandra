@@ -20,98 +20,94 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 import java.util.Map;
+
 import javax.management.openmbean.TabularData;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.hamcrest.CoreMatchers;
 
-public class ClearSnapshotTest extends ToolsTester
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+
+public class ClearSnapshotTest extends CQLTester
 {
-    private static EmbeddedCassandraService cassandra;
-    private static String initialJmxPortValue;
     private static NodeProbe probe;
-    private static final int JMX_PORT = 7188;
 
     @BeforeClass
-    public static void setup() throws IOException
+    public static void setup() throws Exception
     {
-        // Set system property to enable JMX port on localhost for embedded server
-        initialJmxPortValue = System.getProperty("cassandra.jmx.local.port");
-        System.setProperty("cassandra.jmx.local.port", String.valueOf(JMX_PORT));
-
-        SchemaLoader.prepareServer();
-        cassandra = new EmbeddedCassandraService();
-        cassandra.start();
-
-        probe = new NodeProbe("127.0.0.1", JMX_PORT);
+        startJMXServer();
+        probe = new NodeProbe(jmxHost, jmxPort);
     }
 
     @AfterClass
     public static void teardown() throws IOException
     {
-        cassandra.stop();
-        if (initialJmxPortValue != null)
-        {
-            System.setProperty("cassandra.jmx.local.port", initialJmxPortValue);
-        }
-
         probe.close();
     }
 
-    private String[] constructParamaterArray(final String command, final String... commandParams)
+    @Test
+    public void testClearSnapshot_NoArgs()
     {
-        String[] baseCommandLine = {"-p", String.valueOf(JMX_PORT), command};
-        return ArrayUtils.addAll(baseCommandLine, commandParams);
+        ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot");
+        assertEquals(2, tool.getExitCode());
+        assertTrue("Tool stderr: " +  tool.getCleanedStderr(), tool.getCleanedStderr().contains("Specify snapshot name or --all"));
+        
+        tool = ToolRunner.invokeNodetool("clearsnapshot", "--all");
+        tool.assertOnCleanExit();
     }
 
     @Test
-    public void testClearSnapshot_NoArgs() throws IOException
+    public void testClearSnapshot_AllAndName()
     {
-        runTool(2, "org.apache.cassandra.tools.NodeTool",
-                constructParamaterArray("clearsnapshot"));
+        ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot", "-t", "some-name", "--all");
+        assertEquals(2, tool.getExitCode());
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Specify only one of snapshot name or --all"));
     }
 
     @Test
-    public void testClearSnapshot_AllAndName() throws IOException
+    public void testClearSnapshot_RemoveByName()
     {
-        runTool(2, "org.apache.cassandra.tools.NodeTool",
-                constructParamaterArray("clearsnapshot", "-t", "some-name", "--all"));
+        ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
+        tool.assertOnCleanExit();
+        assertTrue(!tool.getStdout().isEmpty());
+        
+        Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
+        Assert.assertTrue(snapshots_before.containsKey("some-name"));
+        
+        tool = ToolRunner.invokeNodetool("clearsnapshot","-t","some-name");
+        tool.assertOnCleanExit();
+        assertTrue(!tool.getStdout().isEmpty());
+        
+        Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
+        Assert.assertFalse(snapshots_after.containsKey("some-name"));
     }
 
     @Test
-    public void testClearSnapshot_RemoveByName() throws IOException
+    public void testClearSnapshot_RemoveMultiple()
     {
-         runTool(0,"org.apache.cassandra.tools.NodeTool",
-                 constructParamaterArray("snapshot","-t","some-name"));
+        ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
+        tool.assertOnCleanExit();
+        assertTrue(!tool.getStdout().isEmpty());
 
-         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
-         Assert.assertTrue(snapshots_before.containsKey("some-name"));
-
-         runTool(0,"org.apache.cassandra.tools.NodeTool",
-                 constructParamaterArray("clearsnapshot","-t","some-name"));
-         Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
-         Assert.assertFalse(snapshots_after.containsKey("some-name"));
-    }
-
-    @Test
-    public void testClearSnapshot_RemoveMultiple() throws IOException
-    {
-        runTool(0,"org.apache.cassandra.tools.NodeTool",
-                constructParamaterArray("snapshot","-t","some-name"));
-        runTool(0,"org.apache.cassandra.tools.NodeTool",
-                constructParamaterArray("snapshot","-t","some-other-name"));
+        tool = ToolRunner.invokeNodetool("snapshot","-t","some-other-name");
+        tool.assertOnCleanExit();
+            assertTrue(!tool.getStdout().isEmpty());
 
         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
         Assert.assertTrue(snapshots_before.size() == 2);
 
-        runTool(0,"org.apache.cassandra.tools.NodeTool",
-                constructParamaterArray("clearsnapshot","--all"));
+        tool = ToolRunner.invokeNodetool("clearsnapshot","--all");
+        tool.assertOnCleanExit();
+        assertTrue(!tool.getStdout().isEmpty());
+        
         Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
         Assert.assertTrue(snapshots_after.size() == 0);
     }

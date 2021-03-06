@@ -48,19 +48,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, level, false);
     }
 
-    @Deprecated
-    public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
-                                Directories directories,
-                                LifecycleTransaction txn,
-                                Set<SSTableReader> nonExpiredSSTables,
-                                long maxSSTableSize,
-                                int level,
-                                boolean offline,
-                                boolean keepOriginals)
-    {
-        this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, level, keepOriginals);
-    }
-
     public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
                                 Directories directories,
                                 LifecycleTransaction txn,

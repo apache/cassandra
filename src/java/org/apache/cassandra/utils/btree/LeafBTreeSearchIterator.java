@@ -90,7 +90,7 @@ public class LeafBTreeSearchIterator<K, V> implements BTreeSearchIterator<K, V>
         V result = null;
 
         // first check the current position in case of sequential access
-        if (comparator.compare(key, keys[nextPos]) == 0)
+        if (comparator.compare(keys[nextPos], key) == 0)
         {
             hasCurrent = true;
             result = (V) keys[nextPos];

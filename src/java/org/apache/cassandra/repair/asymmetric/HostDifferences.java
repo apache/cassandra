@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -34,19 +37,22 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public class HostDifferences
 {
-    private final Map<InetAddressAndPort, List<Range<Token>>> perHostDifferences = new HashMap<>();
+    private final Map<InetAddressAndPort, NavigableSet<Range<Token>>> perHostDifferences = new HashMap<>();
+    private static final Comparator<Range<Token>> comparator = Comparator.comparing((Range<Token> o) -> o.left);
 
     /**
      * Adds a set of differences between the node this instance is tracking and endpoint
      */
-    public void add(InetAddressAndPort endpoint, List<Range<Token>> difference)
+    public void add(InetAddressAndPort endpoint, Collection<Range<Token>> difference)
     {
-        perHostDifferences.put(endpoint, difference);
+        TreeSet<Range<Token>> sortedDiffs = new TreeSet<>(comparator);
+        sortedDiffs.addAll(difference);
+        perHostDifferences.put(endpoint, sortedDiffs);
     }
 
     public void addSingleRange(InetAddressAndPort remoteNode, Range<Token> rangeToFetch)
     {
-        perHostDifferences.computeIfAbsent(remoteNode, (x) -> new ArrayList<>()).add(rangeToFetch);
+        perHostDifferences.computeIfAbsent(remoteNode, (x) -> new TreeSet<>(comparator)).add(rangeToFetch);
     }
 
     /**
@@ -54,12 +60,25 @@ public class HostDifferences
      */
     public boolean hasDifferencesFor(InetAddressAndPort node2, Range<Token> range)
     {
-        List<Range<Token>> differences = get(node2);
-        for (Range<Token> diff : differences)
+        NavigableSet<Range<Token>> differences = get(node2);
+
+        if (differences.size() > 0 && differences.last().isWrapAround() && differences.last().intersects(range))
+            return true;
+
+        for (Range<Token> unwrappedRange : range.unwrap())
         {
-            // if the other node has a diff for this range, we know they are not equal.
-            if (range.equals(diff) || range.intersects(diff))
-                return true;
+            Range<Token> startKey = differences.floor(unwrappedRange);
+            Iterator<Range<Token>> iter = startKey == null ? differences.iterator() : differences.tailSet(startKey, true).iterator();
+
+            while (iter.hasNext())
+            {
+                Range<Token> diff = iter.next();
+                // if the other node has a diff for this range, we know they are not equal.
+                if (unwrappedRange.equals(diff) || unwrappedRange.intersects(diff))
+                    return true;
+                if (unwrappedRange.right.compareTo(diff.left) < 0 && !unwrappedRange.isWrapAround())
+                    break;
+            }
         }
         return false;
     }
@@ -69,9 +88,9 @@ public class HostDifferences
         return perHostDifferences.keySet();
     }
 
-    public List<Range<Token>> get(InetAddressAndPort differingHost)
+    public NavigableSet<Range<Token>> get(InetAddressAndPort differingHost)
     {
-        return perHostDifferences.getOrDefault(differingHost, Collections.emptyList());
+        return perHostDifferences.getOrDefault(differingHost, Collections.emptyNavigableSet());
     }
 
     public String toString()

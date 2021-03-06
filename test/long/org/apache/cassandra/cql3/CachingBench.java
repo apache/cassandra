@@ -48,6 +48,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class CachingBench extends CQLTester
 {
     private static final String STRATEGY = "LeveledCompactionStrategy";
@@ -240,9 +242,14 @@ public class CachingBench extends CQLTester
                 ChunkCache.instance.metrics.hitRate.getValue());
         else
         {
-            Assert.assertTrue("Chunk cache had requests: " + ChunkCache.instance.metrics.requests.getCount(), ChunkCache.instance.metrics.requests.getCount() < COUNT);
+            assertThat(ChunkCache.instance.metrics.requests.getCount()).as("Chunk cache had requests: %s",
+                                                                           ChunkCache.instance.metrics.requests.getCount())
+                                                                       .isLessThan(COUNT);
             System.out.println("Cache disabled");
         }
+
+        assertThat(ChunkCache.instance.metrics.missLatency.getCount()).isGreaterThan(0);
+
         System.out.println(String.format("Operations completed in %.3fs", (onEndTime - onStartTime) * 1e-3));
         if (!CONCURRENT_COMPACTIONS)
             System.out.println(String.format(", out of which %.3f for non-concurrent compaction", compactionTimeNanos * 1e-9));

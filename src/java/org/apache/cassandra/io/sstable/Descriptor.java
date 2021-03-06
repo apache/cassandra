@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
 
@@ -114,6 +115,16 @@ public class Descriptor
         return filenameFor(component) + TMP_EXT;
     }
 
+    /**
+     * @return a unique temporary file name for given component during entire-sstable-streaming.
+     */
+    public String tmpFilenameForStreaming(Component component)
+    {
+        // Use UUID to handle concurrent streamings on the same sstable.
+        // TMP_EXT allows temp file to be removed by {@link ColumnFamilyStore#scrubDataDirectories}
+        return String.format("%s.%s%s", filenameFor(component), UUIDGen.getTimeUUID(), TMP_EXT);
+    }
+
     public String filenameFor(Component component)
     {
         return baseFilename() + separator + component.name();
@@ -137,6 +148,11 @@ public class Descriptor
     public String relativeFilenameFor(Component component)
     {
         final StringBuilder buff = new StringBuilder();
+        if (Directories.isSecondaryIndexFolder(directory))
+        {
+            buff.append(directory.getName()).append(File.separator);
+        }
+
         appendFileName(buff);
         buff.append(separator).append(component.name());
         return buff.toString();
@@ -276,7 +292,7 @@ public class Descriptor
 
         // Check if it's a 2ndary index directory (not that it doesn't exclude it to be also a backup or snapshot)
         String indexName = "";
-        if (tableDir.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
+        if (Directories.isSecondaryIndexFolder(tableDir))
         {
             indexName = tableDir.getName();
             tableDir = parentOf(name, tableDir);

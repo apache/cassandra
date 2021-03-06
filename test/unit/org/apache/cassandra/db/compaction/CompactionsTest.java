@@ -53,6 +53,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
@@ -93,10 +94,6 @@ public class CompactionsTest
     private static final String CF_STANDARD2 = "Standard2";
     private static final String CF_STANDARD3 = "Standard3";
     private static final String CF_STANDARD4 = "Standard4";
-    private static final String CF_SUPER1 = "Super1";
-    private static final String CF_SUPER5 = "Super5";
-    private static final String CF_SUPERGC = "SuperDirectGC";
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -110,17 +107,11 @@ public class CompactionsTest
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_DENSE1)
-                                                .compaction(CompactionParams.stcs(compactionOptions)),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1)
                                                 .compaction(CompactionParams.stcs(compactionOptions)),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD4),
-                                    SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, AsciiType.instance),
-                                    SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER5, AsciiType.instance),
-                                    SchemaLoader.superCFMD(KEYSPACE1, CF_SUPERGC, AsciiType.instance)
-                                                .gcGraceSeconds(0));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD4));
     }
 
     public static long populate(String ks, String cf, int startRowKey, int endRowKey, int ttl)
@@ -147,14 +138,14 @@ public class CompactionsTest
     public void testSingleSSTableCompaction() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_DENSE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
         store.clearUnsafe();
         MigrationManager.announceTableUpdate(store.metadata().unbuild().gcGraceSeconds(1).build(), true);
 
         // disable compaction while flushing
         store.disableAutoCompaction();
 
-        long timestamp = populate(KEYSPACE1, CF_DENSE1, 0, 9, 3); //ttl=3s
+        long timestamp = populate(KEYSPACE1, CF_STANDARD1, 0, 9, 3); //ttl=3s
 
         store.forceBlockingFlush();
         assertEquals(1, store.getLiveSSTables().size());
@@ -178,44 +169,6 @@ public class CompactionsTest
 
         // make sure max timestamp of compacted sstables is recorded properly after compaction.
         assertMaxTimestamp(store, timestamp);
-    }
-
-    @Test
-    public void testSuperColumnTombstones()
-    {
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Super1");
-        TableMetadata table = cfs.metadata();
-        cfs.disableAutoCompaction();
-
-        DecoratedKey key = Util.dk("tskey");
-        ByteBuffer scName = ByteBufferUtil.bytes("TestSuperColumn");
-
-        // a subcolumn
-        new RowUpdateBuilder(table, FBUtilities.timestampMicros(), key.getKey())
-            .clustering(ByteBufferUtil.bytes("cols"))
-            .add("val", "val1")
-            .build().applyUnsafe();
-        cfs.forceBlockingFlush();
-
-        // shadow the subcolumn with a supercolumn tombstone
-        RowUpdateBuilder.deleteRow(table, FBUtilities.timestampMicros(), key.getKey(), ByteBufferUtil.bytes("cols")).applyUnsafe();
-        cfs.forceBlockingFlush();
-
-        CompactionManager.instance.performMaximal(cfs, false);
-        assertEquals(1, cfs.getLiveSSTables().size());
-
-        // check that the shadowed column is gone
-        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        AbstractBounds<PartitionPosition> bounds = new Bounds<>(key, sstable.getPartitioner().getMinimumToken().maxKeyBound());
-        UnfilteredRowIterator ai;
-        try (ISSTableScanner scanner = sstable.getScanner())
-        {
-            ai = scanner.next();
-            final Unfiltered next = ai.next();
-            assertTrue(next.isRow());
-            assertFalse(ai.hasNext());
-        }
     }
 
     @Test
@@ -301,16 +254,6 @@ public class CompactionsTest
         assertEquals(maxTimestampExpected, maxTimestampObserved);
     }
 
-
-    @Test
-    public void testDontPurgeAccidentally() throws InterruptedException
-    {
-        testDontPurgeAccidentally("test1", "Super5");
-
-        // Use CF with gc_grace=0, see last bug of CASSANDRA-2786
-        testDontPurgeAccidentally("test1", "SuperDirectGC");
-    }
-
     @Test
     public void testUserDefinedCompaction() throws Exception
     {
@@ -356,8 +299,8 @@ public class CompactionsTest
         {
             RowUpdateBuilder deletedRowUpdateBuilder = new RowUpdateBuilder(table, 1, Util.dk(Integer.toString(dk)));
             deletedRowUpdateBuilder.clustering("01").add("val", "a"); //Range tombstone covers this (timestamp 2 > 1)
-            Clustering startClustering = Clustering.make(ByteBufferUtil.bytes("0"));
-            Clustering endClustering = Clustering.make(ByteBufferUtil.bytes("b"));
+            Clustering<?> startClustering = Clustering.make(ByteBufferUtil.bytes("0"));
+            Clustering<?> endClustering = Clustering.make(ByteBufferUtil.bytes("b"));
             deletedRowUpdateBuilder.addRangeTombstone(new RangeTombstone(Slice.make(startClustering, endClustering), new DeletionTime(2, (int) (System.currentTimeMillis() / 1000))));
             deletedRowUpdateBuilder.build().applyUnsafe();
 
@@ -415,11 +358,11 @@ public class CompactionsTest
                 try (RowIterator rowIterator = iterator.next())
                 {
                     Row row = rowIterator.next();
-                    Cell cell = row.getCell(cfs.metadata().getColumn(new ColumnIdentifier("val", false)));
-                    assertEquals(ByteBufferUtil.bytes("a"), cell.value());
+                    Cell<?> cell = row.getCell(cfs.metadata().getColumn(new ColumnIdentifier("val", false)));
+                    assertEquals(ByteBufferUtil.bytes("a"), cell.buffer());
                     assertEquals(3, cell.timestamp());
-                    assertNotEquals(ByteBufferUtil.bytes("01"), row.clustering().getRawValues()[0]);
-                    assertEquals(ByteBufferUtil.bytes("02"), row.clustering().getRawValues()[0]);
+                    ValueAccessors.assertDataNotEquals(ByteBufferUtil.bytes("01"), row.clustering().getRawValues()[0]);
+                    ValueAccessors.assertDataEquals(ByteBufferUtil.bytes("02"), row.clustering().getRawValues()[0]);
                 }
             }
         }

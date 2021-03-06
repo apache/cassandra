@@ -21,7 +21,7 @@ package org.apache.cassandra.db;
  * Common class for objects that are identified by a clustering prefix, and can be thus sorted by a
  * {@link ClusteringComparator}.
  */
-public interface Clusterable
+public interface Clusterable<T>
 {
-    public ClusteringPrefix clustering();
+    public ClusteringPrefix<T> clustering();
 }

@@ -129,7 +129,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
      *
      * @return the newly create query.
      */
-    SinglePartitionReadQuery forPaging(Clustering lastReturned, DataLimits limits);
+    SinglePartitionReadQuery forPaging(Clustering<?> lastReturned, DataLimits limits);
 
     @Override
     default SinglePartitionPager getPager(PagingState pagingState, ProtocolVersion protocolVersion)
@@ -147,7 +147,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
         return rowFilter().partitionKeyRestrictionsAreSatisfiedBy(key, metadata().partitionKeyType);
     }
 
-    default boolean selectsClustering(DecoratedKey key, Clustering clustering)
+    default boolean selectsClustering(DecoratedKey key, Clustering<?> clustering)
     {
         if (clustering == Clustering.STATIC_CLUSTERING)
             return !columnFilter().fetchedColumns().statics.isEmpty();
@@ -260,7 +260,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
             return Iterables.any(queries, c -> c.selectsKey(key));
         }
 
-        public boolean selectsClustering(DecoratedKey key, Clustering clustering)
+        public boolean selectsClustering(DecoratedKey key, Clustering<?> clustering)
         {
             return Iterables.any(queries, c -> c.selectsClustering(key, clustering));
         }

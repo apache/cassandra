@@ -42,6 +42,6 @@ public class HostStatWithPort extends HostStat
 
         return resolveIp ?
                endpointWithPort.address.getHostName() + ':' + endpointWithPort.port :
-               endpointWithPort.toString();
+               endpointWithPort.getHostAddressAndPort();
     }
 }

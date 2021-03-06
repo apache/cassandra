@@ -264,7 +264,7 @@ public class Tuples
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but the deserialization does the validation (so we're fine).
-                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, options.getProtocolVersion());
+                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, options.getProtocolVersion());
 
                 assert type.getElementsType() instanceof TupleType;
                 TupleType tupleType = Tuples.getTupleType(type.getElementsType());

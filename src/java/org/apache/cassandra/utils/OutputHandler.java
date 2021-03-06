@@ -18,6 +18,8 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.PrintStream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,11 +64,18 @@ public interface OutputHandler
     {
         public final boolean debug;
         public final boolean printStack;
+        public final PrintStream warnOut;
 
         public SystemOutput(boolean debug, boolean printStack)
         {
+            this(debug, printStack, false);
+        }
+
+        public SystemOutput(boolean debug, boolean printStack, boolean logWarnToStdErr)
+        {
             this.debug = debug;
             this.printStack = printStack;
+            this.warnOut = logWarnToStdErr ? System.err : System.out;
         }
 
         public void output(String msg)
@@ -87,9 +96,9 @@ public interface OutputHandler
 
         public void warn(String msg, Throwable th)
         {
-            System.out.println("WARNING: " + msg);
+            warnOut.println("WARNING: " + msg);
             if (printStack && th != null)
-                th.printStackTrace(System.out);
+                th.printStackTrace(warnOut);
         }
     }
 }

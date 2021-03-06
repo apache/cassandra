@@ -20,6 +20,8 @@ package org.apache.cassandra.service.reads;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.exception.ExceptionUtils;
+
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -46,6 +48,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.ReplicaUtils.full;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class ReadExecutorTest
@@ -185,6 +189,50 @@ public class ReadExecutorTest
         assertEquals(1, cfs.metric.speculativeFailedRetries.getCount());
         assertEquals(1, ks.metric.speculativeRetries.getCount());
         assertEquals(1, ks.metric.speculativeFailedRetries.getCount());
+    }
+
+    /**
+     * Test that an async speculative execution racing with a local errored request does not violate assertions.
+     * CASSANDRA-16097
+     */
+    @Test
+    public void testRaceWithNonSpeculativeFailure()
+    {
+        MockSinglePartitionReadCommand command = new MockSinglePartitionReadCommand(TimeUnit.DAYS.toMillis(365));
+        ReplicaPlan.ForTokenRead plan = plan(ConsistencyLevel.LOCAL_ONE, targets, targets.subList(0, 1));
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command, plan, System.nanoTime());
+
+        // Issue an initial request against the first endpoint...
+        executor.executeAsync();
+
+        // ...and then force a speculative retry against another endpoint.
+        cfs.sampleReadLatencyNanos = 0L;
+        executor.maybeTryAdditionalReplicas();
+
+        new Thread(() ->
+                   {
+                       // Fail the first request. When this fails the number of contacts has already been increased
+                       // to 2, so the failure won't actally signal. However...
+                       executor.handler.onFailure(targets.get(0).endpoint(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
+
+                       // ...speculative retries are fired after a short wait, and it is possible for the failure to
+                       // reach the handler just before one is fired and the number of contacts incremented...
+                       executor.handler.condition.signalAll();
+                   }).start();
+
+        try
+        {
+            // ...but by the time we await for results, the number of contacts may already have been incremented.
+            // If we rely only on the number of failures and the number of nodes blocked for, compared to the number
+            // of contacts, we may not recognize that the query has failed.
+            executor.awaitResponses();
+            fail("Awaiting responses did not throw a ReadFailureException as expected.");
+        }
+        catch (Throwable t)
+        {
+            assertSame(ExceptionUtils.getStackTrace(t), ReadFailureException.class, t.getClass());
+            assertTrue(t.getMessage().contains(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.name()));
+        }
     }
 
     public static class MockSinglePartitionReadCommand extends SinglePartitionReadCommand

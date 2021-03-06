@@ -28,12 +28,12 @@ public class StatusHandoff extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(String.format("Hinted handoff is %s",
+        probe.output().out.println(String.format("Hinted handoff is %s",
                 probe.isHandoffEnabled()
                 ? "running"
                 : "not running"));
 
         for (String dc : probe.getHintedHandoffDisabledDCs())
-            System.out.println(String.format("Data center %s is disabled", dc));
+            probe.output().out.println(String.format("Data center %s is disabled", dc));
     }
 }

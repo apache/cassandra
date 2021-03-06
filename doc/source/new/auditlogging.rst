@@ -120,7 +120,8 @@ The audit logger is set with the ``logger`` option.
 
 ::
 
- logger: BinAuditLogger
+ logger:
+ - class_name: BinAuditLogger
 
 Two types of audit loggers are supported: ``FileAuditLogger`` and ``BinAuditLogger``.
 ``BinAuditLogger`` is the default setting.  The ``BinAuditLogger`` is an efficient way to log events to file in a binary format.
@@ -128,6 +129,25 @@ Two types of audit loggers are supported: ``FileAuditLogger`` and ``BinAuditLogg
 ``FileAuditLogger`` is synchronous, file-based audit logger; just uses the standard logging mechanism. ``FileAuditLogger`` logs events to ``audit/audit.log`` file using ``slf4j`` logger.
 
 The ``NoOpAuditLogger`` is a No-Op implementation of the audit logger to be used as a default audit logger when audit logging is disabled.
+
+It is possible to configure your custom logger implementation by injecting a map of property keys and their respective values. Default `IAuditLogger`
+implementations shipped with Cassandra do not react on these properties but your custom logger might. They would be present as
+a parameter of logger constructor (as `Map<String, String>`). In ``cassandra.yaml`` file, you may configure it like this:
+
+::
+
+ logger:
+ - class_name: MyCustomAuditLogger
+   parameters:
+   - key1: value1
+     key2: value2
+
+When it comes to configuring these parameters, you can use respective ``enableAuditLog`` method in ``StorageServiceMBean``.
+There are two methods of same name with different signatures. The first one does not accept a map where your parameters would be. This method
+is used primarily e.g. from JConsole or similar tooling. JConsole can not accept a map to be sent over JMX so in order to be able to enable it
+from there, even without any parameters, use this method. ``BinAuditLogger`` does not need any parameters to run with so invoking this method is fine.
+The second one does accept a map with your custom parameters so you can pass them programmatically. ``enableauditlog`` command of ``nodetool`` uses
+the first ``enableAuditLog`` method mentioned. Hence, currently, there is not a way how to pass parameters to your custom audit logger from ``nodetool``.
 
 Setting the Audit Logs Directory
 ********************************
@@ -344,7 +364,8 @@ To demonstrate audit logging enable and configure audit logs with following sett
 
  audit_logging_options:
     enabled: true
-    logger: BinAuditLogger
+    logger:
+    - class_name: BinAuditLogger
     audit_logs_dir: "/cassandra/audit/logs/hourly"
     # included_keyspaces:
     # excluded_keyspaces: system, system_schema, system_virtual_schema
@@ -374,7 +395,7 @@ List the files/directories and some ``.cq4`` files should get listed. These are 
  total 28
  -rw-rw-r--. 1 ec2-user ec2-user 83886080 Aug  2 03:01 20190802-02.cq4
  -rw-rw-r--. 1 ec2-user ec2-user 83886080 Aug  2 03:01 20190802-03.cq4
- -rw-rw-r--. 1 ec2-user ec2-user    65536 Aug  2 03:01 directory-listing.cq4t
+ -rw-rw-r--. 1 ec2-user ec2-user    65536 Aug  2 03:01 metadata.cq4t
 
 The ``auditlogviewer`` tool is used to dump audit logs. Run the ``auditlogviewer`` tool. Audit log files directory path is a required argument. The output should be similar to the following output.
 

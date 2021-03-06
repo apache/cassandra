@@ -24,11 +24,12 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.ToLongFunction;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.netty.channel.Channel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.InternodeInboundMetrics;
 import org.apache.cassandra.net.Message.Header;
-import org.apache.cassandra.utils.ApproximateTime;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
@@ -161,10 +162,17 @@ public final class InboundMessageHandlers
         metrics.release();
     }
 
-    private void onHandlerClosed(InboundMessageHandler handler)
+    private void onHandlerClosed(AbstractMessageHandler handler)
     {
+        assert handler instanceof InboundMessageHandler;
         handlers.remove(handler);
-        absorbCounters(handler);
+        absorbCounters((InboundMessageHandler)handler);
+    }
+
+    @VisibleForTesting
+    public int count()
+    {
+        return handlers.size();
     }
 
     /*

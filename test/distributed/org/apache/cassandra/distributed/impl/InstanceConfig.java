@@ -33,13 +33,16 @@ import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
+@Shared
 public class InstanceConfig implements IInstanceConfig
 {
     private static final Object NULL = new Object();
@@ -54,6 +57,7 @@ public class InstanceConfig implements IInstanceConfig
     public final UUID hostId;
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
+    private final Map<String, Object> dtestParams = new TreeMap<>();
 
     private final EnumSet featureFlags;
 
@@ -66,12 +70,15 @@ public class InstanceConfig implements IInstanceConfig
                            String broadcast_rpc_address,
                            String rpc_address,
                            String seedIp,
+                           int seedPort,
                            String saved_caches_directory,
                            String[] data_file_directories,
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           String initial_token)
+                           String initial_token,
+                           int storage_port,
+                           int native_transport_port)
     {
         this.num = num;
         this.networkTopology = networkTopology;
@@ -97,10 +104,11 @@ public class InstanceConfig implements IInstanceConfig
                 .set("concurrent_compactors", 1)
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
-                .set("storage_port", 7012)
+                .set("storage_port", storage_port)
+                .set("native_transport_port", native_transport_port)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                             Collections.singletonMap("seeds", seedIp + ":7012")))
+                        Collections.singletonMap("seeds", seedIp + ":" + seedPort)))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
@@ -118,6 +126,7 @@ public class InstanceConfig implements IInstanceConfig
         this.num = copy.num;
         this.networkTopology = new NetworkTopology(copy.networkTopology);
         this.params.putAll(copy.params);
+        this.dtestParams.putAll(copy.dtestParams);
         this.hostId = copy.hostId;
         this.featureFlags = copy.featureFlags;
         this.broadcastAddressAndPort = copy.broadcastAddressAndPort;
@@ -128,6 +137,11 @@ public class InstanceConfig implements IInstanceConfig
     public InetSocketAddress broadcastAddress()
     {
         return DistributedTestSnitch.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
+    }
+
+    public void unsetBroadcastAddressAndPort()
+    {
+        broadcastAddressAndPort = null;
     }
 
     protected InetAddressAndPort getBroadcastAddressAndPort()
@@ -183,8 +197,7 @@ public class InstanceConfig implements IInstanceConfig
     {
         if (value == null)
             value = NULL;
-
-        params.put(fieldName, value);
+        getParams(fieldName).put(fieldName, value);
         return this;
     }
 
@@ -194,14 +207,21 @@ public class InstanceConfig implements IInstanceConfig
             value = NULL;
 
         // test value
-        params.put(fieldName, value);
+        getParams(fieldName).put(fieldName, value);
         return this;
+    }
+
+    private Map<String, Object> getParams(String fieldName)
+    {
+        Map<String, Object> map = params;
+        if (fieldName.startsWith("dtest"))
+            map = dtestParams;
+        return map;
     }
 
     public void propagate(Object writeToConfig, Map<Class<?>, Function<Object, Object>> mapping)
     {
-        for (Map.Entry<String, Object> e : params.entrySet())
-            propagate(writeToConfig, e.getKey(), e.getValue(), mapping);
+        throw new IllegalStateException("In-JVM dtests no longer support propagate");
     }
 
     public void validate()
@@ -210,74 +230,58 @@ public class InstanceConfig implements IInstanceConfig
             throw new IllegalArgumentException("In-JVM dtests do not support vnodes as of now.");
     }
 
-    private void propagate(Object writeToConfig, String fieldName, Object value, Map<Class<?>, Function<Object, Object>> mapping)
-    {
-        if (value == NULL)
-            value = null;
-
-        if (mapping != null && mapping.containsKey(value.getClass()))
-            value = mapping.get(value.getClass()).apply(value);
-
-        Class<?> configClass = writeToConfig.getClass();
-        Field valueField;
-        try
-        {
-            valueField = configClass.getDeclaredField(fieldName);
-        }
-        catch (NoSuchFieldException e)
-        {
-            logger.warn("No such field: {} in config class {}", fieldName, configClass);
-            return;
-        }
-
-        if (valueField.getType().isEnum() && value instanceof String)
-        {
-            String test = (String) value;
-            value = Arrays.stream(valueField.getType().getEnumConstants())
-                    .filter(e -> ((Enum<?>)e).name().equals(test))
-                    .findFirst()
-                    .get();
-        }
-        try
-        {
-            valueField.set(writeToConfig, value);
-        }
-        catch (IllegalAccessException | IllegalArgumentException e)
-        {
-            throw new IllegalStateException(e);
-        }
-    }
-
     public Object get(String name)
     {
-        return params.get(name);
+        return getParams(name).get(name);
     }
 
     public int getInt(String name)
     {
-        return (Integer)params.get(name);
+        return (Integer) get(name);
     }
 
     public String getString(String name)
     {
-        return (String)params.get(name);
+        return (String) get(name);
     }
 
-    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp)
+    public Map<String, Object> getParams()
+    {
+        return params;
+    }
+
+    public static InstanceConfig generate(int nodeNum,
+                                          INodeProvisionStrategy provisionStrategy,
+                                          NetworkTopology networkTopology,
+                                          File root,
+                                          String token,
+                                          int datadirCount)
     {
         return new InstanceConfig(nodeNum,
                                   networkTopology,
-                                  ipAddress,
-                                  ipAddress,
-                                  ipAddress,
-                                  ipAddress,
-                                  seedIp,
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.seedIp(),
+                                  provisionStrategy.seedPort(),
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
-                                  new String[] { String.format("%s/node%d/data", root, nodeNum) },
+                                  datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  token);
+                                  token,
+                                  provisionStrategy.storagePort(nodeNum),
+                                  provisionStrategy.nativeTransportPort(nodeNum));
+    }
+
+    private static String[] datadirs(int datadirCount, File root, int nodeNum)
+    {
+        String datadirFormat = String.format("%s/node%d/data%%d", root.getPath(), nodeNum);
+        String [] datadirs = new String[datadirCount];
+        for (int i = 0; i < datadirs.length; i++)
+            datadirs[i] = String.format(datadirFormat, i);
+        return datadirs;
     }
 
     public InstanceConfig forVersion(Versions.Major major)

@@ -52,7 +52,7 @@ public interface DeletionInfo extends IMeasurableMemory
 
     public Iterator<RangeTombstone> rangeIterator(Slice slice, boolean reversed);
 
-    public RangeTombstone rangeCovering(Clustering name);
+    public RangeTombstone rangeCovering(Clustering<?> name);
 
     public void collectStats(EncodingStats.Collector collector);
 

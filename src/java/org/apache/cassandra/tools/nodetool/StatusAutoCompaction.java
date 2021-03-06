@@ -17,12 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -67,9 +63,9 @@ public class StatusAutoCompaction extends NodeToolCmd
                 }
             }
             if (showAll)
-                table.printTo(System.out);
+                table.printTo(probe.output().out);
             else
-                System.out.println(allEnabled ? "running" :
+                probe.output().out.println(allEnabled ? "running" :
                                    allDisabled ? "not running" : "partially running");
         }
         catch (IOException e)

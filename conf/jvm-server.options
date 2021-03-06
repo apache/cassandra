@@ -103,9 +103,6 @@
 # Per-thread stack size.
 -Xss256k
 
-# Larger interned string table, for gossip's benefit (CASSANDRA-6410)
--XX:StringTableSize=1000003
-
 # Make sure all memory is faulted and zeroed on startup.
 # This helps prevent soft faults in containers and makes
 # transparent hugepage allocation more effective.

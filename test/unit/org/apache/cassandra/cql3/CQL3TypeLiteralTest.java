@@ -24,7 +24,6 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 import org.junit.Test;
@@ -45,6 +44,7 @@ public class CQL3TypeLiteralTest
 {
     private static final Pattern QUOTE = Pattern.compile("'");
 
+    private static final Random r = new Random();
     /**
      * Container holding the expected CQL literal for a type and serialized value.
      * The CQL literal is generated independently from the code in {@link CQL3Type}.
@@ -681,47 +681,47 @@ public class CQL3TypeLiteralTest
 
     static boolean randBool(double probability)
     {
-        return ThreadLocalRandom.current().nextDouble() < probability;
+        return r.nextDouble() < probability;
     }
 
     static long randLong()
     {
-        return ThreadLocalRandom.current().nextLong();
+        return r.nextLong();
     }
 
     static long randLong(long max)
     {
-        return ThreadLocalRandom.current().nextLong(max);
+        return r.nextLong() % max;
     }
 
     static int randInt()
     {
-        return ThreadLocalRandom.current().nextInt();
+        return r.nextInt();
     }
 
     static int randInt(int max)
     {
-        return ThreadLocalRandom.current().nextInt(max);
+        return r.nextInt(max);
     }
 
     static short randShort()
     {
-        return (short) ThreadLocalRandom.current().nextInt();
+        return (short) r.nextInt();
     }
 
     static byte randByte()
     {
-        return (byte) ThreadLocalRandom.current().nextInt();
+        return (byte) r.nextInt();
     }
 
     static double randDouble()
     {
-        return ThreadLocalRandom.current().nextDouble();
+        return r.nextDouble();
     }
 
     static float randFloat()
     {
-        return ThreadLocalRandom.current().nextFloat();
+        return r.nextFloat();
     }
 
     static String randString(boolean ascii)

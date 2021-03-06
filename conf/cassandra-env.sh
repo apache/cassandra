@@ -95,7 +95,7 @@ fi
 if [ $JAVA_VERSION -ge 11 ] ; then
     # See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
     # The following is the equivalent to -XX:+PrintGCDetails -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=10M
-    echo "$JVM_OPTS" | grep -q "^-[X]log:gc"
+    echo "$JVM_OPTS" | grep -qe "-[X]log:gc"
     if [ "$?" = "1" ] ; then # [X] to prevent ccm from replacing this line
         # only add -Xlog:gc if it's not mentioned in jvm-server.options file
         mkdir -p ${CASSANDRA_LOG_DIR}
@@ -103,7 +103,7 @@ if [ $JAVA_VERSION -ge 11 ] ; then
     fi
 else
     # Java 8
-    echo "$JVM_OPTS" | grep -q "^-[X]loggc"
+    echo "$JVM_OPTS" | grep -qe "-[X]loggc"
     if [ "$?" = "1" ] ; then # [X] to prevent ccm from replacing this line
         # only add -Xlog:gc if it's not mentioned in jvm-server.options file
         mkdir -p ${CASSANDRA_LOG_DIR}
@@ -120,7 +120,7 @@ echo $JVM_OPTS | grep -q Xms
 DEFINED_XMS=$?
 echo $JVM_OPTS | grep -q UseConcMarkSweepGC
 USING_CMS=$?
-echo $JVM_OPTS | grep -q UseG1GC
+echo $JVM_OPTS | grep -q +UseG1GC
 USING_G1=$?
 
 # Override these to set the amount of memory to allocate to the JVM at
@@ -174,6 +174,13 @@ if [ $DEFINED_XMN -eq 0 ] && [ $DEFINED_XMX -ne 0 ]; then
     exit 1
 elif [ $DEFINED_XMN -ne 0 ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
+fi
+
+# We fail to start if -Xmn is used with G1 GC is being used
+# See comments for -Xmn in jvm-server.options
+if [ $DEFINED_XMN -eq 0 ] && [ $USING_G1 -eq 0 ]; then
+    echo "It is not recommended to set -Xmn with the G1 garbage collector. See comments for -Xmn in jvm-server.options for details."
+    exit 1
 fi
 
 if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then

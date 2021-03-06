@@ -629,7 +629,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.idxInfoSerializer = idxInfoSerializer;
 
             this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnIndexCount);
-            this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.sizeof(0);
+            this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.INT_SIZE;
         }
 
         /**
@@ -650,7 +650,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             this.idxInfoSerializer = idxInfoSerializer;
 
             this.fieldsSerializedSize = serializedSize(deletionTime, headerLength, columnsIndexCount);
-            this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.sizeof(0);
+            this.offsetsOffset = indexedPartSize + fieldsSerializedSize - columnsIndexCount * TypeSizes.INT_SIZE;
         }
 
         @Override
@@ -739,7 +739,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         IndexInfo fetchIndex(int index) throws IOException
         {
             // seek to position in "offsets to IndexInfo" table
-            indexReader.seek(indexInfoFilePosition + offsetsOffset + index * TypeSizes.sizeof(0));
+            indexReader.seek(indexInfoFilePosition + offsetsOffset + index * TypeSizes.INT_SIZE);
 
             // read offset of IndexInfo
             int indexInfoPos = indexReader.readInt();

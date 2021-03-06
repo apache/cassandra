@@ -21,12 +21,12 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Function;
 
-import com.google.common.collect.Iterables;
-
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Stats used for the encoding of the rows and tombstones of a given source.
@@ -40,13 +40,14 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * this shouldn't have too huge an impact on performance) and in fact they will not always be
  * accurate for reasons explained in {@link SerializationHeader#make}.
  */
-public class EncodingStats
+public class EncodingStats implements IMeasurableMemory
 {
     // Default values for the timestamp, deletion time and ttl. We use this both for NO_STATS, but also to serialize
     // an EncodingStats. Basically, we encode the diff of each value of to these epoch, which give values with better vint encoding.
     public static final long TIMESTAMP_EPOCH;
     private static final int DELETION_TIME_EPOCH;
     private static final int TTL_EPOCH = 0;
+
     static
     {
         // We want a fixed epoch, but that provide small values when substracted from our timestamp and deletion time.
@@ -66,6 +67,7 @@ public class EncodingStats
 
     // We should use this sparingly obviously
     public static final EncodingStats NO_STATS = new EncodingStats(TIMESTAMP_EPOCH, DELETION_TIME_EPOCH, TTL_EPOCH);
+    public static long HEAP_SIZE = ObjectSizes.measure(NO_STATS);
 
     public static final Serializer serializer = new Serializer();
 
@@ -152,6 +154,13 @@ public class EncodingStats
         return Objects.hash(minTimestamp, minLocalDeletionTime, minTTL);
     }
 
+    public long unsharedHeapSize()
+    {
+        if (this == NO_STATS)
+            return 0;
+        return HEAP_SIZE;
+    }
+
     @Override
     public String toString()
     {
@@ -183,7 +192,7 @@ public class EncodingStats
             }
         }
 
-        public void update(Cell cell)
+        public void update(Cell<?> cell)
         {
             updateTimestamp(cell.timestamp());
             if (cell.isExpiring())

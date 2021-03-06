@@ -43,6 +43,12 @@ else:
 DEFAULT_CQLSH_PROMPT = DEFAULT_PREFIX + '(\S+@)?cqlsh(:\S+)?> '
 DEFAULT_CQLSH_TERM = 'xterm'
 
+try:
+    Pattern = re._pattern_type
+except AttributeError:
+    # Python 3.7+
+    Pattern = re.Pattern
+
 def get_smm_sequence(term='xterm'):
     """
     Return the set meta mode (smm) sequence, if any.
@@ -218,7 +224,7 @@ class ProcRunner:
 
     def read_until(self, until, blksize=4096, timeout=None,
                    flags=0, ptty_timeout=None, replace=[]):
-        if not isinstance(until, re._pattern_type):
+        if not isinstance(until, Pattern):
             until = re.compile(until, flags)
 
         cqlshlog.debug("Searching for %r" % (until.pattern,))
@@ -271,8 +277,6 @@ class CqlshRunner(ProcRunner):
                  win_force_colors=True, tty=True, **kwargs):
         if path is None:
             cqlsh_bin = 'cqlsh'
-            if is_win():
-                cqlsh_bin = 'cqlsh.bat'
             path = normpath(join(basecase.cqlshdir, cqlsh_bin))
         if host is None:
             host = basecase.TEST_HOST

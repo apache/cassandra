@@ -18,13 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class StatsTableComparatorTest extends TableStatsTestBase
 {
@@ -32,17 +30,17 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     /**
      * Builds a string of the format "table1 > table2 > ... > tableN-1 > tableN"
      * to show the order of StatsTables in a sorted list.
-     * @returns String a string showing the relative position in the list of its StatsTables
+     * @return String a string showing the relative position in the list of its StatsTables
      */
     private String buildSortOrderString(List<StatsTable> sorted) {
         if (sorted == null)
             return null;
         if (sorted.size() == 0)
             return "";
-        String names = sorted.get(0).tableName;
+        StringBuilder names = new StringBuilder(sorted.get(0).tableName);
         for (int i = 1; i < sorted.size(); i++)
-            names += " > " + sorted.get(i).tableName;
-        return names;    
+            names.append(" > ").append(sorted.get(i).tableName);
+        return names.toString();
     }
 
     /**
@@ -51,13 +49,13 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     private void runCompareTest(List<StatsTable> vector, String sortKey, String expectedOrder,
                                 boolean humanReadable, boolean ascending)
     {
-        Collections.sort(vector, new StatsTableComparator(sortKey, humanReadable, ascending));
+        vector.sort(new StatsTableComparator(sortKey, humanReadable, ascending));
         String failureMessage = String.format("StatsTableComparator failed to sort by %s", sortKey);
         assertEquals(failureMessage, expectedOrder, buildSortOrderString(vector));
     }
 
     @Test
-    public void testCompareDoubles() throws Exception
+    public void testCompareDoubles()
     {
         boolean humanReadable = false;
         boolean ascending = false;
@@ -94,7 +92,7 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     }
 
     @Test
-    public void testCompareLongs() throws Exception
+    public void testCompareLongs()
     {
         boolean humanReadable = false;
         boolean ascending = false;
@@ -143,7 +141,7 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     }
 
     @Test
-    public void testCompareHumanReadable() throws Exception
+    public void testCompareHumanReadable()
     {
         boolean humanReadable = true;
         boolean ascending = false;
@@ -162,7 +160,7 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     }
 
     @Test
-    public void testCompareObjects() throws Exception
+    public void testCompareObjects()
     {
         boolean humanReadable = false;
         boolean ascending = false;
@@ -217,7 +215,7 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     }
 
     @Test
-    public void testCompareOffHeap() throws Exception
+    public void testCompareOffHeap()
     {
         boolean humanReadable = false;
         boolean ascending = false;
@@ -254,7 +252,7 @@ public class StatsTableComparatorTest extends TableStatsTestBase
     }
 
     @Test
-    public void testCompareStrings() throws Exception
+    public void testCompareStrings()
     {
         boolean humanReadable = false;
         boolean ascending = false;

@@ -99,7 +99,15 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(MILLISECONDS), TimeUnit.MILLISECONDS);
-        boolean failed = failures > 0 && blockFor + failures > replicaPlan().contacts().size();
+        /**
+         * Here we are checking isDataPresent in addition to the responses size because there is a possibility
+         * that an asynchronous speculative execution request could be returning after a local failure already
+         * signaled. Responses may have been set while the data reference is not yet.
+         * See {@link DigestResolver#preprocess(Message)}
+         * CASSANDRA-16097
+         */
+        boolean failed = failures > 0 &&
+                         (blockFor > resolver.responses.size() || !resolver.isDataPresent());
         if (signaled && !failed)
             return;
 

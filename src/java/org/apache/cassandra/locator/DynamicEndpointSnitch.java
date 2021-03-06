@@ -210,10 +210,12 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         ArrayList<Double> sortedScores = new ArrayList<>(subsnitchOrderedScores);
         Collections.sort(sortedScores);
 
+        // only calculate this once b/c its volatile and shouldn't be modified during the loop either
+        double badnessThreshold = 1.0 + dynamicBadnessThreshold;
         Iterator<Double> sortedScoreIterator = sortedScores.iterator();
         for (Double subsnitchScore : subsnitchOrderedScores)
         {
-            if (subsnitchScore > (sortedScoreIterator.next() * (1.0 + dynamicBadnessThreshold)))
+            if (subsnitchScore > (sortedScoreIterator.next() * badnessThreshold))
             {
                 return sortedByProximityWithScore(address, replicas);
             }
@@ -321,9 +323,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().address, Map.Entry::getValue));
     }
 
-    public Map<InetAddressAndPort, Double> getScoresWithPort()
+    public Map<String, Double> getScoresWithPort()
     {
-        return scores;
+        return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().toString(true), Map.Entry::getValue));
     }
 
     public int getUpdateInterval()

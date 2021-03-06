@@ -18,104 +18,105 @@
 package org.apache.cassandra.serializers;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
-import java.text.ParseException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.time.DateUtils;
 
-public class TimestampSerializer implements TypeSerializer<Date>
+public class TimestampSerializer extends TypeSerializer<Date>
 {
 
-    //NOTE: This list is used below and if you change the order
-    //      you need to update the default format and json formats in the code below.
-    private static final String[] dateStringPatterns = new String[]
-    {
-            "yyyy-MM-dd HH:mm",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd HH:mm z",
-            "yyyy-MM-dd HH:mm zz",
-            "yyyy-MM-dd HH:mm zzz",
-            "yyyy-MM-dd HH:mmX",
-            "yyyy-MM-dd HH:mmXX",  // DEFAULT_FORMAT
-            "yyyy-MM-dd HH:mmXXX",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd HH:mm:ss z",
-            "yyyy-MM-dd HH:mm:ss zz",
-            "yyyy-MM-dd HH:mm:ss zzz",
-            "yyyy-MM-dd HH:mm:ssX",
-            "yyyy-MM-dd HH:mm:ssXX",
-            "yyyy-MM-dd HH:mm:ssXXX",
-            "yyyy-MM-dd HH:mm:ss.SSS",
-            "yyyy-MM-dd HH:mm:ss.SSS z",
-            "yyyy-MM-dd HH:mm:ss.SSS zz",
-            "yyyy-MM-dd HH:mm:ss.SSS zzz",
-            "yyyy-MM-dd HH:mm:ss.SSSX", // TO_JSON_FORMAT
-            "yyyy-MM-dd HH:mm:ss.SSSXX",
-            "yyyy-MM-dd HH:mm:ss.SSSXXX",
-            "yyyy-MM-dd'T'HH:mm",
-            "yyyy-MM-dd'T'HH:mm z",
-            "yyyy-MM-dd'T'HH:mm zz",
-            "yyyy-MM-dd'T'HH:mm zzz",
-            "yyyy-MM-dd'T'HH:mmX",
-            "yyyy-MM-dd'T'HH:mmXX",
-            "yyyy-MM-dd'T'HH:mmXXX",
-            "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd'T'HH:mm:ss z",
-            "yyyy-MM-dd'T'HH:mm:ss zz",
-            "yyyy-MM-dd'T'HH:mm:ss zzz",
-            "yyyy-MM-dd'T'HH:mm:ssX",
-            "yyyy-MM-dd'T'HH:mm:ssXX",
-            "yyyy-MM-dd'T'HH:mm:ssXXX",
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            "yyyy-MM-dd'T'HH:mm:ss.SSS z",
-            "yyyy-MM-dd'T'HH:mm:ss.SSS zz",
-            "yyyy-MM-dd'T'HH:mm:ss.SSS zzz",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSX",  // UTC_FORMAT
-            "yyyy-MM-dd'T'HH:mm:ss.SSSXX",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
-            "yyyy-MM-dd",
-            "yyyy-MM-dd z",
-            "yyyy-MM-dd zz",
-            "yyyy-MM-dd zzz",
-            "yyyy-MM-ddX",
-            "yyyy-MM-ddXX",
-            "yyyy-MM-ddXXX"
-    };
+    private static final List<DateTimeFormatter> dateFormatters = generateFormatters();
 
-    private static final String DEFAULT_FORMAT = dateStringPatterns[6];
+    private static List<DateTimeFormatter> generateFormatters()
+    {
+        List<DateTimeFormatter> formatters = new ArrayList<>();
+
+        final String[] dateTimeFormats = new String[]
+                                         {
+                                         "y-M-d'T'H:m[:s]",
+                                         "y-M-d H:m[:s]"
+                                         };
+        final String[] offsetFormats = new String[]
+                                         {
+                                         " z",
+                                         "X",
+                                         " zzzz",
+                                         "XXX"
+                                         };
+
+        for (String dateTimeFormat: dateTimeFormats)
+        {
+            // local date time
+            formatters.add(
+            new DateTimeFormatterBuilder()
+            .appendPattern(dateTimeFormat)
+            .appendFraction(ChronoField.MILLI_OF_SECOND, 0, 9, true)
+            .toFormatter()
+            .withZone(ZoneId.systemDefault()));
+            for (String offset : offsetFormats)
+            {
+                formatters.add(
+                new DateTimeFormatterBuilder()
+                .appendPattern(dateTimeFormat)
+                .appendFraction(ChronoField.MILLI_OF_SECOND, 0, 9, true)
+                .appendPattern(offset)
+                .toFormatter()
+                );
+            }
+        }
+
+        for (String offset: offsetFormats)
+        {
+            formatters.add(
+            new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd")
+            .appendPattern(offset)
+            .parseDefaulting(ChronoField.NANO_OF_DAY, 0)
+            .toFormatter()
+            );
+        }
+
+        // local date
+        formatters.add(
+        new DateTimeFormatterBuilder()
+        .append(DateTimeFormatter.ISO_DATE)
+        .parseDefaulting(ChronoField.NANO_OF_DAY, 0)
+        .toFormatter().withZone(ZoneId.systemDefault()));
+
+        return formatters;
+    }
+
     private static final Pattern timestampPattern = Pattern.compile("^-?\\d+$");
 
-    private static final FastThreadLocal<SimpleDateFormat> FORMATTER = new FastThreadLocal<SimpleDateFormat>()
-    {
-        protected SimpleDateFormat initialValue()
-        {
-            return new SimpleDateFormat(DEFAULT_FORMAT);
-        }
-    };
-
-    private static final String UTC_FORMAT = dateStringPatterns[40];
     private static final FastThreadLocal<SimpleDateFormat> FORMATTER_UTC = new FastThreadLocal<SimpleDateFormat>()
     {
         protected SimpleDateFormat initialValue()
         {
-            SimpleDateFormat sdf = new SimpleDateFormat(UTC_FORMAT);
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX");
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             return sdf;
         }
     };
 
-    private static final String TO_JSON_FORMAT = dateStringPatterns[19];
     private static final FastThreadLocal<SimpleDateFormat> FORMATTER_TO_JSON = new FastThreadLocal<SimpleDateFormat>()
     {
         protected SimpleDateFormat initialValue()
         {
-            SimpleDateFormat sdf = new SimpleDateFormat(TO_JSON_FORMAT);
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSSX");
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             return sdf;
         }
@@ -125,9 +126,9 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     public static final TimestampSerializer instance = new TimestampSerializer();
 
-    public Date deserialize(ByteBuffer bytes)
+    public <V> Date deserialize(V value, ValueAccessor<V> accessor)
     {
-        return bytes.remaining() == 0 ? null : new Date(ByteBufferUtil.toLong(bytes));
+        return accessor.isEmpty(value) ? null : new Date(accessor.toLong(value));
     }
 
     public ByteBuffer serialize(Date value)
@@ -153,15 +154,18 @@ public class TimestampSerializer implements TypeSerializer<Date>
             }
         }
 
-        // Last chance, attempt to parse as date-time string
-        try
+        for (DateTimeFormatter fmt: dateFormatters)
         {
-            return DateUtils.parseDateStrictly(source, dateStringPatterns).getTime();
+            try
+            {
+                return ZonedDateTime.parse(source, fmt).toInstant().toEpochMilli();
+            }
+            catch (DateTimeParseException e)
+            {
+                continue;
+            }
         }
-        catch (ParseException e1)
-        {
-            throw new MarshalException(String.format("Unable to coerce '%s' to a formatted date (long)", source), e1);
-        }
+        throw new MarshalException(String.format("Unable to parse a date/time from '%s'", source));
     }
 
     public static SimpleDateFormat getJsonDateFormatter()
@@ -169,15 +173,15 @@ public class TimestampSerializer implements TypeSerializer<Date>
     	return FORMATTER_TO_JSON.get();
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", bytes.remaining()));
+        if (accessor.size(value) != 8 && !accessor.isEmpty(value))
+            throw new MarshalException(String.format("Expected 8 or 0 byte long for date (%d)", accessor.size(value)));
     }
 
     public String toString(Date value)
     {
-        return value == null ? "" : FORMATTER.get().format(value);
+        return toStringUTC(value);
     }
 
     public String toStringUTC(Date value)
@@ -198,7 +202,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
     public String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null || !buffer.hasRemaining()
-             ? "null"
-             : FORMATTER_UTC.get().format(deserialize(buffer));
+               ? "null"
+               : FORMATTER_UTC.get().format(deserialize(buffer));
     }
 }

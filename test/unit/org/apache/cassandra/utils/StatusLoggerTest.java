@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Range;
+import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,7 +71,7 @@ public class StatusLoggerTest extends CQLTester
         executorService.submit(StatusLogger::log);
         executorService.submit(StatusLogger::log);
         executorService.shutdown();
-        executorService.awaitTermination(1, TimeUnit.SECONDS);
+        Assert.assertTrue(executorService.awaitTermination(1, TimeUnit.MINUTES));
     }
 
     private void verifyOnlySingleStatusWasAppendedConcurrently(List<ILoggingEvent> events)

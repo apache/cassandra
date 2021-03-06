@@ -22,6 +22,7 @@ from __future__ import unicode_literals, with_statement
 import locale
 import os
 import re
+import subprocess
 import sys
 import unittest
 
@@ -36,6 +37,9 @@ from .ansi_colors import (ColoredText, ansi_seq, lookup_colorcode,
 CONTROL_C = '\x03'
 CONTROL_D = '\x04'
 
+has_python27 = not subprocess.call(['python2.7', '--version'])
+has_python3 = not subprocess.call(['python3', '--version'])
+
 class TestCqlshOutput(BaseTestCase):
 
     @classmethod
@@ -47,7 +51,7 @@ class TestCqlshOutput(BaseTestCase):
         remove_db()
 
     def setUp(self):
-        env = os.environ
+        env = os.environ.copy()
         env['COLUMNS'] = '100000'
         # carry forward or override locale LC_CTYPE for UTF-8 encoding
         if (locale.getpreferredencoding() != 'UTF-8'):
@@ -637,7 +641,7 @@ class TestCqlshOutput(BaseTestCase):
     def test_describe_columnfamily_output(self):
         # we can change these to regular expressions if/when it makes sense
         # to do so; these will likely be subject to lots of adjustments.
-        
+
         # note columns are now comparator-ordered instead of original-order.
         table_desc3 = dedent("""
             CREATE TABLE %s.has_all_types (
@@ -666,13 +670,13 @@ class TestCqlshOutput(BaseTestCase):
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
                 AND crc_check_chance = 1.0
                 AND default_time_to_live = 0
+                AND extensions = {}
                 AND gc_grace_seconds = 864000
                 AND max_index_interval = 2048
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
                 AND read_repair = 'BLOCKING'
-                AND speculative_retry = '99p';
-            """ % quote_name(get_keyspace()))
+                AND speculative_retry = '99p';""" % quote_name(get_keyspace()))
 
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
@@ -730,13 +734,14 @@ class TestCqlshOutput(BaseTestCase):
             \n
             Cluster: [ ] (?P<clustername> .* ) \n
             Partitioner: [ ] (?P<partitionername> .* ) \n
+            Snitch: [ ] (?P<snitchname> .* ) \n
             \n
         '''
 
         ringinfo_re = r'''
             Range[ ]ownership: \n
             (
-              [ ] .*? [ ][ ] \[ ( \d+ \. ){3} \d+ \] \n
+              [ ] .*? [ ][ ] \[ .*? / ( \d+ \. ){3} \d+ : \d+ \] \n
             )+
             \n
         '''
@@ -776,8 +781,26 @@ class TestCqlshOutput(BaseTestCase):
 
             output = c.cmd_and_response('show host;')
             self.assertHasColors(output)
-            self.assertRegex(output, '^Connected to .* at %s:%d\.$'
+            self.assertRegex(output, '^Connected to .* at %s:%d$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
+
+    @unittest.skipIf(not has_python27, 'Python 2.7 not available to test warning')
+    def test_warn_py2(self):
+        env = self.default_env.copy()
+        env['USER_SPECIFIED_PYTHON'] = 'python2.7'
+        # has the warning
+        with testrun_cqlsh(tty=True, env=env) as c:
+            self.assertIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
+
+        # can suppress
+        env['CQLSH_NO_WARN_PY2'] = '1'
+        with testrun_cqlsh(tty=True, env=env) as c:
+            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
+
+    @unittest.skipIf(not (has_python27 and has_python3), 'Python 3 and 2.7 not available to test preference')
+    def test_no_warn_both_py_present(self):
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
+            self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
 
     @unittest.skipIf(sys.platform == "win32", 'EOF signaling not supported on Windows')
     def test_eof_prints_newline(self):
@@ -909,3 +932,13 @@ class TestCqlshOutput(BaseTestCase):
             nnnnnnnn
             """),
         ))
+
+    def test_expanded_output_counts_past_page(self):
+        query = "PAGING 5; EXPAND ON; SELECT * FROM twenty_rows_table;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        # format is "@ Row 1"
+        row_headers = [s for s in output.splitlines() if "@ Row" in s]
+        row_ids = [int(s.split(' ')[2]) for s in row_headers]
+        self.assertEqual([i for i in range(1, 21)], row_ids)

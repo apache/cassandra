@@ -44,7 +44,6 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
  * Consisting of a top level Index interface and two sub-interfaces which handle read and write operations,
@@ -136,6 +135,23 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public interface Index
 {
+    /**
+     * Supported loads. An index could be badly initialized and support only reads i.e.
+     */
+    public enum LoadType
+    {
+        READ, WRITE, ALL, NOOP;
+
+        public boolean supportsWrites()
+        {
+            return this == ALL || this == WRITE;
+        }
+
+        public boolean supportsReads()
+        {
+            return this == ALL || this == READ;
+        }
+    }
 
     /*
      * Helpers for building indexes from SSTable data
@@ -180,12 +196,31 @@ public interface Index
      * single pass through the data. The singleton instance returned from the default method implementation builds
      * indexes using a {@code ReducingKeyIterator} to provide a collated view of the SSTable data.
      *
-     * @return an instance of the index build taski helper. Index implementations which return <b>the same instance</b>
+     * @return an instance of the index build task helper. Index implementations which return <b>the same instance</b>
      * will be built using a single task.
      */
     default IndexBuildingSupport getBuildTaskSupport()
     {
         return INDEX_BUILDER_SUPPORT;
+    }
+    
+    /**
+     * Same as {@code getBuildTaskSupport} but can be overloaded with a specific 'recover' logic different than the index building one
+     */
+    default IndexBuildingSupport getRecoveryTaskSupport()
+    {
+        return getBuildTaskSupport();
+    }
+    
+    /**
+     * Returns the type of operations supported by the index in case its building has failed and it's needing recovery.
+     *
+     * @param isInitialBuild {@code true} if the failure is for the initial build task on index creation, {@code false}
+     * if the failure is for a full rebuild or recovery.
+     */
+    default LoadType getSupportedLoadTypeOnFailure(boolean isInitialBuild)
+    {
+        return isInitialBuild ? LoadType.WRITE : LoadType.ALL;
     }
 
     /**
@@ -508,6 +543,23 @@ public interface Index
      */
     default void validate(ReadCommand command) throws InvalidRequestException
     {
+    }
+
+    /**
+     * Tells whether this index supports replica fitering protection or not.
+     *
+     * Replica filtering protection might need to run the query row filter in the coordinator to detect stale results.
+     * An index implementation will be compatible with this protection mechanism if it returns the same results for the
+     * row filter as CQL will return with {@code ALLOW FILTERING} and without using the index. This means that index
+     * implementations using custom query syntax or applying transformations to the indexed data won't support it.
+     * See CASSANDRA-8272 for further details.
+     *
+     * @param rowFilter rowFilter of query to decide if it supports replica filtering protection or not
+     * @return true if this index supports replica filtering protection, false otherwise
+     */
+    default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
+    {
+        return true;
     }
 
     /**

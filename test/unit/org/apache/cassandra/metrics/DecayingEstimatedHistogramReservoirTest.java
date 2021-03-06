@@ -26,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -157,7 +158,7 @@ public class DecayingEstimatedHistogramReservoirTest
         }
 
         executors.shutdown();
-        executors.awaitTermination(10, TimeUnit.SECONDS);
+        Assert.assertTrue(executors.awaitTermination(1, TimeUnit.MINUTES));
 
         Snapshot modelSnapshot = model.getSnapshot();
         Snapshot testSnapshot = test.getSnapshot();

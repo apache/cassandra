@@ -26,9 +26,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 
+
 import com.google.common.base.Throwables;
 import org.junit.Assert;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,6 +37,7 @@ import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -454,5 +455,142 @@ public class DatabaseDescriptorTest
 
         assertEquals(100, // total size is more than preferred so keep the configured limit
                      DatabaseDescriptor.calculateDefaultSpaceInMB("type", "/path", "setting_name", preferredInMB, spaceInBytes, numerator, denominator));
+    }
+
+    @Test
+    public void testConcurrentValidations()
+    {
+        Config conf = new Config();
+        conf.concurrent_compactors = 8;
+        // if concurrent_validations is < 1 (including being unset) it should default to concurrent_compactors
+        assertThat(conf.concurrent_validations).isLessThan(1);
+        DatabaseDescriptor.applyConcurrentValidations(conf);
+        assertThat(conf.concurrent_validations).isEqualTo(conf.concurrent_compactors);
+
+        // otherwise, it must be <= concurrent_compactors
+        conf.concurrent_validations = conf.concurrent_compactors + 1;
+        try
+        {
+            DatabaseDescriptor.applyConcurrentValidations(conf);
+            fail("Expected exception");
+        }
+        catch (ConfigurationException e)
+        {
+            assertThat(e.getMessage()).isEqualTo("To set concurrent_validations > concurrent_compactors, " +
+                                                 "set the system property cassandra.allow_unlimited_concurrent_validations=true");
+        }
+
+        // unless we disable that check (done with a system property at startup or via JMX)
+        DatabaseDescriptor.allowUnlimitedConcurrentValidations = true;
+        conf.concurrent_validations = conf.concurrent_compactors + 1;
+        DatabaseDescriptor.applyConcurrentValidations(conf);
+        assertThat(conf.concurrent_validations).isEqualTo(conf.concurrent_compactors + 1);
+    }
+
+    @Test
+    public void testRepairCommandPoolSize()
+    {
+        Config conf = new Config();
+        conf.concurrent_validations = 3;
+        // if repair_command_pool_size is < 1 (including being unset) it should default to concurrent_validations
+        assertThat(conf.repair_command_pool_size).isLessThan(1);
+        DatabaseDescriptor.applyRepairCommandPoolSize(conf);
+        assertThat(conf.repair_command_pool_size).isEqualTo(conf.concurrent_validations);
+
+        // but it can be overridden
+        conf.repair_command_pool_size = conf.concurrent_validations + 1;
+        DatabaseDescriptor.applyRepairCommandPoolSize(conf);
+        assertThat(conf.repair_command_pool_size).isEqualTo(conf.concurrent_validations + 1);
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensSetNumTokensSetAndDoesMatch()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "0,256,1024";
+        config.num_tokens = 3;
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+            Assert.assertEquals(Integer.valueOf(3), config.num_tokens);
+            Assert.assertEquals(3, DatabaseDescriptor.tokensFromString(config.initial_token).size());
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.fail("number of tokens in initial_token=0,256,1024 does not match num_tokens = 3");
+        }
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensSetNumTokensSetAndDoesntMatch()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "0,256,1024";
+        config.num_tokens = 10;
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+
+            Assert.fail("initial_token = 0,256,1024 and num_tokens = 10 but applyTokensConfig() did not fail!");
+        }
+        catch (ConfigurationException ex)
+        {
+            Assert.assertEquals("The number of initial tokens (by initial_token) specified (3) is different from num_tokens value (10)",
+                                ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensSetNumTokensNotSet()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "0,256,1024";
+
+        try
+        {
+            DatabaseDescriptor.applyTokensConfig(config);
+            Assert.fail("setting initial_token and not setting num_tokens is invalid");
+        }
+        catch (ConfigurationException ex)
+        {
+            Assert.assertEquals("initial_token was set but num_tokens is not!", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensNotSetNumTokensSet()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.num_tokens = 3;
+
+        DatabaseDescriptor.applyTokensConfig(config);
+
+        Assert.assertEquals(Integer.valueOf(3), config.num_tokens);
+        Assert.assertTrue(DatabaseDescriptor.tokensFromString(config.initial_token).isEmpty());
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensNotSetNumTokensNotSet()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        DatabaseDescriptor.applyTokensConfig(config);
+
+        Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
+        Assert.assertTrue(DatabaseDescriptor.tokensFromString(config.initial_token).isEmpty());
+    }
+
+    @Test
+    public void testApplyTokensConfigInitialTokensOneNumTokensNotSet()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        config.initial_token = "123";
+        config.num_tokens = null;
+
+        DatabaseDescriptor.applyTokensConfig(config);
+
+        Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
+        Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
     }
 }

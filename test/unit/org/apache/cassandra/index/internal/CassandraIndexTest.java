@@ -72,6 +72,33 @@ public class CassandraIndexTest extends CQLTester
     }
 
     @Test
+    public void testIndexOnPartitionKeyWithPartitionWithoutRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, c int, s int static, v int, PRIMARY KEY((pk1, pk2), c))");
+        createIndex("CREATE INDEX ON %s (pk2)");
+
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 1, 9, 1);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 2, 9, 2);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 3, 1, 1, 9, 1);
+        execute("INSERT INTO %s (pk1, pk2, c, s, v) VALUES (?, ?, ?, ?, ?)", 4, 1, 1, 9, 1);
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk2 = ?", 1),
+                                row(1, 1, 1, 9, 1),
+                                row(1, 1, 2, 9, 2),
+                                row(3, 1, 1, 9, 1),
+                                row(4, 1, 1, 9, 1));
+
+        execute("DELETE FROM %s WHERE pk1 = ? AND pk2 = ? AND c = ?", 3, 1, 1);
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk2 = ?", 1),
+                                row(1, 1, 1, 9, 1),
+                                row(1, 1, 2, 9, 2),
+                                row(3, 1, null, 9, null),
+                                row(4, 1, 1, 9, 1));
+    }
+
+    @Test
     public void indexOnFirstClusteringColumn() throws Throwable
     {
         // No update allowed on primary key columns, so this script has no update expression
@@ -321,6 +348,21 @@ public class CassandraIndexTest extends CQLTester
                         .secondQueryExpression("m = {'d':11, 'e':21, 'f':31}")
                         .updateExpression("SET m = {'x':40, 'y':50, 'z':60}")
                         .postUpdateQueryExpression("m = {'x':40, 'y':50, 'z':60}")
+                        .run();
+    }
+
+    @Test
+    public void indexOnRegularColumnWithCompactStorage() throws Throwable
+    {
+        new TestScript().tableDefinition("CREATE TABLE %s (k int, v int, PRIMARY KEY (k)) WITH COMPACT STORAGE;")
+                        .target("v")
+                        .withFirstRow(row(0, 0))
+                        .withSecondRow(row(1,1))
+                        .missingIndexMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE)
+                        .firstQueryExpression("v=0")
+                        .secondQueryExpression("v=1")
+                        .updateExpression("SET v=2")
+                        .postUpdateQueryExpression("v=2")
                         .run();
     }
 
@@ -581,7 +623,7 @@ public class CassandraIndexTest extends CQLTester
     // Used in order to generate the unique names for indexes
     private static int indexCounter;
 
-    private class TestScript
+    public class TestScript
     {
         String tableDefinition;
         String indexName;
@@ -766,7 +808,7 @@ public class CassandraIndexTest extends CQLTester
             assertFalse(resultSet.isEmpty());
             TableMetadata cfm = getCurrentColumnFamilyStore().metadata();
             int columnCount = cfm.partitionKeyColumns().size();
-            if (cfm.isCompound())
+            if (TableMetadata.Flag.isCompound(cfm.flags))
                 columnCount += cfm.clusteringColumns().size();
             Object[] expected = copyValuesFromRow(row, columnCount);
             assertArrayEquals(expected, copyValuesFromRow(getRows(resultSet)[0], columnCount));
@@ -821,6 +863,7 @@ public class CassandraIndexTest extends CQLTester
 
             return copyValuesFromRow(row, cfm.partitionKeyColumns().size() + cfm.clusteringColumns().size());
         }
+
 
         private Object[] getPartitionKeyValues(Object[] row)
         {

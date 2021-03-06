@@ -42,6 +42,7 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.ssl.SslClosedEngineException;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.FailedFuture;
@@ -54,7 +55,7 @@ import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSucc
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.*;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
@@ -86,6 +87,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private final OutboundConnectionSettings settings;
     private final int requestMessagingVersion; // for pre40 nodes
     private final Promise<Result<SuccessType>> resultPromise;
+    private boolean isClosed;
 
     private OutboundConnectionInitiator(ConnectionType type, OutboundConnectionSettings settings,
                                         int requestMessagingVersion, Promise<Result<SuccessType>> resultPromise)
@@ -131,7 +133,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         {
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
-            return new FailedFuture<>(eventLoop, new IOException("authentication failed to " + settings.to));
+            return new FailedFuture<>(eventLoop, new IOException("authentication failed to " + settings.connectToId()));
         }
 
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
@@ -146,7 +148,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                              if (future.isCancelled() && !timedout.get())
                                                  resultPromise.cancel(true);
                                              else if (future.isCancelled())
-                                                 resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectTo));
+                                                 resultPromise.tryFailure(new IOException("Timeout handshaking with " + settings.connectToId()));
                                              else
                                                  resultPromise.tryFailure(future.cause());
                                          }
@@ -229,7 +231,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         public void channelActive(final ChannelHandlerContext ctx)
         {
             Initiate msg = new Initiate(requestMessagingVersion, settings.acceptVersions, type, settings.framing, settings.from);
-            logger.trace("starting handshake with peer {}, msg = {}", settings.connectTo, msg);
+            logger.trace("starting handshake with peer {}, msg = {}", settings.connectToId(), msg);
             AsyncChannelPromise.writeAndFlush(ctx, msg.encode(),
                   future -> { if (!future.isSuccess()) exceptionCaught(ctx, future.cause()); });
 
@@ -338,7 +340,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                 ChannelPipeline pipeline = ctx.pipeline();
                 if (result.isSuccess())
                 {
-                    BufferPool.setRecycleWhenFreeForCurrentThread(false);
+                    BufferPools.forNetworking().setRecycleWhenFreeForCurrentThread(false);
                     if (type.isMessaging())
                     {
                         assert frameEncoder != null;
@@ -363,14 +365,30 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
         {
+            if (isClosed && cause instanceof SslClosedEngineException)
+            {
+                /*
+                 * Occasionally Netty will invoke this handler to process an exception of the following kind:
+                 *      io.netty.channel.unix.Errors$NativeIoException: readAddress(..) failed: Connection reset by peer
+                 *
+                 * When we invoke ctx.close() later in this method, the listener, set up in channelActive(), might be
+                 * failed with an SslClosedEngineException("SSLEngine closed already") by Netty, and exceptionCaught() will be invoked
+                 * once again, this time to handle the SSLException triggered by ctx.close().
+                 *
+                 * The exception at this stage is benign, and we shouldn't be double-logging the failure to connect.
+                 */
+                return;
+            }
+
             try
             {
-                JVMStabilityInspector.inspectThrowable(cause, false);
+                JVMStabilityInspector.inspectThrowable(cause);
                 resultPromise.tryFailure(cause);
                 if (isCausedByConnectionReset(cause))
-                    logger.info("Failed to connect to peer {}", settings.to, cause);
+                    logger.info("Failed to connect to peer {}", settings.connectToId(), cause);
                 else
-                    logger.error("Failed to handshake with peer {}", settings.to, cause);
+                    logger.error("Failed to handshake with peer {}", settings.connectToId(), cause);
+                isClosed = true;
                 ctx.close();
             }
             catch (Throwable t)

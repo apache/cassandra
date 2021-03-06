@@ -32,9 +32,16 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="32"
 export CASSANDRA_DIR=${WORKSPACE}
+export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
 
 if [ -z "$CASSANDRA_USE_JDK11" ]; then
     export CASSANDRA_USE_JDK11=false
+fi
+
+if [ "$CASSANDRA_USE_JDK11" = true ] ; then
+    TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
+else
+    TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
 fi
 
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
@@ -60,9 +67,12 @@ pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
+    TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
     pip install "Cython>=0.20,<0.25"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
+else
+    TESTSUITE_NAME="${TESTSUITE_NAME}.no_cython"
 fi
 
 ################################
@@ -99,8 +109,12 @@ cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
 nosetests
+RETURN="$?"
 
 ccm remove
+# hack around --xunit-prefix-with-testsuite-name not being available in nose 1.3.7
+sed -i "s/testsuite name=\"nosetests\"/testsuite name=\"${TESTSUITE_NAME}\"/g" nosetests.xml
+sed -i "s/testcase classname=\"cqlshlib./testcase classname=\"${TESTSUITE_NAME}./g" nosetests.xml
 mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 
 ################################
@@ -112,5 +126,4 @@ mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 # /virtualenv
 deactivate
 
-# Exit cleanly for usable "Unstable" status
-exit 0
+exit ${RETURN}

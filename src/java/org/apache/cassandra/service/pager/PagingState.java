@@ -25,8 +25,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.Cell;
@@ -355,17 +356,17 @@ public class PagingState
                 // We need to be backward compatible with 2.1/2.2 nodes paging states. Which means we have to send
                 // the full cellname of the "last" cell in the row we get (since that's how 2.1/2.2 nodes will start after
                 // that last row if they get that paging state).
-                Iterator<Cell> cells = row.cellsInLegacyOrder(metadata, true).iterator();
+                Iterator<Cell<?>> cells = row.cellsInLegacyOrder(metadata, true).iterator();
                 if (!cells.hasNext())
                 {
                     // If the last returned row has no cell, this means in 2.1/2.2 terms that we stopped on the row
-                    // marker. Note that this shouldn't happen if the table is COMPACT.
+                    // marker.  Note that this shouldn't happen if the table is COMPACT STORAGE tables.
                     assert !metadata.isCompactTable();
                     mark = encodeCellName(metadata, row.clustering(), EMPTY_BYTE_BUFFER, null);
                 }
                 else
                 {
-                    Cell cell = cells.next();
+                    Cell<?> cell = cells.next();
                     mark = encodeCellName(metadata, row.clustering(), cell.column().name.bytes, cell.column().isComplex() ? cell.path().get(0) : null);
                 }
             }
@@ -378,7 +379,7 @@ public class PagingState
             return new RowMark(mark, protocolVersion);
         }
 
-        public Clustering clustering(TableMetadata metadata)
+        public Clustering<?> clustering(TableMetadata metadata)
         {
             if (mark == null)
                 return null;
@@ -389,24 +390,13 @@ public class PagingState
         }
 
         // Old (pre-3.0) encoding of cells. We need that for the protocol v3 as that is how things where encoded
-        private static ByteBuffer encodeCellName(TableMetadata metadata, Clustering clustering, ByteBuffer columnName, ByteBuffer collectionElement)
+        private static ByteBuffer encodeCellName(TableMetadata metadata, Clustering<?> clustering, ByteBuffer columnName, ByteBuffer collectionElement)
         {
             boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
 
-            if (!metadata.isCompound())
-            {
-                if (isStatic)
-                    return columnName;
-
-                assert clustering.size() == 1 : "Expected clustering size to be 1, but was " + clustering.size();
-                return clustering.get(0);
-            }
-
             // We use comparator.size() rather than clustering.size() because of static clusterings
             int clusteringSize = metadata.comparator.size();
-            int size = clusteringSize + (metadata.isDense() ? 0 : 1) + (collectionElement == null ? 0 : 1);
-            if (metadata.isSuper())
-                size = clusteringSize + 1;
+            int size = clusteringSize + 1 + (collectionElement == null ? 0 : 1);
             ByteBuffer[] values = new ByteBuffer[size];
             for (int i = 0; i < clusteringSize; i++)
             {
@@ -416,48 +406,32 @@ public class PagingState
                     continue;
                 }
 
-                ByteBuffer v = clustering.get(i);
+                ByteBuffer v = clustering.bufferAt(i);
                 // we can have null (only for dense compound tables for backward compatibility reasons) but that
                 // means we're done and should stop there as far as building the composite is concerned.
                 if (v == null)
-                    return CompositeType.build(Arrays.copyOfRange(values, 0, i));
+                    return CompositeType.build(ByteBufferAccessor.instance, Arrays.copyOfRange(values, 0, i));
 
                 values[i] = v;
             }
 
-            if (metadata.isSuper())
-            {
-                // We need to set the "column" (in thrift terms) name, i.e. the value corresponding to the subcomparator.
-                // What it is depends if this a cell for a declared "static" column or a "dynamic" column part of the
-                // super-column internal map.
-                assert columnName != null; // This should never be null for supercolumns, see decodeForSuperColumn() above
-                values[clusteringSize] = columnName.equals(CompactTables.SUPER_COLUMN_MAP_COLUMN)
-                                         ? collectionElement
-                                         : columnName;
-            }
-            else
-            {
-                if (!metadata.isDense())
-                    values[clusteringSize] = columnName;
-                if (collectionElement != null)
-                    values[clusteringSize + 1] = collectionElement;
-            }
+            values[clusteringSize] = columnName;
+            if (collectionElement != null)
+                values[clusteringSize + 1] = collectionElement;
 
-            return CompositeType.build(isStatic, values);
+            return CompositeType.build(ByteBufferAccessor.instance, isStatic, values);
         }
 
-        private static Clustering decodeClustering(TableMetadata metadata, ByteBuffer value)
+        private static Clustering<?> decodeClustering(TableMetadata metadata, ByteBuffer value)
         {
             int csize = metadata.comparator.size();
             if (csize == 0)
                 return Clustering.EMPTY;
 
-            if (metadata.isCompound() && CompositeType.isStaticName(value))
+            if (CompositeType.isStaticName(value, ByteBufferAccessor.instance))
                 return Clustering.STATIC_CLUSTERING;
 
-            List<ByteBuffer> components = metadata.isCompound()
-                                          ? CompositeType.splitName(value)
-                                          : Collections.singletonList(value);
+            List<ByteBuffer> components = CompositeType.splitName(value, ByteBufferAccessor.instance);
 
             return Clustering.make(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
         }

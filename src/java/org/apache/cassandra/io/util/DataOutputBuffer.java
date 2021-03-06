@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
@@ -53,7 +54,8 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      */
     public static final FastThreadLocal<DataOutputBuffer> scratchBuffer = new FastThreadLocal<DataOutputBuffer>()
     {
-        protected DataOutputBuffer initialValue() throws Exception
+        @Override
+        protected DataOutputBuffer initialValue()
         {
             return new DataOutputBuffer()
             {
@@ -88,9 +90,9 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     }
 
     @Override
-    public void flush() throws IOException
+    public void flush()
     {
-        throw new UnsupportedOperationException();
+
     }
 
     //The actual value observed in Hotspot is only -2
@@ -131,7 +133,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     {
         int saturatedSize = saturatedArraySizeCast(newSize);
         if (saturatedSize <= capacity())
-            throw new RuntimeException();
+            throw new BufferOverflowException();
         return saturatedSize;
     }
 
@@ -176,7 +178,7 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     @VisibleForTesting
     final class GrowingChannel implements WritableByteChannel
     {
-        public int write(ByteBuffer src) throws IOException
+        public int write(ByteBuffer src)
         {
             int count = src.remaining();
             expandToFit(count);

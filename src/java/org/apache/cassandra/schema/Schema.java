@@ -20,7 +20,6 @@ package org.apache.cassandra.schema;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
@@ -36,7 +35,6 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -51,7 +49,7 @@ import static java.lang.String.format;
 
 import static com.google.common.collect.Iterables.size;
 
-public final class Schema
+public final class Schema implements SchemaProvider
 {
     public static final Schema instance = new Schema();
 
@@ -192,6 +190,7 @@ public final class Schema
      *
      * @return Keyspace object or null if keyspace was not found
      */
+    @Override
     public Keyspace getKeyspaceInstance(String keyspaceName)
     {
         return keyspaceInstances.get(keyspaceName);
@@ -219,12 +218,11 @@ public final class Schema
      *
      * @throws IllegalArgumentException if Keyspace is already stored
      */
+    @Override
     public void storeKeyspaceInstance(Keyspace keyspace)
     {
-        if (keyspaceInstances.containsKey(keyspace.getName()))
+        if (keyspaceInstances.putIfAbsent(keyspace.getName(), keyspace) != null)
             throw new IllegalArgumentException(String.format("Keyspace %s was already initialized.", keyspace.getName()));
-
-        keyspaceInstances.put(keyspace.getName(), keyspace);
     }
 
     /**
@@ -237,6 +235,11 @@ public final class Schema
     public Keyspace removeKeyspaceInstance(String keyspaceName)
     {
         return keyspaceInstances.remove(keyspaceName);
+    }
+
+    public Keyspaces snapshot()
+    {
+        return keyspaces;
     }
 
     /**
@@ -278,6 +281,7 @@ public final class Schema
      *
      * @return The keyspace metadata or null if it wasn't found
      */
+    @Override
     public KeyspaceMetadata getKeyspaceMetadata(String keyspaceName)
     {
         assert keyspaceName != null;
@@ -351,6 +355,7 @@ public final class Schema
      *
      * @return TableMetadataRef object or null if it wasn't found
      */
+    @Override
     public TableMetadataRef getTableMetadataRef(String keyspace, String table)
     {
         TableMetadata tm = getTableMetadata(keyspace, table);
@@ -376,11 +381,13 @@ public final class Schema
      *
      * @return metadata about Table or View
      */
+    @Override
     public TableMetadataRef getTableMetadataRef(TableId id)
     {
         return metadataRefs.get(id);
     }
 
+    @Override
     public TableMetadataRef getTableMetadataRef(Descriptor descriptor)
     {
         return getTableMetadataRef(descriptor.ksname, descriptor.cfname);
@@ -412,7 +419,7 @@ public final class Schema
              : ksm.getTableOrViewNullable(table);
     }
 
-    @Nullable
+    @Override
     public TableMetadata getTableMetadata(TableId id)
     {
         TableMetadata table = keyspaces.getTableOrViewNullable(id);
@@ -438,22 +445,6 @@ public final class Schema
     public TableMetadata getTableMetadata(Descriptor descriptor)
     {
         return getTableMetadata(descriptor.ksname, descriptor.cfname);
-    }
-
-    /**
-     * @throws UnknownTableException if the table couldn't be found in the metadata
-     */
-    public TableMetadata getExistingTableMetadata(TableId id) throws UnknownTableException
-    {
-        TableMetadata metadata = getTableMetadata(id);
-        if (metadata != null)
-            return metadata;
-
-        String message =
-            String.format("Couldn't find table with id %s. If a table was just created, this is likely due to the schema"
-                          + "not being fully propagated.  Please wait for schema agreement on table creation.",
-                          id);
-        throw new UnknownTableException(message, id);
     }
 
     /* Function helpers */
@@ -581,7 +572,7 @@ public final class Schema
      *
      * @throws ConfigurationException If one of metadata attributes has invalid value
      */
-    synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
+    public synchronized void mergeAndAnnounceVersion(Collection<Mutation> mutations)
     {
         merge(mutations);
         updateVersionAndAnnounce();

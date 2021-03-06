@@ -47,8 +47,7 @@ final class SchemaMigrationEvent extends DiagnosticEvent
     private final UUID localSchemaVersion;
     private final Integer localMessagingVersion;
     private final SystemKeyspace.BootstrapState bootstrapState;
-    @Nullable
-    private Integer inflightTaskCount;
+    private final Integer inflightTaskCount;
     @Nullable
     private Integer endpointMessagingVersion;
     @Nullable
@@ -77,9 +76,7 @@ final class SchemaMigrationEvent extends DiagnosticEvent
         localSchemaVersion = Schema.instance.getVersion();
         localMessagingVersion = MessagingService.current_version;
 
-        Queue<CountDownLatch> inflightTasks = MigrationTask.getInflightTasks();
-        if (inflightTasks != null)
-            inflightTaskCount = inflightTasks.size();
+        inflightTaskCount = MigrationCoordinator.instance.getInflightTasks();
 
         this.bootstrapState = SystemKeyspace.getBootstrapState();
 
@@ -100,7 +97,7 @@ final class SchemaMigrationEvent extends DiagnosticEvent
     public Map<String, Serializable> toMap()
     {
         HashMap<String, Serializable> ret = new HashMap<>();
-        if (endpoint != null) ret.put("endpoint", endpoint.getHostAddress(true));
+        if (endpoint != null) ret.put("endpoint", endpoint.getHostAddressAndPort());
         ret.put("endpointSchemaVersion", Schema.schemaVersionToString(endpointSchemaVersion));
         ret.put("localSchemaVersion", Schema.schemaVersionToString(localSchemaVersion));
         if (endpointMessagingVersion != null) ret.put("endpointMessagingVersion", endpointMessagingVersion);

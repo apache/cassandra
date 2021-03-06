@@ -26,10 +26,11 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.utils.binlog.BinLogTest;
 
@@ -50,7 +51,7 @@ public class BinAuditLoggerTest extends CQLTester
 
         AuditLogOptions options = new AuditLogOptions();
         options.enabled = true;
-        options.logger = "BinAuditLogger";
+        options.logger = new ParameterizedClass("BinAuditLogger", null);
         options.roll_cycle = "TEST_SECONDLY";
         options.audit_logs_dir = tempDir.toString();
         DatabaseDescriptor.setAuditLoggingOptions(options);
@@ -73,7 +74,7 @@ public class BinAuditLoggerTest extends CQLTester
         ResultSet rs = session.execute(pstmt.bind(1));
 
         assertEquals(1, rs.all().size());
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire -> {

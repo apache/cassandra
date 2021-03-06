@@ -22,6 +22,7 @@ import java.util.Iterator;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -113,8 +114,8 @@ public class MutableDeletionInfo implements DeletionInfo
 
     public void add(RangeTombstone tombstone, ClusteringComparator comparator)
     {
-        if (ranges == null)
-            ranges = new RangeTombstoneList(comparator, 1);
+        if (ranges == null) // Introduce getInitialRangeTombstoneAllocationSize
+            ranges = new RangeTombstoneList(comparator, DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize());
 
         ranges.add(tombstone);
     }
@@ -159,7 +160,7 @@ public class MutableDeletionInfo implements DeletionInfo
         return ranges == null ? Collections.emptyIterator() : ranges.iterator(slice, reversed);
     }
 
-    public RangeTombstone rangeCovering(Clustering name)
+    public RangeTombstone rangeCovering(Clustering<?> name)
     {
         return ranges == null ? null : ranges.search(name);
     }
@@ -247,6 +248,9 @@ public class MutableDeletionInfo implements DeletionInfo
     @Override
     public long unsharedHeapSize()
     {
+        if (this == LIVE)
+            return 0;
+
         return EMPTY_SIZE + partitionDeletion.unsharedHeapSize() + (ranges == null ? 0 : ranges.unsharedHeapSize());
     }
 
@@ -290,8 +294,8 @@ public class MutableDeletionInfo implements DeletionInfo
                 DeletionTime openDeletion = openMarker.openDeletionTime(reversed);
                 assert marker.closeDeletionTime(reversed).equals(openDeletion);
 
-                ClusteringBound open = openMarker.openBound(reversed);
-                ClusteringBound close = marker.closeBound(reversed);
+                ClusteringBound<?> open = openMarker.openBound(reversed);
+                ClusteringBound<?> close = marker.closeBound(reversed);
 
                 Slice slice = reversed ? Slice.make(close, open) : Slice.make(open, close);
                 deletion.add(new RangeTombstone(slice, openDeletion), comparator);

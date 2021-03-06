@@ -20,6 +20,8 @@ package org.apache.cassandra.index.internal.composites;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
@@ -52,21 +54,21 @@ public class RegularColumnIndex extends CassandraIndex
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path,
                                       ByteBuffer cellValue)
     {
         return cellValue;
     }
 
-    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
+    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                               ClusteringPrefix<T> prefix,
                                                CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
-            builder.add(prefix.get(i));
+            builder.add(prefix.get(i), prefix.accessor());
 
         // Note: if indexing a static column, prefix will be Clustering.STATIC_CLUSTERING
         // so the Clustering obtained from builder::build will contain a value for only
@@ -77,9 +79,9 @@ public class RegularColumnIndex extends CassandraIndex
 
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
-        Clustering clustering = indexEntry.clustering();
+        Clustering<?> clustering = indexEntry.clustering();
 
-        Clustering indexedEntryClustering = null;
+        Clustering<?> indexedEntryClustering = null;
         if (getIndexedColumn().isStatic())
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;
         else
@@ -87,22 +89,27 @@ public class RegularColumnIndex extends CassandraIndex
             ClusteringComparator baseComparator = baseCfs.getComparator();
             CBuilder builder = CBuilder.create(baseComparator);
             for (int i = 0; i < baseComparator.size(); i++)
-                builder.add(clustering.get(i + 1));
+                builder.add(clustering, i + 1);
             indexedEntryClustering = builder.build();
         }
 
         return new IndexEntry(indexedValue,
-                                clustering,
-                                indexEntry.primaryKeyLivenessInfo().timestamp(),
-                                clustering.get(0),
-                                indexedEntryClustering);
+                              clustering,
+                              indexEntry.primaryKeyLivenessInfo().timestamp(),
+                              clustering.bufferAt(0),
+                              indexedEntryClustering);
+    }
+
+    private static <V> boolean valueIsEqual(AbstractType<?> type, Cell<V> cell, ByteBuffer value)
+    {
+        return type.compare(cell.value(), cell.accessor(), value, ByteBufferAccessor.instance) == 0;
     }
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
-        Cell cell = data.getCell(indexedColumn);
+        Cell<?> cell = data.getCell(indexedColumn);
         return cell == null
             || !cell.isLive(nowInSec)
-            || indexedColumn.type.compare(indexValue, cell.value()) != 0;
+            || !valueIsEqual(indexedColumn.type, cell, indexValue);
     }
 }

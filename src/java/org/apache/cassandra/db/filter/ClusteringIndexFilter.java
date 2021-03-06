@@ -77,7 +77,7 @@ public interface ClusteringIndexFilter
      *
      * @return a new filter that selects results coming after {@code lastReturned}.
      */
-    public ClusteringIndexFilter forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive);
+    public ClusteringIndexFilter forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive);
 
     /**
      * Returns whether we can guarantee that a given cached partition contains all the data selected by this filter.
@@ -109,7 +109,7 @@ public interface ClusteringIndexFilter
      *
      * @return whether the row with clustering {@code clustering} is selected by this filter.
      */
-    public boolean selects(Clustering clustering);
+    public boolean selects(Clustering<?> clustering);
 
     /**
      * Returns an iterator that only returns the rows of the provided iterator that this filter selects.

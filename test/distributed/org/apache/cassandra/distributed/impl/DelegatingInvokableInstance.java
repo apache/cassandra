@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.impl;
 
 import java.io.Serializable;
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
@@ -33,6 +34,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 
 public abstract class DelegatingInvokableInstance implements IInvokableInstance
@@ -56,6 +58,11 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public Object[][] executeInternal(String query, Object... args)
     {
         return delegate().executeInternal(query, args);
+    }
+
+    public SimpleQueryResult executeInternalWithResult(String query, Object... args)
+    {
+        return delegate().executeInternalWithResult(query, args);
     }
 
     @Override
@@ -86,6 +93,12 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public void setMessagingVersion(InetSocketAddress endpoint, int version)
     {
         delegate().setMessagingVersion(endpoint, version);
+    }
+
+    @Override
+    public String getReleaseVersionString()
+    {
+        return delegate().getReleaseVersionString();
     }
 
     public void flush(String keyspace)

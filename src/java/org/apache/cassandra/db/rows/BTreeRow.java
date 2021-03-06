@@ -18,7 +18,16 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+
+import java.util.AbstractCollection;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -28,14 +37,25 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.DroppedColumn;
-import org.apache.cassandra.utils.*;
+
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.BiLongAccumulator;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.LongAccumulator;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -47,7 +67,7 @@ public class BTreeRow extends AbstractRow
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(emptyRow(Clustering.EMPTY));
 
-    private final Clustering clustering;
+    private final Clustering<?> clustering;
     private final LivenessInfo primaryKeyLivenessInfo;
     private final Deletion deletion;
 
@@ -82,13 +102,13 @@ public class BTreeRow extends AbstractRow
         this.minLocalDeletionTime = minLocalDeletionTime;
     }
 
-    private BTreeRow(Clustering clustering, Object[] btree, int minLocalDeletionTime)
+    private BTreeRow(Clustering<?> clustering, Object[] btree, int minLocalDeletionTime)
     {
         this(clustering, LivenessInfo.EMPTY, Deletion.LIVE, btree, minLocalDeletionTime);
     }
 
     // Note that it's often easier/safer to use the sortedBuilder/unsortedBuilder or one of the static creation method below. Only directly useful in a small amount of cases.
-    public static BTreeRow create(Clustering clustering,
+    public static BTreeRow create(Clustering<?> clustering,
                                   LivenessInfo primaryKeyLivenessInfo,
                                   Deletion deletion,
                                   Object[] btree)
@@ -103,7 +123,7 @@ public class BTreeRow extends AbstractRow
         return create(clustering, primaryKeyLivenessInfo, deletion, btree, minDeletionTime);
     }
 
-    public static BTreeRow create(Clustering clustering,
+    public static BTreeRow create(Clustering<?> clustering,
                                   LivenessInfo primaryKeyLivenessInfo,
                                   Deletion deletion,
                                   Object[] btree,
@@ -112,27 +132,27 @@ public class BTreeRow extends AbstractRow
         return new BTreeRow(clustering, primaryKeyLivenessInfo, deletion, btree, minDeletionTime);
     }
 
-    public static BTreeRow emptyRow(Clustering clustering)
+    public static BTreeRow emptyRow(Clustering<?> clustering)
     {
         return new BTreeRow(clustering, BTree.empty(), Integer.MAX_VALUE);
     }
 
-    public static BTreeRow singleCellRow(Clustering clustering, Cell cell)
+    public static BTreeRow singleCellRow(Clustering<?> clustering, Cell<?> cell)
     {
         if (cell.column().isSimple())
             return new BTreeRow(clustering, BTree.singleton(cell), minDeletionTime(cell));
 
-        ComplexColumnData complexData = new ComplexColumnData(cell.column(), new Cell[]{ cell }, DeletionTime.LIVE);
+        ComplexColumnData complexData = new ComplexColumnData(cell.column(), new Cell<?>[]{ cell }, DeletionTime.LIVE);
         return new BTreeRow(clustering, BTree.singleton(complexData), minDeletionTime(cell));
     }
 
-    public static BTreeRow emptyDeletedRow(Clustering clustering, Deletion deletion)
+    public static BTreeRow emptyDeletedRow(Clustering<?> clustering, Deletion deletion)
     {
         assert !deletion.isLive();
         return new BTreeRow(clustering, LivenessInfo.EMPTY, deletion, BTree.empty(), Integer.MIN_VALUE);
     }
 
-    public static BTreeRow noCellLiveRow(Clustering clustering, LivenessInfo primaryKeyLivenessInfo)
+    public static BTreeRow noCellLiveRow(Clustering<?> clustering, LivenessInfo primaryKeyLivenessInfo)
     {
         assert !primaryKeyLivenessInfo.isEmpty();
         return new BTreeRow(clustering,
@@ -142,7 +162,7 @@ public class BTreeRow extends AbstractRow
                             minDeletionTime(primaryKeyLivenessInfo));
     }
 
-    private static int minDeletionTime(Cell cell)
+    private static int minDeletionTime(Cell<?> cell)
     {
         return cell.isTombstone() ? Integer.MIN_VALUE : cell.localDeletionTime();
     }
@@ -160,7 +180,7 @@ public class BTreeRow extends AbstractRow
     private static int minDeletionTime(ComplexColumnData cd)
     {
         int min = minDeletionTime(cd.complexDeletion());
-        for (Cell cell : cd)
+        for (Cell<?> cell : cd)
         {
             min = Math.min(min, minDeletionTime(cell));
             if (min == Integer.MIN_VALUE)
@@ -171,7 +191,7 @@ public class BTreeRow extends AbstractRow
 
     private static int minDeletionTime(ColumnData cd)
     {
-        return cd.column().isSimple() ? minDeletionTime((Cell) cd) : minDeletionTime((ComplexColumnData)cd);
+        return cd.column().isSimple() ? minDeletionTime((Cell<?>) cd) : minDeletionTime((ComplexColumnData)cd);
     }
 
     public void apply(Consumer<ColumnData> function)
@@ -219,7 +239,7 @@ public class BTreeRow extends AbstractRow
         return Ints.checkedCast(min);
     }
 
-    public Clustering clustering()
+    public Clustering<?> clustering()
     {
         return clustering;
     }
@@ -251,13 +271,13 @@ public class BTreeRow extends AbstractRow
         return deletion;
     }
 
-    public Cell getCell(ColumnMetadata c)
+    public Cell<?> getCell(ColumnMetadata c)
     {
         assert !c.isComplex();
-        return (Cell) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, c);
+        return (Cell<?>) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, c);
     }
 
-    public Cell getCell(ColumnMetadata c, CellPath path)
+    public Cell<?> getCell(ColumnMetadata c, CellPath path)
     {
         assert c.isComplex();
         ComplexColumnData cd = getComplexColumnData(c);
@@ -287,7 +307,7 @@ public class BTreeRow extends AbstractRow
         return searchIterator();
     }
 
-    public Iterable<Cell> cells()
+    public Iterable<Cell<?>> cells()
     {
         return CellIterator::new;
     }
@@ -306,8 +326,9 @@ public class BTreeRow extends AbstractRow
     {
         Map<ByteBuffer, DroppedColumn> droppedColumns = metadata.droppedColumns;
 
-        boolean mayFilterColumns = !filter.fetchesAllColumns(isStatic());
-        boolean mayHaveShadowed = activeDeletion.supersedes(deletion.time());
+        boolean mayFilterColumns = !filter.fetchesAllColumns(isStatic()) || !filter.allFetchedColumnsAreQueried();
+        // When merging sstable data in Row.Merger#merge(), rowDeletion is removed if it doesn't supersede activeDeletion.
+        boolean mayHaveShadowed = !activeDeletion.isLive() && !deletion.time().supersedes(activeDeletion);
 
         if (!mayFilterColumns && !mayHaveShadowed && droppedColumns.isEmpty())
             return this;
@@ -338,14 +359,20 @@ public class BTreeRow extends AbstractRow
             if (column.isComplex())
                 return ((ComplexColumnData) cd).filter(filter, mayHaveShadowed ? activeDeletion : DeletionTime.LIVE, dropped, rowLiveness);
 
-            Cell cell = (Cell) cd;
+            Cell<?> cell = (Cell<?>) cd;
             // We include the cell unless it is 1) shadowed, 2) for a dropped column or 3) skippable.
             // And a cell is skippable if it is for a column that is not queried by the user and its timestamp
             // is lower than the row timestamp (see #10657 or SerializationHelper.includes() for details).
             boolean isForDropped = dropped != null && cell.timestamp() <= dropped.droppedTime;
             boolean isShadowed = mayHaveShadowed && activeDeletion.deletes(cell);
-            boolean isSkippable = !queriedByUserTester.test(column) && cell.timestamp() < rowLiveness.timestamp();
-            return isForDropped || isShadowed || isSkippable ? null : cell;
+            boolean isSkippable = !queriedByUserTester.test(column);
+
+            if (isForDropped || isShadowed || (isSkippable && cell.timestamp() < rowLiveness.timestamp()))
+                return null;
+
+            // We should apply the same "optimization" as in Cell.deserialize to avoid discrepances
+            // between sstables and memtables data, i.e resulting in a digest mismatch.
+            return isSkippable ? cell.withSkippedValue() : cell;
         });
     }
 
@@ -473,8 +500,10 @@ public class BTreeRow extends AbstractRow
     public long unsharedHeapSizeExcludingData()
     {
         long heapSize = EMPTY_SIZE
-                      + clustering.unsharedHeapSizeExcludingData()
-                      + BTree.sizeOfStructureOnHeap(btree);
+                        + clustering.unsharedHeapSizeExcludingData()
+                        + primaryKeyLivenessInfo.unsharedHeapSize()
+                        + deletion.unsharedHeapSize()
+                        + BTree.sizeOfStructureOnHeap(btree);
 
         return accumulate((cd, v) -> v + cd.unsharedHeapSizeExcludingData(), heapSize);
     }
@@ -497,22 +526,22 @@ public class BTreeRow extends AbstractRow
     {
         ColumnData current = (ColumnData) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, column);
         if (column.isSimple())
-            BTree.replaceInSitu(btree, ColumnData.comparator, current, ((Cell) current).withUpdatedValue(value));
+            BTree.replaceInSitu(btree, ColumnData.comparator, current, ((Cell<?>) current).withUpdatedValue(value));
         else
             ((ComplexColumnData) current).setValue(path, value);
     }
 
-    public Iterable<Cell> cellsInLegacyOrder(TableMetadata metadata, boolean reversed)
+    public Iterable<Cell<?>> cellsInLegacyOrder(TableMetadata metadata, boolean reversed)
     {
         return () -> new CellInLegacyOrderIterator(metadata, reversed);
     }
 
-    private class CellIterator extends AbstractIterator<Cell>
+    private class CellIterator extends AbstractIterator<Cell<?>>
     {
         private Iterator<ColumnData> columnData = iterator();
-        private Iterator<Cell> complexCells;
+        private Iterator<Cell<?>> complexCells;
 
-        protected Cell computeNext()
+        protected Cell<?> computeNext()
         {
             while (true)
             {
@@ -531,24 +560,24 @@ public class BTreeRow extends AbstractRow
                 if (cd.column().isComplex())
                     complexCells = ((ComplexColumnData)cd).iterator();
                 else
-                    return (Cell)cd;
+                    return (Cell<?>)cd;
             }
         }
     }
 
-    private class CellInLegacyOrderIterator extends AbstractIterator<Cell>
+    private class CellInLegacyOrderIterator extends AbstractIterator<Cell<?>>
     {
         private final Comparator<ByteBuffer> comparator;
         private final boolean reversed;
         private final int firstComplexIdx;
         private int simpleIdx;
         private int complexIdx;
-        private Iterator<Cell> complexCells;
+        private Iterator<Cell<?>> complexCells;
         private final Object[] data;
 
         private CellInLegacyOrderIterator(TableMetadata metadata, boolean reversed)
         {
-            AbstractType<?> nameComparator = metadata.columnDefinitionNameComparator(isStatic() ? ColumnMetadata.Kind.STATIC : ColumnMetadata.Kind.REGULAR);
+            AbstractType<?> nameComparator = UTF8Type.instance;
             this.comparator = reversed ? Collections.reverseOrder(nameComparator) : nameComparator;
             this.reversed = reversed;
 
@@ -585,13 +614,13 @@ public class BTreeRow extends AbstractRow
             return idx;
         }
 
-        private Iterator<Cell> makeComplexIterator(Object complexData)
+        private Iterator<Cell<?>> makeComplexIterator(Object complexData)
         {
             ComplexColumnData ccd = (ComplexColumnData)complexData;
             return reversed ? ccd.reverseIterator() : ccd.iterator();
         }
 
-        protected Cell computeNext()
+        protected Cell<?> computeNext()
         {
             while (true)
             {
@@ -613,10 +642,10 @@ public class BTreeRow extends AbstractRow
                 else
                 {
                     if (complexIdx >= data.length)
-                        return (Cell)data[getSimpleIdxAndIncrement()];
+                        return (Cell<?>)data[getSimpleIdxAndIncrement()];
 
                     if (comparator.compare(((ColumnData) data[getSimpleIdx()]).column().name.bytes, ((ColumnData) data[getComplexIdx()]).column().name.bytes) < 0)
-                        return (Cell)data[getSimpleIdxAndIncrement()];
+                        return (Cell<?>)data[getSimpleIdxAndIncrement()];
                     else
                         complexCells = makeComplexIterator(data[getComplexIdxAndIncrement()]);
                 }
@@ -642,12 +671,12 @@ public class BTreeRow extends AbstractRow
 
             public ColumnData resolve(Object[] cells, int lb, int ub)
             {
-                Cell cell = (Cell) cells[lb];
+                Cell<?> cell = (Cell<?>) cells[lb];
                 ColumnMetadata column = cell.column;
                 if (cell.column.isSimple())
                 {
                     while (++lb < ub)
-                        cell = Cells.reconcile(cell, (Cell) cells[lb]);
+                        cell = Cells.reconcile(cell, (Cell<?>) cells[lb]);
                     return cell;
                 }
 
@@ -661,7 +690,7 @@ public class BTreeRow extends AbstractRow
                 // legacy sstables (see #10743).
                 while (lb < ub)
                 {
-                    cell = (Cell) cells[lb];
+                    cell = (Cell<?>) cells[lb];
                     if (!(cell instanceof ComplexColumnDeletion))
                         break;
 
@@ -671,10 +700,10 @@ public class BTreeRow extends AbstractRow
                 }
 
                 List<Object> buildFrom = new ArrayList<>(ub - lb);
-                Cell previous = null;
+                Cell<?> previous = null;
                 for (int i = lb; i < ub; i++)
                 {
-                    Cell c = (Cell) cells[i];
+                    Cell<?> c = (Cell<?>) cells[i];
 
                     if (deletion == DeletionTime.LIVE || c.timestamp() >= deletion.markedForDeleteAt())
                     {
@@ -696,12 +725,12 @@ public class BTreeRow extends AbstractRow
             }
         }
 
-        protected Clustering clustering;
+        protected Clustering<?> clustering;
         protected LivenessInfo primaryKeyLivenessInfo = LivenessInfo.EMPTY;
         protected Deletion deletion = Deletion.LIVE;
 
         private final boolean isSorted;
-        private BTree.Builder<Cell> cells_;
+        private BTree.Builder<Cell<?>> cells_;
         private boolean hasComplex = false;
 
         // For complex column at index i of 'columns', we store at complexDeletions[i] its complex deletion.
@@ -712,7 +741,7 @@ public class BTreeRow extends AbstractRow
             this.isSorted = isSorted;
         }
 
-        private BTree.Builder<Cell> getCells()
+        private BTree.Builder<Cell<?>> getCells()
         {
             if (cells_ == null)
             {
@@ -743,13 +772,13 @@ public class BTreeRow extends AbstractRow
             return isSorted;
         }
 
-        public void newRow(Clustering clustering)
+        public void newRow(Clustering<?> clustering)
         {
             assert this.clustering == null; // Ensures we've properly called build() if we've use this builder before
             this.clustering = clustering;
         }
 
-        public Clustering clustering()
+        public Clustering<?> clustering()
         {
             return clustering;
         }
@@ -778,7 +807,7 @@ public class BTreeRow extends AbstractRow
                 this.primaryKeyLivenessInfo = LivenessInfo.EMPTY;
         }
 
-        public void addCell(Cell cell)
+        public void addCell(Cell<?> cell)
         {
             assert cell.column().isStatic() == (clustering == Clustering.STATIC_CLUSTERING) : "Column is " + cell.column() + ", clustering = " + clustering;
 

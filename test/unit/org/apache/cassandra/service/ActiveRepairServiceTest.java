@@ -19,15 +19,27 @@
 package org.apache.cassandra.service;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -47,6 +59,7 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
@@ -204,7 +217,7 @@ public class ActiveRepairServiceTest
         }
 
         expected.remove(FBUtilities.getBroadcastAddressAndPort());
-        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().toString(),expected.get(0).toString());
+        Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(),expected.get(0).getHostAddressAndPort());
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
 
         assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5, ranges,
@@ -351,5 +364,102 @@ public class ActiveRepairServiceTest
 
         // full repair
         Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(false)), false));
+    }
+
+    @Test
+    public void testRejectWhenPoolFullStrategy() throws InterruptedException
+    {
+        // Using RepairCommandPoolFullStrategy.reject, new threads are spawned up to
+        // repair_command_pool_size, at which point futher submissions are rejected
+        ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.reject);
+        try
+        {
+            Condition blocked = new SimpleCondition();
+            CountDownLatch completed = new CountDownLatch(2);
+            validationExecutor.submit(new Task(blocked, completed));
+            validationExecutor.submit(new Task(blocked, completed));
+            try
+            {
+                validationExecutor.submit(new Task(blocked, completed));
+                Assert.fail("Expected task submission to be rejected");
+            }
+            catch (RejectedExecutionException e)
+            {
+                // expected
+            }
+            // allow executing tests to complete
+            blocked.signalAll();
+            completed.await(10, TimeUnit.SECONDS);
+            // Submission is unblocked
+            validationExecutor.submit(() -> {});
+        }
+        finally
+        {
+            // necessary to unregister mbean
+            validationExecutor.shutdownNow();
+        }
+    }
+
+    @Test
+    public void testQueueWhenPoolFullStrategy() throws InterruptedException
+    {
+        // Using RepairCommandPoolFullStrategy.queue, the pool is initialized to
+        // repair_command_pool_size and any tasks which cannot immediately be
+        // serviced are queued
+        ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.queue);
+        try
+        {
+            Condition allSubmitted = new SimpleCondition();
+            Condition blocked = new SimpleCondition();
+            CountDownLatch completed = new CountDownLatch(5);
+            ExecutorService testExecutor = Executors.newSingleThreadExecutor();
+            for (int i = 0; i < 5; i++)
+            {
+                if (i < 4)
+                    testExecutor.submit(() -> validationExecutor.submit(new Task(blocked, completed)));
+                else
+                    testExecutor.submit(() -> {
+                        validationExecutor.submit(new Task(blocked, completed));
+                        allSubmitted.signalAll();
+                    });
+            }
+
+            // Make sure all tasks have been submitted to the validation executor
+            allSubmitted.await(10, TimeUnit.SECONDS);
+
+            // Give the tasks we expect to execute immediately chance to be scheduled
+            Util.spinAssertEquals(2 , ((DebuggableThreadPoolExecutor) validationExecutor)::getActiveTaskCount, 1);
+            Util.spinAssertEquals(3 , ((DebuggableThreadPoolExecutor) validationExecutor)::getPendingTaskCount, 1);
+
+            // verify that we've reached a steady state with 2 threads actively processing and 3 queued tasks
+            Assert.assertEquals(2, ((DebuggableThreadPoolExecutor) validationExecutor).getActiveTaskCount());
+            Assert.assertEquals(3, ((DebuggableThreadPoolExecutor) validationExecutor).getPendingTaskCount());
+            // allow executing tests to complete
+            blocked.signalAll();
+            completed.await(10, TimeUnit.SECONDS);
+        }
+        finally
+        {
+            // necessary to unregister mbean
+            validationExecutor.shutdownNow();
+        }
+    }
+
+    private static class Task implements Runnable
+    {
+        private final Condition blocked;
+        private final CountDownLatch complete;
+
+        Task(Condition blocked, CountDownLatch complete)
+        {
+            this.blocked = blocked;
+            this.complete = complete;
+        }
+
+        public void run()
+        {
+            Uninterruptibles.awaitUninterruptibly(blocked, 10, TimeUnit.SECONDS);
+            complete.countDown();
+        }
     }
 }

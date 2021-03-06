@@ -214,7 +214,7 @@ public final class SystemDistributedKeyspace
     {
         //Don't record repair history if an upgrade is in progress as version 3 nodes generates errors
         //due to schema differences
-        boolean includeNewColumns = !Gossiper.instance.haveMajorVersion3Nodes();
+        boolean includeNewColumns = !Gossiper.instance.hasMajorVersion3Nodes();
 
         InetAddressAndPort coordinator = FBUtilities.getBroadcastAddressAndPort();
         Set<String> participants = Sets.newHashSet();
@@ -223,7 +223,7 @@ public final class SystemDistributedKeyspace
         for (InetAddressAndPort endpoint : commonRange.endpoints)
         {
             participants.add(endpoint.getHostAddress(false));
-            participants_v2.add(endpoint.toString());
+            participants_v2.add(endpoint.getHostAddressAndPort());
         }
 
         String query =

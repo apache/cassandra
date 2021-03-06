@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -58,17 +60,20 @@ import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
 
 import static org.apache.cassandra.utils.asserts.SyncTaskAssert.assertThat;
 import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class RepairJobTest
 {
@@ -91,7 +96,7 @@ public class RepairJobTest
     private static InetAddressAndPort addr3;
     private static InetAddressAndPort addr4;
     private static InetAddressAndPort addr5;
-    private RepairSession session;
+    private MeasureableRepairSession session;
     private RepairJob job;
     private RepairJobDesc sessionJobDesc;
 
@@ -99,19 +104,45 @@ public class RepairJobTest
     // memory retention from CASSANDRA-14096
     private static class MeasureableRepairSession extends RepairSession
     {
+        private final List<Callable<?>> syncCompleteCallbacks = new ArrayList<>();
+
         public MeasureableRepairSession(UUID parentRepairSession, UUID id, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
-                                        boolean force, PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
+                                        PreviewKind previewKind, boolean optimiseStreams, String... cfnames)
         {
-            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, force, previewKind, optimiseStreams, cfnames);
+            super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, previewKind, optimiseStreams, cfnames);
         }
 
         protected DebuggableThreadPoolExecutor createExecutor()
         {
             DebuggableThreadPoolExecutor executor = super.createExecutor();
             executor.setKeepAliveTime(THREAD_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            return executor;        }
+            return executor;
+        }
+
+        @Override
+        public void syncComplete(RepairJobDesc desc, SyncNodePair nodes, boolean success, List<SessionSummary> summaries)
+        {
+            for (Callable<?> callback : syncCompleteCallbacks)
+            {
+                try
+                {
+                    callback.call();
+                }
+                catch (Exception e)
+                {
+                    throw Throwables.cleaned(e);
+                }
+            }
+            super.syncComplete(desc, nodes, success, summaries);
+        }
+
+        public void registerSyncCompleteCallback(Callable<?> callback)
+        {
+            syncCompleteCallbacks.add(callback);
+        }
     }
+
     @BeforeClass
     public static void setupClass() throws UnknownHostException
     {
@@ -138,8 +169,7 @@ public class RepairJobTest
 
         this.session = new MeasureableRepairSession(parentRepairSession, UUIDGen.getTimeUUID(),
                                                     new CommonRange(neighbors, Collections.emptySet(), FULL_RANGE),
-                                                    KEYSPACE, RepairParallelism.SEQUENTIAL,
-                                                    false, false, false,
+                                                    KEYSPACE, RepairParallelism.SEQUENTIAL, false, false,
                                                     PreviewKind.NONE, false, CF);
 
         this.job = new RepairJob(session, CF);
@@ -221,10 +251,15 @@ public class RepairJobTest
         // SyncTasks themselves should not contain significant memory
         SyncTaskListAssert.assertThat(syncTasks).hasSizeLessThan(0.2 * singleTreeSize);
 
+        // block syncComplete execution until test has verified session still retains the trees
+        CompletableFuture<?> future = new CompletableFuture<>();
+        session.registerSyncCompleteCallback(future::get);
         ListenableFuture<List<SyncStat>> syncResults = job.executeTasks(syncTasks);
 
         // Immediately following execution the internal execution queue should still retain the trees
         assertThat(ObjectSizes.measureDeep(session)).isGreaterThan(singleTreeSize);
+        // unblock syncComplete callback, session should remove trees
+        future.complete(null);
 
         // The session retains memory in the contained executor until the threads expire, so we wait for the threads
         // that ran the Tree -> SyncTask conversions to die and release the memory
@@ -576,7 +611,7 @@ public class RepairJobTest
     }
 
     @Test
-    public void testOptimizedCreateStandardSyncTasksAllDifferent()
+    public void testOptimisedCreateStandardSyncTasksAllDifferent()
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
@@ -602,8 +637,17 @@ public class RepairJobTest
     }
 
     @Test
-    public void testOptimizedCreateStandardSyncTasks()
+    public void testOptimisedCreateStandardSyncTasks()
     {
+        /*
+        addr1 will stream range1 from addr3
+                          range2 from addr2 or addr3
+        addr2 will stream range1 from addr3
+                          range2 from addr1
+        addr3 will stream range1 from addr1 or addr2
+                          range2 from addr1
+         */
+
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one"),
                                                          treeResponse(addr2, RANGE_1, "one", RANGE_2, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "two"));
@@ -618,21 +662,23 @@ public class RepairJobTest
 
         assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
 
-        assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).containsExactly(RANGE_1);
+        // addr1 streams range1 from addr3:
+        assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).contains(RANGE_1);
         // addr1 can get range2 from either addr2 or addr3 but not from both
         assertStreamRangeFromEither(tasks, RANGE_2, addr1, addr2, addr3);
 
-        assertThat(tasks.get(pair(addr2, addr3)).rangesToSync).containsExactly(RANGE_1);
-        assertThat(tasks.get(pair(addr2, addr1)).rangesToSync).containsExactly(RANGE_2);
-
+        // addr2 streams range1 from addr3
+        assertThat(tasks.get(pair(addr2, addr3)).rangesToSync).contains(RANGE_1);
+        // addr2 streams range2 from addr1
+        assertThat(tasks.get(pair(addr2, addr1)).rangesToSync).contains(RANGE_2);
         // addr3 can get range1 from either addr1 or addr2 but not from both
         assertStreamRangeFromEither(tasks, RANGE_1, addr3, addr2, addr1);
-
-        assertThat(tasks.get(pair(addr3, addr1)).rangesToSync).containsExactly(RANGE_2);
+        // addr3 streams range2 from addr1
+        assertThat(tasks.get(pair(addr3, addr1)).rangesToSync).contains(RANGE_2);
     }
 
     @Test
-    public void testOptimizedCreateStandardSyncTasksWithTransient()
+    public void testOptimisedCreateStandardSyncTasksWithTransient()
     {
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"),
@@ -647,7 +693,6 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
-        assertThat(tasks).hasSize(3);
         SyncTask task = tasks.get(pair(addr1, addr2));
 
         assertThat(task)
@@ -664,23 +709,21 @@ public class RepairJobTest
     public static void assertStreamRangeFromEither(Map<SyncNodePair, SyncTask> tasks, Range<Token> range,
                                                    InetAddressAndPort target, InetAddressAndPort either, InetAddressAndPort or)
     {
-        InetAddressAndPort streamsFrom;
-        InetAddressAndPort doesntStreamFrom;
-        if (tasks.containsKey(pair(target, either)) && tasks.get(pair(target, either)).rangesToSync.contains(range))
-        {
-            streamsFrom = either;
-            doesntStreamFrom = or;
-        }
-        else
-        {
-            doesntStreamFrom = either;
-            streamsFrom = or;
-        }
+        SyncTask task1 = tasks.get(pair(target, either));
+        SyncTask task2 = tasks.get(pair(target, or));
 
-        SyncTask task = tasks.get(pair(target, streamsFrom));
-        assertThat(task).isInstanceOf(AsymmetricRemoteSyncTask.class);
-        assertThat(task.rangesToSync).containsOnly(range);
-        assertDoesntStreamRangeFrom(range, tasks.get(pair(target, doesntStreamFrom)));
+        boolean foundRange = false;
+        if (task1 != null && task1.rangesToSync.contains(range))
+        {
+            foundRange = true;
+            assertDoesntStreamRangeFrom(range, task2);
+        }
+        else if (task2 != null && task2.rangesToSync.contains(range))
+        {
+            foundRange = true;
+            assertDoesntStreamRangeFrom(range, task1);
+        }
+        assertTrue(foundRange);
     }
 
     public static void assertDoesntStreamRangeFrom(Range<Token> range, SyncTask task)

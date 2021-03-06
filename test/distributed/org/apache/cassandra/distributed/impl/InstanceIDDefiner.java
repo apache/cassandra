@@ -27,15 +27,21 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 public class InstanceIDDefiner extends PropertyDefinerBase
 {
     // Instantiated per classloader, set by Instance
-    private static volatile String instanceId = "<main>";
+    private static volatile String INSTANCE_ID = "<main>";
+
     public static void setInstanceId(int id)
     {
-        instanceId = "node" + id;
+        INSTANCE_ID = "node" + id;
         NamedThreadFactory.setGlobalPrefix("node" + id + "_");
+    }
+
+    public static String getInstanceId()
+    {
+        return INSTANCE_ID;
     }
 
     public String getPropertyValue()
     {
-        return instanceId;
+        return INSTANCE_ID;
     }
 }

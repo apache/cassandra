@@ -25,7 +25,7 @@ import org.apache.cassandra.io.util.FileUtils;
 /**
  * Comparator to sort StatsTables by a named statistic.
  */
-public class StatsTableComparator implements Comparator
+public class StatsTableComparator implements Comparator<StatsTable>
 {
 
     /**
@@ -115,15 +115,10 @@ public class StatsTableComparator implements Comparator
     /**
      * Compare StatsTable instances based on this instance's sortKey.
      */
-    public int compare(Object x, Object y)
+    public int compare(StatsTable stx, StatsTable sty)
     {
-        if (!(x instanceof StatsTable && y instanceof StatsTable))
-            throw new ClassCastException(String.format("StatsTableComparator cannot compare %s and %s",
-                                                       x.getClass().toString(), y.getClass().toString()));
-        if (x == null || y == null)
+        if (stx == null || sty == null)
             throw new NullPointerException("StatsTableComparator cannot compare null objects");
-        StatsTable stx = (StatsTable) x;
-        StatsTable sty = (StatsTable) y;
         int sign = ascending ? 1 : -1;
         int result = 0;
         if (sortKey.equals("average_live_cells_per_slice_last_five_minutes"))

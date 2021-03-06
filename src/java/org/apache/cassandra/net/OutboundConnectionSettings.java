@@ -35,7 +35,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.instance;
-import static org.apache.cassandra.net.SocketFactory.encryptionLogStatement;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
@@ -171,7 +170,7 @@ public class OutboundConnectionSettings
     public String toString()
     {
         return String.format("peer: (%s, %s), framing: %s, encryption: %s",
-                             to, connectTo, framing, encryptionLogStatement(encryption));
+                             to, connectTo, framing, SocketFactory.encryptionOptionsSummary(encryption));
     }
 
     public OutboundConnectionSettings withAuthenticator(IInternodeAuthenticator authenticator)
@@ -411,10 +410,18 @@ public class OutboundConnectionSettings
                                              : DatabaseDescriptor.getInternodeTcpConnectTimeoutInMS();
     }
 
-    public int tcpUserTimeoutInMS()
+    public int tcpUserTimeoutInMS(ConnectionCategory category)
     {
-        return tcpUserTimeoutInMS != null ? tcpUserTimeoutInMS
-                                          : DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+        // Reusing tcpUserTimeoutInMS for both messaging and streaming, since the connection is created for either one of them.
+        if (tcpUserTimeoutInMS != null)
+            return tcpUserTimeoutInMS;
+
+        switch (category)
+        {
+            case MESSAGING: return DatabaseDescriptor.getInternodeTcpUserTimeoutInMS();
+            case STREAMING: return DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+            default: throw new IllegalArgumentException("Unknown connection category: " + category);
+        }
     }
 
     public boolean tcpNoDelay()
@@ -449,6 +456,13 @@ public class OutboundConnectionSettings
         return connectTo;
     }
 
+    public String connectToId()
+    {
+        return !to.equals(connectTo())
+             ? to.toString()
+             : to.toString() + '(' + connectTo().toString() + ')';
+    }
+
     public Framing framing(ConnectionCategory category)
     {
         if (framing != null)
@@ -473,7 +487,7 @@ public class OutboundConnectionSettings
                                               applicationSendQueueReserveEndpointCapacityInBytes(),
                                               applicationSendQueueReserveGlobalCapacityInBytes(),
                                               tcpNoDelay(), flushLowWaterMark, flushHighWaterMark,
-                                              tcpConnectTimeoutInMS(), tcpUserTimeoutInMS(), acceptVersions(category),
+                                              tcpConnectTimeoutInMS(), tcpUserTimeoutInMS(category), acceptVersions(category),
                                               from(), socketFactory(), callbacks(), debug(), endpointToVersion());
     }
 

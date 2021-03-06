@@ -25,13 +25,16 @@ import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledUnsafeDirectByteBuf;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 /**
  * A trivial wrapper around BufferPool for integrating with Netty, but retaining ownership of pooling behaviour
  * that is integrated into Cassandra's other pooling.
  */
-abstract class BufferPoolAllocator extends AbstractByteBufAllocator
+public abstract class BufferPoolAllocator extends AbstractByteBufAllocator
 {
+    private static final BufferPool bufferPool = BufferPools.forNetworking();
+
     BufferPoolAllocator()
     {
         super(true);
@@ -60,22 +63,22 @@ abstract class BufferPoolAllocator extends AbstractByteBufAllocator
 
     ByteBuffer get(int size)
     {
-        return BufferPool.get(size, BufferType.OFF_HEAP);
+        return bufferPool.get(size, BufferType.OFF_HEAP);
     }
 
     ByteBuffer getAtLeast(int size)
     {
-        return BufferPool.getAtLeast(size, BufferType.OFF_HEAP);
+        return bufferPool.getAtLeast(size, BufferType.OFF_HEAP);
     }
 
     void put(ByteBuffer buffer)
     {
-        BufferPool.put(buffer);
+        bufferPool.put(buffer);
     }
 
     void putUnusedPortion(ByteBuffer buffer)
     {
-        BufferPool.putUnusedPortion(buffer);
+        bufferPool.putUnusedPortion(buffer);
     }
 
     void release()
@@ -100,7 +103,7 @@ abstract class BufferPoolAllocator extends AbstractByteBufAllocator
         public void deallocate()
         {
             if (wrapped != null)
-                BufferPool.put(wrapped);
+                bufferPool.put(wrapped);
         }
 
         public ByteBuffer adopt()

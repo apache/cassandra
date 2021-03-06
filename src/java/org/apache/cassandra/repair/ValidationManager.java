@@ -161,6 +161,11 @@ public class ValidationManager
                 {
                     doValidation(cfs, validator);
                 }
+                catch (PreviewRepairConflictWithIncrementalRepairException e)
+                {
+                    validator.fail();
+                    logger.warn(e.getMessage());
+                }
                 catch (Throwable e)
                 {
                     // we need to inform the remote end of our failure, otherwise it will hang on repair forever

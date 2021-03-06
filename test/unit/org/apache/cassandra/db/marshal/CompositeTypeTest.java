@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
 
+import com.google.common.collect.Lists;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import static org.junit.Assert.fail;
@@ -69,7 +71,11 @@ public class CompositeTypeTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.denseCFMD(KEYSPACE1, CF_STANDARDCOMPOSITE, composite));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDCOMPOSITE,
+                                                              0,
+                                                              AsciiType.instance, // key
+                                                              AsciiType.instance, // value
+                                                              composite)); // clustering
     }
 
     @Test
@@ -206,9 +212,9 @@ public class CompositeTypeTest
         compareValues(iter.next().getCell(cdef), "cname4");
         compareValues(iter.next().getCell(cdef), "cname5");
     }
-    private void compareValues(Cell c, String r) throws CharacterCodingException
+    private void compareValues(Cell<?> c, String r) throws CharacterCodingException
     {
-        assert ByteBufferUtil.string(c.value()).equals(r) : "Expected: {" + ByteBufferUtil.string(c.value()) + "} got: {" + r + "}";
+        assert ByteBufferUtil.string(c.buffer()).equals(r) : "Expected: {" + ByteBufferUtil.string(c.buffer()) + "} got: {" + r + "}";
     }
 
     @Test
@@ -268,7 +274,7 @@ public class CompositeTypeTest
             for (int i = 0; i < input.length; i++)
                 bbs[i] = UTF8Type.instance.fromString(input[i]);
 
-            ByteBuffer value = comp.fromString(comp.getString(CompositeType.build(bbs)));
+            ByteBuffer value = comp.fromString(comp.getString(CompositeType.build(ByteBufferAccessor.instance, bbs)));
             ByteBuffer[] splitted = comp.split(value);
             for (int i = 0; i < splitted.length; i++)
                 assertEquals(input[i], UTF8Type.instance.getString(splitted[i]));
@@ -316,5 +322,25 @@ public class CompositeTypeTest
         }
         bb.rewind();
         return bb;
+    }
+
+    private static <V> void testToFromString(ByteBuffer bytes, ValueAccessor<V> accessor, CompositeType type)
+    {
+        V value = accessor.valueOf(bytes);
+        String s = type.getString(value, accessor);
+        ByteBuffer fromString = type.fromString(s);
+        Assert.assertEquals(bytes, fromString);
+    }
+
+
+    @Test
+    public void testLargeValues()
+    {
+        CompositeType type = CompositeType.getInstance(Lists.newArrayList(BytesType.instance));
+        ByteBuffer expected = ByteBuffer.allocate(0xFFFE);
+        new Random(0).nextBytes(expected.array());
+        ByteBuffer serialized = CompositeType.build(ByteBufferAccessor.instance, expected);
+        for (ValueAccessor<?> accessor : ValueAccessors.ACCESSORS)
+            testToFromString(serialized, accessor, type);
     }
 }

@@ -24,6 +24,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
@@ -34,7 +35,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
@@ -118,6 +119,20 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return String array of all locations
      */
     public String[] getAllDataFileLocations();
+
+    /**
+     * Returns the locations where the local system keyspaces data should be stored.
+     *
+     * @return the locations where the local system keyspaces data should be stored
+     */
+    public String[] getLocalSystemKeyspacesDataFileLocations();
+
+    /**
+     * Returns the locations where should be stored the non system keyspaces data.
+     *
+     * @return the locations where should be stored the non system keyspaces data
+     */
+    public String[] getNonLocalSystemKeyspacesDataFileLocations();
 
     /**
      * Get location of the commit log
@@ -219,8 +234,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
     public List<String> getNaturalEndpointsWithPort(String keysapceName, ByteBuffer key);
 
-    public List<String> getReplicas(String keyspaceName, String cf, String key);
-
     /**
      * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
      */
@@ -268,6 +281,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return True size taken by all the snapshots.
      */
     public long trueSnapshotsSize();
+
+    /**
+     * Set the current hardlink-per-second throttle for snapshots
+     * A setting of zero indicates no throttling
+     *
+     * @param throttle
+     */
+    public void setSnapshotLinksPerSecond(long throttle);
+
+    /**
+     * Get the current hardlink-per-second throttle for snapshots
+     * A setting of zero indicates no throttling.
+     *
+     * @return snapshot links-per-second throttle
+     */
+    public long getSnapshotLinksPerSecond();
 
     /**
      * Forces refresh of values stored in system.size_estimates of all column families.
@@ -559,6 +588,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setInternodeTcpUserTimeoutInMS(int value);
     public int getInternodeTcpUserTimeoutInMS();
 
+    public void setInternodeStreamingTcpUserTimeoutInMS(int value);
+    public int getInternodeStreamingTcpUserTimeoutInMS();
+
     public void setCounterWriteRpcTimeout(long value);
     public long getCounterWriteRpcTimeout();
 
@@ -582,6 +614,10 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public int getConcurrentCompactors();
     public void setConcurrentCompactors(int value);
+
+    public void bypassConcurrentValidatorsLimit();
+    public void enforceConcurrentValidatorsLimit();
+    public boolean isConcurrentValidatorsLimitEnforced();
 
     public int getConcurrentValidators();
     public void setConcurrentValidators(int value);
@@ -695,6 +731,18 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the threshold for abandoning queries with many tombstones */
     public void setTombstoneFailureThreshold(int tombstoneDebugThreshold);
 
+    /** Returns the number of rows cached at the coordinator before filtering/index queries log a warning. */
+    public int getCachedReplicaRowsWarnThreshold();
+
+    /** Sets the number of rows cached at the coordinator before filtering/index queries log a warning. */
+    public void setCachedReplicaRowsWarnThreshold(int threshold);
+
+    /** Returns the number of rows cached at the coordinator before filtering/index queries fail outright. */
+    public int getCachedReplicaRowsFailThreshold();
+
+    /** Sets the number of rows cached at the coordinator before filtering/index queries fail outright. */
+    public void setCachedReplicaRowsFailThreshold(int threshold);
+
     /** Returns the threshold for skipping the column index when caching partition info **/
     public int getColumnIndexCacheSize();
     /** Sets the threshold for skipping the column index when caching partition info **/
@@ -742,6 +790,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Clears the history of clients that have connected in the past **/
     void clearConnectionHistory();
     public void disableAuditLog();
+    public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
     public boolean isAuditLogEnabled();
     public String getCorruptedTombstoneStrategy();
@@ -771,4 +820,40 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void stopFullQueryLogger();
 
+    public boolean isFullQueryLogEnabled();
+
+    /**
+     * Returns the current state of FQL.
+     */
+    CompositeData getFullQueryLoggerOptions();
+
+    /** Sets the initial allocation size of backing arrays for new RangeTombstoneList objects */
+    public void setInitialRangeTombstoneListAllocationSize(int size);
+
+    /** Returns the initial allocation size of backing arrays for new RangeTombstoneList objects */
+    public int getInitialRangeTombstoneListAllocationSize();
+
+    /** Sets the resize factor to use when growing/resizing a RangeTombstoneList */
+    public void setRangeTombstoneListResizeGrowthFactor(double growthFactor);
+
+    /** Returns the resize factor to use when growing/resizing a RangeTombstoneList */
+    public double getRangeTombstoneResizeListGrowthFactor();
+
+    /** Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for */
+    @Deprecated
+    public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
+    public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort();
+
+    // see CASSANDRA-3200
+    public boolean autoOptimiseIncRepairStreams();
+    public void setAutoOptimiseIncRepairStreams(boolean enabled);
+    public boolean autoOptimiseFullRepairStreams();
+    public void setAutoOptimiseFullRepairStreams(boolean enabled);
+    public boolean autoOptimisePreviewRepairStreams();
+    public void setAutoOptimisePreviewRepairStreams(boolean enabled);
+
+    int getTableCountWarnThreshold();
+    void setTableCountWarnThreshold(int value);
+    int getKeyspaceCountWarnThreshold();
+    void setKeyspaceCountWarnThreshold(int value);
 }

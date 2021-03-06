@@ -34,6 +34,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.ChunkCacheMetrics;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 public class ChunkCache
         implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
@@ -42,8 +43,10 @@ public class ChunkCache
     public static final long cacheSize = 1024L * 1024L * Math.max(0, DatabaseDescriptor.getFileCacheSizeInMB() - RESERVED_POOL_SPACE_IN_MB);
     public static final boolean roundUp = DatabaseDescriptor.getFileCacheRoundUp();
 
-    private static boolean enabled = cacheSize > 0;
-    public static final ChunkCache instance = enabled ? new ChunkCache() : null;
+    private static boolean enabled = DatabaseDescriptor.getFileCacheEnabled() && cacheSize > 0;
+    public static final ChunkCache instance = enabled ? new ChunkCache(BufferPools.forChunkCache()) : null;
+
+    private final BufferPool bufferPool;
 
     private final LoadingCache<Key, Buffer> cache;
     public final ChunkCacheMetrics metrics;
@@ -86,7 +89,7 @@ public class ChunkCache
         }
     }
 
-    static class Buffer implements Rebufferer.BufferHolder
+    class Buffer implements Rebufferer.BufferHolder
     {
         private final ByteBuffer buffer;
         private final long offset;
@@ -130,12 +133,13 @@ public class ChunkCache
         public void release()
         {
             if (references.decrementAndGet() == 0)
-                BufferPool.put(buffer);
+                bufferPool.put(buffer);
         }
     }
 
-    private ChunkCache()
+    private ChunkCache(BufferPool pool)
     {
+        bufferPool = pool;
         metrics = new ChunkCacheMetrics(this);
         cache = Caffeine.newBuilder()
                         .maximumWeight(cacheSize)
@@ -149,7 +153,7 @@ public class ChunkCache
     @Override
     public Buffer load(Key key)
     {
-        ByteBuffer buffer = BufferPool.get(key.file.chunkSize(), key.file.preferredBufferType());
+        ByteBuffer buffer = bufferPool.get(key.file.chunkSize(), key.file.preferredBufferType());
         assert buffer != null;
         key.file.readChunk(key.position, buffer);
         return new Buffer(buffer, key.position);
@@ -166,7 +170,7 @@ public class ChunkCache
         cache.invalidateAll();
     }
 
-    public RebuffererFactory wrap(ChunkReader file)
+    private RebuffererFactory wrap(ChunkReader file)
     {
         return new CachingRebufferer(file);
     }

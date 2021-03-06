@@ -45,12 +45,9 @@ public class DoubleType extends NumberType<Double>
         return true;
     }
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        if (!o1.hasRemaining() || !o2.hasRemaining())
-            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
-
-        return compose(o1).compareTo(compose(o2));
+        return compareComposed(left, accessorL, right, accessorR, this);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -90,6 +87,8 @@ public class DoubleType extends NumberType<Double>
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         Double value = getSerializer().deserialize(buffer);
+        if (value == null)
+            return "\"\"";
         // JSON does not support NaN, Infinity and -Infinity values. Most of the parser convert them into null.
         if (value.isNaN() || value.isInfinite())
             return "null";

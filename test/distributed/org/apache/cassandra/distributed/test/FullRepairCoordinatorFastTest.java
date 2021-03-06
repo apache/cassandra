@@ -30,5 +30,6 @@ public class FullRepairCoordinatorFastTest extends RepairCoordinatorFast
     public FullRepairCoordinatorFastTest(RepairParallelism parallelism, boolean withNotifications)
     {
         super(RepairType.FULL, parallelism, withNotifications);
+        CLUSTER.setUncaughtExceptionsFilter((instance, ex) -> true);
     }
 }

@@ -34,6 +34,8 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.BufferClusteringBound;
+import org.apache.cassandra.db.BufferClusteringBoundary;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringBoundary;
 import org.apache.cassandra.db.ClusteringPrefix;
@@ -277,18 +279,18 @@ public abstract class AbstractReadResponseTest
 
     public RangeTombstone tombstone(Object start, boolean inclusiveStart, Object end, boolean inclusiveEnd, long markedForDeleteAt, int localDeletionTime)
     {
-        ClusteringBound startBound = rtBound(start, true, inclusiveStart);
-        ClusteringBound endBound = rtBound(end, false, inclusiveEnd);
+        ClusteringBound<?> startBound = rtBound(start, true, inclusiveStart);
+        ClusteringBound<?> endBound = rtBound(end, false, inclusiveEnd);
         return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(markedForDeleteAt, localDeletionTime));
     }
 
-    public ClusteringBound rtBound(Object value, boolean isStart, boolean inclusive)
+    public ClusteringBound<?> rtBound(Object value, boolean isStart, boolean inclusive)
     {
         ClusteringBound.Kind kind = isStart
                                     ? (inclusive ? ClusteringPrefix.Kind.INCL_START_BOUND : ClusteringPrefix.Kind.EXCL_START_BOUND)
                                     : (inclusive ? ClusteringPrefix.Kind.INCL_END_BOUND : ClusteringPrefix.Kind.EXCL_END_BOUND);
 
-        return ClusteringBound.create(kind, cfm.comparator.make(value).getRawValues());
+        return BufferClusteringBound.create(kind, cfm.comparator.make(value).getBufferArray());
     }
 
     public ClusteringBoundary rtBoundary(Object value, boolean inclusiveOnEnd)
@@ -296,7 +298,7 @@ public abstract class AbstractReadResponseTest
         ClusteringBound.Kind kind = inclusiveOnEnd
                                     ? ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY
                                     : ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY;
-        return ClusteringBoundary.create(kind, cfm.comparator.make(value).getRawValues());
+        return BufferClusteringBoundary.create(kind, cfm.comparator.make(value).getBufferArray());
     }
 
     public RangeTombstoneBoundMarker marker(Object value, boolean isStart, boolean inclusive, long markedForDeleteAt, int localDeletionTime)

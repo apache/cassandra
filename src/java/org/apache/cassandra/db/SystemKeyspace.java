@@ -72,8 +72,6 @@ import static java.util.Collections.singletonMap;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
 
 public final class SystemKeyspace
 {
@@ -92,6 +90,8 @@ public final class SystemKeyspace
     // Cassandra was not previously installed and we're in the process of starting a fresh node.
     public static final CassandraVersion NULL_VERSION = new CassandraVersion("0.0.0-absent");
 
+    public static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
+
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String BUILT_INDEXES = "IndexInfo";
@@ -109,6 +109,17 @@ public final class SystemKeyspace
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
+
+    /**
+     * By default the system keyspace tables should be stored in a single data directory to allow the server
+     * to handle more gracefully disk failures. Some tables through can be split accross multiple directories
+     * as the server can continue operating even if those tables lost some data.
+     */
+    public static final Set<String> TABLES_SPLIT_ACROSS_MULTIPLE_DISKS = ImmutableSet.of(BATCHES,
+                                                                                         PAXOS,
+                                                                                         COMPACTION_HISTORY,
+                                                                                         PREPARED_STATEMENTS,
+                                                                                         REPAIRS);
 
     @Deprecated public static final String LEGACY_PEERS = "peers";
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";
@@ -917,7 +928,7 @@ public final class SystemKeyspace
         {
             if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
             {
-                return new CassandraVersion(FBUtilities.getReleaseVersionString());
+                return CURRENT_VERSION;
             }
             String req = "SELECT release_version FROM system.%s WHERE peer=? AND peer_port=?";
             UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
@@ -1327,30 +1338,15 @@ public final class SystemKeyspace
     }
 
     /**
-     * Clears size estimates for a keyspace (used to manually clean when we miss a keyspace drop)
+     * truncates size_estimates and table_estimates tables
      */
-    public static void clearEstimates(String keyspace)
+    public static void clearAllEstimates()
     {
-        String cqlFormat = "DELETE FROM %s WHERE keyspace_name = ?";
-        String cql = String.format(cqlFormat, LegacySizeEstimates.toString());
-        executeInternal(cql, keyspace);
-        cql = String.format(cqlFormat, TableEstimates.toString());
-        executeInternal(cql, keyspace);
-    }
-
-    /**
-     * @return A multimap from keyspace to table for all tables with entries in size estimates
-     */
-    public static synchronized SetMultimap<String, String> getTablesWithSizeEstimates()
-    {
-        SetMultimap<String, String> keyspaceTableMap = HashMultimap.create();
-        String cql = String.format("SELECT keyspace_name, table_name FROM %s", TableEstimates.toString(), TABLE_ESTIMATES_TYPE_PRIMARY);
-        UntypedResultSet rs = executeInternal(cql);
-        for (UntypedResultSet.Row row : rs)
+        for (TableMetadata table : Arrays.asList(LegacySizeEstimates, TableEstimates))
         {
-            keyspaceTableMap.put(row.getString("keyspace_name"), row.getString("table_name"));
+            String cql = String.format("TRUNCATE TABLE " + table.toString());
+            executeInternal(cql);
         }
-        return keyspaceTableMap;
     }
 
     public static synchronized void updateAvailableRanges(String keyspace, Collection<Range<Token>> completedFullRanges, Collection<Range<Token>> completedTransientRanges)
@@ -1464,7 +1460,7 @@ public final class SystemKeyspace
                                                                              previous,
                                                                              next));
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null);
+                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null);
         }
     }
 

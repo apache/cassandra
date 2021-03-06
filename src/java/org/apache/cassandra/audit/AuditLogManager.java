@@ -20,7 +20,9 @@ package org.apache.cassandra.audit;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -31,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -60,18 +63,20 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     private AuditLogManager()
     {
-        if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
+        final AuditLogOptions auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
+
+        if (auditLogOptions.enabled)
         {
             logger.info("Audit logging is enabled.");
-            auditLogger = getAuditLogger(DatabaseDescriptor.getAuditLoggingOptions().logger);
+            auditLogger = getAuditLogger(auditLogOptions.logger);
         }
         else
         {
             logger.debug("Audit logging is disabled.");
-            auditLogger = new NoOpAuditLogger();
+            auditLogger = new NoOpAuditLogger(Collections.emptyMap());
         }
 
-        filter = AuditLogFilter.create(DatabaseDescriptor.getAuditLoggingOptions());
+        filter = AuditLogFilter.create(auditLogOptions);
     }
 
     public void initialize()
@@ -80,14 +85,14 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             registerAsListener();
     }
 
-    private IAuditLogger getAuditLogger(String loggerClassName) throws ConfigurationException
+    private IAuditLogger getAuditLogger(ParameterizedClass logger) throws ConfigurationException
     {
-        if (loggerClassName != null)
+        if (logger.class_name != null)
         {
-            return FBUtilities.newAuditLogger(loggerClassName);
+            return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
         }
 
-        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName());
+        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName(), Collections.emptyMap());
     }
 
     @VisibleForTesting
@@ -142,7 +147,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     {
         unregisterAsListener();
         IAuditLogger oldLogger = auditLogger;
-        auditLogger = new NoOpAuditLogger();
+        auditLogger = new NoOpAuditLogger(Collections.emptyMap());
         oldLogger.stop();
     }
 
@@ -159,7 +164,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         // next, check to see if we're changing the logging implementation; if not, keep the same instance and bail.
         // note: auditLogger should never be null
         IAuditLogger oldLogger = auditLogger;
-        if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger))
+        if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger.class_name))
             return;
 
         auditLogger = getAuditLogger(auditLogOptions.logger);

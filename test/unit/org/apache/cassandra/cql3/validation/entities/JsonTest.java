@@ -516,7 +516,7 @@ public class JsonTest extends CQLTester
         assertInvalidMessage("Expected a long or a datestring representation of a timestamp value, but got a Double",
                 "INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "123.456");
 
-        assertInvalidMessage("Unable to coerce 'abcd' to a formatted date",
+        assertInvalidMessage("Unable to parse a date/time from 'abcd'",
                 "INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "\"abcd\"");
 
         // ================ timeuuid ================
@@ -1364,7 +1364,7 @@ public class JsonTest extends CQLTester
             future.get(30, TimeUnit.SECONDS);
 
         executor.shutdown();
-        Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
+        Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
     }
 
     @Test

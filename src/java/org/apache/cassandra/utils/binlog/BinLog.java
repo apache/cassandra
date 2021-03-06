@@ -36,15 +36,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
-import net.openhft.chronicle.queue.RollCycle;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
@@ -82,6 +83,8 @@ public class BinLog implements Runnable
 
     private final AtomicLong droppedSamplesSinceLastLog = new AtomicLong();
 
+    private BinLogOptions options;
+
     /*
     This set contains all the paths we are currently logging to, it is used to make sure
     we don't start writing audit and full query logs to the same path.
@@ -115,26 +118,28 @@ public class BinLog implements Runnable
 
     private volatile boolean shouldContinue = true;
 
-    /**
-     * @param path           Path to store the BinLog. Can't be shared with anything else.
-     * @param rollCycle      How often to roll the log file so it can potentially be deleted
-     * @param maxQueueWeight Maximum weight of in memory queue for records waiting to be written to the file before blocking or dropping
-     */
-    private BinLog(Path path, RollCycle rollCycle, int maxQueueWeight, BinLogArchiver archiver, boolean blocking)
+    private BinLog(Path path, BinLogOptions options, BinLogArchiver archiver)
     {
         Preconditions.checkNotNull(path, "path was null");
-        Preconditions.checkNotNull(rollCycle, "rollCycle was null");
-        Preconditions.checkArgument(maxQueueWeight > 0, "maxQueueWeight must be > 0");
-        ChronicleQueueBuilder builder = ChronicleQueueBuilder.single(path.toFile());
-        builder.rollCycle(rollCycle);
+        Preconditions.checkNotNull(options.roll_cycle, "roll_cycle was null");
+        Preconditions.checkArgument(options.max_queue_weight > 0, "max_queue_weight must be > 0");
+        SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile());
+        builder.rollCycle(RollCycles.valueOf(options.roll_cycle));
 
-        sampleQueue = new WeightedQueue<>(maxQueueWeight);
+        sampleQueue = new WeightedQueue<>(options.max_queue_weight);
         this.archiver = archiver;
         builder.storeFileListener(this.archiver);
         queue = builder.build();
         appender = queue.acquireAppender();
-        this.blocking = blocking;
+        this.blocking = options.block;
         this.path = path;
+
+        this.options = options;
+    }
+
+    public BinLogOptions getBinLogOptions()
+    {
+        return options;
     }
 
     /**
@@ -359,6 +364,7 @@ public class BinLog implements Runnable
             Preconditions.checkNotNull(path, "path was null");
             File pathAsFile = path.toFile();
             //Exists and is a directory or can be created
+            Preconditions.checkArgument(!pathAsFile.toString().isEmpty(), "you might have forgotten to specify a directory to save logs");
             Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) || (!pathAsFile.exists() && pathAsFile.mkdirs()), "path exists and is not a directory or couldn't be created");
             Preconditions.checkArgument(pathAsFile.canRead() && pathAsFile.canWrite() && pathAsFile.canExecute(), "path is not readable, writable, and executable");
             this.path = path;
@@ -432,7 +438,17 @@ public class BinLog implements Runnable
                         }
                     }
                 }
-                BinLog binlog = new BinLog(path, RollCycles.valueOf(rollCycle), maxQueueWeight, archiver, blocking);
+
+                final BinLogOptions options = new BinLogOptions();
+
+                options.max_log_size = maxLogSize;
+                options.max_queue_weight = maxQueueWeight;
+                options.block = blocking;
+                options.roll_cycle = rollCycle;
+                options.archive_command = archiveCommand;
+                options.max_archive_retries = maxArchiveRetries;
+
+                BinLog binlog = new BinLog(path, options, archiver);
                 binlog.start();
                 return binlog;
             }
@@ -460,7 +476,7 @@ public class BinLog implements Runnable
         }
         if (accumulate instanceof FSError)
         {
-            FileUtils.handleFSError((FSError)accumulate);
+            JVMStabilityInspector.inspectThrowable(accumulate);
         }
         return accumulate;
     }

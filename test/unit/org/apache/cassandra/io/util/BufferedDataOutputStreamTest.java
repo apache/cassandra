@@ -44,10 +44,15 @@ import com.google.common.primitives.UnsignedBytes;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
 
+import static org.apache.cassandra.utils.FBUtilities.preventIllegalAccessWarnings;
 import static org.junit.Assert.*;
 
 public class BufferedDataOutputStreamTest
 {
+    static
+    {
+        preventIllegalAccessWarnings();
+    }
 
     @Test(expected = BufferOverflowException.class)
     public void testDataOutputBufferFixedByes() throws Exception

@@ -67,6 +67,14 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 case PREPARE_MSG:
                     PrepareMessage prepareMessage = (PrepareMessage) message.payload;
                     logger.debug("Preparing, {}", prepareMessage);
+
+                    if (!ActiveRepairService.verifyCompactionsPendingThreshold(prepareMessage.parentRepairSession, prepareMessage.previewKind))
+                    {
+                        // error is logged in verifyCompactionsPendingThreshold
+                        sendFailureResponse(message);
+                        return;
+                    }
+
                     List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.tableIds.size());
                     for (TableId tableId : prepareMessage.tableIds)
                     {
@@ -144,23 +152,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                                                        request.ranges,
                                                                        isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
                                                                        request.previewKind,
-                                                                       false);
+                                                                       request.asymmetric);
                     task.run();
-                    break;
-
-                case ASYMMETRIC_SYNC_REQ:
-                    // forwarded sync request
-                    AsymmetricSyncRequest asymmetricSyncRequest = (AsymmetricSyncRequest) message.payload;
-                    logger.debug("Syncing {}", asymmetricSyncRequest);
-                    StreamingRepairTask asymmetricTask = new StreamingRepairTask(desc,
-                                                                                 asymmetricSyncRequest.initiator,
-                                                                                 asymmetricSyncRequest.fetchingNode,
-                                                                                 asymmetricSyncRequest.fetchFrom,
-                                                                                 asymmetricSyncRequest.ranges,
-                                                                                 isIncremental(desc.parentSessionId) ? desc.parentSessionId : null,
-                                                                                 asymmetricSyncRequest.previewKind,
-                                                                                 true);
-                    asymmetricTask.run();
                     break;
 
                 case CLEANUP_MSG:
@@ -221,7 +214,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
     private void logErrorAndSendFailureResponse(String errorMessage, Message<?> respondTo)
     {
         logger.error(errorMessage);
-        Message reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
+        sendFailureResponse(respondTo);
+    }
+
+    private void sendFailureResponse(Message<?> respondTo)
+    {
+        Message<?> reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
         MessagingService.instance().send(reply, respondTo.from());
     }
 }

@@ -24,7 +24,7 @@ import java.util.zip.CRC32;
 
 import io.netty.channel.ChannelPipeline;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 
 import static org.apache.cassandra.net.Crc.*;
 
@@ -57,11 +57,11 @@ import static org.apache.cassandra.net.Crc.*;
  * |                  CRC32 of Compressed Payload                  |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
-final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
+public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
 {
     public static FrameDecoderLZ4 fast(BufferPoolAllocator allocator)
     {
-        return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().fastDecompressor());
+        return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().safeDecompressor());
     }
 
     private static final int HEADER_LENGTH = 8;
@@ -85,9 +85,9 @@ final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
         return ((int) (header8b >>> 40)) & 0xFFFFFF;
     }
 
-    private final LZ4FastDecompressor decompressor;
+    private final LZ4SafeDecompressor decompressor;
 
-    private FrameDecoderLZ4(BufferPoolAllocator allocator, LZ4FastDecompressor decompressor)
+    private FrameDecoderLZ4(BufferPoolAllocator allocator, LZ4SafeDecompressor decompressor)
     {
         super(allocator);
         this.decompressor = decompressor;
@@ -141,7 +141,8 @@ final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
             ByteBuffer out = allocator.get(uncompressedLength);
             try
             {
-                decompressor.decompress(input, begin + HEADER_LENGTH, out, 0, uncompressedLength);
+                int sourceLength = end - (begin + HEADER_LENGTH + TRAILER_LENGTH);
+                decompressor.decompress(input, begin + HEADER_LENGTH, sourceLength, out, 0, uncompressedLength);
                 return new IntactFrame(isSelfContained, ShareableBytes.wrap(out));
             }
             catch (Throwable t)

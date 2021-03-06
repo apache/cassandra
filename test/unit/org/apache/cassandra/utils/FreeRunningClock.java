@@ -25,7 +25,17 @@ import java.util.concurrent.TimeUnit;
  */
 public class FreeRunningClock implements MonotonicClock
 {
-    private long nanoTime = 0;
+    private long nanoTime;
+
+    public FreeRunningClock()
+    {
+        this.nanoTime = 0;
+    }
+
+    public FreeRunningClock(long nanoTime)
+    {
+        this.nanoTime = nanoTime;
+    }
 
     @Override
     public long now()
