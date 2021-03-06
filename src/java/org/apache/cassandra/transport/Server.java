@@ -320,7 +320,6 @@ public class Server implements CassandraDaemon.Server
 
     }
 
-
     private static class LatestEvent
     {
         public final Event.StatusChange.Status status;
