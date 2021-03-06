@@ -453,6 +453,32 @@ A CQL table has a number of options that can be set at creation (and, for most o
 <alter-table-statement>` later). These options are specified after the ``WITH`` keyword and are described
 in the following sections.
 
+.. _compact-tables:
+
+ COMPACT STORAGE tables
+ ``````````````
+
+.. warning:: It is strongly discouraged to create new tables with the ``COMPACT STORAGE`` option. Since Cassandra 3.0,
+    compact storage tables have the exact same layout internally than non compact ones (for the same schema obviously),
+    and declaring a table compact **only** creates artificial limitations on the table definition and usage. As of Cassandra
+    |version| ``COMPACT STORAGE`` cannot be removed.
+
+.. warning:: ``DROP COMPACT STORAGE`` is not recommended for production environments. There are still cases where a change of
+    behavior is observed. To name a few: (1) Hidden columns show up, which breaks ``SELECT *`` queries.
+    (2) ``DELETE v`` and ``UPDATE v WITH TTL`` would result into row removals in non-dense compact storage tables (CASSANDRA-16069)
+    (3) ``INSERT`` allows skipping clusterings, which are filled with nulls by default.
+
+ A *compact storage* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
+ compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. 4.0 supports partially
+ ``COMPACT STORAGE``. There is no support for super column family. Since Cassandra 3.0, compact storage tables have the exact
+ same layout internally than non compact ones (for the same schema obviously), and declaring a table with this option creates
+ limitations for the table which are largely arbitrary (and exists for historical reasons). Amongst those limitation:
+
+ - a compact storage table cannot use collections nor static columns.
+ - if a compact storage table has at least one clustering column, then it must have *exactly* one column outside of the primary
+   key ones. This implies you cannot add or remove columns after creation in particular.
+ - a compact storage table is limited in the indexes it can create, and no materialized view can be created on it.
+
 But please bear in mind that the ``CLUSTERING ORDER`` option cannot be changed after table creation and
 has influences on the performance of some queries.
 
