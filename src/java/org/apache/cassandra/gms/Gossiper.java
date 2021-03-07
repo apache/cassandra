@@ -935,6 +935,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
     }
 
+    /**
+     * The value for the provided application state for the provided endpoint as currently known by this Gossip instance.
+     *
+     * @param endpoint the endpoint from which to get the endpoint state.
+     * @param state the endpoint state to get.
+     * @return the value of the application state {@code state} for {@code endpoint}, or {@code null} if either
+     * {@code endpoint} is not known by Gossip or has no value for {@code state}.
+     */
+    public String getApplicationState(InetAddress endpoint, ApplicationState state)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null)
+            return null;
+
+        VersionedValue value = epState.getApplicationState(state);
+        return value == null ? null : value.value;
+    }
+
     EndpointState getStateForVersionBiggerThan(InetAddress forEndpoint, int version)
     {
         EndpointState epState = endpointStateMap.get(forEndpoint);

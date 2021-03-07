@@ -73,6 +73,7 @@ import org.apache.cassandra.gms.*;
 import org.apache.cassandra.hints.HintVerbHandler;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.SSTableLoader;
+import org.apache.cassandra.io.sstable.format.VersionAndType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -244,6 +245,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final StreamStateStore streamStateStore = new StreamStateStore();
 
+    public final SSTablesGlobalTracker sstablesTracker;
+
     public boolean isSurveyMode()
     {
         return isSurveyMode;
@@ -319,6 +322,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCH_STORE, new BatchStoreVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCH_REMOVE, new BatchRemoveVerbHandler());
+
+        sstablesTracker = new SSTablesGlobalTracker(DatabaseDescriptor.getSSTableFormat());
     }
 
     public void registerDaemon(CassandraDaemon daemon)
@@ -842,9 +847,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(localHostId));
             appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(FBUtilities.getBroadcastRpcAddress()));
             appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
+            appStates.put(ApplicationState.SSTABLE_VERSIONS, valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
+
             logger.info("Starting up server gossip");
             Gossiper.instance.register(this);
             Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), appStates); // needed for node-ring gathering.
+
+            sstablesTracker.register((notification, o) -> {
+                if (!(notification instanceof SSTablesVersionsInUseChangeNotification))
+                    return;
+
+                Set<VersionAndType> versions = ((SSTablesVersionsInUseChangeNotification)notification).versionsInUse;
+                logger.debug("Updating local sstables version in Gossip to {}", versions);
+
+                Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
+                                                           valueFactory.sstableVersions(versions));
+            });
+
             // gossip snitch infos (local DC and rack)
             gossipSnitchInfo();
             // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
