@@ -6,6 +6,9 @@
 # binary executable files in our 'noarch' package
 %define _binaries_in_noarch_packages_terminate_build   0
 
+# for python 2/3 support we rely on /usr/bin/python
+%define __python /usr/bin/python
+
 %global username cassandra
 
 %define relname apache-cassandra-%{version}
@@ -63,7 +66,7 @@ mkdir -p %{buildroot}/var/lib/%{username}/data
 mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
-( cd pylib && python2.7 setup.py install --no-compile --root %{buildroot}; )
+( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
 
 # patches for data and log paths
 patch -p1 < debian/patches/001cassandra_yaml_dirs.dpatch
@@ -135,8 +138,8 @@ exit 0
 %attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*
-/usr/lib/python2.7/site-packages/cqlshlib/
-/usr/lib/python2.7/site-packages/cassandra_pylib*.egg-info
+%{python_sitelib}/cqlshlib/
+%{python_sitelib}/cassandra_pylib*.egg-info
 
 %post
 alternatives --install /%{_sysconfdir}/%{username}/conf %{username} /%{_sysconfdir}/%{username}/default.conf/ 0
