@@ -30,9 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -48,8 +46,6 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.MigrationCoordinator;
-import org.apache.cassandra.schema.MigrationManager;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -274,11 +270,16 @@ public class GossipHelper
         }
     }
 
-    public static InstanceAction decomission()
+    public static InstanceAction decommission()
     {
-        return (target) -> target.nodetoolResult("decommission").asserts().success();
+        return decommission(false);
     }
 
+    public static InstanceAction decommission(boolean force)
+    {
+        return force ? (target) -> target.nodetoolResult("decommission",  "--force").asserts().success()
+                     : (target) -> target.nodetoolResult("decommission").asserts().success();
+    }
 
     public static VersionedApplicationState tokens(IInvokableInstance instance)
     {

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.batchlog;
 
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -91,7 +90,6 @@ public class BatchlogManagerTest
     }
 
     @Before
-    @SuppressWarnings("deprecation")
     public void setUp() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -127,7 +125,6 @@ public class BatchlogManagerTest
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     public void testReplay() throws Exception
     {
         long initialAllBatches = BatchlogManager.instance.countAllBatches();
@@ -273,7 +270,7 @@ public class BatchlogManagerTest
     }
 
     @Test
-    public void testAddBatch() throws IOException
+    public void testAddBatch()
     {
         long initialAllBatches = BatchlogManager.instance.countAllBatches();
         TableMetadata cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD5).metadata();

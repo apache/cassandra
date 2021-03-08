@@ -447,8 +447,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             for (Mutation mutation : mutations)
             {
                 ReplayWriteResponseHandler<Mutation> handler = sendSingleReplayMutation(mutation, writtenAt, hintedNodes);
-                if (handler != null)
-                    handlers.add(handler);
+                handlers.add(handler);
             }
             return handlers;
         }
@@ -457,7 +456,7 @@ public class BatchlogManager implements BatchlogManagerMBean
          * We try to deliver the mutations to the replicas ourselves if they are alive and only resort to writing hints
          * when a replica is down or a write request times out.
          *
-         * @return direct delivery handler to wait on or null, if no live nodes found
+         * @return direct delivery handler to wait on
          */
         private static ReplayWriteResponseHandler<Mutation> sendSingleReplayMutation(final Mutation mutation,
                                                                                      long writtenAt,

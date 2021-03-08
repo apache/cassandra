@@ -53,6 +53,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         this.rf = ReplicationFactor.fromString(this.configOptions.get(REPLICATION_FACTOR));
     }
 
+    @Override
     public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
         ArrayList<Token> ring = metadata.sortedTokens();
@@ -78,12 +79,13 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         return replicas.build();
     }
 
+    @Override
     public ReplicationFactor getReplicationFactor()
     {
         return rf;
     }
 
-    private final static void validateOptionsInternal(Map<String, String> configOptions) throws ConfigurationException
+    private static void validateOptionsInternal(Map<String, String> configOptions) throws ConfigurationException
     {
         if (configOptions.get(REPLICATION_FACTOR) == null)
             throw new ConfigurationException("SimpleStrategy requires a replication_factor strategy option.");
@@ -116,6 +118,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         }
     }
 
+    @Override
     public Collection<String> recognizedOptions()
     {
         return Collections.singleton(REPLICATION_FACTOR);

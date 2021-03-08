@@ -393,4 +393,10 @@ public final class HintsService implements HintsServiceMBean
     {
         return isShutDown;
     }
+    
+    @VisibleForTesting
+    public boolean isDispatchPaused()
+    {
+        return isDispatchPaused.get();
+    }
 }

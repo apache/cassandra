@@ -111,7 +111,7 @@ import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAnd
  */
 public abstract class AbstractCluster<I extends IInstance> implements ICluster<I>, AutoCloseable
 {
-    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());;
+    public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());
 
     // WARNING: we have this logger not (necessarily) for logging, but
     // to ensure we have instantiated the main classloader's LoggerFactory (and any LogbackStatusListener)

@@ -31,7 +31,9 @@ import com.google.common.collect.Multimap;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,14 +47,18 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.locator.NetworkTopologyStrategy.REPLICATION_FACTOR;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
+import static org.junit.Assert.assertTrue;
 
 public class NetworkTopologyStrategyTest
 {
-    private String keyspaceName = "Keyspace1";
+    private static final String KEYSPACE = "Keyspace1";
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategyTest.class);
 
     @BeforeClass
@@ -76,7 +82,7 @@ public class NetworkTopologyStrategyTest
         configOptions.put("DC3", "1");
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, metadata, snitch, configOptions);
         assert strategy.getReplicationFactor("DC1").allReplicas == 3;
         assert strategy.getReplicationFactor("DC2").allReplicas == 2;
         assert strategy.getReplicationFactor("DC3").allReplicas == 1;
@@ -101,7 +107,7 @@ public class NetworkTopologyStrategyTest
         configOptions.put("DC3", "0");
 
         // Set the localhost to the tokenmetadata. Embedded cassandra way?
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, metadata, snitch, configOptions);
         assert strategy.getReplicationFactor("DC1").allReplicas == 3;
         assert strategy.getReplicationFactor("DC2").allReplicas == 3;
         assert strategy.getReplicationFactor("DC3").allReplicas == 0;
@@ -144,7 +150,7 @@ public class NetworkTopologyStrategyTest
         }
         metadata.updateNormalTokens(tokens);
 
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, metadata, snitch, configOptions);
 
         for (String testToken : new String[]{"123456", "200000", "000402", "ffffff", "400200"})
         {
@@ -418,7 +424,7 @@ public class NetworkTopologyStrategyTest
         Map<String, String> configOptions = new HashMap<String, String>();
         configOptions.put(snitch.getDatacenter((InetAddressAndPort) null), "3/1");
 
-        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(keyspaceName, metadata, snitch, configOptions);
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, metadata, snitch, configOptions);
 
         Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
                                                fullReplica(endpoints.get(1), range(400, 100)),
@@ -430,5 +436,51 @@ public class NetworkTopologyStrategyTest
                                                fullReplica(endpoints.get(2), range(100, 200)),
                                                transientReplica(endpoints.get(3), range(100, 200))),
                             strategy.getNaturalReplicasForToken(tk(101)));
+    }
+
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none();
+
+    @Test
+    public void shouldRejectReplicationFactorOption() throws ConfigurationException
+    {
+        expectedEx.expect(ConfigurationException.class);
+        expectedEx.expectMessage(REPLICATION_FACTOR + " should not appear");
+
+        IEndpointSnitch snitch = new SimpleSnitch();
+        TokenMetadata metadata = new TokenMetadata();
+        
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put(REPLICATION_FACTOR, "1");
+
+        @SuppressWarnings("unused") 
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", metadata, snitch, configOptions);
+    }
+
+    @Test
+    public void shouldWarnOnHigherReplicationFactorThanNodesInDC()
+    {
+        HashMap<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC1", "2");
+        
+        IEndpointSnitch snitch = new AbstractNetworkTopologySnitch()
+        {
+            public String getRack(InetAddressAndPort endpoint)
+            {
+                return "rack1";
+            }
+
+            public String getDatacenter(InetAddressAndPort endpoint)
+            {
+                return "DC1";
+            }
+        };
+
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", new TokenMetadata(), snitch, configOptions);
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
+        
+        ClientWarn.instance.captureWarnings();
+        strategy.maybeWarnOnOptions();
+        assertTrue(ClientWarn.instance.getWarnings().stream().anyMatch(s -> s.contains("Your replication factor")));
     }
 }

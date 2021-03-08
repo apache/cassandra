@@ -23,7 +23,6 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -38,7 +37,12 @@ import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 
 public class TestBaseImpl extends DistributedTestBase
 {
@@ -98,6 +102,16 @@ public class TestBaseImpl extends DistributedTestBase
         for (int i = 0; i < values.length; i++)
             bbs[i] = makeByteBuffer(values[i]);
         return TupleType.buildValue(bbs);
+    }
+
+    protected void bootstrapAndJoinNode(Cluster cluster)
+    {
+        IInstanceConfig config = cluster.newInstanceConfig();
+        config.set("auto_bootstrap", true);
+        IInvokableInstance newInstance = cluster.bootstrap(config);
+        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
+                     () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
+        newInstance.nodetoolResult("join").asserts().success();
     }
 
     @SuppressWarnings("unchecked")
