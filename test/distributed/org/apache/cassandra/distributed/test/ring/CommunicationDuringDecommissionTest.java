@@ -29,7 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
-import static org.apache.cassandra.distributed.action.GossipHelper.decomission;
+import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -45,7 +45,7 @@ public class CommunicationDuringDecommissionTest extends TestBaseImpl
         {
             BootstrapTest.populate(cluster, 0, 100);
 
-            cluster.run(decomission(), 1);
+            cluster.run(decommission(), 1);
 
             cluster.filters().allVerbs().from(1).messagesMatching((i, i1, iMessage) -> {
                 throw new AssertionError("Decomissioned node should not send any messages");

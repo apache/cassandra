@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.UUID;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;

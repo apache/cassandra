@@ -35,7 +35,6 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
 import static java.util.Arrays.asList;
-import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.distributed.action.GossipHelper.bootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.pullSchemaFrom;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
@@ -90,15 +89,7 @@ public class BootstrapTest extends TestBaseImpl
                                         .start())
         {
             populate(cluster,0, 100);
-
-            IInstanceConfig config = cluster.newInstanceConfig();
-            config.set("auto_bootstrap", true);
-            IInvokableInstance newInstance = cluster.bootstrap(config);
-            withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
-                         () -> withProperty("cassandra.join_ring", false,
-                                            () -> newInstance.startup(cluster)));
-
-            newInstance.nodetoolResult("join").asserts().success();
+            bootstrapAndJoinNode(cluster);
 
             for (Map.Entry<Integer, Long> e : count(cluster).entrySet())
                 Assert.assertEquals("Node " + e.getKey() + " has incorrect row state", e.getValue().longValue(), 100L);
