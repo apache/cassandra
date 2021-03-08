@@ -382,6 +382,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime) throws RequestExecutionException
     {
+        if (clusteringIndexFilter.isEmpty(metadata().comparator))
+            return EmptyIterators.partition();
+
         return StorageProxy.read(Group.one(this), consistency, clientState, queryStartNanoTime);
     }
 
