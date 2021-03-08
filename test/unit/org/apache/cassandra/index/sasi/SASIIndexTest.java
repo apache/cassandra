@@ -32,6 +32,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLTester;
@@ -66,10 +67,12 @@ import org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.StandardAnalyzer;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
+import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.exceptions.TimeQuotaExceededException;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
+import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -80,11 +83,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.junit.Assert;
 
 import org.junit.*;
 
@@ -106,6 +107,8 @@ public class SASIIndexTest
     private static final String STATIC_CF_NAME = "static_sasi_test_cf";
     private static final String FTS_CF_NAME = "full_text_search_sasi_test_cf";
 
+    private long timestamp;
+
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
@@ -117,23 +120,25 @@ public class SASIIndexTest
                                     SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"),
                                     SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME),
                                     SchemaLoader.fullTextSearchSASICFMD(KS_NAME, FTS_CF_NAME));
+        stores().forEach(ColumnFamilyStore::disableAutoCompaction);
     }
 
     @Before
     public void cleanUp()
     {
-        Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).truncateBlocking();
+        timestamp = 0;
+        cleanupData();
     }
 
     @Test
-    public void testSingleExpressionQueries() throws Exception
+    public void testSingleExpressionQueries()
     {
         testSingleExpressionQueries(false);
         cleanupData();
         testSingleExpressionQueries(true);
     }
 
-    private void testSingleExpressionQueries(boolean forceFlush) throws Exception
+    private void testSingleExpressionQueries(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> data = new HashMap<String, Pair<String, Integer>>()
         {{
@@ -151,42 +156,42 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3", "key4");
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("av")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3");
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("as")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("aw")));
-        Assert.assertEquals(rows.toString(), 0, rows.size());
+        assertRowsSize(rows, 0);
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("avel")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3");
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("n")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
 
         rows = getIndexed(store, 10, buildExpression(age, Operator.EQ, Int32Type.instance.decompose(27)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{"key3", "key4"}, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3", "key4");
 
         rows = getIndexed(store, 10, buildExpression(age, Operator.EQ, Int32Type.instance.decompose(26)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(age, Operator.EQ, Int32Type.instance.decompose(13)));
-        Assert.assertEquals(rows.toString(), 0, rows.size());
+        assertRowsSize(rows, 0);
     }
 
     @Test
-    public void testEmptyTokenizedResults() throws Exception
+    public void testEmptyTokenizedResults()
     {
         testEmptyTokenizedResults(false);
         cleanupData();
         testEmptyTokenizedResults(true);
     }
 
-    private void testEmptyTokenizedResults(boolean forceFlush) throws Exception
+    private void testEmptyTokenizedResults(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> data = new HashMap<String, Pair<String, Integer>>()
         {{
@@ -196,18 +201,18 @@ public class SASIIndexTest
         ColumnFamilyStore store = loadData(data, forceFlush);
 
         Set<String> rows= getIndexed(store, 10, buildExpression(UTF8Type.instance.decompose("first_name"), Operator.LIKE_MATCHES, UTF8Type.instance.decompose("doesntmatter")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{}, rows.toArray(new String[rows.size()])));
+        assertRows(rows);
     }
 
     @Test
-    public void testMultiExpressionQueries() throws Exception
+    public void testMultiExpressionQueries()
     {
         testMultiExpressionQueries(false);
         cleanupData();
         testMultiExpressionQueries(true);
     }
 
-    public void testMultiExpressionQueries(boolean forceFlush) throws Exception
+    public void testMultiExpressionQueries(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> data = new HashMap<String, Pair<String, Integer>>()
         {{
@@ -226,53 +231,53 @@ public class SASIIndexTest
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(14)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key3", "key4");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(27)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{"key1", "key2"}, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2");
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.GT, Int32Type.instance.decompose(14)),
                          buildExpression(age, Operator.LT, Int32Type.instance.decompose(27)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.GT, Int32Type.instance.decompose(12)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3", "key4");
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.GTE, Int32Type.instance.decompose(13)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3", "key4");
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.GTE, Int32Type.instance.decompose(16)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key3", "key4");
 
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.LT, Int32Type.instance.decompose(30)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3", "key4");
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.LTE, Int32Type.instance.decompose(29)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3", "key4");
 
         rows = getIndexed(store, 10,
                          buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                          buildExpression(age, Operator.LTE, Int32Type.instance.decompose(25)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("avel")),
                                      buildExpression(age, Operator.LTE, Int32Type.instance.decompose(25)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("n")),
                                      buildExpression(age, Operator.LTE, Int32Type.instance.decompose(25)));
@@ -281,7 +286,7 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testCrossSSTableQueries() throws Exception
+    public void testCrossSSTableQueries()
     {
         testCrossSSTableQueries(false);
         cleanupData();
@@ -289,7 +294,7 @@ public class SASIIndexTest
 
     }
 
-    private void testCrossSSTableQueries(boolean forceFlush) throws Exception
+    private void testCrossSSTableQueries(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> part1 = new HashMap<String, Pair<String, Integer>>()
         {{
@@ -331,79 +336,77 @@ public class SASIIndexTest
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("Fiona")),
                                      buildExpression(age, Operator.LT, Int32Type.instance.decompose(40)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key6" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key6");
 
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key11", "key12", "key13", "key14",
-                                                                        "key3", "key4", "key6", "key7", "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key0", "key11", "key12", "key13", "key14", "key3", "key4", "key6", "key7", "key8" );
 
         rows = getIndexed(store, 5,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
 
-        Assert.assertEquals(rows.toString(), 5, rows.size());
+        assertRowsSize(rows, 5);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GTE, Int32Type.instance.decompose(35)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key11", "key12", "key13", "key4", "key6", "key7" },
-                                                         rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key0", "key11", "key12", "key13", "key4", "key6", "key7");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(32)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key14", "key3", "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key14", "key3", "key8");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(27)),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(32)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key14" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key14");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(10)));
 
-        Assert.assertEquals(rows.toString(), 10, rows.size());
+        assertRowsSize(rows, 10);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(50)));
 
-        Assert.assertEquals(rows.toString(), 10, rows.size());
+        assertRowsSize(rows, 10);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ie")),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(43)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key10" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key10");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("a")));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key12", "key13", "key3", "key4", "key6" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key12", "key13", "key3", "key4", "key6");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(33)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
     }
 
     @Test
-    public void testQueriesThatShouldBeTokenized() throws Exception
+    public void testQueriesThatShouldBeTokenized()
     {
         testQueriesThatShouldBeTokenized(false);
         cleanupData();
         testQueriesThatShouldBeTokenized(true);
     }
 
-    private void testQueriesThatShouldBeTokenized(boolean forceFlush) throws Exception
+    private void testQueriesThatShouldBeTokenized(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> part1 = new HashMap<String, Pair<String, Integer>>()
         {{
@@ -426,23 +429,23 @@ public class SASIIndexTest
                         UTF8Type.instance.decompose("What you get by achieving your goals")),
                 buildExpression(age, Operator.GT, Int32Type.instance.decompose(32)));
 
-        Assert.assertEquals(rows.toString(), Collections.singleton("key1"), rows);
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10,
                 buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("do it.")));
 
-        Assert.assertEquals(rows.toString(), Arrays.asList("key0", "key1"), Lists.newArrayList(rows));
+        assertRows(rows, "key0", "key1");
     }
 
     @Test
-    public void testPrefixSearchWithContainsMode() throws Exception
+    public void testPrefixSearchWithContainsMode()
     {
         testPrefixSearchWithContainsMode(false);
         cleanupData();
         testPrefixSearchWithContainsMode(true);
     }
 
-    private void testPrefixSearchWithContainsMode(boolean forceFlush) throws Exception
+    private void testPrefixSearchWithContainsMode(boolean forceFlush)
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(FTS_CF_NAME);
 
@@ -461,20 +464,20 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testMultiExpressionQueriesWhereRowSplitBetweenSSTables() throws Exception
+    public void testMultiExpressionQueriesWhereRowSplitBetweenSSTables()
     {
         testMultiExpressionQueriesWhereRowSplitBetweenSSTables(false);
         cleanupData();
         testMultiExpressionQueriesWhereRowSplitBetweenSSTables(true);
     }
 
-    private void testMultiExpressionQueriesWhereRowSplitBetweenSSTables(boolean forceFlush) throws Exception
+    private void testMultiExpressionQueriesWhereRowSplitBetweenSSTables(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> part1 = new HashMap<String, Pair<String, Integer>>()
         {{
                 put("key0", Pair.create("Maxie", -1));
                 put("key1", Pair.create("Chelsie", 33));
-                put("key2", Pair.create((String)null, 43));
+                put("key2", Pair.create(null, 43));
                 put("key3", Pair.create("Shanna", 27));
                 put("key4", Pair.create("Amiya", 36));
         }};
@@ -488,14 +491,14 @@ public class SASIIndexTest
                 put("key7", Pair.create("Francis", 41));
                 put("key8", Pair.create("Charley", 21));
                 put("key9", Pair.create("Amely", 40));
-                put("key14", Pair.create((String)null, 28));
+                put("key14", Pair.create(null, 28));
         }};
 
         loadData(part2, forceFlush);
 
         Map<String, Pair<String, Integer>> part3 = new HashMap<String, Pair<String, Integer>>()
         {{
-                put("key0", Pair.create((String)null, 43));
+                put("key0", Pair.create(null, 43));
                 put("key10", Pair.create("Eddie", 42));
                 put("key11", Pair.create("Oswaldo", 35));
                 put("key12", Pair.create("Susana", 35));
@@ -513,42 +516,40 @@ public class SASIIndexTest
                                       buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("Fiona")),
                                       buildExpression(age, Operator.LT, Int32Type.instance.decompose(40)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key6" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key6");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key11", "key12", "key13", "key14",
-                                                                        "key3", "key4", "key6", "key7", "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key0", "key11", "key12", "key13", "key14", "key3", "key4", "key6", "key7", "key8");
 
         rows = getIndexed(store, 5,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
 
-        Assert.assertEquals(rows.toString(), 5, rows.size());
+        assertRowsSize(rows, 5);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GTE, Int32Type.instance.decompose(35)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key11", "key12", "key13", "key4", "key6", "key7" },
-                                                         rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key0", "key11", "key12", "key13", "key4", "key6", "key7");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(32)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key14", "key3", "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key14", "key3", "key8");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(27)),
                           buildExpression(age, Operator.LT, Int32Type.instance.decompose(32)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key14" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key14");
 
         Map<String, Pair<String, Integer>> part4 = new HashMap<String, Pair<String, Integer>>()
         {{
-                put("key12", Pair.create((String)null, 12));
+                put("key12", Pair.create(null, 12));
                 put("key14", Pair.create("Demario", 42));
                 put("key2", Pair.create("Frank", -1));
         }};
@@ -559,45 +560,45 @@ public class SASIIndexTest
                           buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Susana")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(13)),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(10)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key12" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key12");
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Demario")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(30)));
-        Assert.assertTrue(rows.toString(), rows.size() == 0);
+        assertRowsSize(rows, 0);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Josephine")));
-        Assert.assertTrue(rows.toString(), rows.size() == 0);
+        assertRowsSize(rows, 0);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(10)));
 
-        Assert.assertEquals(rows.toString(), 10, rows.size());
+        assertRowsSize(rows, 10);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(50)));
 
-        Assert.assertEquals(rows.toString(), 10, rows.size());
+        assertRowsSize(rows, 10);
 
         rows = getIndexed(store, 10,
                           buildExpression(firstName, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ie")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(43)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key0", "key1", "key10" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key0", "key1", "key10");
     }
 
     @Test
-    public void testPagination() throws Exception
+    public void testPagination()
     {
         testPagination(false);
         cleanupData();
         testPagination(true);
     }
 
-    private void testPagination(boolean forceFlush) throws Exception
+    private void testPagination(boolean forceFlush)
     {
         // split data into 3 distinct SSTables to test paging with overlapping token intervals.
 
@@ -748,33 +749,33 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name LIKE '%%a%%' limit 10 ALLOW FILTERING;", KS_NAME, CF_NAME));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key03", "key04", "key09", "key13", "key14", "key16", "key20", "key22", "key24", "key25" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key03", "key04", "key09", "key13", "key14", "key16", "key20", "key22", "key24", "key25");
 
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name LIKE '%%a%%' and token(id) >= token('key14') limit 5 ALLOW FILTERING;", KS_NAME, CF_NAME));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key03", "key04", "key14", "key16", "key24" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key03", "key04", "key14", "key16", "key24");
 
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name LIKE '%%a%%' and token(id) >= token('key14') and token(id) <= token('key24') limit 5 ALLOW FILTERING;", KS_NAME, CF_NAME));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key14", "key16", "key24" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key14", "key16", "key24");
 
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name LIKE '%%a%%' and age > 30 and token(id) >= token('key14') and token(id) <= token('key24') limit 5 ALLOW FILTERING;", KS_NAME, CF_NAME));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key14" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key14");
 
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name like '%%ie' limit 5 ALLOW FILTERING;", KS_NAME, CF_NAME));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key07", "key20", "key24" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key07", "key20", "key24");
 
         rows = executeCQLWithKeys(String.format("SELECT * FROM %s.%s WHERE first_name like '%%ie' AND token(id) > token('key24') limit 5 ALLOW FILTERING;", KS_NAME, CF_NAME));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key07", "key24" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key07", "key24");
     }
 
     @Test
-    public void testColumnNamesWithSlashes() throws Exception
+    public void testColumnNamesWithSlashes()
     {
         testColumnNamesWithSlashes(false);
         cleanupData();
         testColumnNamesWithSlashes(true);
     }
 
-    private void testColumnNamesWithSlashes(boolean forceFlush) throws Exception
+    private void testColumnNamesWithSlashes(boolean forceFlush)
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
 
@@ -784,7 +785,7 @@ public class SASIIndexTest
                                                 buildRow(buildCell(store.metadata(),
                                                                    UTF8Type.instance.decompose("/data/output/id"),
                                                                    AsciiType.instance.decompose("jason"),
-                                                                   System.currentTimeMillis()))));
+                                                                   1000))));
 
         Mutation.PartitionUpdateCollector rm2 = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key2")));
         rm2.add(PartitionUpdate.singleRowUpdate(store.metadata(),
@@ -792,7 +793,7 @@ public class SASIIndexTest
                                                 buildRow(buildCell(store.metadata(),
                                                                    UTF8Type.instance.decompose("/data/output/id"),
                                                                    AsciiType.instance.decompose("pavel"),
-                                                                   System.currentTimeMillis()))));
+                                                                   2000))));
 
         Mutation.PartitionUpdateCollector rm3 = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key3")));
         rm3.add(PartitionUpdate.singleRowUpdate(store.metadata(),
@@ -800,7 +801,7 @@ public class SASIIndexTest
                                                 buildRow(buildCell(store.metadata(),
                                                                    UTF8Type.instance.decompose("/data/output/id"),
                                                                    AsciiType.instance.decompose("Aleksey"),
-                                                                   System.currentTimeMillis()))));
+                                                                   3000))));
 
         rm1.build().apply();
         rm2.build().apply();
@@ -812,10 +813,10 @@ public class SASIIndexTest
         final ByteBuffer dataOutputId = UTF8Type.instance.decompose("/data/output/id");
 
         Set<String> rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2");
 
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("A")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         // doesn't really make sense to rebuild index for in-memory data
         if (!forceFlush)
@@ -833,34 +834,34 @@ public class SASIIndexTest
         store.indexManager.rebuildIndexesBlocking(Sets.newHashSet(store.name + "_data_output_id"));
 
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2");
 
         // also let's try to build an index for column which has no data to make sure that doesn't fail
         store.indexManager.rebuildIndexesBlocking(Sets.newHashSet(store.name + "_first_name"));
         store.indexManager.rebuildIndexesBlocking(Sets.newHashSet(store.name + "_data_output_id"));
 
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2");
 
         rows = getIndexed(store, 10, buildExpression(dataOutputId, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("el")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
     }
 
     @Test
-    public void testInvalidate() throws Exception
+    public void testInvalidate()
     {
         testInvalidate(false);
         cleanupData();
         testInvalidate(true);
     }
 
-    private void testInvalidate(boolean forceFlush) throws Exception
+    private void testInvalidate(boolean forceFlush)
     {
         Map<String, Pair<String, Integer>> part1 = new HashMap<String, Pair<String, Integer>>()
         {{
                 put("key0", Pair.create("Maxie", -1));
                 put("key1", Pair.create("Chelsie", 33));
-                put("key2", Pair.create((String) null, 43));
+                put("key2", Pair.create(null, 43));
                 put("key3", Pair.create("Shanna", 27));
                 put("key4", Pair.create("Amiya", 36));
         }};
@@ -871,10 +872,10 @@ public class SASIIndexTest
         final ByteBuffer age = UTF8Type.instance.decompose("age");
 
         Set<String> rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key0", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key0", "key3", "key4");
 
         rows = getIndexed(store, 10, buildExpression(age, Operator.EQ, Int32Type.instance.decompose(33)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         store.indexManager.invalidateAllIndexesBlocking();
 
@@ -898,10 +899,10 @@ public class SASIIndexTest
         loadData(part2, forceFlush);
 
         rows = getIndexed(store, 10, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key6", "key7" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key6", "key7");
 
         rows = getIndexed(store, 10, buildExpression(age, Operator.EQ, Int32Type.instance.decompose(40)));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{ "key9" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key9");
     }
 
     @Test
@@ -937,18 +938,18 @@ public class SASIIndexTest
             put("key10", Pair.create("a", 35));
         }};
 
-        ColumnFamilyStore store = loadData(part1, 1000, true);
+        ColumnFamilyStore store = loadData(part1, true);
         loadData(part2, true);
         loadData(part3, true);
 
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
 
         Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 6, rows.size());
+        assertRowsSize(rows, 6);
 
         loadData(part4, true);
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 8, rows.size());
+        assertRowsSize(rows, 8);
 
         loadData(part5, true);
 
@@ -1020,36 +1021,36 @@ public class SASIIndexTest
                 put("key26", Pair.create("Dennis", 32));
         }};
 
-        ColumnFamilyStore store = loadData(part1, 1000, true);
+        ColumnFamilyStore store = loadData(part1, true, 2);
 
-        loadData(part2, 2000, true);
-        loadData(part3, 3000, true);
+        loadData(part2, true, 4);
+        loadData(part3, true, 6);
 
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
 
         Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 16, rows.size());
+        assertRowsSize(rows, 16);
 
         // make sure we don't prematurely delete anything
-        store.indexManager.truncateAllIndexesBlocking(500);
+        store.indexManager.truncateAllIndexesBlocking(1);
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 16, rows.size());
+        assertRowsSize(rows, 16);
 
-        store.indexManager.truncateAllIndexesBlocking(1500);
-
-        rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 10, rows.size());
-
-        store.indexManager.truncateAllIndexesBlocking(2500);
+        store.indexManager.truncateAllIndexesBlocking(3);
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 6, rows.size());
+        assertRowsSize(rows, 10);
 
-        store.indexManager.truncateAllIndexesBlocking(3500);
+        store.indexManager.truncateAllIndexesBlocking(5);
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 0, rows.size());
+        assertRowsSize(rows, 6);
+
+        store.indexManager.truncateAllIndexesBlocking(7);
+
+        rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
+        assertRowsSize(rows, 0);
 
         // add back in some data just to make sure it all still works
         Map<String, Pair<String, Integer>> part4 = new HashMap<String, Pair<String, Integer>>()
@@ -1058,12 +1059,11 @@ public class SASIIndexTest
                 put("key41", Pair.create("Dennis", 32));
         }};
 
-        loadData(part4, 4000, true);
+        loadData(part4, true, 8);
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertEquals(rows.toString(), 1, rows.size());
+        assertRowsSize(rows, 1);
     }
-
 
     @Test
     public void testConcurrentMemtableReadsAndWrites() throws Exception
@@ -1080,12 +1080,13 @@ public class SASIIndexTest
             final String key = "key" + i;
             final String firstName = "first_name#" + i;
             final String lastName = "last_name#" + i;
+            final long timestamp = 1000 + i;
 
-            scheduler.submit((Runnable) () -> {
+            scheduler.submit(() -> {
                 try
                 {
-                    newMutation(key, firstName, lastName, 26, System.currentTimeMillis()).apply();
-                    Uninterruptibles.sleepUninterruptibly(5, TimeUnit.MILLISECONDS); // back up a bit to do more reads
+                    newMutation(key, firstName, lastName, 26, timestamp).apply();
+                    Uninterruptibles.sleepUninterruptibly(5, MILLISECONDS); // back up a bit to do more reads
                 }
                 finally
                 {
@@ -1159,50 +1160,24 @@ public class SASIIndexTest
         loadData(data3, false);
 
         Set<String> rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1", "key2", "key3", "key4");
 
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                                       buildExpression(age, Operator.EQ, Int32Type.instance.decompose(15)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                                       buildExpression(age, Operator.EQ, Int32Type.instance.decompose(29)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
 
         rows = getIndexed(store, 100, buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("a")),
                                       buildExpression(age, Operator.EQ, Int32Type.instance.decompose(27)));
 
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{"key2", "key3"}, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key3");
     }
-
-    @Test
-    public void testInsertingIncorrectValuesIntoAgeIndex()
-    {
-        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
-
-        final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
-        final ByteBuffer age = UTF8Type.instance.decompose("age");
-
-        Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey(AsciiType.instance.decompose("key1")));
-        update(rm, new ArrayList<Cell<?>>()
-        {{
-            add(buildCell(age, LongType.instance.decompose(26L), System.currentTimeMillis()));
-            add(buildCell(firstName, AsciiType.instance.decompose("pavel"), System.currentTimeMillis()));
-        }});
-        rm.build().apply();
-
-        store.forceBlockingFlush();
-
-        Set<String> rows = getIndexed(store, 10, buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("a")),
-                                                 buildExpression(age, Operator.GTE, Int32Type.instance.decompose(26)));
-
-        // index is expected to have 0 results because age value was of wrong type
-        Assert.assertEquals(0, rows.size());
-    }
-
 
     @Test
     public void testUnicodeSupport()
@@ -1219,23 +1194,23 @@ public class SASIIndexTest
         final ByteBuffer comment = UTF8Type.instance.decompose("comment");
 
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, comment, UTF8Type.instance.decompose("ⓈⓅⒺⒸⒾⒶⓁ ⒞⒣⒜⒭⒮ and normal ones"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("ⓈⓅⒺⒸⒾⒶⓁ ⒞⒣⒜⒭⒮ and normal ones"), 1000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
-        update(rm, comment, UTF8Type.instance.decompose("龍馭鬱"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("龍馭鬱"), 2000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
-        update(rm, comment, UTF8Type.instance.decompose("インディアナ"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("インディアナ"), 3000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key4"));
-        update(rm, comment, UTF8Type.instance.decompose("レストラン"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("レストラン"), 4000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key5"));
-        update(rm, comment, UTF8Type.instance.decompose("ベンジャミン ウエスト"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("ベンジャミン ウエスト"), 5000);
         rm.build().apply();
 
         if (forceFlush)
@@ -1244,40 +1219,40 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ⓈⓅⒺⒸⒾ")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("normal")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("鬱")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("馭鬱")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍馭鬱")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャミン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key5" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key5");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("レストラ")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("インディ")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャミ")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key5" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key5");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4", "key5" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4", "key5");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("レストラン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
     }
 
     @Test
@@ -1295,19 +1270,19 @@ public class SASIIndexTest
         final ByteBuffer comment = UTF8Type.instance.decompose("comment_suffix_split");
 
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, comment, UTF8Type.instance.decompose("龍馭鬱"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("龍馭鬱"), 1000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
-        update(rm, comment, UTF8Type.instance.decompose("インディアナ"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("インディアナ"), 2000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
-        update(rm, comment, UTF8Type.instance.decompose("レストラン"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("レストラン"), 3000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key4"));
-        update(rm, comment, UTF8Type.instance.decompose("ベンジャミン ウエスト"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("ベンジャミン ウエスト"), 4000);
         rm.build().apply();
 
         if (forceFlush)
@@ -1316,37 +1291,37 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("鬱")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("馭鬱")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("龍馭鬱")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ベンジャミン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("トラン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ディア")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ジャミン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("ン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key3", "key4");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ン")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("ベンジャミン ウエスト")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key4");
     }
 
     @Test
@@ -1364,7 +1339,7 @@ public class SASIIndexTest
             final ByteBuffer bigValue = UTF8Type.instance.decompose(new String(randomBytes));
 
             Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-            update(rm, comment, bigValue, System.currentTimeMillis());
+            update(rm, comment, bigValue, 1000 + i);
             rm.build().apply();
 
             Set<String> rows;
@@ -1380,7 +1355,7 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testSearchTimeouts() throws Exception
+    public void testSearchTimeouts()
     {
         final ByteBuffer firstName = UTF8Type.instance.decompose("first_name");
 
@@ -1424,7 +1399,7 @@ public class SASIIndexTest
         try (ReadExecutionController controller = command.executionController())
         {
             Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller));
-            Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+            assertRows(rows, "key1", "key2", "key3", "key4");
         }
     }
 
@@ -1444,35 +1419,35 @@ public class SASIIndexTest
         final ByteBuffer fullName = UTF8Type.instance.decompose("/output/full-name/");
 
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, fullName, UTF8Type.instance.decompose("美加 八田"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("美加 八田"), 1000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
-        update(rm, fullName, UTF8Type.instance.decompose("仁美 瀧澤"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("仁美 瀧澤"), 2000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
-        update(rm, fullName, UTF8Type.instance.decompose("晃宏 高須"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("晃宏 高須"), 3000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key4"));
-        update(rm, fullName, UTF8Type.instance.decompose("弘孝 大竹"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("弘孝 大竹"), 4000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key5"));
-        update(rm, fullName, UTF8Type.instance.decompose("満枝 榎本"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("満枝 榎本"), 5000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key6"));
-        update(rm, fullName, UTF8Type.instance.decompose("飛鳥 上原"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("飛鳥 上原"), 6000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key7"));
-        update(rm, fullName, UTF8Type.instance.decompose("大輝 鎌田"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("大輝 鎌田"), 7000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key8"));
-        update(rm, fullName, UTF8Type.instance.decompose("利久 寺地"), System.currentTimeMillis());
+        update(rm, fullName, UTF8Type.instance.decompose("利久 寺地"), 8000);
         rm.build().apply();
 
         store.forceBlockingFlush();
@@ -1481,16 +1456,16 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = getIndexed(store, 10, buildExpression(fullName, Operator.EQ, UTF8Type.instance.decompose("美加 八田")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(fullName, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("美加")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(fullName, Operator.EQ, UTF8Type.instance.decompose("晃宏 高須")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(fullName, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("大輝")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key7" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key7");
     }
 
     public void testLowerCaseAnalyzer(boolean forceFlush)
@@ -1500,15 +1475,15 @@ public class SASIIndexTest
         final ByteBuffer comment = UTF8Type.instance.decompose("address");
 
         Mutation.PartitionUpdateCollector rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, comment, UTF8Type.instance.decompose("577 Rogahn Valleys Apt. 178"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("577 Rogahn Valleys Apt. 178"), 1000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
-        update(rm, comment, UTF8Type.instance.decompose("89809 Beverly Course Suite 089"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("89809 Beverly Course Suite 089"), 2000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
-        update(rm, comment, UTF8Type.instance.decompose("165 clydie oval apt. 399"), System.currentTimeMillis());
+        update(rm, comment, UTF8Type.instance.decompose("165 clydie oval apt. 399"), 3000);
         rm.build().apply();
 
         if (forceFlush)
@@ -1517,52 +1492,52 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("577 Rogahn Valleys")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("577 ROgAhn VallEYs")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("577 rogahn valleys")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("577 rogahn")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("57")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("89809 Beverly Course")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("89809 BEVERly COURSE")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("89809 beverly course")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("89809 Beverly")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("8980")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("165 ClYdie OvAl APT. 399")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("165 Clydie Oval Apt. 399")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("165 clydie oval apt. 399")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("165 ClYdie OvA")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("165 ClYdi")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
 
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("165")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3");
     }
 
     @Test
@@ -1577,38 +1552,38 @@ public class SASIIndexTest
         Mutation.PartitionUpdateCollector rm;
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key1"));
-        update(rm, name, UTF8Type.instance.decompose("Pavel"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Pavel"), 1000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key2"));
-        update(rm, name, UTF8Type.instance.decompose("Jordan"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Jordan"), 2000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key3"));
-        update(rm, name, UTF8Type.instance.decompose("Mikhail"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Mikhail"), 3000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key4"));
-        update(rm, name, UTF8Type.instance.decompose("Michael"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Michael"), 4000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key5"));
-        update(rm, name, UTF8Type.instance.decompose("Johnny"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Johnny"), 5000);
         rm.build().apply();
 
         // first flush would make interval for name - 'johnny' -> 'pavel'
         store.forceBlockingFlush();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key6"));
-        update(rm, name, UTF8Type.instance.decompose("Jason"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Jason"), 6000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key7"));
-        update(rm, name, UTF8Type.instance.decompose("Vijay"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Vijay"), 7000);
         rm.build().apply();
 
         rm = new Mutation.PartitionUpdateCollector(KS_NAME, decoratedKey("key8")); // this name is going to be tokenized
-        update(rm, name, UTF8Type.instance.decompose("Jean-Claude"), System.currentTimeMillis());
+        update(rm, name, UTF8Type.instance.decompose("Jean-Claude"), 8000);
         rm.build().apply();
 
         // this flush is going to produce range - 'jason' -> 'vijay'
@@ -1620,44 +1595,44 @@ public class SASIIndexTest
         Set<String> rows;
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("J")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6", "key8"}, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key5", "key6", "key8");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("j")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6", "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key5", "key6", "key8");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("m")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key3", "key4");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("v")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key7" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key7");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("p")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("j")),
                                      buildExpression(name, Operator.NEQ, UTF8Type.instance.decompose("joh")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key6", "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key2", "key6", "key8");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("pavel")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Pave")));
         Assert.assertTrue(rows.isEmpty());
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Pavel")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key1");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("JeAn")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key8");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("claUde")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key8");
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Jean")));
         Assert.assertTrue(rows.isEmpty());
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Jean-Claude")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key8" }, rows.toArray(new String[rows.size()])));
+        assertRows(rows, "key8");
     }
 
     @Test
@@ -1696,8 +1671,8 @@ public class SASIIndexTest
             put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
         }}));
 
-        Assert.assertEquals(true,  indexA.isIndexed());
-        Assert.assertEquals(false, indexA.isLiteral());
+        Assert.assertTrue(indexA.isIndexed());
+        Assert.assertFalse(indexA.isLiteral());
 
         // now let's double-check that we do get 'true' when we set it
         ColumnMetadata columnB = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-B", stringType);
@@ -1708,8 +1683,8 @@ public class SASIIndexTest
             put("is_literal", "true");
         }}));
 
-        Assert.assertEquals(true, indexB.isIndexed());
-        Assert.assertEquals(true, indexB.isLiteral());
+        Assert.assertTrue(indexB.isIndexed());
+        Assert.assertTrue(indexB.isLiteral());
 
         // and finally we should also get a 'true' if it's built-in UTF-8/ASCII comparator
         ColumnMetadata columnC = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-C", UTF8Type.instance);
@@ -1719,8 +1694,8 @@ public class SASIIndexTest
             put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
         }}));
 
-        Assert.assertEquals(true, indexC.isIndexed());
-        Assert.assertEquals(true, indexC.isLiteral());
+        Assert.assertTrue(indexC.isIndexed());
+        Assert.assertTrue(indexC.isLiteral());
 
         ColumnMetadata columnD = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-D", AsciiType.instance);
 
@@ -1729,8 +1704,8 @@ public class SASIIndexTest
             put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
         }}));
 
-        Assert.assertEquals(true, indexD.isIndexed());
-        Assert.assertEquals(true, indexD.isLiteral());
+        Assert.assertTrue(indexD.isIndexed());
+        Assert.assertTrue(indexD.isLiteral());
 
         // and option should supersedes the comparator type
         ColumnMetadata columnE = ColumnMetadata.regularColumn(KS_NAME, CF_NAME, "special-E", UTF8Type.instance);
@@ -1741,8 +1716,8 @@ public class SASIIndexTest
             put("is_literal", "false");
         }}));
 
-        Assert.assertEquals(true,  indexE.isIndexed());
-        Assert.assertEquals(false, indexE.isLiteral());
+        Assert.assertTrue(indexE.isIndexed());
+        Assert.assertFalse(indexE.isLiteral());
 
         // test frozen-collection
         ColumnMetadata columnF = ColumnMetadata.regularColumn(KS_NAME,
@@ -1755,19 +1730,19 @@ public class SASIIndexTest
             put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
         }}));
 
-        Assert.assertEquals(true,  indexF.isIndexed());
-        Assert.assertEquals(false, indexF.isLiteral());
+        Assert.assertTrue(indexF.isIndexed());
+        Assert.assertFalse(indexF.isLiteral());
     }
 
     @Test
-    public void testClusteringIndexes() throws Exception
+    public void testClusteringIndexes()
     {
         testClusteringIndexes(false);
         cleanupData();
         testClusteringIndexes(true);
     }
 
-    public void testClusteringIndexes(boolean forceFlush) throws Exception
+    public void testClusteringIndexes(boolean forceFlush)
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
 
@@ -1872,14 +1847,14 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testStaticIndex() throws Exception
+    public void testStaticIndex()
     {
         testStaticIndex(false);
         cleanupData();
         testStaticIndex(true);
     }
 
-    public void testStaticIndex(boolean shouldFlush) throws Exception
+    public void testStaticIndex(boolean shouldFlush)
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(STATIC_CF_NAME);
 
@@ -1984,9 +1959,11 @@ public class SASIIndexTest
         Path path = FileSystems.getDefault().getPath(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age"));
 
         // Overwrite index file with garbage
-        Writer writer = new FileWriter(path.toFile(), false);
-        writer.write("garbage");
-        writer.close();
+        try (Writer writer = new FileWriter(path.toFile(), false))
+        {
+            writer.write("garbage");
+        }
+
         long size1 = Files.readAttributes(path, BasicFileAttributes.class).size();
 
         // Trying to query the corrupted index file yields no results
@@ -2009,7 +1986,7 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testIndexRebuild() throws Exception
+    public void testIndexRebuild()
     {
         ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
 
@@ -2349,7 +2326,7 @@ public class SASIIndexTest
     }
 
     @Test
-    public void testIndexMemtableSwitching()
+    public void testIndexMemtableSwitching() throws Exception
     {
         // write some data but don't flush
         ColumnFamilyStore store = loadData(new HashMap<String, Pair<String, Integer>>()
@@ -2373,14 +2350,14 @@ public class SASIIndexTest
                 new org.apache.cassandra.index.sasi.plan.Expression(controller, index)
                                                     .add(Operator.LIKE_MATCHES, UTF8Type.instance.fromString("Pavel"));
 
-        Assert.assertTrue(beforeFlushMemtable.search(expression).getCount() > 0);
+        Assert.assertTrue(rangesSize(beforeFlushMemtable, expression) > 0);
 
         store.forceBlockingFlush();
 
         IndexMemtable afterFlushMemtable = index.getCurrentMemtable();
 
         Assert.assertNotSame(afterFlushMemtable, beforeFlushMemtable);
-        Assert.assertEquals(afterFlushMemtable.search(expression).getCount(), 0);
+        Assert.assertEquals(rangesSize(afterFlushMemtable, expression), 0);
         Assert.assertEquals(0, index.getPendingMemtables().size());
 
         loadData(new HashMap<String, Pair<String, Integer>>()
@@ -2392,7 +2369,7 @@ public class SASIIndexTest
                         .add(Operator.LIKE_MATCHES, UTF8Type.instance.fromString("Sam"));
 
         beforeFlushMemtable = index.getCurrentMemtable();
-        Assert.assertTrue(beforeFlushMemtable.search(expression).getCount() > 0);
+        Assert.assertTrue(rangesSize(beforeFlushMemtable, expression) > 0);
 
         // let's emulate switching memtable and see if we can still read-data in "pending"
         index.switchMemtable(store.getTracker().getView().getCurrentMemtable());
@@ -2400,13 +2377,13 @@ public class SASIIndexTest
         Assert.assertNotSame(index.getCurrentMemtable(), beforeFlushMemtable);
         Assert.assertEquals(1, index.getPendingMemtables().size());
 
-        Assert.assertTrue(index.searchMemtable(expression).getCount() > 0);
+        Assert.assertTrue(rangesSize(index, expression) > 0);
 
         // emulate "everything is flushed" notification
         index.discardMemtable(store.getTracker().getView().getCurrentMemtable());
 
         Assert.assertEquals(0, index.getPendingMemtables().size());
-        Assert.assertEquals(index.searchMemtable(expression).getCount(), 0);
+        Assert.assertEquals(rangesSize(index, expression), 0);
 
         // test discarding data from memtable
         loadData(new HashMap<String, Pair<String, Integer>>()
@@ -2417,10 +2394,26 @@ public class SASIIndexTest
         expression = new org.apache.cassandra.index.sasi.plan.Expression(controller, index)
                 .add(Operator.LIKE_MATCHES, UTF8Type.instance.fromString("Jonathan"));
 
-        Assert.assertTrue(index.searchMemtable(expression).getCount() > 0);
+        Assert.assertTrue(rangesSize(index, expression) > 0);
 
         index.switchMemtable();
-        Assert.assertEquals(index.searchMemtable(expression).getCount(), 0);
+        Assert.assertEquals(rangesSize(index, expression), 0);
+    }
+
+    private static long rangesSize(IndexMemtable index, org.apache.cassandra.index.sasi.plan.Expression expression) throws IOException
+    {
+        try (RangeIterator<Long, Token> ranges = index.search(expression))
+        {
+            return ranges.getCount();
+        }
+    }
+
+    private static long rangesSize(ColumnIndex index, org.apache.cassandra.index.sasi.plan.Expression expression) throws IOException
+    {
+        try (RangeIterator<Long, Token> ranges = index.searchMemtable(expression))
+        {
+            return ranges.getCount();
+        }
     }
 
     @Test
@@ -2493,12 +2486,12 @@ public class SASIIndexTest
         });
     }
 
-    private static ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)
+    private ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)
     {
-        return loadData(data, System.currentTimeMillis(), forceFlush);
+        return loadData(data, forceFlush, ++timestamp);
     }
 
-    private static ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, long timestamp, boolean forceFlush)
+    private ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush, long timestamp)
     {
         for (Map.Entry<String, Pair<String, Integer>> e : data.entrySet())
             newMutation(e.getKey(), e.getValue().left, null, e.getValue().right, timestamp).apply();
@@ -2511,11 +2504,15 @@ public class SASIIndexTest
         return store;
     }
 
-    private void cleanupData()
+    private static void cleanupData()
+    {
+        stores().forEach(ColumnFamilyStore::truncateBlocking);
+    }
+
+    private static Stream<ColumnFamilyStore> stores()
     {
         Keyspace ks = Keyspace.open(KS_NAME);
-        ks.getColumnFamilyStore(CF_NAME).truncateBlocking();
-        ks.getColumnFamilyStore(CLUSTERING_CF_NAME_1).truncateBlocking();
+        return ks.getMetadata().tables.stream().map(t -> ks.getColumnFamilyStore(t.name));
     }
 
     private static Set<String> getIndexed(ColumnFamilyStore store, int maxResults, Expression... expressions)
@@ -2633,7 +2630,7 @@ public class SASIIndexTest
         return QueryProcessor.executeOnceInternal(String.format(query, KS_NAME, cfName), values);
     }
 
-    private Set<String> executeCQLWithKeys(String rawStatement) throws Exception
+    private Set<String> executeCQLWithKeys(String rawStatement)
     {
         Set<String> results = new TreeSet<>();
         for (UntypedResultSet.Row row : QueryProcessor.executeOnceInternal(rawStatement))
@@ -2657,7 +2654,7 @@ public class SASIIndexTest
 
     private static Row buildRow(Collection<Cell<?>> cells)
     {
-        return buildRow(cells.toArray(new Cell<?>[cells.size()]));
+        return buildRow(Iterables.toArray(cells, Cell.class));
     }
 
     private static Row buildRow(Cell<?>... cells)
@@ -2712,5 +2709,17 @@ public class SASIIndexTest
             this.op = op;
             this.value = value;
         }
+    }
+
+    private static void assertRows(Iterable<String> actual, String... expected)
+    {
+        String message = String.format("Expected rows to contain %s but found %s", Arrays.toString(expected), actual);
+        Assert.assertArrayEquals(message, expected, Iterables.toArray(actual, String.class));
+    }
+
+    private static void assertRowsSize(Set<String> actual, int expectedSize)
+    {
+        String message = String.format("Expected %s to have size %d but found size %d", actual, expectedSize, actual.size());
+        Assert.assertEquals(message, expectedSize, actual.size());
     }
 }
