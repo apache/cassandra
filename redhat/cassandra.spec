@@ -6,6 +6,8 @@
 # binary executable files in our 'noarch' package
 %define _binaries_in_noarch_packages_terminate_build   0
 
+%define __python /usr/bin/python3
+
 %global username cassandra
 
 # input of ~alphaN, ~betaN, ~rcN package versions need to retain upstream '-alphaN, etc' version for sources
@@ -27,7 +29,7 @@ BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
-Requires:      python(abi) >= 2.7
+Requires:      python(abi) >= 3.6
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
 Requires(pre): shadow-utils
@@ -67,7 +69,7 @@ mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
 mkdir -p %{buildroot}/var/lib/%{username}/hints
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
-( cd pylib && python2.7 setup.py install --no-compile --root %{buildroot}; )
+( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
 
 # patches for data and log paths
 patch -p1 < debian/patches/cassandra_yaml_dirs.diff
@@ -143,8 +145,8 @@ exit 0
 %attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*
-/usr/lib/python2.7/site-packages/cqlshlib/
-/usr/lib/python2.7/site-packages/cassandra_pylib*.egg-info
+%{python_sitelib}/cqlshlib/
+%{python_sitelib}/cassandra_pylib*.egg-info
 
 %post
 alternatives --install /%{_sysconfdir}/%{username}/conf %{username} /%{_sysconfdir}/%{username}/default.conf/ 0
