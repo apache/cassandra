@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -112,7 +113,7 @@ public class StreamingTransferTest
     {
         StreamResultFuture futureResult = new StreamPlan("StreamingTransferTest").execute();
         final UUID planId = futureResult.planId;
-        Futures.addCallback(futureResult, new FutureCallback<StreamState>()
+        GuavaCompatibility.INSTANCE.addCallback(futureResult, new FutureCallback<StreamState>()
         {
             public void onSuccess(StreamState result)
             {

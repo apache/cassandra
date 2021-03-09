@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -87,7 +88,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
             // When all snapshot complete, send validation requests
             ListenableFuture<List<InetAddress>> allSnapshotTasks = Futures.allAsList(snapshotTasks);
-            validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
+            validations = GuavaCompatibility.INSTANCE.transformAsync(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
             {
                 public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints)
                 {
@@ -105,7 +106,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
 
         // When all validations complete, submit sync tasks
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transform(validations, new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
+        ListenableFuture<List<SyncStat>> syncResults = GuavaCompatibility.INSTANCE.transformAsync(validations, new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
             {
@@ -114,7 +115,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }, taskExecutor);
 
         // When all sync complete, set the final result
-        Futures.addCallback(syncResults, new FutureCallback<List<SyncStat>>()
+        GuavaCompatibility.INSTANCE.addCallback(syncResults, new FutureCallback<List<SyncStat>>()
         {
             public void onSuccess(List<SyncStat> stats)
             {
@@ -217,7 +218,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             final InetAddress nextAddress = requests.poll();
             final ValidationTask nextTask = new ValidationTask(desc, nextAddress, gcBefore);
             tasks.add(nextTask);
-            Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
+            GuavaCompatibility.INSTANCE.addCallback(currentTask, new FutureCallback<TreeResponse>()
             {
                 public void onSuccess(TreeResponse result)
                 {
@@ -274,7 +275,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 final InetAddress nextAddress = requests.poll();
                 final ValidationTask nextTask = new ValidationTask(desc, nextAddress, gcBefore);
                 tasks.add(nextTask);
-                Futures.addCallback(currentTask, new FutureCallback<TreeResponse>()
+                GuavaCompatibility.INSTANCE.addCallback(currentTask, new FutureCallback<TreeResponse>()
                 {
                     public void onSuccess(TreeResponse result)
                     {

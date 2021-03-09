@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
@@ -160,7 +161,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 sessions.remove(session.getId());
             }
-        }, MoreExecutors.directExecutor());
+        }, GuavaCompatibility.INSTANCE.sameThreadExecutor());
         session.start(executor);
         return session;
     }
@@ -475,7 +476,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             {
                 removeParentRepairSession(parentRepairSession);
             }
-        }, MoreExecutors.directExecutor());
+        }, GuavaCompatibility.INSTANCE.sameThreadExecutor());
 
         return allAntiCompactionResults;
     }

@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
@@ -140,7 +141,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     public void addEventListener(StreamEventHandler listener)
     {
-        Futures.addCallback(this, listener);
+        GuavaCompatibility.INSTANCE.addCallback(this, listener);
         eventListeners.add(listener);
     }
 

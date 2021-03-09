@@ -23,6 +23,7 @@ package org.apache.cassandra.cache;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
@@ -139,7 +140,7 @@ public class ChunkCache
     {
         cache = Caffeine.newBuilder()
                 .maximumWeight(cacheSize)
-                .executor(MoreExecutors.directExecutor())
+                .executor(GuavaCompatibility.INSTANCE.sameThreadExecutor())
                 .weigher((key, buffer) -> ((Buffer) buffer).buffer.capacity())
                 .removalListener(this)
                 .build(this);

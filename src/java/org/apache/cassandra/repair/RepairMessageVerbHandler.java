@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -148,7 +149,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         {
                             MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                         }
-                    }, MoreExecutors.directExecutor());
+                    }, GuavaCompatibility.INSTANCE.sameThreadExecutor());
                     break;
 
                 case CLEANUP:

@@ -36,6 +36,7 @@ import javax.management.*;
 import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
@@ -1649,7 +1650,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata);
             bootstrapper.addProgressListener(progressSupport);
             ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
-            Futures.addCallback(bootstrapStream, new FutureCallback<StreamState>()
+            GuavaCompatibility.INSTANCE.addCallback(bootstrapStream, new FutureCallback<StreamState>()
             {
                 @Override
                 public void onSuccess(StreamState streamState)
@@ -2803,7 +2804,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         StreamResultFuture future = stream.execute();
-        Futures.addCallback(future, new FutureCallback<StreamState>()
+        GuavaCompatibility.INSTANCE.addCallback(future, new FutureCallback<StreamState>()
         {
             public void onSuccess(StreamState finalState)
             {

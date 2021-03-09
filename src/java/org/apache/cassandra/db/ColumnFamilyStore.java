@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 import javax.management.*;
 import javax.management.openmbean.*;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.*;
 import com.google.common.base.Throwables;
@@ -1353,7 +1354,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     returnFuture.completeExceptionally(t);
                 }
-            }, MoreExecutors.directExecutor());
+            }, GuavaCompatibility.INSTANCE.sameThreadExecutor());
         }
         else
         {

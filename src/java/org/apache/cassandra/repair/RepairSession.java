@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
@@ -276,7 +277,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         }
 
         // When all RepairJobs are done without error, cleanup and set the final result
-        Futures.addCallback(Futures.allAsList(jobs), new FutureCallback<List<RepairResult>>()
+        GuavaCompatibility.INSTANCE.addCallback(Futures.allAsList(jobs), new FutureCallback<List<RepairResult>>()
         {
             public void onSuccess(List<RepairResult> results)
             {

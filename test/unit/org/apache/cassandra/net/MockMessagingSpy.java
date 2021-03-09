@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -53,7 +54,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<MessageIn<?>> captureMockedMessageIn()
     {
-        return Futures.transform(captureMockedMessageInN(1), (List<MessageIn<?>> result) -> result.isEmpty() ? null : result.get(0));
+        return GuavaCompatibility.INSTANCE.transform(captureMockedMessageInN(1), (List<MessageIn<?>> result) -> result.isEmpty() ? null : result.get(0));
     }
 
     /**
@@ -89,7 +90,7 @@ public class MockMessagingSpy
      */
     public ListenableFuture<MessageOut<?>> captureMessageOut()
     {
-        return Futures.transform(captureMessageOut(1), (List<MessageOut<?>> result) -> result.isEmpty() ? null : result.get(0));
+        return GuavaCompatibility.INSTANCE.transform(captureMessageOut(1), (List<MessageOut<?>> result) -> result.isEmpty() ? null : result.get(0));
     }
 
     /**

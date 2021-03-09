@@ -34,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -237,7 +238,7 @@ public class RepairJobTest extends SchemaLoader
         // SyncTasks themselves should not contain significant memory
         assertTrue(ObjectSizes.measureDeep(syncTasks) < 0.8 * singleTreeSize);
 
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transform(Futures.immediateFuture(mockTreeResponses), new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
+        ListenableFuture<List<SyncStat>> syncResults = GuavaCompatibility.INSTANCE.transformAsync(Futures.immediateFuture(mockTreeResponses), new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> treeResponses)
             {

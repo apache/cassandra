@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -276,7 +277,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             if (session == null)
                 continue;
             // After repair session completes, notify client its result
-            Futures.addCallback(session, new FutureCallback<RepairSessionResult>()
+            GuavaCompatibility.INSTANCE.addCallback(session, new FutureCallback<RepairSessionResult>()
             {
                 public void onSuccess(RepairSessionResult result)
                 {
@@ -318,7 +319,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         final Collection<Range<Token>> successfulRanges = new ArrayList<>();
         final AtomicBoolean hasFailure = new AtomicBoolean();
         final ListenableFuture<List<RepairSessionResult>> allSessions = Futures.successfulAsList(futures);
-        ListenableFuture anticompactionResult = Futures.transform(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
+        ListenableFuture anticompactionResult = GuavaCompatibility.INSTANCE.transformAsync(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
         {
             @SuppressWarnings("unchecked")
             public ListenableFuture apply(List<RepairSessionResult> results)
@@ -338,7 +339,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 return ActiveRepairService.instance.finishParentSession(parentSession, allNeighbors, successfulRanges);
             }
         });
-        Futures.addCallback(anticompactionResult, new FutureCallback<Object>()
+        GuavaCompatibility.INSTANCE.addCallback(anticompactionResult, new FutureCallback<Object>()
         {
             public void onSuccess(Object result)
             {

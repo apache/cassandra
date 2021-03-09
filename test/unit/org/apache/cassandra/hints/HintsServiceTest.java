@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.After;
@@ -119,7 +120,7 @@ public class HintsServiceTest
 
         // we should not send any hints while paused
         ListenableFuture<Boolean> noMessagesWhilePaused = spy.interceptNoMsg(15, TimeUnit.SECONDS);
-        Futures.addCallback(noMessagesWhilePaused, new MoreFutures.SuccessCallback<Boolean>()
+        GuavaCompatibility.INSTANCE.addCallback(noMessagesWhilePaused, new MoreFutures.SuccessCallback<Boolean>()
         {
             public void onSuccess(@Nullable Boolean aBoolean)
             {

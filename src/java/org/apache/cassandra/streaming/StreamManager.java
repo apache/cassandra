@@ -28,6 +28,7 @@ import javax.management.NotificationFilter;
 import javax.management.NotificationListener;
 import javax.management.openmbean.CompositeData;
 
+import com.datastax.driver.core.GuavaCompatibility;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
@@ -131,7 +132,7 @@ public class StreamManager implements StreamManagerMBean
             {
                 initiatedStreams.remove(result.planId);
             }
-        }, MoreExecutors.directExecutor());
+        }, GuavaCompatibility.INSTANCE.sameThreadExecutor());
 
         initiatedStreams.put(result.planId, result);
     }
@@ -146,7 +147,7 @@ public class StreamManager implements StreamManagerMBean
             {
                 receivingStreams.remove(result.planId);
             }
-        }, MoreExecutors.directExecutor());
+        }, GuavaCompatibility.INSTANCE.sameThreadExecutor());
 
         receivingStreams.put(result.planId, result);
     }
