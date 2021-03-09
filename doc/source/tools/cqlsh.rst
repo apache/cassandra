@@ -65,7 +65,7 @@ Options:
 
 ``--browser``
   Specify the browser to use for displaying cqlsh help.  This can be one of the `supported browser names
-  <https://docs.python.org/2/library/webbrowser.html>`__ (e.g. ``firefox``) or a browser path followed by ``%s`` (e.g.
+  <https://docs.python.org/3/library/webbrowser.html>`__ (e.g. ``firefox``) or a browser path followed by ``%s`` (e.g.
   ``/usr/bin/google-chrome-stable %s``).
 
 ``--ssl``
