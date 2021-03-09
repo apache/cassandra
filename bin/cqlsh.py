@@ -45,7 +45,7 @@ UTF8 = 'utf-8'
 CP65001 = 'cp65001'  # Win utf-8 variant
 
 description = "CQL Shell for Apache Cassandra"
-version = "5.0.1"
+version = "6.0.0"
 
 readline = None
 try:
