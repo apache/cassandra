@@ -2,7 +2,6 @@
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
  * Fix ColumnFilter behaviour to prevent digest mitmatches during upgrades (CASSANDRA-16415)
- * Update debian packaging for python3 (CASSANDRA-16396)
  * Avoid pushing schema mutations when setting up distributed system keyspaces locally (CASSANDRA-16387)
 Merged from 2.2:
  * Fix centos packaging for arm64, >=3.0 rpm's now require python3 (CASSANDRA-16477)
