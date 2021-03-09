@@ -14,21 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import sys
-import logging
+import unittest
 
 from os.path import dirname, join, normpath
 
 cqlshlog = logging.getLogger('test_cqlsh')
-
-try:
-    # a backport of python2.7 unittest features, so we can test against older
-    # pythons as necessary. python2.7 users who don't care about testing older
-    # versions need not install.
-    import unittest2 as unittest
-except ImportError:
-    import unittest
 
 rundir = dirname(__file__)
 cqlshdir = normpath(join(rundir, '..', '..', '..', 'bin'))
