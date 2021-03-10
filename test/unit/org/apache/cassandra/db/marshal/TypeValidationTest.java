@@ -19,16 +19,19 @@
 package org.apache.cassandra.db.marshal;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.assertj.core.api.Assertions;
+import org.mockito.Mockito;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
 import org.junit.Test;
 
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
@@ -37,6 +40,7 @@ import java.util.UUID;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.primitiveTypeGen;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.userTypeGen;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.quicktheories.QuickTheory.qt;
 
 public class TypeValidationTest
@@ -72,6 +76,21 @@ public class TypeValidationTest
     {
         Int32Type.instance.validate(Util.getBytes(5));
         Int32Type.instance.validate(Util.getBytes(2057022603));
+    }
+
+    @Test
+    public void testWriteValueWrongFixedLength()
+    {
+        DataOutputPlus output = Mockito.mock(DataOutputPlus.class);
+
+        assertThatThrownBy(() -> Int32Type.instance.writeValue(Util.getBytes(42L), output))
+        .isInstanceOf(IOException.class).hasMessageContaining("Expected exactly 4 bytes, but was 8");
+        assertThatThrownBy(() -> LongType.instance.writeValue(Util.getBytes(42), output))
+        .isInstanceOf(IOException.class).hasMessageContaining("Expected exactly 8 bytes, but was 4");
+        assertThatThrownBy(() -> UUIDType.instance.writeValue(Util.getBytes(42L), output))
+        .isInstanceOf(IOException.class).hasMessageContaining("Expected exactly 16 bytes, but was 8");
+
+        Mockito.verifyNoInteractions(output);
     }
 
     @Test

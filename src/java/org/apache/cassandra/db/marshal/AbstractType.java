@@ -435,11 +435,21 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     // This assumes that no empty values are passed
     public  <V> void writeValue(V value, ValueAccessor<V> accessor, DataOutputPlus out) throws IOException
     {
-        assert !accessor.isEmpty(value);
-        if (valueLengthIfFixed() >= 0)
-            accessor.write(value, out);
+        assert !accessor.isEmpty(value) : "bytes should not be empty for type " + this;
+        int expectedValueLength = valueLengthIfFixed();
+        if (expectedValueLength >= 0)
+        {
+            int actualValueLength = accessor.size(value);
+            if (actualValueLength == expectedValueLength)
+                accessor.write(value, out);
+             else
+                 throw new IOException(String.format("Expected exactly %d bytes, but was %d",
+                                                     expectedValueLength, actualValueLength));
+        }
         else
+        {
             accessor.writeWithVIntLength(value, out);
+        }
     }
 
     public long writtenLength(ByteBuffer value)
@@ -451,7 +461,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     {
         assert !accessor.isEmpty(value) : "bytes should not be empty for type " + this;
         return valueLengthIfFixed() >= 0
-               ? accessor.size(value)
+               ? accessor.size(value) // if the size is wrong, this will be detected in writeValue
                : accessor.sizeWithVIntLength(value);
     }
 
