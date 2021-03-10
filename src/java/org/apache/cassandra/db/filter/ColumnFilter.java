@@ -510,7 +510,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
             {
-                s = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
+                s = TreeMultimap.create(Comparator.naturalOrder(), Comparator.naturalOrder());
                 for (ColumnSubselection subSelection : subSelections)
                 {
                     if (fullySelectedComplexColumns == null || !fullySelectedComplexColumns.contains(subSelection.column()))
@@ -566,26 +566,38 @@ public class ColumnFilter
         if (fetchAllRegulars && !fetchAllStatics)
         {
             prefix = queried.statics.isEmpty()
-                     ? "<all regulars>/"
-                     : String.format("<all regulars>+%s/", columnsToString(queried.statics::selectOrderIterator));
+                   ? "<all regulars>/"
+                   : String.format("<all regulars>+%s/", toString(queried.statics.selectOrderIterator(), false));
         }
 
-        return prefix + columnsToString(queried::selectOrderIterator);
+        return prefix + toString(queried.selectOrderIterator(), false);
     }
 
-    private String columnsToString(Iterable<ColumnMetadata> columns)
+    public String toCQLString()
     {
-        StringJoiner joiner = new StringJoiner(", ", "[", "]");
-        Iterator<ColumnMetadata> it = columns.iterator();
-        while (it.hasNext())
+        if (queried == null || queried.isEmpty())
+            return "*";
+
+        return toString(queried.selectOrderIterator(), true);
+    }
+
+    private String toString(Iterator<ColumnMetadata> columns, boolean cql)
+    {
+        StringJoiner joiner = cql ? new StringJoiner(", ") : new StringJoiner(", ", "[", "]");
+
+        while (columns.hasNext())
         {
-            ColumnMetadata column = it.next();
-            SortedSet<ColumnSubselection> s = subSelections != null ? subSelections.get(column.name) : Collections.emptySortedSet();
+            ColumnMetadata column = columns.next();
+            String columnName = cql ? column.name.toCQLString() : String.valueOf(column.name);
+
+            SortedSet<ColumnSubselection> s = subSelections != null
+                                            ? subSelections.get(column.name)
+                                            : Collections.emptySortedSet();
 
             if (s.isEmpty())
-                joiner.add(String.valueOf(column.name));
+                joiner.add(columnName);
             else
-                s.forEach(subSel -> joiner.add(String.format("%s%s", column.name, subSel)));
+                s.forEach(subSel -> joiner.add(String.format("%s%s", columnName, subSel)));
         }
         return joiner.toString();
     }
@@ -661,7 +673,7 @@ public class ColumnFilter
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
             if (hasSubSelections)
             {
-                subSelections = TreeMultimap.create(Comparator.<ColumnIdentifier>naturalOrder(), Comparator.<ColumnSubselection>naturalOrder());
+                subSelections = TreeMultimap.create(Comparator.naturalOrder(), Comparator.naturalOrder());
                 int size = (int) in.readUnsignedVInt();
                 for (int i = 0; i < size; i++)
                 {

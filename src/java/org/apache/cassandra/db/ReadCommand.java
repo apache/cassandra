@@ -728,7 +728,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     public String toCQLString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("SELECT ").append(columnFilter());
+        sb.append("SELECT ").append(columnFilter().toCQLString());
         sb.append(" FROM ").append(metadata().keyspace).append('.').append(metadata().name);
         appendCQLWhereClause(sb);
 
