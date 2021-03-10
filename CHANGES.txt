@@ -1,4 +1,5 @@
 3.0.25:
+ * Fix ColumnFilter::toString not returning a valid CQL fragment (CASSANDRA-16483)
  * Fix ColumnFilter behaviour to prevent digest mitmatches during upgrades (CASSANDRA-16415)
  * Avoid pushing schema mutations when setting up distributed system keyspaces locally (CASSANDRA-16387)
 Merged from 2.2:
