@@ -344,6 +344,11 @@ public class SinglePartitionSliceCommandTest
         {
             cfs.truncateBlocking();
 
+            // timestamp and USING TIMESTAMP have different values to ensure the correct timestamp (the one specified in the
+            // query) is the one being picked up. For safety reason we want to be able to ensure that further to its main goal
+            // the test can also detect wrongful change of the code. The current timestamp retrieved from the ClientState is
+            // ignored but nowInSeconds is retrieved from it and used for the DeletionTime.  It shows the difference between the
+            // time at which the record was marked for deletion and the time at which it truly happened.
             final long timestamp = FBUtilities.timestampMicros();
             final int nowInSec = FBUtilities.nowInSeconds();
 
@@ -405,10 +410,24 @@ public class SinglePartitionSliceCommandTest
         BiFunction<Boolean, Boolean, List<Unfiltered>> tester = (flush, multiSSTable) ->
         {
             cfs.truncateBlocking();
-            QueryProcessor.executeOnceInternal("DELETE FROM ks.partition_range_deletion USING TIMESTAMP 10 WHERE k=1");
+
+            // timestamp and USING TIMESTAMP have different values to ensure the correct timestamp (the one specified in the
+            // query) is the one being picked up. For safety reason we want to be able to ensure that further to its main goal
+            // the test can also detect wrongful change of the code. The current timestamp retrieved from the ClientState is
+            // ignored but nowInSeconds is retrieved from it and used for the DeletionTime.  It shows the difference between the
+            // time at which the record was marked for deletion and the time at which it truly happened.
+
+            final long timestamp = FBUtilities.timestampMicros();
+            final int nowInSec = FBUtilities.nowInSeconds();
+
+            QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
+                                                                  timestamp,
+                                                                  "DELETE FROM ks.partition_range_deletion USING TIMESTAMP 10 WHERE k=1");
             if (flush && multiSSTable)
                 cfs.forceBlockingFlush();
-            QueryProcessor.executeOnceInternal("DELETE FROM ks.partition_range_deletion USING TIMESTAMP 10 WHERE k=1 and c1=1");
+            QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
+                                                                  timestamp,
+                                                                  "DELETE FROM ks.partition_range_deletion USING TIMESTAMP 10 WHERE k=1 and c1=1");
             if (flush)
                 cfs.forceBlockingFlush();
 
