@@ -358,6 +358,7 @@ public class Descriptor
                        && that.generation == this.generation
                        && that.ksname.equals(this.ksname)
                        && that.cfname.equals(this.cfname)
+                       && that.version.equals(this.version)
                        && that.formatType == this.formatType;
     }
 
