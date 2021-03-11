@@ -582,7 +582,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             if (notification instanceof SSTableAddedNotification)
             {
-                handleFlushNotification(((SSTableAddedNotification) notification).added);
+                SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
+                handleFlushNotification(flushedNotification.added);
             }
             else if (notification instanceof SSTableListChangedNotification)
             {
