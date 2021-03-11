@@ -740,7 +740,7 @@ public final class SchemaKeyspace
                                               .add("include_all_columns", view.includeAllColumns)
                                               .add("base_table_id", view.baseTableId.asUUID())
                                               .add("base_table_name", view.baseTableName)
-                                              .add("where_clause", view.whereClause.toString())
+                                              .add("where_clause", view.whereClause.toCQLString())
                                               .add("id", table.id.asUUID());
 
         addTableParamsToRowBuilder(table.params, rowBuilder);

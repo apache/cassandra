@@ -227,7 +227,7 @@ public class MultiColumnRelation extends Relation
     }
 
     @Override
-    public String toString()
+    public String toCQLString()
     {
         StringBuilder builder = new StringBuilder(Tuples.tupleToString(entities, ColumnIdentifier::toCQLString));
         if (isIN())

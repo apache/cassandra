@@ -140,7 +140,7 @@ public final class TokenRelation extends Relation
     }
 
     @Override
-    public String toString()
+    public String toCQLString()
     {
         return String.format("token%s %s %s", Tuples.tupleToString(entities, ColumnIdentifier::toCQLString), relationType, value);
     }
