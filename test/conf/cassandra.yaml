@@ -17,7 +17,7 @@ hints_directory: build/test/cassandra/hints
 partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
 listen_address: 127.0.0.1
 storage_port: 7012
-ssl_storage_port: 7011
+ssl_storage_port: 17012
 start_native_transport: true
 native_transport_port: 9042
 column_index_size_in_kb: 4
