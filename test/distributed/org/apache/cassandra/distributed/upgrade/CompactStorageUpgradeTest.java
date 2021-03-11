@@ -24,7 +24,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.Feature;
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import org.apache.cassandra.distributed.shared.Versions;
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
@@ -145,6 +146,7 @@ public class CompactStorageUpgradeTest extends UpgradeTestBase
         .nodes(2)
         .nodesToUpgrade(1, 2)
         .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .withConfig(config -> config.with(GOSSIP, NETWORK))
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck) VALUES (1,1)", ConsistencyLevel.ALL);
