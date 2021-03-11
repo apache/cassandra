@@ -133,9 +133,6 @@ else
 fi
 export CASSANDRA_DIR
 
-# set .m2 setting path
-rm -rf "$HOME/.m2/"
-
 ## Download oracle jdk 8
 #wget http://artifactory.uber.internal:4587/artifactory/libs-release-local/oracle/server-jdk-linux-x64/1.8.0_111/server-jdk-linux-x64-1.8.0_111.tar.gz
 #tar xzvf server-jdk-linux-x64-1.8.0_111.tar.gz

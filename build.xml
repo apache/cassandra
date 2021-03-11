@@ -574,6 +574,7 @@
           </dependency>
           <dependency groupId="com.google.jimfs" artifactId="jimfs" version="1.1"/>
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.12"/>
+          <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.1.1-1752-7cfb45770d6e-java-monorepo"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
           <dependency groupId="commons-io" artifactId="commons-io" version="2.6"/>
@@ -821,6 +822,7 @@
         <dependency groupId="net.ju-n.compile-command-annotations" artifactId="compile-command-annotations" scope="test"/>
         <dependency groupId="org.apache.ant" artifactId="ant-junit" scope="test"/>
         <dependency groupId="org.apache.cassandra" artifactId="harry-core"/>
+        <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin" version="0.1.1-1752-7cfb45770d6e-java-monorepo"/>
         <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
              this that the new assertj's `assertj-parent-pom` depends on. -->
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom"/>
@@ -846,6 +848,7 @@
         <dependency groupId="org.xerial.snappy" artifactId="snappy-java"/>
         <dependency groupId="org.lz4" artifactId="lz4-java"/>
         <dependency groupId="com.google.guava" artifactId="guava"/>
+        <dependency groupId="com.uber.jfx.library" artifactId="jfx-debug-thin"/>
         <dependency groupId="commons-cli" artifactId="commons-cli"/>
         <dependency groupId="commons-codec" artifactId="commons-codec"/>
         <dependency groupId="org.apache.commons" artifactId="commons-lang3"/>

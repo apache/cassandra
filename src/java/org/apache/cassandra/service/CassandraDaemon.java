@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -35,6 +36,8 @@ import javax.management.remote.JMXConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.uber.jfx.debug.thin.JFxDebuggability;
+import com.uber.jfx.debug.thin.config.HandlersConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,6 +134,43 @@ public class CassandraDaemon
         logger = LoggerFactory.getLogger(CassandraDaemon.class);
     }
 
+    /**
+     * JFxDebug integration tests are available at
+     * https://code.uberinternal.com/diffusion/INCASAV/browse/master/jfx_test.py
+     */
+    private void maybeInitJFxDebug()
+    {
+        String shouldEnableJFxDebug = System.getProperty("jfx.debug.enable");
+        if(!"true".equals(shouldEnableJFxDebug)){
+            logger.warn("JFx debug is disabled, You can enable it by -Djfx.debug.enable=true");
+            return;
+        }
+
+        // if UBER_PORT_SYSTEM is not set, skip the startup silently
+        String uberPortSystem = System.getenv("UBER_PORT_SYSTEM");
+        if(uberPortSystem == null || uberPortSystem.isEmpty()){
+            System.out.println("JFx debug startup is skipped because UBER_PORT_SYSTEM is not set");
+            logger.warn("JFx debug startup is skipped because UBER_PORT_SYSTEM is not set");
+            return;
+        }
+        // start JFx debug
+        new JFxDebuggability.JFxDebuggabilityBuilder("cassandra")
+                .withHandlersConfiguration(
+                HandlersConfiguration.newBuilder()
+                        .disableMetricsHandler()
+                        .disableFileDescriptorHandler()
+                        .disableJvmInfoHandler()
+                        .disableLogbackConfigurationHandler()
+                        .disableLoggersHandler()
+                        .disableLimitsHandler()
+                        .disableThreadDumpHandler()
+                        .build()
+                ).disableMetrics()
+                .disableHeartbeat()
+                .build()
+                .start();
+        System.out.println("JFx debug started");
+    }
     private void maybeInitJmx()
     {
         // If the standard com.sun.management.jmxremote.port property has been set
@@ -239,6 +279,8 @@ public class CassandraDaemon
         }
 
         maybeInitJmx();
+
+        maybeInitJFxDebug();
 
         Mx4jTool.maybeLoad();
 
