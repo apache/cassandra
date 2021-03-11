@@ -81,7 +81,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         }
 
         /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
-        Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<InetAddressAndPort, EndpointState>();
+        Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<>();
         for (GossipDigest gDigest : gDigestList)
         {
             InetAddressAndPort addr = gDigest.getEndpoint();

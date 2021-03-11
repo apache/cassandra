@@ -125,7 +125,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private volatile CompactionParams params;
     private DiskBoundaries currentBoundaries;
-    private volatile boolean enabled = true;
+    private volatile boolean enabled;
     private volatile boolean isActive = true;
 
     /*
@@ -747,7 +747,8 @@ public class CompactionStrategyManager implements INotificationConsumer
 
             if (notification instanceof SSTableAddedNotification)
             {
-                handleFlushNotification(((SSTableAddedNotification) notification).added);
+                SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
+                handleFlushNotification(flushedNotification.added);
             }
             else if (notification instanceof SSTableListChangedNotification)
             {

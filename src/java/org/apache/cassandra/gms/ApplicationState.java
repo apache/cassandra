@@ -17,6 +17,14 @@
  */
 package org.apache.cassandra.gms;
 
+/**
+ * The various "states" exchanged through Gossip.
+ *
+ * <p><b>Important Note:</b> Gossip uses the ordinal of this enum in the messages it exchanges, so values in that enum
+ * should <i>not</i> be re-ordered or removed. The end of this enum should also always include some "padding" so that
+ * if newer versions add new states, old nodes that don't know about those new states don't "break" deserializing those
+ * states.
+ */
 public enum ApplicationState
 {
     // never remove a state here, ordering matters.
@@ -39,6 +47,15 @@ public enum ApplicationState
     INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
     NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
     STATUS_WITH_PORT, //Replacement for STATUS
+    /**
+     * The set of sstable versions on this node. This will usually be only the "current" sstable format (the one with
+     * which new sstables are written), but may contain more on newly upgraded nodes before `upgradesstable` has been
+     * run.
+     *
+     * <p>The value (a set of sstable {@link org.apache.cassandra.io.sstable.format.VersionAndType}) is serialized as
+     * a comma-separated list.
+     **/
+    SSTABLE_VERSIONS,
     // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
     X1,
     X2,
