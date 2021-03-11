@@ -105,9 +105,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     }
-    private static List<String> ADMINISTRATIVELY_INACTIVE_STATES = Arrays.asList(VersionedValue.HIBERNATE,
-                                                                                 VersionedValue.REMOVED_TOKEN,
-                                                                                 VersionedValue.STATUS_LEFT);
+    private static final List<String> ADMINISTRATIVELY_INACTIVE_STATES = Arrays.asList(VersionedValue.HIBERNATE,
+                                                                                       VersionedValue.REMOVED_TOKEN,
+                                                                                       VersionedValue.STATUS_LEFT);
     private volatile ScheduledFuture<?> scheduledGossipTask;
     private static final ReentrantLock taskLock = new ReentrantLock();
     public final static int intervalInMillis = 1000;
@@ -124,11 +124,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     // Maximimum difference between generation value and local time we are willing to accept about a peer
     static final int MAX_GENERATION_DIFFERENCE = 86400 * 365;
-    private long fatClientTimeout;
+    private final long fatClientTimeout;
     private final Random random = new Random();
 
     /* subscribers for interest in EndpointState change */
-    private final List<IEndpointStateChangeSubscriber> subscribers = new CopyOnWriteArrayList<IEndpointStateChangeSubscriber>();
+    private final List<IEndpointStateChangeSubscriber> subscribers = new CopyOnWriteArrayList<>();
 
     /* live member set */
     @VisibleForTesting
@@ -258,7 +258,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().updateHeartBeat();
                 if (logger.isTraceEnabled())
                     logger.trace("My heartbeat is now {}", endpointStateMap.get(FBUtilities.getBroadcastAddressAndPort()).getHeartBeatState().getHeartBeatVersion());
-                final List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+                final List<GossipDigest> gDigests = new ArrayList<>();
                 Gossiper.instance.makeRandomGossipDigest(gDigests);
 
                 if (gDigests.size() > 0)
@@ -662,7 +662,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             for (GossipDigest gDigest : gDigests)
             {
                 sb.append(gDigest);
-                sb.append(" ");
+                sb.append(' ');
             }
             logger.trace("Gossip Digests are : {}", sb);
         }
@@ -741,7 +741,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         InetAddressAndPort endpoint = InetAddressAndPort.getByName(address);
         runInGossipStageBlocking(() -> {
             EndpointState epState = endpointStateMap.get(endpoint);
-            Collection<Token> tokens = null;
+            Collection<Token> tokens;
             logger.warn("Assassinating {} via gossip", endpoint);
 
             if (epState == null)
@@ -1074,6 +1074,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public UUID getHostId(InetAddressAndPort endpoint, Map<InetAddressAndPort, EndpointState> epStates)
     {
         return UUID.fromString(epStates.get(endpoint).getApplicationState(ApplicationState.HOST_ID).value);
+    }
+
+    /**
+     * The value for the provided application state for the provided endpoint as currently known by this Gossip instance.
+     *
+     * @param endpoint the endpoint from which to get the endpoint state.
+     * @param state the endpoint state to get.
+     * @return the value of the application state {@code state} for {@code endpoint}, or {@code null} if either
+     * {@code endpoint} is not known by Gossip or has no value for {@code state}.
+     */
+    public String getApplicationState(InetAddressAndPort endpoint, ApplicationState state)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null)
+            return null;
+
+        VersionedValue value = epState.getApplicationState(state);
+        return value == null ? null : value.value;
     }
 
     EndpointState getStateForVersionBiggerThan(InetAddressAndPort forEndpoint, int version)
@@ -1653,7 +1671,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void start(int generationNumber)
     {
-        start(generationNumber, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
+        start(generationNumber, new EnumMap<>(ApplicationState.class));
     }
 
     /**
@@ -1717,7 +1735,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         seedsInShadowRound.clear();
         endpointShadowStateMap.clear();
         // send a completely empty syn
-        List<GossipDigest> gDigests = new ArrayList<GossipDigest>();
+        List<GossipDigest> gDigests = new ArrayList<>();
         GossipDigestSyn digestSynMessage = new GossipDigestSyn(DatabaseDescriptor.getClusterName(),
                 DatabaseDescriptor.getPartitionerName(),
                 gDigests);
@@ -1835,7 +1853,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     public List<String> getSeeds()
     {
-        List<String> seedList = new ArrayList<String>();
+        List<String> seedList = new ArrayList<>();
         for (InetAddressAndPort seed : seeds)
         {
             seedList.add(seed.toString());
@@ -2074,7 +2092,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public Map<String, List<String>> getReleaseVersionsWithPort()
     {
-        Map<String, List<String>> results = new HashMap<String, List<String>>();
+        Map<String, List<String>> results = new HashMap<>();
         Iterable<InetAddressAndPort> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
 
         for (InetAddressAndPort host : allHosts)

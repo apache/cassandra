@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
@@ -578,7 +579,7 @@ public final class Schema implements SchemaProvider
         updateVersionAndAnnounce();
     }
 
-    public synchronized TransformationResult transform(SchemaTransformation transformation, boolean locally, long now)
+    public synchronized TransformationResult transform(SchemaTransformation transformation, boolean locally, long now) throws UnknownHostException
     {
         KeyspacesDiff diff;
         try

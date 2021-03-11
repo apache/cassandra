@@ -19,7 +19,6 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 

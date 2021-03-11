@@ -15,19 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.schema;
+package org.apache.cassandra.notifications;
 
-import java.net.UnknownHostException;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
-public interface SchemaTransformation
+/**
+ * Fired when we load SSTables during the Cassandra initialization phase.
+ */
+public class InitialSSTableAddedNotification implements INotification
 {
-    /**
-     * Apply a statement transformation to a schema snapshot.
-     *
-     * Implementing methods should be side-effect free.
-     *
-     * @param schema Keyspaces to base the transformation on
-     * @return Keyspaces transformed by the statement
-     */
-    Keyspaces apply(Keyspaces schema) throws UnknownHostException;
+    /** {@code true} if the addition corresponds to the {@link ColumnFamilyStore} initialization, then the sstables
+     * are those loaded at startup. */
+    public final Iterable<SSTableReader> added;
+
+    public InitialSSTableAddedNotification(Iterable<SSTableReader> added)
+    {
+        this.added = added;
+    }
 }

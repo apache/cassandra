@@ -36,10 +36,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.jpountz.lz4.LZ4Factory;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -55,8 +53,10 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SigarLibrary;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
@@ -83,7 +83,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NA
 public class StartupChecks
 {
     private static final Logger logger = LoggerFactory.getLogger(StartupChecks.class);
-
     // List of checks to run before starting up. If any test reports failure, startup will be halted.
     private final List<StartupCheck> preFlightChecks = new ArrayList<>();
 

@@ -107,7 +107,7 @@ public class Tracker
 
     Pair<View, View> apply(Function<View, View> function)
     {
-        return apply(Predicates.<View>alwaysTrue(), function);
+        return apply(Predicates.alwaysTrue(), function);
     }
 
     Throwable apply(Function<View, View> function, Throwable accumulate)
@@ -186,17 +186,12 @@ public class Tracker
 
     public void addInitialSSTables(Iterable<SSTableReader> sstables)
     {
-        addInitialSSTablesWithoutUpdatingSize(sstables);
-        maybeFail(updateSizeTracking(emptySet(), sstables, null));
-        // no notifications or backup necessary
+        addSSTablesInternal(sstables, true, false, true);
     }
 
     public void addInitialSSTablesWithoutUpdatingSize(Iterable<SSTableReader> sstables)
     {
-        if (!isDummy())
-            setupOnline(sstables);
-        apply(updateLiveSet(emptySet(), sstables));
-        // no notifications or backup necessary
+        addSSTablesInternal(sstables, true, false, false);
     }
 
     public void updateInitialSSTableSize(Iterable<SSTableReader> sstables)
@@ -206,9 +201,22 @@ public class Tracker
 
     public void addSSTables(Iterable<SSTableReader> sstables)
     {
-        addInitialSSTables(sstables);
-        maybeIncrementallyBackup(sstables);
-        notifyAdded(sstables);
+        addSSTablesInternal(sstables, false, true, true);
+    }
+
+    private void addSSTablesInternal(Iterable<SSTableReader> sstables,
+                                     boolean isInitialSSTables,
+                                     boolean maybeIncrementallyBackup,
+                                     boolean updateSize)
+    {
+        if (!isDummy())
+            setupOnline(sstables);
+        apply(updateLiveSet(emptySet(), sstables));
+        if(updateSize)
+            maybeFail(updateSizeTracking(emptySet(), sstables, null));
+        if (maybeIncrementallyBackup)
+            maybeIncrementallyBackup(sstables);
+        notifyAdded(sstables, isInitialSSTables);
     }
 
     /** (Re)initializes the tracker, purging all references. */
@@ -236,7 +244,7 @@ public class Tracker
 
     public Throwable dropSSTables(Throwable accumulate)
     {
-        return dropSSTables(Predicates.<SSTableReader>alwaysTrue(), OperationType.UNKNOWN, accumulate);
+        return dropSSTables(Predicates.alwaysTrue(), OperationType.UNKNOWN, accumulate);
     }
 
     /**
@@ -267,7 +275,7 @@ public class Tracker
                     accumulate = updateSizeTracking(removed, emptySet(), accumulate);
                     accumulate = release(selfRefs(removed), accumulate);
                     // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
-                    accumulate = notifySSTablesChanged(removed, Collections.<SSTableReader>emptySet(), txnLogs.type(), accumulate);
+                    accumulate = notifySSTablesChanged(removed, Collections.emptySet(), txnLogs.type(), accumulate);
                 }
             }
             catch (Throwable t)
@@ -291,13 +299,7 @@ public class Tracker
      */
     public void removeUnreadableSSTables(final File directory)
     {
-        maybeFail(dropSSTables(new Predicate<SSTableReader>()
-        {
-            public boolean apply(SSTableReader reader)
-            {
-                return reader.descriptor.directory.equals(directory);
-            }
-        }, OperationType.UNKNOWN, null));
+        maybeFail(dropSSTables(reader -> reader.descriptor.directory.equals(directory), OperationType.UNKNOWN, null));
     }
 
 
@@ -371,7 +373,7 @@ public class Tracker
         notifyDiscarded(memtable);
 
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
-        fail = notifyAdded(sstables, memtable, fail);
+        fail = notifyAdded(sstables, false, memtable, fail);
 
         if (!isDummy() && !cfstore.isValid())
             dropSSTables();
@@ -429,9 +431,14 @@ public class Tracker
         return accumulate;
     }
 
-    Throwable notifyAdded(Iterable<SSTableReader> added, Memtable memtable, Throwable accumulate)
+    Throwable notifyAdded(Iterable<SSTableReader> added, boolean isInitialSSTables, Memtable memtable, Throwable accumulate)
     {
-        INotification notification = new SSTableAddedNotification(added, memtable);
+        INotification notification;
+        if (!isInitialSSTables)
+            notification = new SSTableAddedNotification(added, memtable);
+        else
+            notification = new InitialSSTableAddedNotification(added);
+
         for (INotificationConsumer subscriber : subscribers)
         {
             try
@@ -446,9 +453,9 @@ public class Tracker
         return accumulate;
     }
 
-    public void notifyAdded(Iterable<SSTableReader> added)
+    void notifyAdded(Iterable<SSTableReader> added, boolean isInitialSSTables)
     {
-        maybeFail(notifyAdded(added, null, null));
+        maybeFail(notifyAdded(added, isInitialSSTables, null, null));
     }
 
     public void notifySSTableRepairedStatusChanged(Collection<SSTableReader> repairStatusesChanged)
@@ -529,8 +536,6 @@ public class Tracker
     @VisibleForTesting
     public void removeUnsafe(Set<SSTableReader> toRemove)
     {
-        Pair<View, View> result = apply(view -> {
-            return updateLiveSet(toRemove, emptySet()).apply(view);
-        });
+        Pair<View, View> result = apply(view -> updateLiveSet(toRemove, emptySet()).apply(view));
     }
 }

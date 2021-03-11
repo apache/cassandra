@@ -80,6 +80,12 @@ public class Descriptor
         this(formatType.info.getLatestVersion(), directory, ksname, cfname, generation, formatType);
     }
 
+    @VisibleForTesting
+    public Descriptor(String version, File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
+    {
+        this(formatType.info.getVersion(version), directory, ksname, cfname, generation, formatType);
+    }
+
     public Descriptor(Version version, File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
@@ -354,6 +360,7 @@ public class Descriptor
                        && that.generation == this.generation
                        && that.ksname.equals(this.ksname)
                        && that.cfname.equals(this.cfname)
+                       && that.version.equals(this.version)
                        && that.formatType == this.formatType;
     }
 
