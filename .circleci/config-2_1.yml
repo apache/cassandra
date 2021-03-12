@@ -381,6 +381,7 @@ jobs:
       - log_environment
       - run_parallel_junit_tests:
           classlistprefix: distributed
+          target: "testclasslist -Dtest.runners=1"
 
   j11_jvm_dtests:
     <<: *j11_small_par_executor
@@ -393,6 +394,7 @@ jobs:
       - log_environment
       - run_parallel_junit_tests:
           classlistprefix: distributed
+          target: "testclasslist -Dtest.runners=1"
 
   j8_jvm_upgrade_dtests:
     <<: *j8_medium_par_executor
@@ -405,6 +407,7 @@ jobs:
       - log_environment
       - run_parallel_junit_tests:
           classlistprefix: distributed
+          target: "testclasslist -Dtest.runners=1"
 
   j11_unit_tests:
     <<: *j11_par_executor
