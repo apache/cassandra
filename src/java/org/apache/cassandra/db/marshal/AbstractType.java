@@ -442,9 +442,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
             int actualValueLength = accessor.size(value);
             if (actualValueLength == expectedValueLength)
                 accessor.write(value, out);
-             else
-                 throw new IOException(String.format("Expected exactly %d bytes, but was %d",
-                                                     expectedValueLength, actualValueLength));
+            else
+                throw new IOException(String.format("Expected exactly %d bytes, but was %d",
+                                                    expectedValueLength, actualValueLength));
         }
         else
         {
