@@ -455,11 +455,16 @@ public abstract class CQLTester
             if (clusters.containsKey(version))
                 continue;
 
+            SocketOptions socketOptions = new SocketOptions()
+                                          .setConnectTimeoutMillis(15000) // default is 5000
+                                          .setReadTimeoutMillis(30000); // default is 12000
+
             Cluster.Builder builder = Cluster.builder()
                                              .withoutJMXReporting()
                                              .addContactPoints(nativeAddr)
                                              .withClusterName("Test Cluster")
-                                             .withPort(nativePort);
+                                             .withPort(nativePort)
+                                             .withSocketOptions(socketOptions);
 
             if (version.isBeta())
                 builder = builder.allowBetaProtocolVersion();
