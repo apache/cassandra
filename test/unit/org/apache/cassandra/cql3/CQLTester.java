@@ -88,6 +88,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 
+import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
+import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
 import static junit.framework.Assert.assertNotNull;
 
 /**
@@ -456,8 +458,10 @@ public abstract class CQLTester
                 continue;
 
             SocketOptions socketOptions = new SocketOptions()
-                                          .setConnectTimeoutMillis(15000) // default is 5000
-                                          .setReadTimeoutMillis(30000); // default is 12000
+                                          .setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms", DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
+                                          .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms", DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
+
+            logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
 
             Cluster.Builder builder = Cluster.builder()
                                              .withoutJMXReporting()
