@@ -65,6 +65,8 @@
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
     <property name="test.compression_algo" value="LZ4"/>
+    <property name="test.driver.connection_timeout_ms" value="5000"/>
+    <property name="test.driver.read_timeout_ms" value="12000"/>
     <property name="test.distributed.listfile" value="ant-jvm-dtest-list"/>
     <property name="test.distributed.upgrade.listfile" value="ant-jvm-dtest-upgrade-list"/>
     <property name="test.distributed.upgrade.package" value="org.apache.cassandra.distributed.upgrade"/>
@@ -1496,6 +1498,8 @@
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
+        <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
+        <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.test.offsetseed=@{poffset}"/>
