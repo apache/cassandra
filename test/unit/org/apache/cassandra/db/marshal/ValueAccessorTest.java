@@ -83,6 +83,9 @@ public class ValueAccessorTest extends ValueAccessorTester
 
     private static <V> void testSlice(ValueAccessor<V> accessor, byte[] rawBytes, Slice slice, int padding)
     {
+        if (!slice.isValidFor(rawBytes))
+            return;
+
         V value = leftPad(accessor.valueOf(rawBytes), padding);
         V s = accessor.slice(value, slice.offset, slice.length);
 
@@ -98,7 +101,6 @@ public class ValueAccessorTest extends ValueAccessorTester
                     byteArrays(integers().between(2, 200)),
                     slices(integers().between(2, 100), integers().between(1, 30)),
                     bbPadding())
-            .assuming((a, r, s, p) -> s.isValidFor(r))
             .checkAssert(ValueAccessorTest::testSlice);
     }
 
