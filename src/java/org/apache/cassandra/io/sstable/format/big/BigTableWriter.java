@@ -115,7 +115,7 @@ public class BigTableWriter extends SSTableWriter
      */
     private CompressionParams compressionFor(final OperationType opType)
     {
-        CompressionParams compressionParams = metadata().params.compression;
+        CompressionParams compressionParams = metadata.getLocal().params.compression;
         final ICompressor compressor = compressionParams.getSstableCompressor();
 
         if (null != compressor && opType == OperationType.FLUSH)
