@@ -86,7 +86,7 @@ public class BigTableWriter extends SSTableWriter
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
                                              new File(descriptor.filenameFor(descriptor.digestComponent)),
                                              writerOption,
-                                             metadata.params.compression,
+                                             metadata.compressionParams(),
                                              metadataCollector);
         }
         else

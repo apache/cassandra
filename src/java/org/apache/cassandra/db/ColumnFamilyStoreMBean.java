@@ -101,12 +101,14 @@ public interface ColumnFamilyStoreMBean
      * Get the compression parameters
      */
     public Map<String,String> getCompressionParameters();
+    public String getCompressionParametersJson();
 
     /**
      * Set the compression parameters
      * @param opts map of string names to values
      */
     public void setCompressionParameters(Map<String,String> opts);
+    public void setCompressionParametersJson(String opts);
 
     /**
      * Set new crc check chance
