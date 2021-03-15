@@ -67,7 +67,6 @@
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
-    <property name="test.distributed.listfile" value = "ant-jvm-dtest-list"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 	
@@ -1866,27 +1865,6 @@
       <jvmarg value="-XX:+HeapDumpOnOutOfMemoryError" />
       <jvmarg value="-XX:HeapDumpPath=build/test/oom.hprof" />
     </testmacro>
-  </target>
-
-  <!-- In-JVM dtest targets -->
-  <target name="list-jvm-dtests" depends="build-test">
-    <java classname="org.apache.cassandra.distributed.test.TestLocator" fork="no">
-          <classpath>
-              <path refid="cassandra.classpath"/>
-              <pathelement location="${test.classes}"/>
-              <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
-                  <include name="**/*.jar" />
-              </fileset>
-          </classpath>
-        <arg value="${test.distributed.listfile}"/>
-    </java>
-  </target>
-
-  <target name="test-jvm-dtest-forking" depends="list-jvm-dtests" description="Execute In-JVM 'distributed' tests" >
-    <chmod file="${test.distributed.listfile}" perm="+x"/>
-    <exec executable="./${test.distributed.listfile}" failonerror="true"/>
-    <delete file="${test.distributed.listfile}"/>
   </target>
 
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
