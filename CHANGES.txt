@@ -1,4 +1,5 @@
 3.0.25:
+ * Ignore trailing zeros in hint files (CASSANDRA-16523)
  * Refuse DROP COMPACT STORAGE if some 2.x sstables are in use (CASSANDRA-15897)
  * Fix ColumnFilter::toString not returning a valid CQL fragment (CASSANDRA-16483)
  * Fix ColumnFilter behaviour to prevent digest mitmatches during upgrades (CASSANDRA-16415)
