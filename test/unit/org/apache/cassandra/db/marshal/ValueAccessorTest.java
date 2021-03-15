@@ -81,13 +81,13 @@ public class ValueAccessorTest extends ValueAccessorTester
             .checkAssert(ValueAccessorTest::testHashCodeAndEquals);
     }
 
-    private static <V> void testSlice(ValueAccessor<V> accessor, byte[] rawBytes, Slice slice, int padding)
+    private static <V> void testSlice(ValueAccessor<V> accessor, ByteArraySlice slice, int padding)
     {
-        V value = leftPad(accessor.valueOf(rawBytes), padding);
+        V value = leftPad(accessor.valueOf(slice.originalArray), padding);
         V s = accessor.slice(value, slice.offset, slice.length);
 
         byte[] array = accessor.toArray(s);
-        byte[] expected = Arrays.copyOfRange(rawBytes, slice.offset, slice.offset + slice.length);
+        byte[] expected = slice.toArray();
         Assert.assertArrayEquals(expected, array);
     }
 
@@ -95,10 +95,8 @@ public class ValueAccessorTest extends ValueAccessorTester
     public void testSlice()
     {
         qt().forAll(accessors(),
-                    byteArrays(integers().between(2, 200)),
-                    slices(integers().between(2, 100), integers().between(1, 30)),
+                    slices(byteArrays(integers().between(2, 200))),
                     bbPadding())
-            .assuming((a, r, s, p) -> s.isValidFor(r))
             .checkAssert(ValueAccessorTest::testSlice);
     }
 
@@ -220,13 +218,24 @@ public class ValueAccessorTest extends ValueAccessorTester
                     integers().between(0, 3)).checkAssert(ValueAccessorTest::testUnsignedShort);
     }
 
-    public static Gen<Slice> slices(Gen<Integer> offsets, Gen<Integer> lengths)
+    private static Gen<ByteArraySlice> slices(Gen<byte[]> arrayGen)
     {
-        return offsets.zip(lengths, (o, l) -> new Slice(o, l));
+        return td -> {
+            byte[] array = arrayGen.generate(td);
+            int arrayLength = array.length;
+            int offset = integers().between(0, arrayLength - 1).generate(td);
+            int length = integers().between(0, arrayLength - offset - 1).generate(td);
+            return new ByteArraySlice(array, offset, length);
+        };
     }
 
-    private static final class Slice
+    private static final class ByteArraySlice
     {
+        /**
+         * The original array
+         */
+        final byte[] originalArray;
+
         /**
          * The slice offset;
          */
@@ -237,21 +246,25 @@ public class ValueAccessorTest extends ValueAccessorTester
          */
         final int length;
 
-        public Slice(int offset, int length)
+        public ByteArraySlice(byte[] bytes, int offset, int length)
         {
+            this.originalArray = bytes;
             this.offset = offset;
             this.length = length;
         }
 
-        public boolean isValidFor(byte[] array)
+        /**
+         * Returns the silce as a byte array.
+         */
+        public byte[] toArray()
         {
-            return offset < array.length && offset + length < array.length;
+            return Arrays.copyOfRange(originalArray, offset, offset + length);
         }
 
         @Override
         public String toString()
         {
-            return "Slice [offset=" + offset + ", length=" + length + "]";
+            return "Byte Array Slice [array=" + Arrays.toString(originalArray) + ", offset=" + offset + ", length=" + length + "]";
         }
     }
 }
