@@ -330,7 +330,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public Map<String,String> getCompressionParameters()
     {
-        return metadata().params.compression.asMap();
+        return metadata.getLocal().params.compression.asMap();
     }
 
     public String getCompressionParametersJson()
@@ -344,7 +344,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             CompressionParams params = CompressionParams.fromMap(opts);
             params.validate();
-            throw new UnsupportedOperationException(); // TODO FIXME CASSANDRA-12949
+            metadata.setLocalOverrides(metadata().unbuild().compression(params).build());
         }
         catch (ConfigurationException e)
         {
