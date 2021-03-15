@@ -461,8 +461,6 @@ class Shell(cmd.Cmd):
             kwargs = {}
             if protocol_version is not None:
                 kwargs['protocol_version'] = protocol_version
-            else:
-                kwargs['protocol_version'] = 5
             self.conn = Cluster(contact_points=(self.hostname,), port=self.port, cql_version=cqlver,
                                 auth_provider=self.auth_provider,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
