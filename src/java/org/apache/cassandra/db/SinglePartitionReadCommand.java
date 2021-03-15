@@ -1054,20 +1054,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         return Verb.READ_REQ;
     }
 
+    @Override
     protected void appendCQLWhereClause(StringBuilder sb)
     {
-        sb.append(" WHERE ");
+        sb.append(" WHERE ").append(partitionKey().toCQLString(metadata()));
 
-        sb.append(ColumnMetadata.toCQLString(metadata().partitionKeyColumns())).append(" = ");
-        DataRange.appendKeyString(sb, metadata().partitionKeyType, partitionKey().getKey());
-
-        // We put the row filter first because the clustering index filter can end by "ORDER BY"
-        if (!rowFilter().isEmpty())
-            sb.append(" AND ").append(rowFilter());
-
-        String filterString = clusteringIndexFilter().toCQLString(metadata());
+        String filterString = clusteringIndexFilter().toCQLString(metadata(), rowFilter());
         if (!filterString.isEmpty())
-            sb.append(" AND ").append(filterString);
+        {
+            if (!clusteringIndexFilter().selectsAllPartition() || !rowFilter().isEmpty())
+                sb.append(" AND ");
+            sb.append(filterString);
+        }
     }
 
     protected void serializeSelection(DataOutputPlus out, int version) throws IOException

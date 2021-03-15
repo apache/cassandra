@@ -28,6 +28,7 @@ import com.google.common.base.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.*;
@@ -238,6 +239,23 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return withNewExpressions(newExpressions);
     }
 
+    /**
+     * Returns a copy of this filter but without the provided expression. If this filter doesn't contain the specified
+     * expression this method will just return an identical copy of this filter.
+     */
+    public RowFilter without(ColumnMetadata column, Operator op, ByteBuffer value)
+    {
+        if (isEmpty())
+            return this;
+
+        List<Expression> newExpressions = new ArrayList<>(expressions.size() - 1);
+        for (Expression e : expressions)
+            if (!e.column().equals(column) || e.operator() != op || !e.value.equals(value))
+                newExpressions.add(e);
+
+        return withNewExpressions(newExpressions);
+    }
+
     public RowFilter withoutExpressions()
     {
         return withNewExpressions(Collections.emptyList());
@@ -258,12 +276,27 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     @Override
     public String toString()
     {
+        return toString(false);
+    }
+
+    /**
+     * Returns a CQL representation of this row filter.
+     *
+     * @return a CQL representation of this row filter
+     */
+    public String toCQLString()
+    {
+        return toString(true);
+    }
+
+    private String toString(boolean cql)
+    {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < expressions.size(); i++)
         {
             if (i > 0)
                 sb.append(" AND ");
-            sb.append(expressions.get(i));
+            sb.append(expressions.get(i).toString(cql));
         }
         return sb.toString();
     }
@@ -477,6 +510,24 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             return Objects.hashCode(column.name, operator, value);
         }
+
+        @Override
+        public String toString()
+        {
+            return toString(false);
+        }
+
+        /**
+         * Returns a CQL representation of this expression.
+         *
+         * @return a CQL representation of this expression
+         */
+        public String toCQLString()
+        {
+            return toString(true);
+        }
+
+        protected abstract String toString(boolean cql);
 
         private static class Serializer
         {
@@ -705,7 +756,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         @Override
-        public String toString()
+        protected String toString(boolean cql)
         {
             AbstractType<?> type = column.type;
             switch (operator)
@@ -725,7 +776,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 default:
                     break;
             }
-            return String.format("%s %s %s", column.name, operator, type.getString(value));
+            return cql
+                 ? String.format("%s %s %s", column.name.toCQLString(), operator, type.toCQLString(value) )
+                 : String.format("%s %s %s", column.name.toString(), operator, type.getString(value));
         }
 
         @Override
@@ -793,10 +846,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         @Override
-        public String toString()
+        protected String toString(boolean cql)
         {
-            MapType<?, ?> mt = (MapType<?, ?>)column.type;
-            return String.format("%s[%s] = %s", column.name, mt.nameComparator().getString(key), mt.valueComparator().getString(value));
+            MapType<?, ?> mt = (MapType<?, ?>) column.type;
+            AbstractType<?> nt = mt.nameComparator();
+            AbstractType<?> vt = mt.valueComparator();
+            return cql
+                 ? String.format("%s[%s] = %s", column.name.toCQLString(), nt.toCQLString(key), vt.toCQLString(value))
+                 : String.format("%s[%s] = %s", column.name.toString(), nt.getString(key), vt.getString(value));
         }
 
         @Override
@@ -863,10 +920,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return value;
         }
 
-        public String toString()
+        @Override
+        protected String toString(boolean cql)
         {
             return String.format("expr(%s, %s)",
-                                 targetIndex.name,
+                                 cql ? ColumnIdentifier.maybeQuote(targetIndex.name) : targetIndex.name,
                                  Keyspace.openAndGetStore(table)
                                          .indexManager
                                          .getIndex(targetIndex)
