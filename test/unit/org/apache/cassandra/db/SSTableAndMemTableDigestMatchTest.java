@@ -27,7 +27,6 @@ import java.util.function.Function;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
-import com.sun.xml.internal.xsom.impl.scd.Iterators;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
