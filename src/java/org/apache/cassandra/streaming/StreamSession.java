@@ -314,7 +314,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (!messageSender.hasControlChannel() && isControlChannel)
             messageSender.injectControlMessageChannel(channel);
 
-        channel.closeFuture().addListener(ignored -> onChannelClose(channel));
+        channel.closeFuture().addListener(ignored ->
+            ScheduledExecutors.nonPeriodicTasks.submit(() ->
+                onChannelClose(channel)
+            )
+        );
         return channels.putIfAbsent(channel.id(), channel) == null;
     }
 
@@ -328,7 +332,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         failIfFinished();
 
-        channel.closeFuture().addListener(ignored -> onChannelClose(channel));
+        channel.closeFuture().addListener(ignored ->
+            ScheduledExecutors.nonPeriodicTasks.submit(() ->
+                onChannelClose(channel)
+            )
+        );
         return channels.putIfAbsent(channel.id(), channel) == null;
     }
 
