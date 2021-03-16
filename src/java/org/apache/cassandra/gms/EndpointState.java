@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
@@ -112,6 +113,41 @@ public class EndpointState
             if (applicationState.compareAndSet(orig, copy))
                 return;
         }
+    }
+
+    public void removeLegacyApplicationStatesIfPossible()
+    {
+        while (hasRemovableLegacyFields())
+        {
+            Map<ApplicationState, VersionedValue> orig = applicationState.get();
+            Map<ApplicationState, VersionedValue> copy = new EnumMap<>(orig);
+            int size = copy.size();
+            Set<ApplicationState> statesPresent = copy.keySet();
+
+            if (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
+                copy.remove(ApplicationState.STATUS);
+
+            if (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
+                copy.remove(ApplicationState.INTERNAL_IP);
+
+            if (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT))
+                copy.remove(ApplicationState.RPC_ADDRESS);
+
+            // Do not update if no removable state is found
+            if (size == copy.size())
+                return;
+
+            if (applicationState.compareAndSet(orig, copy))
+                return;
+        }
+    }
+
+    private boolean hasRemovableLegacyFields()
+    {
+        Set<ApplicationState> statesPresent = applicationState.get().keySet();
+        return (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
+               || (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
+               || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
     }
 
     /* getters and setters */

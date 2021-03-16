@@ -1469,6 +1469,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return remoteState;
 
         Map<ApplicationState, VersionedValue> updatedStates = remoteState.states().stream().filter(entry -> {
+            if (Gossiper.instance.hasMajorVersion3Nodes())
+            {
+                return true;
+            }
+
             // Filter out pre-4.0 versions of data for more complete 4.0 versions
             switch (entry.getKey())
             {
@@ -1515,6 +1520,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
         }
         localState.addApplicationStates(updatedStates);
+
+        // get rid of the removable legacy fields when the entire cluster is not in mixed mode
+        if (!hasMajorVersion3Nodes())
+            localState.removeLegacyApplicationStatesIfPossible();
 
         for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
             doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
