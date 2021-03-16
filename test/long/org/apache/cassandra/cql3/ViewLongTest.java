@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
+import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import com.datastax.driver.core.exceptions.WriteTimeoutException;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -67,10 +68,19 @@ public class ViewLongTest extends CQLTester
 
     private void createView(String name, String query) throws Throwable
     {
-        executeNet(protocolVersion, String.format(query, name));
-        // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
-        // the desired behavior
-        views.add(name);
+        try
+        {
+            executeNet(protocolVersion, String.format(query, name));
+            // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
+            // the desired behavior
+            views.add(name);
+        }
+        catch (OperationTimedOutException ex)
+        {
+            // ... except for timeout, when we actually do not know whether the view was created or not
+            views.add(name);
+            throw ex;
+        }
     }
 
     @Test

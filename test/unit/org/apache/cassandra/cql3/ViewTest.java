@@ -36,6 +36,7 @@ import org.junit.Test;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -76,10 +77,19 @@ public class ViewTest extends CQLTester
 
     private void createView(String name, String query) throws Throwable
     {
-        executeNet(protocolVersion, String.format(query, name));
-        // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
-        // the desired behavior
-        views.add(name);
+        try
+        {
+            executeNet(protocolVersion, String.format(query, name));
+            // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
+            // the desired behavior
+            views.add(name);
+        }
+        catch (OperationTimedOutException ex)
+        {
+            // ... except for timeout, when we actually do not know whether the view was created or not
+            views.add(name);
+            throw ex;
+        }
     }
 
     private void updateView(String query, Object... params) throws Throwable
