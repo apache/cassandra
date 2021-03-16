@@ -31,6 +31,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -41,6 +42,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -89,7 +91,9 @@ public class ColumnFilterTest
     @BeforeClass
     public static void beforeClass()
     {
-        Gossiper.instance.maybeInitializeLocalState(0);
+        DatabaseDescriptor.setSeedProvider(Arrays::asList);
+        DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
+        Gossiper.instance.start(0);
     }
 
     @Before
