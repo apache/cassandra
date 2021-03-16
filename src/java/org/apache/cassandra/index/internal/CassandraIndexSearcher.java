@@ -54,6 +54,12 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         this.index = index;
     }
 
+    @Override
+    public ReadCommand command()
+    {
+        return command;
+    }
+
     @SuppressWarnings("resource") // Both the OpOrder and 'indexIter' are closed on exception, or through the closing of the result
     // of this method.
     public UnfilteredPartitionIterator search(ReadExecutionController executionController)

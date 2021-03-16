@@ -164,8 +164,13 @@ public class MemtableIndexWriter implements ColumnIndexWriter
             }
         }
 
+        // If no rows were written we need to delete any created column index components
+        // so that the index is correctly identified as being empty (only having a completion marker)
         if (numRows == 0)
+        {
+            indexComponents.deleteColumnIndex();
             return 0;
+        }
 
         // During index memtable flush, the data is sorted based on terms.
         SegmentMetadata metadata = new SegmentMetadata(0, numRows, terms.getMinSSTableRowId(), terms.getMaxSSTableRowId(),
