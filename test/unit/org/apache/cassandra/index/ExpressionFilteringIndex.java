@@ -34,6 +34,7 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -85,33 +86,44 @@ public final class ExpressionFilteringIndex extends StubIndex
     @Override
     public Searcher searcherFor(ReadCommand command)
     {
-        return controller -> {
-            searches.incrementAndGet();
+        return new Searcher(command)
+        {
+            @Override
+            public ReadCommand command()
+            {
+                return command;
+            }
 
-            ReadCommand all;
-            if (command instanceof SinglePartitionReadCommand)
+            @Override
+            public UnfilteredPartitionIterator search(ReadExecutionController executionController)
             {
-                SinglePartitionReadCommand cmd = (SinglePartitionReadCommand) command;
-                all = SinglePartitionReadCommand.create(table,
-                                                        cmd.nowInSec(),
-                                                        cmd.partitionKey(),
-                                                        cmd.clusteringIndexFilter().getSlices(cmd.metadata()));
+                searches.incrementAndGet();
+
+                ReadCommand all;
+                if (command instanceof SinglePartitionReadCommand)
+                {
+                    SinglePartitionReadCommand cmd = (SinglePartitionReadCommand) command;
+                    all = SinglePartitionReadCommand.create(table,
+                                                            cmd.nowInSec(),
+                                                            cmd.partitionKey(),
+                                                            cmd.clusteringIndexFilter().getSlices(cmd.metadata()));
+                }
+                else if (command instanceof PartitionRangeReadCommand)
+                {
+                    PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
+                    all = PartitionRangeReadCommand.create(table,
+                                                           cmd.nowInSec(),
+                                                           ColumnFilter.all(table),
+                                                           RowFilter.NONE,
+                                                           DataLimits.NONE,
+                                                           cmd.dataRange());
+                }
+                else
+                {
+                    throw new UnsupportedOperationException();
+                }
+                return all.executeLocally(ReadExecutionController.empty());
             }
-            else if (command instanceof PartitionRangeReadCommand)
-            {
-                PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
-                all = PartitionRangeReadCommand.create(table,
-                                                       cmd.nowInSec(),
-                                                       ColumnFilter.all(table),
-                                                       RowFilter.NONE,
-                                                       DataLimits.NONE,
-                                                       cmd.dataRange());
-            }
-            else
-            {
-                throw new UnsupportedOperationException();
-            }
-            return all.executeLocally(ReadExecutionController.empty());
         };
     }
 }

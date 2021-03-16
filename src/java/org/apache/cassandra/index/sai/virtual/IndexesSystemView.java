@@ -114,9 +114,9 @@ public class IndexesSystemView extends AbstractVirtualTable
 
                 if (group != null)
                 {
-                    for (StorageAttachedIndex index : group)
+                    for (Index index : group.getIndexes())
                     {
-                        ColumnContext context = index.getContext();
+                        ColumnContext context = ((StorageAttachedIndex)index).getContext();
                         String indexName = context.getIndexName();
                         View view = context.getView();
 

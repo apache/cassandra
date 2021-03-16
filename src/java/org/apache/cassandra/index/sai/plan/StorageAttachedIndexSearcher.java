@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.plan;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import com.google.common.collect.Iterators;
 
@@ -30,10 +31,13 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -64,17 +68,29 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     }
 
     @Override
+    public ReadCommand command()
+    {
+        return command;
+    }
+
+    @Override
+    public PartitionIterator filterReplicaFilteringProtection(PartitionIterator fullResponse)
+    {
+        for (RowFilter.Expression expression : controller.getExpressions())
+        {
+            if (controller.getContext(expression).getAnalyzer().transformValue())
+                return applyIndexFilter(fullResponse, analyzeFilter(), queryContext);
+        }
+
+        // if no analyzer does transformation
+        return Index.Searcher.super.filterReplicaFilteringProtection(fullResponse);
+    }
+
+    @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
         return  new ResultRetriever(analyze(), controller, executionController, queryContext);
     }
-
-//    @Override
-//    public Flow<FlowableUnfilteredPartition> search(ReadExecutionController executionController) throws RequestTimeoutException
-//    {
-//        return analyzeAsync().map(operation -> new ResultRetriever(operation, controller, executionController, queryContext))
-//                             .flatMap(FlowablePartitions::fromPartitions);
-//    }
 
     /**
      * Converts expressions into filter tree and reference {@link SSTableIndex}s used for query.
@@ -95,7 +111,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      *
      * @return root of the filter tree.
      */
-    //TODO How does this get applied in OS
     private FilterTree analyzeFilter()
     {
         return Operation.initTreeBuilder(controller).completeFilter();
@@ -281,31 +296,96 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
     }
 
-//    /**
-//     * Used by {@link StorageAttachedIndexSearcher#filterReplicaFilteringProtection} which is not ported to OSS yet.
-//     */
-//    private static <U extends Unfiltered, F extends FlowablePartitionBase<U, F>> Flow<F>  applyIndexFilter(Flow<F> fp, FilterTree tree, QueryContext queryContext)
-//    {
-//        return fp.flatMap(partition ->
-//        {
-//            Row staticRow = partition.staticRow();
-//            /*
-//             * If {@code content} is empty, which means either all clustering row and static row pairs failed,
-//             *       or static row and static row pair failed. In both cases, we should not return any partition.
-//             * If {@code content} is not empty, which means either there are some clustering row and static row pairs match the filters,
-//             *       or static row and static row pair matches the filters. In both cases, we should return a partition with static row,
-//             *       and remove the static row marker from the {@code content} for the latter case.
-//             */
-//            Flow<U> content = partition.content()
-//                                       .filter(Unfiltered::isRow)
-//                                       .ifEmpty((U) staticRow)
-//                                       .filter(row ->
-//                                               {
-//                                                   queryContext.rowsFiltered++;
-//                                                   return tree.satisfiedBy(partition.partitionKey(), row, staticRow);
-//                                               });
-//
-//                              return content.skipMapEmpty(c -> partition.withContent(c.filter(unfiltered -> !((Row)unfiltered).isStatic())));
-//                          });
-//    }
+    /**
+     * Used by {@link StorageAttachedIndexSearcher#filterReplicaFilteringProtection} to filter rows for columns that
+     * have transformations so won't get handled correctly by the row filter.
+     */
+    @SuppressWarnings("resource")
+    private static PartitionIterator applyIndexFilter(PartitionIterator response, FilterTree tree, QueryContext queryContext)
+    {
+        return new PartitionIterator()
+        {
+            @Override
+            public void close()
+            {
+                response.close();
+            }
+
+            @Override
+            public boolean hasNext()
+            {
+                return response.hasNext();
+            }
+
+            @Override
+            public RowIterator next()
+            {
+                RowIterator delegate = response.next();
+                Row staticRow = delegate.staticRow();
+
+                return new RowIterator()
+                {
+                    boolean hasNext;
+                    Row next;
+
+                    @Override
+                    public TableMetadata metadata()
+                    {
+                        return delegate.metadata();
+                    }
+
+                    @Override
+                    public boolean isReverseOrder()
+                    {
+                        return delegate.isReverseOrder();
+                    }
+
+                    @Override
+                    public RegularAndStaticColumns columns()
+                    {
+                        return delegate.columns();
+                    }
+
+                    @Override
+                    public DecoratedKey partitionKey()
+                    {
+                        return delegate.partitionKey();
+                    }
+
+                    @Override
+                    public Row staticRow()
+                    {
+                        return staticRow;
+                    }
+
+                    @Override
+                    public void close()
+                    {
+                        delegate.close();
+                    }
+
+                    @Override
+                    public boolean hasNext()
+                    {
+                        while (hasNext = delegate.hasNext())
+                        {
+                            next = delegate.next();
+                            queryContext.rowsFiltered++;
+                            if (tree.satisfiedBy(delegate.partitionKey(), next, staticRow))
+                                return true;
+                        }
+                        return false;
+                    }
+
+                    @Override
+                    public Row next()
+                    {
+                        if (!hasNext)
+                            throw new NoSuchElementException();
+                        return next;
+                    }
+                };
+            }
+        };
+    }
 }

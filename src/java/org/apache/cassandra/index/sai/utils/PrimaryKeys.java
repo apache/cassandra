@@ -121,7 +121,7 @@ public interface PrimaryKeys extends Iterable<PrimaryKey>
         @Override
         public long add(DecoratedKey key, Clustering clustering)
         {
-            assert clustering.isEmpty();
+            assert clustering.isEmpty() : "Expected Clustering.EMPTY but got " + clustering;
             return keys.add(key) ? SET_ENTRY_OVERHEAD : 0;
         }
 

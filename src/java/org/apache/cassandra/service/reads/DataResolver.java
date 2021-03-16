@@ -250,11 +250,22 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         PartitionIterator completedPartitions = resolveWithReadRepair(secondPhaseContext,
                                                                       i -> rfp.queryProtectedPartitions(firstPhasePartitions, i),
-                                                                      results -> command.rowFilter().filter(results, command.metadata(), command.nowInSec()),
+                                                                      preCountFilterForReplicaFilteringProtection(),
                                                                       repairedDataTracker);
 
         // Ensure that the RFP instance has a chance to record metrics when the iterator closes.
         return PartitionIterators.doOnClose(completedPartitions, firstPhasePartitions::close);
+    }
+
+    private  UnaryOperator<PartitionIterator> preCountFilterForReplicaFilteringProtection()
+    {
+        return results -> {
+            Index.Searcher searcher = command.indexSearcher();
+            // in case of "ALLOW FILTERING" without index
+            if (searcher == null)
+                return command.rowFilter().filter(results, command.metadata(), command.nowInSec());
+            return searcher.filterReplicaFilteringProtection(results);
+        };
     }
 
     @SuppressWarnings("resource")

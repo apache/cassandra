@@ -711,7 +711,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @param isNewCF {@code true} if this method is invoked when initializing a new table/columnfamily (i.e. loading a CF at startup),
      * {@code false} for all other cases (i.e. newly added index)
      */
-    private synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
+    @VisibleForTesting
+    public synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
     {
         String keyspaceName = baseCfs.keyspace.getName();
 

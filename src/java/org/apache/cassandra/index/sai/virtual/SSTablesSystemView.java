@@ -27,6 +27,7 @@ import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -98,9 +99,9 @@ public class SSTablesSystemView extends AbstractVirtualTable
                 {
                     Token.TokenFactory tokenFactory = cfs.metadata().partitioner.getTokenFactory();
 
-                    for (StorageAttachedIndex index : group)
+                    for (Index index : group.getIndexes())
                     {
-                        ColumnContext columnContext = index.getContext();
+                        ColumnContext columnContext = ((StorageAttachedIndex)index).getContext();
 
                         for (SSTableIndex sstableIndex : columnContext.getView())
                         {

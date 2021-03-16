@@ -671,12 +671,12 @@ public class SAITester extends CQLTester
         }
     }
 
-    private Set<File> componentFiles(Collection<File> indexFiles, Component component)
+    protected Set<File> componentFiles(Collection<File> indexFiles, Component component)
     {
         return indexFiles.stream().filter(c -> c.getName().endsWith(component.name)).collect(Collectors.toSet());
     }
 
-    private Set<File> componentFiles(Collection<File> indexFiles, String shortName)
+    protected Set<File> componentFiles(Collection<File> indexFiles, String shortName)
     {
         String suffix = String.format("_%s.db", shortName);
         return indexFiles.stream().filter(c -> c.getName().endsWith(suffix)).collect(Collectors.toSet());
