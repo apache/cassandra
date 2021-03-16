@@ -25,7 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 /**
  * Force generates segments due to a small RAM size on compaction, to test segment splitting
  */
-public class TinySegmentQueryCellDeletionsTest extends IndexQuerySupport
+public class TinySegmentQueryCellDeletionsTest extends AbstractQueryTester
 {
     @Before
     public void setSegmentWriteBufferSpace() throws Throwable
@@ -36,6 +36,6 @@ public class TinySegmentQueryCellDeletionsTest extends IndexQuerySupport
     @Test
     public void testCellDeletions() throws Throwable
     {
-        cellDeletions();
+        IndexQuerySupport.cellDeletions(executor, dataModel, sets);
     }
 }
