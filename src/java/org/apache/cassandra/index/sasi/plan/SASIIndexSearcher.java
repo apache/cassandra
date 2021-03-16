@@ -32,10 +32,12 @@ import org.apache.cassandra.utils.AbstractIterator;
 
 public class SASIIndexSearcher implements Index.Searcher
 {
+    private final ReadCommand command;
     private final QueryController controller;
 
     public SASIIndexSearcher(ColumnFamilyStore cfs, ReadCommand command, long executionQuotaMs)
     {
+        this.command = command;
         this.controller = new QueryController(cfs, (PartitionRangeReadCommand) command, executionQuotaMs);
     }
 
@@ -61,6 +63,12 @@ public class SASIIndexSearcher implements Index.Searcher
             controller.finish();
             throw e;
         }
+    }
+
+    @Override
+    public ReadCommand command()
+    {
+        return command;
     }
 
     @Override

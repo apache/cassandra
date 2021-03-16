@@ -25,7 +25,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 /**
  * Force generates segments due to a small RAM size on compaction, to test segment splitting
  */
-public class TinySegmentQueryWriteLifecycleTest extends IndexQuerySupport
+public class TinySegmentQueryWriteLifecycleTest extends AbstractQueryTester
 {
     @Before
     public void setSegmentWriteBufferSpace() throws Throwable
@@ -36,6 +36,6 @@ public class TinySegmentQueryWriteLifecycleTest extends IndexQuerySupport
     @Test
     public void testWriteLifecycle() throws Throwable
     {
-        writeLifecycle();
+        IndexQuerySupport.writeLifecycle(executor, dataModel, sets);
     }
 }

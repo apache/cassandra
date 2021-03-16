@@ -30,6 +30,7 @@ import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.ColumnContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -135,9 +136,9 @@ public class SegmentsSystemView extends AbstractVirtualTable
 
                 if (group != null)
                 {
-                    for (StorageAttachedIndex index : group)
+                    for (Index index : group.getIndexes())
                     {
-                        process.accept(index.getContext());
+                        process.accept(((StorageAttachedIndex)index).getContext());
                     }
                 }
             }

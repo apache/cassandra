@@ -509,6 +509,23 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected abstract void recordLatency(TableMetrics metric, long latencyNanos);
 
+    /**
+     * Allow to post-process the result of the query after it has been reconciled on the coordinator
+     * but before it is passed to the CQL layer to return the ResultSet.
+     *
+     * See CASSANDRA-8717 for why this exists.
+     */
+    public PartitionIterator postReconciliationProcessing(PartitionIterator result)
+    {
+        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor().apply(result);
+    }
+
+    @Override
+    public PartitionIterator executeInternal(ReadExecutionController controller)
+    {
+        return postReconciliationProcessing(UnfilteredPartitionIterators.filter(executeLocally(controller), nowInSec()));
+    }
+
     public ReadExecutionController executionController()
     {
         return ReadExecutionController.forCommand(this);

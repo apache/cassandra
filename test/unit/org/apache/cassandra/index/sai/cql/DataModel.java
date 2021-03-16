@@ -23,6 +23,7 @@ package org.apache.cassandra.index.sai.cql;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -31,17 +32,13 @@ import com.google.common.collect.ForwardingList;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.cql3.CQLTester.KEYSPACE;
 
 public interface DataModel
 {
+    static final String KEYSPACE = "sai_query_keyspace";
+
     String SIMPLE_SELECT_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ?";
     String SIMPLE_SELECT_WITH_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ? ALLOW FILTERING";
     String TWO_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ?";
@@ -132,55 +129,53 @@ public interface DataModel
                                                        "1845, " + NORMAL_COLUMN_DATA.get(14),
                                                        "1845, " + NORMAL_COLUMN_DATA.get(15));
 
+    static AtomicInteger seq = new AtomicInteger();
+
     DataModel withTableOptions(String tableOptions) throws Throwable;
 
     List<Pair<String, String>> keyColumns();
 
-    void createTables(SAITester tester) throws Throwable;
+    void createTables(Executor tester) throws Throwable;
 
-    void createIndexes(SAITester tester) throws Throwable;
+    void createIndexes(Executor tester) throws Throwable;
 
-    void flush(SAITester tester) throws Throwable;
+    void flush(Executor tester) throws Throwable;
 
-    void disableCompaction(SAITester tester) throws Throwable;
+    void disableCompaction(Executor tester) throws Throwable;
 
-    void compact(SAITester tester) throws Throwable;
+    void compact(Executor tester) throws Throwable;
 
-    void truncateTables(SAITester tester) throws Throwable;
+    void truncateTables(Executor tester) throws Throwable;
 
-    void insertRows(SAITester tester) throws Throwable;
+    void insertRows(Executor tester) throws Throwable;
 
-    void insertRowsWithTTL(SAITester tester) throws Throwable;
+    void insertRowsWithTTL(Executor tester) throws Throwable;
 
-    void updateCells(SAITester tester) throws Throwable;
+    void updateCells(Executor tester) throws Throwable;
 
-    void deleteCells(SAITester tester) throws Throwable;
+    void deleteCells(Executor tester) throws Throwable;
 
-    void deleteRows(SAITester tester) throws Throwable;
+    void deleteRows(Executor tester) throws Throwable;
 
-    ResultSet executeIndexed(SAITester tester, String query, Object... values) throws Throwable;
+    List<Object> executeIndexed(Executor tester, String query, int fetchSize, Object... values) throws Throwable;
 
-    ResultSet executeIndexed(SAITester tester, String query, int fetchSize, Object... values) throws Throwable;
+    List<Object> executeNonIndexed(Executor tester, String query, int fetchSize, Object... values) throws Throwable;
 
-    ResultSet executeNonIndexed(SAITester tester, String query, Object... values) throws Throwable;
-
-    ResultSet executeNonIndexed(SAITester tester, String query, int fetchSize, Object... values) throws Throwable;
-
-    class BaseDataModel implements DataModel
+    public class BaseDataModel implements DataModel
     {
         final List<Pair<String, String>> columns;
         final String columnNames;
         final List<String> rows;
+        final String indexedTable = "table_" + seq.getAndIncrement();
+        final String nonIndexedTable = "table_" + seq.getAndIncrement();
 
         String tableOptions = "";
-        String indexedTable;
-        String nonIndexedTable;
 
         List<Pair<String, String>> keyColumns;
         String primaryKey;
         List<String> keys;
 
-        BaseDataModel(List<Pair<String, String>> columns, List<String> rows)
+        public BaseDataModel(List<Pair<String, String>> columns, List<String> rows)
         {
             this.keyColumns = ImmutableList.of(Pair.create("p", "int"));
             this.primaryKey = keyColumns.stream().map(pair -> pair.left).collect(Collectors.joining(", "));
@@ -203,23 +198,23 @@ public interface DataModel
             return keyColumns;
         }
 
-        public void createTables(SAITester tester)
+        public void createTables(Executor tester)
         {
             String keyColumnDefs = keyColumns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
             String normalColumnDefs = columns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
 
-            String template = "CREATE TABLE %%s (%s, %s, PRIMARY KEY (%s))" + tableOptions;
-            indexedTable = tester.createTable(String.format(template, keyColumnDefs, normalColumnDefs, primaryKey));
-            nonIndexedTable = tester.createTable(String.format(template, keyColumnDefs, normalColumnDefs, primaryKey));
+            String template = "CREATE TABLE %s (%s, %s, PRIMARY KEY (%s))" + tableOptions;
+            tester.createTable(String.format(template, KEYSPACE + "." + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+            tester.createTable(String.format(template, KEYSPACE + "." + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
         }
 
-        public void truncateTables(SAITester tester) throws Throwable
+        public void truncateTables(Executor tester) throws Throwable
         {
             executeLocal(tester, "TRUNCATE TABLE %s");
             executeLocal(tester, "TRUNCATE TABLE %s");
         }
 
-        public void createIndexes(SAITester tester) throws Throwable
+        public void createIndexes(Executor tester) throws Throwable
         {
             String template = "CREATE CUSTOM INDEX ndi_%s_index_%s ON %%s (%s) USING 'StorageAttachedIndex'";
 
@@ -228,30 +223,30 @@ public interface DataModel
                 if (!skipColumns.contains(column.left))
                 {
                     executeLocalIndexed(tester, String.format(template, column.left, indexedTable, column.left));
-                    tester.waitForIndexQueryable();
+                    tester.waitForIndexQueryable(KEYSPACE, indexedTable);
                 }
             }
         }
 
-        public void flush(SAITester tester) throws Throwable
+        public void flush(Executor tester) throws Throwable
         {
             tester.flush(KEYSPACE, indexedTable);
             tester.flush(KEYSPACE, nonIndexedTable);
         }
 
-        public void disableCompaction(SAITester tester) throws Throwable
+        public void disableCompaction(Executor tester) throws Throwable
         {
             tester.disableCompaction(KEYSPACE, indexedTable);
             tester.disableCompaction(KEYSPACE, nonIndexedTable);
         }
 
-        public void compact(SAITester tester) throws Throwable
+        public void compact(Executor tester) throws Throwable
         {
             tester.compact(KEYSPACE, indexedTable);
             tester.compact(KEYSPACE, nonIndexedTable);
         }
 
-        public void insertRows(SAITester tester) throws Throwable
+        public void insertRows(Executor tester) throws Throwable
         {
             String template = "INSERT INTO %%s (%s, %s) VALUES (%s, %s)";
 
@@ -261,7 +256,7 @@ public interface DataModel
             }
         }
 
-        public void insertRowsWithTTL(SAITester tester) throws Throwable
+        public void insertRowsWithTTL(Executor tester) throws Throwable
         {
             String template = "INSERT INTO %%s (%s, %s) VALUES (%s, %s)%s";
 
@@ -272,7 +267,7 @@ public interface DataModel
             }
         }
 
-        public void updateCells(SAITester tester) throws Throwable
+        public void updateCells(Executor tester) throws Throwable
         {
             executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p = 0", BIGINT_COLUMN));
             executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p = 1", BOOLEAN_COLUMN));
@@ -290,7 +285,7 @@ public interface DataModel
             executeLocal(tester, String.format("UPDATE %%s SET %s = 1fc81a4c-d17d-11e8-a8d5-f2801f1b9fd1 WHERE p = 13", TIMEUUID_COLUMN));
         }
 
-        public void deleteCells(SAITester tester) throws Throwable
+        public void deleteCells(Executor tester) throws Throwable
         {
             for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
             {
@@ -298,7 +293,7 @@ public interface DataModel
             }
         }
 
-        public void deleteRows(SAITester tester) throws Throwable
+        public void deleteRows(Executor tester) throws Throwable
         {
             String template = "DELETE FROM %%s WHERE p = %d";
 
@@ -308,44 +303,25 @@ public interface DataModel
             }
         }
 
-        public void executeLocal(SAITester tester, String query, Object... values) throws Throwable
+        public void executeLocal(Executor tester, String query, Object... values) throws Throwable
         {
-            tester.executeFormattedQuery(formatIndexedQuery(query), values);
-            tester.executeFormattedQuery(formatNonIndexedQuery(query), values);
+            tester.executeLocal(formatIndexedQuery(query), values);
+            tester.executeLocal(formatNonIndexedQuery(query), values);
         }
 
-        public UntypedResultSet executeLocalIndexed(SAITester tester, String query, Object... values) throws Throwable
+        public void executeLocalIndexed(Executor tester, String query, Object... values) throws Throwable
         {
-            return tester.executeFormattedQuery(formatIndexedQuery(query), values);
+            tester.executeLocal(formatIndexedQuery(query), values);
         }
 
-        public UntypedResultSet executeLocalNonIndexed(SAITester tester, String query, Object... values) throws Throwable
+        public List<Object> executeIndexed(Executor tester, String query, int fetchSize, Object... values) throws Throwable
         {
-            return tester.executeFormattedQuery(formatNonIndexedQuery(query), values);
+            return tester.executeRemote(formatIndexedQuery(query), fetchSize, values);
         }
 
-        public ResultSet executeIndexed(SAITester tester, String query, Object... values) throws Throwable
+        public List<Object> executeNonIndexed(Executor tester, String query, int fetchSize, Object... values) throws Throwable
         {
-            return tester.sessionNet().execute(new SimpleStatement(formatIndexedQuery(query), values));
-        }
-
-        public ResultSet executeIndexed(SAITester tester, String query, int fetchSize, Object... values) throws Throwable
-        {
-            SimpleStatement statement = new SimpleStatement(formatIndexedQuery(query), values);
-            statement.setFetchSize(fetchSize);
-            return tester.sessionNet().execute(statement);
-        }
-
-        public ResultSet executeNonIndexed(SAITester tester, String query, Object... values) throws Throwable
-        {
-            return tester.sessionNet().execute(new SimpleStatement(formatNonIndexedQuery(query), values));
-        }
-
-        public ResultSet executeNonIndexed(SAITester tester, String query, int fetchSize, Object... values) throws Throwable
-        {
-            SimpleStatement statement = new SimpleStatement(formatNonIndexedQuery(query), values);
-            statement.setFetchSize(fetchSize);
-            return tester.sessionNet().execute(statement);
+            return tester.executeRemote(formatNonIndexedQuery(query), fetchSize, values);
         }
 
         protected Set<Integer> deletable()
@@ -370,9 +346,9 @@ public interface DataModel
         }
     }
 
-    class CompoundKeyWithStaticsDataModel extends CompoundKeyDataModel
+    public class CompoundKeyWithStaticsDataModel extends CompoundKeyDataModel
     {
-        CompoundKeyWithStaticsDataModel(List<Pair<String, String>> columns, List<String> rows)
+        public CompoundKeyWithStaticsDataModel(List<Pair<String, String>> columns, List<String> rows)
         {
             super(columns, rows);
 
@@ -380,7 +356,7 @@ public interface DataModel
         }
 
         @Override
-        public void insertRows(SAITester tester) throws Throwable
+        public void insertRows(Executor tester) throws Throwable
         {
             super.insertRows(tester);
 
@@ -388,7 +364,7 @@ public interface DataModel
         }
 
         @Override
-        public void updateCells(SAITester tester) throws Throwable
+        public void updateCells(Executor tester) throws Throwable
         {
             executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p = 0 AND c = 0", BIGINT_COLUMN));
             executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p = 0 AND c = 1", BOOLEAN_COLUMN));
@@ -409,7 +385,7 @@ public interface DataModel
         }
 
         @Override
-        public void deleteCells(SAITester tester) throws Throwable
+        public void deleteCells(Executor tester) throws Throwable
         {
             for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
             {
@@ -419,7 +395,7 @@ public interface DataModel
         }
 
         @Override
-        public void deleteRows(SAITester tester) throws Throwable
+        public void deleteRows(Executor tester) throws Throwable
         {
             executeLocal(tester, "DELETE FROM %s WHERE p = 2 AND c = 0");
             executeLocal(tester, "DELETE FROM %s WHERE p = 4 AND c = 0");
@@ -433,9 +409,9 @@ public interface DataModel
         }
     }
 
-    class CompositePartitionKeyDataModel extends BaseDataModel
+    public class CompositePartitionKeyDataModel extends BaseDataModel
     {
-        CompositePartitionKeyDataModel(List<Pair<String, String>> columns, List<String> rows)
+        public CompositePartitionKeyDataModel(List<Pair<String, String>> columns, List<String> rows)
         {
             super(columns, rows);
 
@@ -445,18 +421,18 @@ public interface DataModel
         }
 
         @Override
-        public void createTables(SAITester tester)
+        public void createTables(Executor tester)
         {
             String keyColumnDefs = keyColumns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
             String normalColumnDefs = columns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
 
-            String template = "CREATE TABLE %%s (%s, %s, PRIMARY KEY ((%s)))" + tableOptions;
-            indexedTable = tester.createTable(String.format(template, keyColumnDefs, normalColumnDefs, primaryKey));
-            nonIndexedTable = tester.createTable(String.format(template, keyColumnDefs, normalColumnDefs, primaryKey));
+            String template = "CREATE TABLE %s (%s, %s, PRIMARY KEY ((%s)))" + tableOptions;
+            tester.createTable(String.format(template, KEYSPACE + "." + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+            tester.createTable(String.format(template, KEYSPACE + "." + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
         }
 
         @Override
-        public void createIndexes(SAITester tester) throws Throwable
+        public void createIndexes(Executor tester) throws Throwable
         {
             super.createIndexes(tester);
             String template = "CREATE CUSTOM INDEX ndi_%s_index_%s ON %%s (%s) USING 'StorageAttachedIndex'";
@@ -466,19 +442,19 @@ public interface DataModel
                 if (!skipColumns.contains(column.left))
                 {
                     executeLocalIndexed(tester, String.format(template, column.left, indexedTable, column.left));
-                    tester.waitForIndexQueryable();
+                    tester.waitForIndexQueryable(KEYSPACE, indexedTable);
                 }
             }
         }
 
         @Override
-        public void insertRows(SAITester tester) throws Throwable
+        public void insertRows(Executor tester) throws Throwable
         {
             super.insertRows(tester);
         }
 
         @Override
-        public void updateCells(SAITester tester) throws Throwable
+        public void updateCells(Executor tester) throws Throwable
         {
             executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p1 = 0 AND p2 = 0", BIGINT_COLUMN));
             executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p1 = 0 AND p2 = 1", BOOLEAN_COLUMN));
@@ -497,7 +473,7 @@ public interface DataModel
         }
 
         @Override
-        public void deleteCells(SAITester tester) throws Throwable
+        public void deleteCells(Executor tester) throws Throwable
         {
             for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
             {
@@ -508,7 +484,7 @@ public interface DataModel
         }
 
         @Override
-        public void deleteRows(SAITester tester) throws Throwable
+        public void deleteRows(Executor tester) throws Throwable
         {
             executeLocal(tester, "DELETE FROM %s WHERE p1 = 2 AND p2 = 0");
             executeLocal(tester, "DELETE FROM %s WHERE p1 = 4 AND p2 = 1");
@@ -524,9 +500,9 @@ public interface DataModel
         }
     }
 
-    class CompoundKeyDataModel extends BaseDataModel
+    public class CompoundKeyDataModel extends BaseDataModel
     {
-        CompoundKeyDataModel(List<Pair<String, String>> columns, List<String> rows)
+        public CompoundKeyDataModel(List<Pair<String, String>> columns, List<String> rows)
         {
             super(columns, rows);
 
@@ -536,7 +512,7 @@ public interface DataModel
         }
 
         @Override
-        public void updateCells(SAITester tester) throws Throwable
+        public void updateCells(Executor tester) throws Throwable
         {
             executeLocal(tester, String.format("UPDATE %%s SET %s = 9700000000 WHERE p = 0 AND c = 0", BIGINT_COLUMN));
             executeLocal(tester, String.format("UPDATE %%s SET %s = false WHERE p = 1 AND c = 0", BOOLEAN_COLUMN));
@@ -555,7 +531,7 @@ public interface DataModel
         }
 
         @Override
-        public void deleteCells(SAITester tester) throws Throwable
+        public void deleteCells(Executor tester) throws Throwable
         {
             for (int i = 0; i < NORMAL_COLUMNS.size(); i++)
             {
@@ -608,5 +584,26 @@ public interface DataModel
         {
             return String.format("CompoundPrimaryKeyList[rows: %d, partition size: %d]", primaryKeys.size(), rowsPerPartition);
         }
+    }
+
+    public static interface Executor
+    {
+        void createTable(String statement);
+
+        void flush(String keyspace, String table);
+
+        void compact(String keyspace, String table);
+
+        void disableCompaction(String keyspace, String table);
+
+        void waitForIndexQueryable(String keyspace, String table);
+
+        void executeLocal(String query, Object...values) throws Throwable;
+
+        List<Object> executeRemote(String query, int fetchSize, Object...values) throws Throwable;
+
+        void counterReset();
+
+        long getCounter();
     }
 }
