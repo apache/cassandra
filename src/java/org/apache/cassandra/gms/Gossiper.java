@@ -175,9 +175,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (!upgradeInProgressPossible)
             return new ExpiringMemoizingSupplier.Memoized<>(null);
 
-        Iterable<InetAddressAndPort> allHosts = Iterables.concat(Gossiper.instance.getLiveMembers(), Gossiper.instance.getUnreachableMembers());
-
         CassandraVersion minVersion = SystemKeyspace.CURRENT_VERSION.familyLowerBound.get();
+        Set<InetAddressAndPort> liveMembers = Gossiper.instance.getLiveMembers();
+        Set<InetAddressAndPort> unreachableMembers = Gossiper.instance.getUnreachableMembers();
+
+        // Skip the around if the gossiper only knows itself
+        // Otherwise, upgradeInProgressPossible can be set to false wrongly.
+        if (liveMembers.size() + unreachableMembers.size() == 1)
+        {
+            return new ExpiringMemoizingSupplier.Memoized<>(minVersion);
+        }
+
+        Iterable<InetAddressAndPort> allHosts = Iterables.concat(liveMembers, unreachableMembers);
+
         boolean allHostsHaveKnownVersion = true;
         for (InetAddressAndPort host : allHosts)
         {
