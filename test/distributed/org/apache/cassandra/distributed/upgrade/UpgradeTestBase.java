@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.upgrade;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -32,7 +33,9 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.impl.AbstractCluster.AbstractBuilder;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
@@ -93,7 +96,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster setup;
         private RunOnClusterAndNode runAfterNodeUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
-        private final Set<Integer> nodesToUpgrade = new HashSet<>();
+        private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
 
         public TestCase()
@@ -191,13 +194,24 @@ public class UpgradeTestBase extends DistributedTestBase
         }
         public TestCase nodesToUpgrade(int ... nodes)
         {
+            Set<Integer> set = new HashSet<>(nodes.length);
+            for (int n : nodes)
+            {
+                set.add(n);
+            }
+            nodesToUpgrade.addAll(set);
+            return this;
+        }
+
+        public TestCase nodesToUpgradeOrdered(int ... nodes)
+        {
             for (int n : nodes)
             {
                 nodesToUpgrade.add(n);
             }
             return this;
         }
-    }
+     }
 
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
