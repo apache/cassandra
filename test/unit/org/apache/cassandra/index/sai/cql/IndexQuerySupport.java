@@ -21,18 +21,14 @@
 package org.apache.cassandra.index.sai.cql;
 
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.junit.Before;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.InetAddressType;
@@ -40,14 +36,11 @@ import org.apache.cassandra.db.marshal.SimpleDateType;
 import org.apache.cassandra.db.marshal.TimeType;
 import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher;
-import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.utils.Pair;
 import org.hamcrest.Matchers;
 
 import static org.apache.cassandra.index.sai.cql.DataModel.INET_COLUMN;
-import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
@@ -63,201 +56,164 @@ import static org.junit.Assert.assertThat;
  * 5.) ...queries across varying primary key and table structures.
  * 6.) ...queries across static, normal, and clustering column types.
  * 7.) ...queries across various paging and limit settings.
+ *
+ * IMPORTANT: This class is shared between the single-node SAITester based classes and the
+ * multi-node distributed classes. It must not reference SAITester or CQLTester directly
+ * to avoid static loading and initialisation.
  */
-@RunWith(Parameterized.class)
-public abstract class IndexQuerySupport extends SAITester
+public class IndexQuerySupport
 {
-    static List<BaseQuerySet> BASE_QUERY_SETS = ImmutableList.of(new BaseQuerySet(10, 5),
-                                                                 new BaseQuerySet(10, 9),
-                                                                 new BaseQuerySet(10, 10),
-                                                                 new BaseQuerySet(10, Integer.MAX_VALUE),
-                                                                 new BaseQuerySet(24, 10),
-                                                                 new BaseQuerySet(24, 100),
-                                                                 new BaseQuerySet(24, Integer.MAX_VALUE));
+    public static List<BaseQuerySet> BASE_QUERY_SETS = ImmutableList.of(new BaseQuerySet(10, 5),
+                                                                        new BaseQuerySet(10, 9),
+                                                                        new BaseQuerySet(10, 10),
+                                                                        new BaseQuerySet(10, Integer.MAX_VALUE),
+                                                                        new BaseQuerySet(24, 10),
+                                                                        new BaseQuerySet(24, 100),
+                                                                        new BaseQuerySet(24, Integer.MAX_VALUE));
 
-    static List<BaseQuerySet> COMPOSITE_PARTITION_QUERY_SETS = ImmutableList.of(new CompositePartitionQuerySet(10, 5),
-                                                                                new CompositePartitionQuerySet(10, 10),
-                                                                                new CompositePartitionQuerySet(10, Integer.MAX_VALUE),
-                                                                                new CompositePartitionQuerySet(24, 10),
-                                                                                new CompositePartitionQuerySet(24, 100),
-                                                                                new CompositePartitionQuerySet(24, Integer.MAX_VALUE));
+    public static List<BaseQuerySet> COMPOSITE_PARTITION_QUERY_SETS = ImmutableList.of(new CompositePartitionQuerySet(10, 5),
+                                                                                       new CompositePartitionQuerySet(10, 10),
+                                                                                       new CompositePartitionQuerySet(10, Integer.MAX_VALUE),
+                                                                                       new CompositePartitionQuerySet(24, 10),
+                                                                                       new CompositePartitionQuerySet(24, 100),
+                                                                                       new CompositePartitionQuerySet(24, Integer.MAX_VALUE));
 
-    static List<BaseQuerySet> STATIC_QUERY_SETS = ImmutableList.of(new StaticColumnQuerySet(10, 5),
-                                                                   new StaticColumnQuerySet(10, 10),
-                                                                   new StaticColumnQuerySet(10, Integer.MAX_VALUE),
-                                                                   new StaticColumnQuerySet(24, 10),
-                                                                   new StaticColumnQuerySet(24, 100),
-                                                                   new StaticColumnQuerySet(24, Integer.MAX_VALUE));
+    public static List<BaseQuerySet> STATIC_QUERY_SETS = ImmutableList.of(new StaticColumnQuerySet(10, 5),
+                                                                          new StaticColumnQuerySet(10, 10),
+                                                                          new StaticColumnQuerySet(10, Integer.MAX_VALUE),
+                                                                          new StaticColumnQuerySet(24, 10),
+                                                                          new StaticColumnQuerySet(24, 100),
+                                                                          new StaticColumnQuerySet(24, Integer.MAX_VALUE));
 
-    static final Injections.Counter INDEX_QUERY_COUNTER = Injections.newCounter("IndexQueryCounter")
-                                                                    .add(newInvokePoint().onClass(StorageAttachedIndexSearcher.class).onMethod("search"))
-                                                                    .build();
-
-    @Parameterized.Parameter(0)
-    public DataModel dataModel;
-    @Parameterized.Parameter(1)
-    public List<BaseQuerySet> sets;
-
-    @Before
-    public void setup() throws Throwable
+    public static void writeLifecycle(DataModel.Executor executor, DataModel dataModel, List<BaseQuerySet> sets) throws Throwable
     {
-        requireNetwork();
+        dataModel.createTables(executor);
 
-        Injections.inject(INDEX_QUERY_COUNTER);
-    }
+        dataModel.disableCompaction(executor);
 
-    protected void writeLifecycle() throws Throwable
-    {
-        dataModel.createTables(this);
-
-        dataModel.disableCompaction(this);
-
-        dataModel.createIndexes(this);
+        dataModel.createIndexes(executor);
 
         // queries against Memtable adjacent in-memory indexes
-        dataModel.insertRows(this);
-        executeQueries(dataModel, sets);
+        dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries with Memtable flushed to SSTable on disk
-        dataModel.flush(this);
-        executeQueries(dataModel, sets);
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries across memory and disk indexes
-        dataModel.insertRows(this);
-        executeQueries(dataModel, sets);
+        dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries w/ multiple SSTable indexes
-        dataModel.flush(this);
-        executeQueries(dataModel, sets);
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries after compacting to a single SSTable index
-        dataModel.compact(this);
-        executeQueries(dataModel, sets);
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries against Memtable updates and the existing SSTable index
-        dataModel.updateCells(this);
-        executeQueries(dataModel, sets);
+        dataModel.updateCells(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries against the newly flushed SSTable index and the existing SSTable index
-        dataModel.flush(this);
-        executeQueries(dataModel, sets);
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries after compacting updates into to a single SSTable index
-        dataModel.compact(this);
-        executeQueries(dataModel, sets);
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
     }
 
-    public void rowDeletions() throws Throwable
+    public static void rowDeletions(DataModel.Executor executor, DataModel dataModel, List<BaseQuerySet> sets) throws Throwable
     {
-        dataModel.createTables(this);
+        dataModel.createTables(executor);
 
-        dataModel.disableCompaction(this);
+        dataModel.disableCompaction(executor);
 
-        dataModel.createIndexes(this);
-        dataModel.insertRows(this);
-        dataModel.flush(this);
-        dataModel.compact(this);
+        dataModel.createIndexes(executor);
+        dataModel.insertRows(executor);
+        dataModel.flush(executor);
+        dataModel.compact(executor);
 
         // baseline queries
-        executeQueries(dataModel, sets);
+        executeQueries(dataModel, executor, sets);
 
         // queries against Memtable deletes and the existing SSTable index
-        dataModel.deleteRows(this);
-        executeQueries(dataModel, sets);
+        dataModel.deleteRows(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries against the newly flushed SSTable index and the existing SSTable index
-        dataModel.flush(this);
-        executeQueries(dataModel, sets);
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries after compacting deletes into to a single SSTable index
-        dataModel.compact(this);
-        executeQueries(dataModel, sets);
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
 
         // truncate, reload, and verify that the load is clean
-        dataModel.truncateTables(this);
-        dataModel.insertRows(this);
-        executeQueries(dataModel, sets);
+        dataModel.truncateTables(executor);
+        dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
     }
 
-    public void cellDeletions() throws Throwable
+    public static void cellDeletions(DataModel.Executor executor, DataModel dataModel, List<BaseQuerySet> sets) throws Throwable
     {
-        dataModel.createTables(this);
+        dataModel.createTables(executor);
 
-        dataModel.disableCompaction(this);
+        dataModel.disableCompaction(executor);
 
-        dataModel.createIndexes(this);
-        dataModel.insertRows(this);
-        dataModel.flush(this);
-        dataModel.compact(this);
+        dataModel.createIndexes(executor);
+        dataModel.insertRows(executor);
+        dataModel.flush(executor);
+        dataModel.compact(executor);
 
         // baseline queries
-        executeQueries(dataModel, sets);
+        executeQueries(dataModel, executor, sets);
 
         // queries against Memtable deletes and the existing SSTable index
-        dataModel.deleteCells(this);
-        executeQueries(dataModel, sets);
+        dataModel.deleteCells(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries against the newly flushed SSTable index and the existing SSTable index
-        dataModel.flush(this);
-        executeQueries(dataModel, sets);
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
 
         // queries after compacting deletes into to a single SSTable index
-        dataModel.compact(this);
-        executeQueries(dataModel, sets);
+        dataModel.compact(executor);
+        executeQueries(dataModel, executor, sets);
     }
 
-    public void timeToLive() throws Throwable
+    public static void timeToLive(DataModel.Executor executor, DataModel dataModel, List<BaseQuerySet> sets) throws Throwable
     {
-        dataModel.createTables(this);
+        dataModel.createTables(executor);
 
-        dataModel.disableCompaction(this);
+        dataModel.disableCompaction(executor);
 
-        dataModel.createIndexes(this);
-        dataModel.insertRowsWithTTL(this);
+        dataModel.createIndexes(executor);
+        dataModel.insertRowsWithTTL(executor);
 
         // Wait for the TTL to become effective:
         TimeUnit.SECONDS.sleep(DataModel.DEFAULT_TTL_SECONDS);
 
         // Make sure TTLs are reflected in our query results from the Memtable:
-        executeQueries(dataModel, sets);
+        executeQueries(dataModel, executor, sets);
 
         // Make sure TTLs are reflected in our query results from SSTables:
-        dataModel.flush(this);
-        executeQueries(dataModel, sets);
+        dataModel.flush(executor);
+        executeQueries(dataModel, executor, sets);
 
         // Make sure fresh overwrites invalidate TTLs:
-        dataModel.insertRows(this);
-        executeQueries(dataModel, sets);
+        dataModel.insertRows(executor);
+        executeQueries(dataModel, executor, sets);
     }
 
-    @SuppressWarnings("unused")
-    @Parameterized.Parameters(name = "{0}")
-    public static List<Object[]> params() throws Throwable
-    {
-        List<Object[]> scenarios = new LinkedList<>();
-
-        scenarios.add(new Object[]{ new DataModel.BaseDataModel(DataModel.NORMAL_COLUMNS, DataModel.NORMAL_COLUMN_DATA), BASE_QUERY_SETS });
-
-        scenarios.add(new Object[]{ new DataModel.CompoundKeyDataModel(DataModel.NORMAL_COLUMNS, DataModel.NORMAL_COLUMN_DATA), BASE_QUERY_SETS });
-
-        scenarios.add(new Object[]{ new DataModel.CompoundKeyWithStaticsDataModel(DataModel.STATIC_COLUMNS, DataModel.STATIC_COLUMN_DATA), STATIC_QUERY_SETS });
-
-        scenarios.add(new Object[]{ new DataModel.CompositePartitionKeyDataModel(DataModel.NORMAL_COLUMNS, DataModel.NORMAL_COLUMN_DATA),
-                                    ImmutableList.builder().addAll(BASE_QUERY_SETS).addAll(COMPOSITE_PARTITION_QUERY_SETS).build()});
-
-        return scenarios;
-    }
-
-    static String randomPostfix()
-    {
-        return UUID.randomUUID().toString().replace("-", "_");
-    }
-
-    private void executeQueries(DataModel dataModel, List<BaseQuerySet> sets) throws Throwable
+    private static void executeQueries(DataModel dataModel, DataModel.Executor executor, List<BaseQuerySet> sets) throws Throwable
     {
         for (BaseQuerySet set : sets)
         {
-            set.execute(this, dataModel);
+            set.execute(executor, dataModel);
         }
     }
 
@@ -268,7 +224,7 @@ public abstract class IndexQuerySupport extends SAITester
             super(limit, fetchSize);
         }
 
-        public void execute(SAITester tester, DataModel model) throws Throwable
+        public void execute(DataModel.Executor tester, DataModel model) throws Throwable
         {
             super.execute(tester, model);
 
@@ -292,7 +248,7 @@ public abstract class IndexQuerySupport extends SAITester
             super(limit, fetchSize);
         }
 
-        public void execute(SAITester tester, DataModel model) throws Throwable
+        public void execute(DataModel.Executor tester, DataModel model) throws Throwable
         {
             super.execute(tester, model);
 
@@ -325,7 +281,7 @@ public abstract class IndexQuerySupport extends SAITester
         }
     }
 
-    private static class BaseQuerySet
+    public static class BaseQuerySet
     {
         final int limit;
         final int fetchSize;
@@ -336,7 +292,7 @@ public abstract class IndexQuerySupport extends SAITester
             this.fetchSize = fetchSize;
         }
 
-        void execute(SAITester tester, DataModel model) throws Throwable
+        void execute(DataModel.Executor tester, DataModel model) throws Throwable
         {
             query(tester, model, DataModel.ASCII_COLUMN, Operator.EQ, "MA");
             query(tester, model, DataModel.ASCII_COLUMN, Operator.EQ, "LA");
@@ -550,14 +506,14 @@ public abstract class IndexQuerySupport extends SAITester
             }
         }
 
-        void query(SAITester tester, DataModel model, String column, Operator operator, Object value) throws Throwable
+        void query(DataModel.Executor tester, DataModel model, String column, Operator operator, Object value) throws Throwable
         {
             String query = String.format(DataModel.SIMPLE_SELECT_TEMPLATE, DataModel.ASCII_COLUMN, column, operator);
             String queryValidator = String.format(DataModel.SIMPLE_SELECT_WITH_FILTERING_TEMPLATE, DataModel.ASCII_COLUMN, column, operator);
             validate(tester, model, query, queryValidator, value, limit);
         }
 
-        void andQuery(SAITester tester, DataModel model,
+        void andQuery(DataModel.Executor tester, DataModel model,
                       String column1, Operator operator1, Object value1,
                       String column2, Operator operator2, Object value2,
                       boolean filtering) throws Throwable
@@ -571,7 +527,7 @@ public abstract class IndexQuerySupport extends SAITester
             validate(tester, model,query, queryValidator, value1, value2, limit);
         }
 
-        void andQuery(SAITester tester, DataModel model,
+        void andQuery(DataModel.Executor tester, DataModel model,
                       String column1, Operator operator1, Object value1,
                       String column2, Operator operator2, Object value2,
                       String column3, Operator operator3, Object value3) throws Throwable
@@ -586,7 +542,7 @@ public abstract class IndexQuerySupport extends SAITester
             validate(tester, model, query, queryValidator, value1, value2, value3, limit);
         }
 
-        void rangeQuery(SAITester tester, DataModel model, String column, Object value1, Object value2) throws Throwable
+        void rangeQuery(DataModel.Executor tester, DataModel model, String column, Object value1, Object value2) throws Throwable
         {
             String template = "SELECT %s FROM %%s WHERE %s > ? AND %s < ? LIMIT ?";
             String templateWithFiltering = "SELECT %s FROM %%s WHERE %s > ? AND %s < ? LIMIT ? ALLOW FILTERING";
@@ -596,19 +552,19 @@ public abstract class IndexQuerySupport extends SAITester
             validate(tester, model, query, queryValidator, value1, value2, limit);
         }
 
-        private List<Object> validate(SAITester tester, DataModel model, String query, String validator, Object... values) throws Throwable
+        private List<Object> validate(DataModel.Executor tester, DataModel model, String query, String validator, Object... values) throws Throwable
         {
             try
             {
-                INDEX_QUERY_COUNTER.reset();
+                tester.counterReset();
 
-                List<Object> actual = model.executeIndexed(tester, query, fetchSize, values).all().stream().map(r -> r.getObject(0)).collect(Collectors.toList());
+                List<Object> actual = model.executeIndexed(tester, query, fetchSize, values);
 
                 // This could be more strict, but it serves as a reasonable paging-aware lower bound:
                 int pageCount = (int) Math.ceil(actual.size() / (double) Math.min(actual.size(), fetchSize));
-                assertThat("Expected more calls to " + StorageAttachedIndexSearcher.class, INDEX_QUERY_COUNTER.get(), Matchers.greaterThanOrEqualTo((long) Math.max(1, pageCount)));
+                assertThat("Expected more calls to " + StorageAttachedIndexSearcher.class, tester.getCounter(), Matchers.greaterThanOrEqualTo((long) Math.max(1, pageCount)));
 
-                List<Object> expected = model.executeNonIndexed(tester, validator, fetchSize, values).all().stream().map(r -> r.getObject(0)).collect(Collectors.toList());
+                List<Object> expected = model.executeNonIndexed(tester, validator, fetchSize, values);
 
                 assertEquals(expected, actual);
 
@@ -616,8 +572,7 @@ public abstract class IndexQuerySupport extends SAITester
             }
             catch (Throwable ex)
             {
-                // When thrown here, AssertionError does not seem to produce a stack trace, so it's logged explicitly:
-                logger.error("Validation failed while executing query: " + query + ", exception message: " + ex.getMessage(), ex);
+                ex.printStackTrace();
                 throw ex;
             }
         }

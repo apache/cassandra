@@ -146,6 +146,11 @@ public class NumericIndexWriter implements Closeable
 
             bkdPosition = writer.writeField(bkdOutput, values, leafCallback);
 
+            // If the bkdPosition is less than 0 then we didn't write any values out
+            // and the index is empty
+            if (bkdPosition < 0)
+                return components;
+
             final long bkdLength = bkdOutput.getFilePointer() - bkdOffset;
 
             Map<String, String> attributes = new LinkedHashMap<>();

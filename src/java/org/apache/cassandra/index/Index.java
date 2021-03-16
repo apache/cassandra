@@ -608,7 +608,6 @@ public interface Index
      * @param rowFilter rowFilter of query to decide if it supports replica filtering protection or not
      * @return true if this index supports replica filtering protection, false otherwise
      */
-    //TODO Need to confirm whether SAI needs to implement this as false
     default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
     {
         return true;
@@ -630,10 +629,29 @@ public interface Index
     public interface Searcher
     {
         /**
+         * Returns the {@link ReadCommand} for which this searcher has been created.
+         *
+         * @return the base read command
+         */
+        ReadCommand command();
+
+        /**
          * @param executionController the collection of OpOrder.Groups which the ReadCommand is being performed under.
          * @return partitions from the base table matching the criteria of the search.
          */
         public UnfilteredPartitionIterator search(ReadExecutionController executionController);
+
+        /**
+         * Replica filtering protection may fetch data that doesn't match query conditions.
+         *
+         * On coordinator, we need to filter the replicas' responses again.
+         *
+         * @return filtered response that satisfied query conditions
+         */
+        default PartitionIterator filterReplicaFilteringProtection(PartitionIterator fullResponse)
+        {
+            return command().rowFilter().filter(fullResponse, command().metadata(), command().nowInSec());
+        }
     }
 
     /**

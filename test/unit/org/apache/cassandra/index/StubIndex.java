@@ -24,6 +24,7 @@ import java.util.function.BiFunction;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
@@ -207,11 +208,33 @@ public class StubIndex implements Index
 
     public Searcher searcherFor(final ReadCommand command)
     {
-        return (controller) -> Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, controller);
+        return new Searcher(command);
     }
 
     public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand readCommand)
     {
         return (iter, command) -> iter;
+    }
+
+    protected class Searcher implements Index.Searcher
+    {
+        private final ReadCommand command;
+
+        Searcher(ReadCommand command)
+        {
+            this.command = command;
+        }
+
+        @Override
+        public ReadCommand command()
+        {
+            return command;
+        }
+
+        @Override
+        public UnfilteredPartitionIterator search(ReadExecutionController executionController)
+        {
+            return Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, executionController);
+        }
     }
 }
