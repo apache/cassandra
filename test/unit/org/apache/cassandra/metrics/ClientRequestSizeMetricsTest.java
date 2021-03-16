@@ -29,7 +29,7 @@ import org.junit.runners.Parameterized;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Snapshot;
-
+import com.datastax.driver.core.QueryOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.Range;
@@ -52,7 +52,7 @@ public class ClientRequestSizeMetricsTest extends CQLTester
     public static Collection<Object[]> versions()
     {
         return ProtocolVersion.SUPPORTED.stream()
-                                        .map(v -> new Object[]{v})
+                                        .map(v -> new Object[]{ v })
                                         .collect(Collectors.toList());
     }
 
@@ -65,24 +65,34 @@ public class ClientRequestSizeMetricsTest extends CQLTester
     @Test
     public void testReadAndWriteMetricsAreRecordedDuringNativeRequests() throws Throwable
     {
-        // We want to ignore all the messages sent by the driver upon connection as well as
-        // the event sent upon schema updates
-        clearMetrics();
+        // It may happen that the schema refreshment is done in the middle of the test which can pollute the results
+        // We explicitly disable scheme fetching to avoid that effect
+        try
+        {
+            reinitializeNetwork(builder -> builder.withQueryOptions(new QueryOptions().setMetadataEnabled(false)));
+            // We want to ignore all the messages sent by the driver upon connection as well as
+            // the event sent upon schema updates
+            clearMetrics();
 
-        executeNet(version, "SELECT * from system.peers");
+            executeNet(version, "SELECT * from system.peers");
 
-        long requestLength = ClientMessageSizeMetrics.bytesReceived.getCount();
-        long responseLength = ClientMessageSizeMetrics.bytesSent.getCount();
+            long requestLength = ClientMessageSizeMetrics.bytesReceived.getCount();
+            long responseLength = ClientMessageSizeMetrics.bytesSent.getCount();
 
-        assertThat(requestLength).isGreaterThan(0);
-        assertThat(responseLength).isGreaterThan(0);
+            assertThat(requestLength).isGreaterThan(0);
+            assertThat(responseLength).isGreaterThan(0);
 
-        checkMetrics(1, requestLength, responseLength);
+            checkMetrics(1, requestLength, responseLength);
 
-        // Let's fire the same request again and test that the changes are the same that previously
-        executeNet(version, "SELECT * from system.peers");
+            // Let's fire the same request again and test that the changes are the same that previously
+            executeNet(version, "SELECT * from system.peers");
 
-        checkMetrics(2, requestLength, responseLength);
+            checkMetrics(2, requestLength, responseLength);
+        }
+        finally
+        {
+            reinitializeNetwork();
+        }
     }
 
     private void checkMetrics(int numberOfRequests, long requestLength, long responseLength)

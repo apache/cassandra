@@ -422,10 +422,15 @@ public abstract class CQLTester
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
-        initializeNetwork(decorator);
+        initializeNetwork(decorator, null);
     }
 
     protected static void reinitializeNetwork()
+    {
+        reinitializeNetwork(null);
+    }
+
+    protected static void reinitializeNetwork(Consumer<Cluster.Builder> clusterConfigurator)
     {
         if (server != null && server.isRunning())
         {
@@ -441,10 +446,10 @@ public abstract class CQLTester
         clusters.clear();
         sessions.clear();
 
-        initializeNetwork(server -> {});
+        initializeNetwork(server -> {}, clusterConfigurator);
     }
 
-    private static void initializeNetwork(Consumer<Server.Builder> decorator)
+    private static void initializeNetwork(Consumer<Server.Builder> decorator, Consumer<Cluster.Builder> clusterConfigurator)
     {
         Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
         decorator.accept(serverBuilder);
@@ -469,6 +474,9 @@ public abstract class CQLTester
                                              .withClusterName("Test Cluster")
                                              .withPort(nativePort)
                                              .withSocketOptions(socketOptions);
+
+            if (clusterConfigurator != null)
+                clusterConfigurator.accept(builder);
 
             if (version.isBeta())
                 builder = builder.allowBetaProtocolVersion();
