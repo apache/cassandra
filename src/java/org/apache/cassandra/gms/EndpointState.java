@@ -86,6 +86,11 @@ public class EndpointState
         return applicationState.get().get(key);
     }
 
+    public boolean containsApplicationState(ApplicationState key)
+    {
+        return applicationState.get().containsKey(key);
+    }
+
     public Set<Map.Entry<ApplicationState, VersionedValue>> states()
     {
         return applicationState.get().entrySet();
