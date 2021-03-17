@@ -60,7 +60,7 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
     }
 
     @Test
-    public void incrementalStreamPlan()
+    public void incrementalStreamPlan() throws NoSuchRepairSessionException
     {
         UUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);

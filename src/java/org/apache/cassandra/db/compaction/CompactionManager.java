@@ -44,6 +44,7 @@ import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -769,7 +770,15 @@ public class CompactionManager implements CompactionManagerMBean
     {
         try
         {
-            ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+            ActiveRepairService.ParentRepairSession prs;
+            try
+            {
+                prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+            }
+            catch (NoSuchRepairSessionException e)
+            {
+                throw new CompactionInterruptedException(e.getMessage());
+            }
             Preconditions.checkArgument(!prs.isPreview(), "Cannot anticompact for previews");
             Preconditions.checkArgument(!replicas.isEmpty(), "No ranges to anti-compact");
 
@@ -1916,7 +1925,7 @@ public class CompactionManager implements CompactionManagerMBean
             super(DatabaseDescriptor.getConcurrentValidations(),
                   DatabaseDescriptor.getConcurrentValidations(),
                   "ValidationExecutor",
-                  new LinkedBlockingQueue());
+                  new LinkedBlockingQueue<>());
 
             allowCoreThreadTimeOut(true);
         }

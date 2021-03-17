@@ -18,7 +18,14 @@
 package org.apache.cassandra.repair;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,6 +42,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.consistent.ConsistentSession;
@@ -47,6 +55,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * Coordinates the (active) repair of a list of non overlapping token ranges.
@@ -87,7 +96,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                                                                                   IFailureDetectionEventListener,
                                                                                   LocalSessions.Listener
 {
-    private static Logger logger = LoggerFactory.getLogger(RepairSession.class);
+    private static final Logger logger = LoggerFactory.getLogger(RepairSession.class);
 
     public final UUID parentRepairSession;
     /** Repair session ID */
@@ -193,7 +202,12 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         ValidationTask task = validating.remove(Pair.create(desc, endpoint));
         if (task == null)
         {
-            assert terminated;
+            assert terminated : "The repair session should be terminated if the validation we're completing no longer exists.";
+            
+            // The trees may be off-heap, and will therefore need to be released.
+            if (trees != null)
+                trees.release();
+            
             return;
         }
 
@@ -316,7 +330,11 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
 
             public void onFailure(Throwable t)
             {
-                logger.error("{} Session completed with the following error", previewKind.logPrefix(getId()), t);
+                String msg = "{} Session completed with the following error";
+                if (Throwables.anyCauseMatches(t, RepairException::shouldWarn))
+                    logger.warn(msg+ ": {}", previewKind.logPrefix(getId()), t.getMessage());
+                else
+                    logger.error(msg, previewKind.logPrefix(getId()), t);
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }
@@ -389,8 +407,8 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 if (range.intersects(ranges()))
                 {
-                    logger.error("{} An intersecting incremental repair with session id = {} finished, preview repair might not be accurate", previewKind.logPrefix(getId()), session.sessionID);
-                    forceShutdown(new Exception("An incremental repair with session id "+session.sessionID+" finished during this preview repair runtime"));
+                    logger.warn("{} An intersecting incremental repair with session id = {} finished, preview repair might not be accurate", previewKind.logPrefix(getId()), session.sessionID);
+                    forceShutdown(RepairException.warn("An incremental repair with session id "+session.sessionID+" finished during this preview repair runtime"));
                     return;
                 }
             }

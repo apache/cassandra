@@ -34,10 +34,10 @@ public interface TableRepairManager
 {
     /**
      * Return a validation iterator for the given parameters. If isIncremental is true, the iterator must only include
-     * data previously isolated for repair with the given parentId. nowInSec should determine whether tombstones shouldn
+     * data previously isolated for repair with the given parentId. nowInSec should determine whether tombstones should
      * be purged or not.
      */
-    ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, UUID parentId, UUID sessionID, boolean isIncremental, int nowInSec) throws IOException;
+    ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, UUID parentId, UUID sessionID, boolean isIncremental, int nowInSec) throws IOException, NoSuchRepairSessionException;
 
     /**
      * Begin execution of the given validation callable. Which thread pool a validation should run in is an implementation detail.
