@@ -31,6 +31,7 @@ import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.consistent.LocalSessionAccessor;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -232,7 +233,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
      * which reclassify the sstables as repaired
      */
     @Test
-    public void cleanupCompactionFinalized()
+    public void cleanupCompactionFinalized() throws NoSuchRepairSessionException
     {
         UUID repairID = registerSession(cfs, true, true);
         LocalSessionAccessor.prepareUnsafe(repairID, COORDINATOR, PARTICIPANTS);

@@ -48,6 +48,7 @@ import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.AbstractRepairTest;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.RepairSessionResult;
 import org.apache.cassandra.repair.messages.FinalizePromise;
 import org.apache.cassandra.repair.messages.FinalizePropose;
@@ -92,7 +93,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     @Test
-    public void testMockedMessagingHappyPath() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingHappyPath() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch prepareLatch = createLatch();
         CountDownLatch finalizeLatch = createLatch();
@@ -148,7 +149,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
 
 
     @Test
-    public void testMockedMessagingPrepareFailureP1() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingPrepareFailureP1() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch latch = createLatch();
         createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), latch);
@@ -156,7 +157,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     @Test
-    public void testMockedMessagingPrepareFailureP12() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingPrepareFailureP12() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch latch = createLatch();
         createPrepareSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2), Collections.emptySet(), latch);
@@ -164,7 +165,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     @Test
-    public void testMockedMessagingPrepareFailureP3() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingPrepareFailureP3() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch latch = createLatch();
         createPrepareSpy(Collections.singleton(PARTICIPANT3), Collections.emptySet(), latch);
@@ -172,7 +173,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     @Test
-    public void testMockedMessagingPrepareFailureP123() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingPrepareFailureP123() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch latch = createLatch();
         createPrepareSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), Collections.emptySet(), latch);
@@ -180,14 +181,14 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     @Test(expected = TimeoutException.class)
-    public void testMockedMessagingPrepareFailureWrongSessionId() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingPrepareFailureWrongSessionId() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         CountDownLatch latch = createLatch();
         createPrepareSpy(Collections.singleton(PARTICIPANT1), Collections.emptySet(), (msgOut) -> UUID.randomUUID(), latch);
         testMockedMessagingPrepareFailure(latch);
     }
 
-    private void testMockedMessagingPrepareFailure(CountDownLatch prepareLatch) throws InterruptedException, ExecutionException, TimeoutException
+    private void testMockedMessagingPrepareFailure(CountDownLatch prepareLatch) throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         // we expect FailSession messages to all participants
         MockMessagingSpy sendFailSessionExpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
@@ -226,7 +227,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
     }
 
     @Test
-    public void testMockedMessagingPrepareTimeout() throws InterruptedException, ExecutionException, TimeoutException
+    public void testMockedMessagingPrepareTimeout() throws InterruptedException, ExecutionException, TimeoutException, NoSuchRepairSessionException
     {
         MockMessagingSpy spyPrepare = createPrepareSpy(Collections.emptySet(), Collections.singleton(PARTICIPANT3), new CountDownLatch(0));
         MockMessagingSpy sendFailSessionUnexpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));

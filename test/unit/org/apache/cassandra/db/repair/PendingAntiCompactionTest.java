@@ -425,7 +425,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                         {
                             protected void runMayThrow()
                             {
-                                throw new CompactionInterruptedException(null);
+                                throw new CompactionInterruptedException("antiCompactionExceptionTest");
                             }
                         };
                         return es.submit(r);

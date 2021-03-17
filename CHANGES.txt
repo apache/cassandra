@@ -1,4 +1,5 @@
 4.1
+ * Reduce the log level on "expected" repair exceptions (CASSANDRA-16775)
  * Make JMXTimer expose attributes using consistent time unit (CASSANDRA-16760)
  * Remove check on gossip status from DynamicEndpointSnitch::updateScores (CASSANDRA-11671)
  * Fix AbstractReadQuery::toCQLString not returning valid CQL (CASSANDRA-16510)
