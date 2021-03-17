@@ -50,7 +50,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         return ActiveRepairService.instance.consistent.local.isSessionInProgress(sessionID);
     }
 
-    private PreviewKind previewKind(UUID sessionID)
+    private PreviewKind previewKind(UUID sessionID) throws NoSuchRepairSessionException
     {
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
         return prs != null ? prs.previewKind : PreviewKind.NONE;
@@ -136,8 +136,20 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     }
 
                     ActiveRepairService.instance.consistent.local.maybeSetRepairing(desc.parentSessionId);
+                    PreviewKind previewKind;
+                    try
+                    {
+                        previewKind = previewKind(desc.parentSessionId);
+                    }
+                    catch (NoSuchRepairSessionException e)
+                    {
+                        logger.warn("Parent repair session {} has been removed, failing repair", desc.parentSessionId);
+                        MessagingService.instance().send(Message.out(VALIDATION_RSP, new ValidationResponse(desc)), message.from());
+                        return;
+                    }
+                    
                     Validator validator = new Validator(desc, message.from(), validationRequest.nowInSec,
-                                                        isIncremental(desc.parentSessionId), previewKind(desc.parentSessionId));
+                                                        isIncremental(desc.parentSessionId), previewKind);
                     ValidationManager.instance.submitValidation(store, validator);
                     break;
 

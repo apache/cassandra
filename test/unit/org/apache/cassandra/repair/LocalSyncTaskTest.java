@@ -22,10 +22,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
@@ -199,7 +197,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
      * Don't reciprocate streams if the other endpoint is a transient replica
      */
     @Test
-    public void transientRemoteStreamPlan()
+    public void transientRemoteStreamPlan() throws NoSuchRepairSessionException
     {
         UUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
@@ -218,7 +216,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
      * Don't request streams if the other endpoint is a transient replica
      */
     @Test
-    public void transientLocalStreamPlan()
+    public void transientLocalStreamPlan() throws NoSuchRepairSessionException
     {
         UUID sessionID = registerSession(cfs, true, true);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);

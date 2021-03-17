@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.ActiveRepairService;
 
 /**
@@ -38,7 +39,15 @@ public class LocalSessionAccessor
 
     public static void prepareUnsafe(UUID sessionID, InetAddressAndPort coordinator, Set<InetAddressAndPort> peers)
     {
-        ActiveRepairService.ParentRepairSession prs = ARS.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = null;
+        try
+        {
+            prs = ARS.getParentRepairSession(sessionID);
+        }
+        catch (NoSuchRepairSessionException e)
+        {
+            throw new RuntimeException(e);
+        }
         assert prs != null;
         LocalSession session = ARS.consistent.local.createSessionUnsafe(sessionID, prs, peers);
         ARS.consistent.local.putSessionUnsafe(session);

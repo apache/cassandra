@@ -39,6 +39,7 @@ import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -268,8 +269,8 @@ public class CoordinatorSession extends ConsistentSession
         setAll(State.FAILED);
 
         String exceptionMsg = String.format("Incremental repair session %s has failed", sessionID);
-        finalizeProposeFuture.setException(new RuntimeException(exceptionMsg));
-        prepareFuture.setException(new RuntimeException(exceptionMsg));
+        finalizeProposeFuture.setException(RepairException.warn(exceptionMsg));
+        prepareFuture.setException(RepairException.warn(exceptionMsg));
     }
 
     private static String formatDuration(long then, long now)

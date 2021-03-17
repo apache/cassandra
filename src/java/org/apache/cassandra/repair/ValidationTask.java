@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.repair;
 
+import java.util.concurrent.ExecutionException;
+
 import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.exceptions.RepairException;
@@ -39,6 +41,8 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
     private final InetAddressAndPort endpoint;
     private final int nowInSec;
     private final PreviewKind previewKind;
+    
+    private boolean active = true;
 
     public ValidationTask(RepairJobDesc desc, InetAddressAndPort endpoint, int nowInSec, PreviewKind previewKind)
     {
@@ -62,15 +66,60 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
      *
      * @param trees MerkleTrees that is sent from replica. Null if validation failed on replica node.
      */
-    public void treesReceived(MerkleTrees trees)
+    public synchronized void treesReceived(MerkleTrees trees)
     {
         if (trees == null)
         {
-            setException(new RepairException(desc, previewKind, "Validation failed in " + endpoint));
+            active = false;
+            setException(RepairException.warn(desc, previewKind, "Validation failed in " + endpoint));
         }
-        else
+        else if (active)
         {
             set(new TreeResponse(endpoint, trees));
         }
+        else
+        {
+            // If the task has already been aborted, just release the possibly off-heap trees and move along.
+            trees.release();
+            set(null);
+        }
+    }
+
+    /**
+     * Release any trees already received by this task, and place it a state where any trees 
+     * received subsequently will be properly discarded.
+     */
+    public synchronized void abort()
+    {
+        if (active) 
+        {
+            if (isDone())
+            {
+                try 
+                {
+                    // If we're done, this should return immediately.
+                    TreeResponse response = get();
+                    
+                    if (response.trees != null)
+                        response.trees.release();
+                } 
+                catch (InterruptedException e) 
+                {
+                    // Restore the interrupt.
+                    Thread.currentThread().interrupt();
+                } 
+                catch (ExecutionException e) 
+                {
+                    // Do nothing here. If an exception was set, there were no trees to release.
+                }
+            }
+            
+            active = false;
+        }
+    }
+    
+    public synchronized boolean isActive()
+    {
+        return active;
     }
 }

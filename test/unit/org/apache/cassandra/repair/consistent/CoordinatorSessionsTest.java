@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.repair.AbstractRepairTest;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -93,7 +94,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
             return (InstrumentedCoordinatorSession) super.getSession(sessionId);
         }
 
-        public InstrumentedCoordinatorSession registerSession(UUID sessionId, Set<InetAddressAndPort> peers, boolean isForced)
+        public InstrumentedCoordinatorSession registerSession(UUID sessionId, Set<InetAddressAndPort> peers, boolean isForced) throws NoSuchRepairSessionException
         {
             return (InstrumentedCoordinatorSession) super.registerSession(sessionId, peers, isForced);
         }
@@ -114,7 +115,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
     }
 
     @Test
-    public void registerSessionTest()
+    public void registerSessionTest() throws NoSuchRepairSessionException
     {
         CoordinatorSessions sessions = new CoordinatorSessions();
         UUID sessionID = registerSession();
@@ -134,7 +135,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
     }
 
     @Test
-    public void handlePrepareResponse()
+    public void handlePrepareResponse() throws NoSuchRepairSessionException
     {
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         UUID sessionID = registerSession();
@@ -145,7 +146,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         sessions.handlePrepareResponse(new PrepareConsistentResponse(sessionID, PARTICIPANT1, true));
         Assert.assertEquals(1, session.prepareResponseCalls);
         Assert.assertEquals(PARTICIPANT1, session.preparePeer);
-        Assert.assertEquals(true, session.prepareSuccess);
+        Assert.assertTrue(session.prepareSuccess);
     }
 
     @Test
@@ -159,7 +160,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
     }
 
     @Test
-    public void handlePromiseResponse()
+    public void handlePromiseResponse() throws NoSuchRepairSessionException
     {
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         UUID sessionID = registerSession();
@@ -170,7 +171,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         sessions.handleFinalizePromiseMessage(new FinalizePromise(sessionID, PARTICIPANT1, true));
         Assert.assertEquals(1, session.finalizePromiseCalls);
         Assert.assertEquals(PARTICIPANT1, session.promisePeer);
-        Assert.assertEquals(true, session.promiseSuccess);
+        Assert.assertTrue(session.promiseSuccess);
     }
 
     @Test
@@ -184,7 +185,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
     }
 
     @Test
-    public void handleFailureMessage()
+    public void handleFailureMessage() throws NoSuchRepairSessionException
     {
         InstrumentedCoordinatorSessions sessions = new InstrumentedCoordinatorSessions();
         UUID sessionID = registerSession();

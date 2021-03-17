@@ -145,7 +145,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
     /**
      * Dereference all merkle trees and release direct memory for all off-heap trees.
      */
-    public void release()
+    public synchronized void release()
     {
         merkleTrees.values().forEach(MerkleTree::release);
         merkleTrees.clear();

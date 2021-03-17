@@ -15,19 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.compaction;
 
-public class CompactionInterruptedException extends RuntimeException
+package org.apache.cassandra.repair;
+
+import java.util.UUID;
+
+public class NoSuchRepairSessionException extends Exception
 {
-    private static final long serialVersionUID = -8651427062512310398L;
-
-    public CompactionInterruptedException(CompactionInfo info)
+    public NoSuchRepairSessionException(UUID parentSessionId)
     {
-        super("Compaction interrupted: " + info);
-    }
-
-    public CompactionInterruptedException(String info)
-    {
-        super("Compaction interrupted: " + info);
+        super(String.format("Parent repair session with id = %s has failed.", parentSessionId));
     }
 }

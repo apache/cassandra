@@ -53,6 +53,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,8 +93,10 @@ import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.net.Verb.FAILED_SESSION_MSG;
 import static org.apache.cassandra.net.Verb.FINALIZE_PROMISE_MSG;
@@ -662,7 +665,7 @@ public class LocalSessions
         return buildSession(builder);
     }
 
-    protected ActiveRepairService.ParentRepairSession getParentRepairSession(UUID sessionID)
+    protected ActiveRepairService.ParentRepairSession getParentRepairSession(UUID sessionID) throws NoSuchRepairSessionException
     {
         return ActiveRepairService.instance.getParentRepairSession(sessionID);
     }
@@ -833,7 +836,12 @@ public class LocalSessions
             {
                 try
                 {
-                    logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
+                    if (Throwables.anyCauseMatches(t, (throwable) -> throwable instanceof CompactionInterruptedException))
+                        logger.info("Anticompaction interrupted for session {}: {}", sessionID, t.getMessage());
+                    else if (Throwables.anyCauseMatches(t, (throwable) -> throwable instanceof NoSuchRepairSessionException))
+                        logger.warn("No such repair session: {}", sessionID);
+                    else
+                        logger.error("Prepare phase for incremental repair session {} failed", sessionID, t);
                     sendMessage(coordinator,
                                 Message.out(PREPARE_CONSISTENT_RSP,
                                             new PrepareConsistentResponse(sessionID, getBroadcastAddressAndPort(), false)));
