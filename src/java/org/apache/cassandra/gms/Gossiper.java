@@ -1404,7 +1404,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
-            EndpointState remoteState = removeRedundantApplicationStates(entry.getValue());
+            EndpointState remoteState = entry.getValue();
+            if (!hasMajorVersion3Nodes())
+                entry.getValue().removeMajorVersion3LegacyApplicationStates();
 
             /*
                 If state does not exist just add it. If it does then add it if the remote generation is greater.
@@ -1462,37 +1464,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    // remove duplicated deprecated states
-    private static EndpointState removeRedundantApplicationStates(EndpointState remoteState)
-    {
-        if (remoteState.states().isEmpty())
-            return remoteState;
-
-        Map<ApplicationState, VersionedValue> updatedStates = remoteState.states().stream().filter(entry -> {
-            if (Gossiper.instance.hasMajorVersion3Nodes())
-            {
-                return true;
-            }
-
-            // Filter out pre-4.0 versions of data for more complete 4.0 versions
-            switch (entry.getKey())
-            {
-                case INTERNAL_IP:
-                    return (null == remoteState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT));
-                case STATUS:
-                    return (null == remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT));
-                case RPC_ADDRESS:
-                    return (null == remoteState.getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT));
-                default:
-                    return true;
-            }
-        }).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
-
-        EndpointState updated = new EndpointState(remoteState.getHeartBeatState(), updatedStates);
-        if (!remoteState.isAlive()) updated.markDead();
-        return updated;
-    }
-
     private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState)
     {
         // don't assert here, since if the node restarts the version will go back to zero
@@ -1521,12 +1492,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         localState.addApplicationStates(updatedStates);
 
-        // get rid of the removable legacy fields when the entire cluster is not in mixed mode
+        // get rid of legacy fields once the cluster is not in mixed mode
         if (!hasMajorVersion3Nodes())
-            localState.removeLegacyApplicationStatesIfPossible();
+            localState.removeMajorVersion3LegacyApplicationStates();
 
+        Set<ApplicationState> states = ImmutableMap.<ApplicationState,VersionedValue>builder().putAll(updatedStates).putAll(localState.states()).build().keySet();
         for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
+        {
+            // always filter out legacy change notifications
+            if (ApplicationState.INTERNAL_IP == updatedEntry.getKey() && states.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT)) continue;
+            if (ApplicationState.STATUS == updatedEntry.getKey() && states.contains(ApplicationState.STATUS_WITH_PORT)) continue;
+            if (ApplicationState.RPC_ADDRESS == updatedEntry.getKey() && states.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT)) continue;
             doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
+        }
     }
 
     // notify that a local application state is going to change (doesn't get triggered for remote changes)

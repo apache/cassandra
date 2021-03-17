@@ -20,12 +20,13 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -115,39 +116,33 @@ public class EndpointState
         }
     }
 
-    public void removeLegacyApplicationStatesIfPossible()
+    void removeMajorVersion3LegacyApplicationStates()
     {
-        while (hasRemovableLegacyFields())
+        while (!states().isEmpty())
         {
             Map<ApplicationState, VersionedValue> orig = applicationState.get();
-            Map<ApplicationState, VersionedValue> copy = new EnumMap<>(orig);
-            int size = copy.size();
-            Set<ApplicationState> statesPresent = copy.keySet();
-
-            if (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
-                copy.remove(ApplicationState.STATUS);
-
-            if (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
-                copy.remove(ApplicationState.INTERNAL_IP);
-
-            if (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT))
-                copy.remove(ApplicationState.RPC_ADDRESS);
-
-            // Do not update if no removable state is found
-            if (size == copy.size())
-                return;
-
-            if (applicationState.compareAndSet(orig, copy))
+            Map<ApplicationState, VersionedValue> updatedStates = filterMajorVersion3LegacyApplicationStates(orig);
+            if (applicationState.compareAndSet(orig, updatedStates))
                 return;
         }
     }
 
-    private boolean hasRemovableLegacyFields()
+    static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
     {
-        Set<ApplicationState> statesPresent = applicationState.get().keySet();
-        return (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
-               || (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
-               || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
+        return states.entrySet().stream().filter(entry -> {
+                // Filter out pre-4.0 versions of data for more complete 4.0 versions
+                switch (entry.getKey())
+                {
+                    case INTERNAL_IP:
+                        return !states.containsKey(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
+                    case STATUS:
+                        return !states.containsKey(ApplicationState.STATUS_WITH_PORT);
+                    case RPC_ADDRESS:
+                        return !states.containsKey(ApplicationState.NATIVE_ADDRESS_AND_PORT);
+                    default:
+                        return true;
+                }
+            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /* getters and setters */
