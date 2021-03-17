@@ -1,4 +1,5 @@
 4.0-beta5
+ * Mark StreamingMetrics.ActiveOutboundStreams as deprecated (CASSANDRA-11174)
  * Increase the cqlsh version number (CASSANDRA-16509)
  * Fix the CQL generated for the views.where_clause column when some identifiers require quoting (CASSANDRA-16479)
  * Send FAILED_SESSION_MSG on shutdown and on in-progress repairs during startup (CASSANDRA-16425)

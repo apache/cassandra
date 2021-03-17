@@ -288,6 +288,9 @@ Upgrading
 Deprecation
 -----------
 
+    - The JMX MBean org.apache.cassandra.metrics:type=Streaming,name=ActiveOutboundStreams has been
+      deprecated and will be removed in a subsequent major version. This metric was not updated since several version
+      already.
     - The JMX MBean org.apache.cassandra.db:type=BlacklistedDirectories has been
       deprecated in favor of org.apache.cassandra.db:type=DisallowedDirectories
       and will be removed in a subsequent major version.
