@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.InetAddresses;
@@ -49,6 +51,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class GossiperTest
 {
@@ -212,28 +215,12 @@ public class GossiperTest
             VersionedValue tokensValue = valueFactory.tokens(Collections.singletonList(token));
             proposedRemoteState.addApplicationState(ApplicationState.TOKENS, tokensValue);
 
-            Gossiper.instance.register(
-            new IEndpointStateChangeSubscriber()
-            {
-                public void onJoin(InetAddressAndPort endpoint, EndpointState epState) { }
-
-                public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) { }
-
-                public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
-                {
-                    assertEquals(ApplicationState.TOKENS, state);
-                    stateChangedNum++;
-                }
-
-                public void onAlive(InetAddressAndPort endpoint, EndpointState state) { }
-
-                public void onDead(InetAddressAndPort endpoint, EndpointState state) { }
-
-                public void onRemove(InetAddressAndPort endpoint) { }
-
-                public void onRestart(InetAddressAndPort endpoint, EndpointState state) { }
-            }
-            );
+            SimpleStateChangeListener stateChangeListener = new SimpleStateChangeListener();
+            stateChangeListener.setOnChangeVerifier(onChangeParams -> {
+                assertEquals(ApplicationState.TOKENS, onChangeParams.state);
+                stateChangedNum++;
+            });
+            Gossiper.instance.register(stateChangeListener);
 
             stateChangedNum = 0;
             Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
@@ -358,6 +345,104 @@ public class GossiperTest
         Assert.assertEquals(disjointSize, gossiper.getSeeds().size());
         for (InetAddressAndPort a : disjointSeeds)
             assertTrue(gossiper.getSeeds().contains(a.toString()));
+    }
+
+    @Test
+    public void testNotFireDuplicatedNotificationsWithUpdateContainsOldAndNewState() throws UnknownHostException
+    {
+        VersionedValue.VersionedValueFactory valueFactory =
+            new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
+
+        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        try
+        {
+            InetAddressAndPort remoteHostAddress = hosts.get(1);
+            EndpointState initialRemoteState = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress);
+            HeartBeatState initialRemoteHeartBeat = initialRemoteState.getHeartBeatState();
+            //Util.createInitialRing should have initialized remoteHost's HeartBeatState's generation to 1
+            assertEquals(initialRemoteHeartBeat.getGeneration(), 1);
+
+            // Test begins
+            AtomicInteger notificationCount = new AtomicInteger(0);
+            HeartBeatState proposedRemoteHeartBeat = new HeartBeatState(initialRemoteHeartBeat.getGeneration());
+            EndpointState proposedRemoteState = new EndpointState(proposedRemoteHeartBeat);
+            final Token token = DatabaseDescriptor.getPartitioner().getRandomToken();
+            proposedRemoteState.addApplicationState(ApplicationState.STATUS, valueFactory.normal(Collections.singletonList(token)));
+
+            SimpleStateChangeListener stateChangeListener = new SimpleStateChangeListener();
+            Gossiper.instance.register(stateChangeListener);
+
+            // STEP 1. register verifier and apply state with just STATUS
+            // simulate applying gossip state from a v3 peer
+            stateChangeListener.setOnChangeVerifier(onChangeParams -> {
+                notificationCount.getAndIncrement();
+                assertEquals("It should fire notification for STATUS when gossiper local state not yet has STATUS_WITH_PORT",
+                             ApplicationState.STATUS, onChangeParams.state);
+            });
+            Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
+
+            // STEP 2. includes both STATUS and STATUS_WITH_PORT. The gossiper knows that the remote peer is now in v4
+            // update verifier and apply state again
+            proposedRemoteState.addApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(Collections.singletonList(token)));
+            stateChangeListener.setOnChangeVerifier(onChangeParams -> {
+                notificationCount.getAndIncrement();
+                assertEquals("It should only fire notification for STATUS_WITH_PORT",
+                             ApplicationState.STATUS_WITH_PORT, onChangeParams.state);
+            });
+            Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
+
+            // STEP 3. somehow, the peer send only the STATUS in the update.
+            proposedRemoteState = new EndpointState(proposedRemoteHeartBeat);
+            proposedRemoteState.addApplicationState(ApplicationState.STATUS, valueFactory.normal(Collections.singletonList(token)));
+            stateChangeListener.setOnChangeVerifier(onChangeParams -> {
+                notificationCount.getAndIncrement();
+                fail("It should not fire notification for STATUS");
+            });
+
+            assertEquals("Expect exact 2 notifications with the test setup",
+                         2, notificationCount.get());
+        }
+        finally
+        {
+            // clean up the gossip states
+            Gossiper.instance.endpointStateMap.clear();
+        }
+    }
+
+    static class SimpleStateChangeListener implements IEndpointStateChangeSubscriber
+    {
+        static class OnChangeParams
+        {
+            InetAddressAndPort endpoint;
+            ApplicationState state;
+            VersionedValue value;
+
+            OnChangeParams(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
+            {
+                this.endpoint = endpoint;
+                this.state = state;
+                this.value = value;
+            }
+        }
+
+        private volatile Consumer<OnChangeParams> onChangeVerifier;
+
+        public void setOnChangeVerifier(Consumer<OnChangeParams> verifier)
+        {
+            onChangeVerifier = verifier;
+        }
+
+        public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
+        public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
+        public void onAlive(InetAddressAndPort endpoint, EndpointState state) {}
+        public void onDead(InetAddressAndPort endpoint, EndpointState state) {}
+        public void onRemove(InetAddressAndPort endpoint) {}
+        public void onRestart(InetAddressAndPort endpoint, EndpointState state) {}
+
+        public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value)
+        {
+            onChangeVerifier.accept(new OnChangeParams(endpoint, state, value));
+        }
     }
 
     static class TestSeedProvider implements SeedProvider
