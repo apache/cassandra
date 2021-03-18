@@ -40,6 +40,7 @@ Merged from 3.11:
  * Reduce amount of allocations during batch statement execution (CASSANDRA-16201)
  * Update jflex-1.6.0.jar to match upstream (CASSANDRA-16393)
 Merged from 3.0:
+ * Ignore trailing zeros in hint files (CASSANDRA-16523)
  * Refuse DROP COMPACT STORAGE if some 2.x sstables are in use (CASSANDRA-15897)
  * Fix ColumnFilter::toString not returning a valid CQL fragment (CASSANDRA-16483)
  * Fix ColumnFilter behaviour to prevent digest mitmatches during upgrades (CASSANDRA-16415)
