@@ -197,6 +197,7 @@ public class GossiperTest
         VersionedValue.VersionedValueFactory valueFactory =
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
+        SimpleStateChangeListener stateChangeListener = null;
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
         try
         {
@@ -215,7 +216,7 @@ public class GossiperTest
             VersionedValue tokensValue = valueFactory.tokens(Collections.singletonList(token));
             proposedRemoteState.addApplicationState(ApplicationState.TOKENS, tokensValue);
 
-            SimpleStateChangeListener stateChangeListener = new SimpleStateChangeListener();
+            stateChangeListener = new SimpleStateChangeListener();
             stateChangeListener.setOnChangeVerifier(onChangeParams -> {
                 assertEquals(ApplicationState.TOKENS, onChangeParams.state);
                 stateChangedNum++;
@@ -248,6 +249,8 @@ public class GossiperTest
         {
             // clean up the gossip states
             Gossiper.instance.endpointStateMap.clear();
+            if (stateChangeListener != null)
+                Gossiper.instance.unregister(stateChangeListener);
         }
     }
 
@@ -354,6 +357,7 @@ public class GossiperTest
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        SimpleStateChangeListener stateChangeListener = null;
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -369,7 +373,7 @@ public class GossiperTest
             final Token token = DatabaseDescriptor.getPartitioner().getRandomToken();
             proposedRemoteState.addApplicationState(ApplicationState.STATUS, valueFactory.normal(Collections.singletonList(token)));
 
-            SimpleStateChangeListener stateChangeListener = new SimpleStateChangeListener();
+            stateChangeListener = new SimpleStateChangeListener();
             Gossiper.instance.register(stateChangeListener);
 
             // STEP 1. register verifier and apply state with just STATUS
@@ -406,6 +410,8 @@ public class GossiperTest
         {
             // clean up the gossip states
             Gossiper.instance.endpointStateMap.clear();
+            if (stateChangeListener != null)
+                Gossiper.instance.unregister(stateChangeListener);
         }
     }
 
