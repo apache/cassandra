@@ -28,6 +28,7 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.InetAddresses;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -81,6 +82,12 @@ public class GossiperTest
         DatabaseDescriptor.setSeedProvider(originalSeedProvider);
     }
 
+    @AfterClass
+    public static void afterClass()
+    {
+        Gossiper.instance.stop();
+    }
+
     @Test
     public void testPaddingIntact() throws Exception
     {
@@ -100,6 +107,7 @@ public class GossiperTest
     @Test
     public void testHasVersion3Nodes() throws Exception
     {
+        Gossiper.instance.start(0);
         Gossiper.instance.expireUpgradeFromVersion();
 
         VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);

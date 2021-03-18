@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -72,7 +73,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
-        Gossiper.instance.maybeInitializeLocalState(0);
+        Gossiper.instance.start(0);
     }
 
     @Before
@@ -80,6 +81,12 @@ public class InsertUpdateIfConditionTest extends CQLTester
     {
         Util.setUpgradeFromVersion(clusterMinVersion);
         assertion.run();
+    }
+
+    @AfterClass
+    public static void afterClass()
+    {
+        Gossiper.instance.stop();
     }
 
     /**
