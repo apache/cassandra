@@ -65,12 +65,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
-import static org.apache.cassandra.gms.ApplicationState.INTERNAL_ADDRESS_AND_PORT;
-import static org.apache.cassandra.gms.ApplicationState.INTERNAL_IP;
-import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
-import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;
-import static org.apache.cassandra.gms.ApplicationState.STATUS;
-import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_SYN;
@@ -348,8 +342,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 return true;
             try
             {
-                VersionedValue internalIp = entry.getValue().getApplicationState(INTERNAL_IP);
-                VersionedValue internalIpAndPort = entry.getValue().getApplicationState(INTERNAL_ADDRESS_AND_PORT);
+                VersionedValue internalIp = entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP);
+                VersionedValue internalIpAndPort = entry.getValue().getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
                 InetAddressAndPort endpoint = null;
                 if (internalIpAndPort != null)
                 {
@@ -449,10 +443,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return false;
         }
 
-        VersionedValue versionedValue = epState.getApplicationState(STATUS_WITH_PORT);
+        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)
         {
-            versionedValue = epState.getApplicationState(STATUS);
+            versionedValue = epState.getApplicationState(ApplicationState.STATUS);
             if (versionedValue == null)
             {
                 return false;
@@ -527,8 +521,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
             return;
-        epState.addApplicationState(STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
-        epState.addApplicationState(STATUS, StorageService.instance.valueFactory.shutdown(true));
+        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
@@ -707,8 +701,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
         Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
-        states.put(STATUS_WITH_PORT, StorageService.instance.valueFactory.removingNonlocal(hostId));
-        states.put(STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
+        states.put(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removingNonlocal(hostId));
+        states.put(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
         states.put(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(localHostId));
         epState.addApplicationStates(states);
         endpointStateMap.put(endpoint, epState);
@@ -727,8 +721,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
         long expireTime = computeExpireTime();
-        epState.addApplicationState(STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
-        epState.addApplicationState(STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
+        epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
+        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         logger.info("Completing removal of {}", endpoint);
         addExpireTimeForEndpoint(endpoint, expireTime);
         endpointStateMap.put(endpoint, epState);
@@ -793,8 +787,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             }
 
             long expireTime = computeExpireTime();
-            epState.addApplicationState(STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
-            epState.addApplicationState(STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
+            epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.left(tokens, expireTime));
+            epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.left(tokens, computeExpireTime()));
             handleMajorStateChange(endpoint, epState);
             Uninterruptibles.sleepUninterruptibly(intervalInMillis * 4, TimeUnit.MILLISECONDS);
             logger.warn("Finished assassinating {}", endpoint);
@@ -1375,10 +1369,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return "";
         }
 
-        VersionedValue versionedValue = epState.getApplicationState(STATUS_WITH_PORT);
+        VersionedValue versionedValue = epState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (versionedValue == null)
         {
-            versionedValue = epState.getApplicationState(STATUS);
+            versionedValue = epState.getApplicationState(ApplicationState.STATUS);
             if (versionedValue == null)
             {
                 return "";
@@ -1504,9 +1498,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             // filters out legacy change notifications
             // only if local state already indicates that the peer has the new fields
-            if ((INTERNAL_IP == updatedEntry.getKey() && localState.containsApplicationState(INTERNAL_ADDRESS_AND_PORT))
-                ||(STATUS == updatedEntry.getKey() && localState.containsApplicationState(STATUS_WITH_PORT))
-                || (RPC_ADDRESS == updatedEntry.getKey() && localState.containsApplicationState(NATIVE_ADDRESS_AND_PORT)))
+            if ((ApplicationState.INTERNAL_IP == updatedEntry.getKey() && localState.containsApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
+                ||(ApplicationState.STATUS == updatedEntry.getKey() && localState.containsApplicationState(ApplicationState.STATUS_WITH_PORT))
+                || (ApplicationState.RPC_ADDRESS == updatedEntry.getKey() && localState.containsApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT)))
                 continue;
             doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
         }
@@ -1956,8 +1950,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
-            addLocalApplicationState(STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
-            addLocalApplicationState(STATUS, StorageService.instance.valueFactory.shutdown(true));
+            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
+            addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
             Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);

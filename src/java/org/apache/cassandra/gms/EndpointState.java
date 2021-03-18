@@ -33,13 +33,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.CassandraVersion;
 
-import static org.apache.cassandra.gms.ApplicationState.INTERNAL_ADDRESS_AND_PORT;
-import static org.apache.cassandra.gms.ApplicationState.INTERNAL_IP;
-import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
-import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;
-import static org.apache.cassandra.gms.ApplicationState.STATUS;
-import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
-
 /**
  * This abstraction represents both the HeartBeatState and the ApplicationState in an EndpointState
  * instance. Any state for a given endpoint can be retrieved from this instance.
@@ -146,9 +139,9 @@ public class EndpointState
         Set<ApplicationState> statesPresent = applicationState.get().keySet();
         if (statesPresent.isEmpty())
             return false;
-        return (statesPresent.contains(STATUS) && statesPresent.contains(STATUS_WITH_PORT))
-               || (statesPresent.contains(INTERNAL_IP) && statesPresent.contains(INTERNAL_ADDRESS_AND_PORT))
-               || (statesPresent.contains(RPC_ADDRESS) && statesPresent.contains(NATIVE_ADDRESS_AND_PORT));
+        return (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
+               || (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
+               || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
     }
 
     private Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
@@ -158,11 +151,11 @@ public class EndpointState
                 switch (entry.getKey())
                 {
                     case INTERNAL_IP:
-                        return !states.containsKey(INTERNAL_ADDRESS_AND_PORT);
+                        return !states.containsKey(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
                     case STATUS:
-                        return !states.containsKey(STATUS_WITH_PORT);
+                        return !states.containsKey(ApplicationState.STATUS_WITH_PORT);
                     case RPC_ADDRESS:
-                        return !states.containsKey(NATIVE_ADDRESS_AND_PORT);
+                        return !states.containsKey(ApplicationState.NATIVE_ADDRESS_AND_PORT);
                     default:
                         return true;
                 }
@@ -204,7 +197,7 @@ public class EndpointState
     public boolean isEmptyWithoutStatus()
     {
         Map<ApplicationState, VersionedValue> state = applicationState.get();
-        return hbState.isEmpty() && !(state.containsKey(STATUS_WITH_PORT) || state.containsKey(STATUS));
+        return hbState.isEmpty() && !(state.containsKey(ApplicationState.STATUS_WITH_PORT) || state.containsKey(ApplicationState.STATUS));
     }
 
     public boolean isRpcReady()
@@ -220,10 +213,10 @@ public class EndpointState
 
     public String getStatus()
     {
-        VersionedValue status = getApplicationState(STATUS_WITH_PORT);
+        VersionedValue status = getApplicationState(ApplicationState.STATUS_WITH_PORT);
         if (status == null)
         {
-            status = getApplicationState(STATUS);
+            status = getApplicationState(ApplicationState.STATUS);
         }
         if (status == null)
         {
