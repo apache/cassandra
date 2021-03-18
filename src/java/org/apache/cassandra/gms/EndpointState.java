@@ -144,7 +144,7 @@ public class EndpointState
                || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
     }
 
-    private Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
+    private static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
     {
         return states.entrySet().stream().filter(entry -> {
                 // Filter out pre-4.0 versions of data for more complete 4.0 versions
