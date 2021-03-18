@@ -36,7 +36,6 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.NativeLibrary;
 
 /**
  * A paged non-compressed hints reader that provides two iterators:
@@ -212,6 +211,14 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             input.resetLimit();
 
             int size = input.readInt();
+            if (size == 0)
+            {
+                // Avoid throwing IOException when a hint file ends with a run of zeros - this
+                // can happen when hard-rebooting unresponsive machines.
+                if (!verifyAllZeros(input))
+                    throw new IOException("Corrupt hint file found");
+                throw new EOFException("Unexpected end of file (size == 0)");
+            }
 
             // if we cannot corroborate the size via crc, then we cannot safely skip this hint
             if (!input.checkCrc())
@@ -309,6 +316,14 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
             input.resetLimit();
 
             int size = input.readInt();
+            if (size == 0)
+            {
+                // Avoid throwing IOException when a hint file ends with a run of zeros - this
+                // can happen when hard-rebooting unresponsive machines.
+                if (!verifyAllZeros(input))
+                    throw new IOException("Corrupt hint file found");
+                throw new EOFException("Unexpected end of file (size == 0)");
+            }
 
             // if we cannot corroborate the size via crc, then we cannot safely skip this hint
             if (!input.checkCrc())
@@ -334,5 +349,15 @@ class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                         descriptor.fileName());
             return null;
         }
+    }
+
+    private static boolean verifyAllZeros(ChecksummedDataInput input) throws IOException
+    {
+        while (!input.isEOF())
+        {
+            if (input.readByte() != 0)
+                return false;
+        }
+        return true;
     }
 }
