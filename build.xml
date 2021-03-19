@@ -213,6 +213,9 @@
       make tests stable on low resource environments, but in java 11 we need to make it unlimited
       (don't define MaxMetaspaceSize) and disable class unloading in CMS outside of a
       stop-the-world pause.
+
+      In java 11 we also need to set a system property to enable netty to use Unsafe direct byte
+      buffer construction (see CASSANDRA-16493)
     -->
     <resources id="_jvm8_test_arg_items">
       <!-- TODO see CASSANDRA-16212 - we seem to OOM non stop now after CASSANDRA-16212, so to have clean CI while this gets looked into, disabling limiting metaspace
@@ -224,6 +227,7 @@
     <pathconvert property="_jvm8_test_arg_items_concat" refid="_jvm8_test_arg_items" pathsep=" "/>
     <resources id="_jvm11_test_arg_items">
         <string>-XX:-CMSClassUnloadingEnabled</string>
+        <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
     <condition property="test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
