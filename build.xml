@@ -65,9 +65,6 @@
     <property name="test.burn.src" value="${test.dir}/burn"/>
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
-    <property name="test.distributed.listfile" value="ant-jvm-dtest-list"/>
-    <property name="test.distributed.upgrade.listfile" value="ant-jvm-dtest-upgrade-list"/>
-    <property name="test.distributed.upgrade.package" value="org.apache.cassandra.distributed.upgrade"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 
@@ -1824,27 +1821,6 @@
       <testparallel testdelegate="testlist-compression"/>
   </target>
 
-  <!-- In-JVM dtest targets -->
-  <target name="list-jvm-dtests" depends="build-test">
-    <java classname="org.apache.cassandra.distributed.test.TestLocator" fork="no">
-          <classpath>
-              <path refid="cassandra.classpath" />
-              <pathelement location="${test.classes}"/>
-              <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
-                  <include name="**/*.jar" />
-              </fileset>
-          </classpath>
-        <arg value="${test.distributed.listfile}"/>
-    </java>
-  </target>
-
-  <target name="test-jvm-dtest-forking" depends="list-jvm-dtests" description="Execute In-JVM 'distributed' tests" >
-    <chmod file="${test.distributed.listfile}" perm="+x"/>
-    <exec executable="./${test.distributed.listfile}" failonerror="true"/>
-    <delete file="${test.distributed.listfile}"/>
-  </target>
-
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
       <jar jarfile="${build.dir}/dtest-${base.version}.jar">
           <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
@@ -1862,28 +1838,6 @@
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
     </testmacro>
-  </target>
-
-  <!-- In-JVM upgrade dtests -->
-  <target name="list-jvm-upgrade-dtests" depends="build-test">
-    <java classname="org.apache.cassandra.distributed.test.TestLocator" fork="no">
-          <classpath>
-              <path refid="cassandra.classpath" />
-              <pathelement location="${test.classes}"/>
-              <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
-                  <include name="**/*.jar" />
-              </fileset>
-          </classpath>
-          <arg value="${test.distributed.upgrade.listfile}"/>
-          <arg value="${test.distributed.upgrade.package}"/>
-    </java>
-  </target>
-
-  <target name="test-jvm-upgrade-dtest-forking" depends="list-jvm-upgrade-dtests" description="Execute In-JVM 'distributed' upgrade tests" >
-    <chmod file="${test.distributed.upgrade.listfile}" perm="+x"/>
-    <exec executable="./${test.distributed.upgrade.listfile}" failonerror="true"/>
-    <delete file="${test.distributed.upgrade.listfile}"/>
   </target>
 
   <target name="test-jvm-upgrade-dtest" depends="build-test" description="Execute in-jvm dtests">
