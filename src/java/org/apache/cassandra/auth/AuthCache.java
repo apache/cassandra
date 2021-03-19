@@ -24,12 +24,12 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -44,6 +44,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
      * Underlying cache. LoadingCache will call underlying load function on {@link #get} if key is not present
      */
     protected volatile LoadingCache<K, V> cache;
+    private DebuggableThreadPoolExecutor cacheRefreshExecutor;
 
     private String name;
     private IntConsumer setValidityDelegate;
@@ -93,6 +94,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
      */
     protected void init()
     {
+        this.cacheRefreshExecutor = new DebuggableThreadPoolExecutor(name + "Refresh", Thread.NORM_PRIORITY);
         cache = initCache(null);
         MBeanWrapper.instance.registerMBean(this, getObjectName());
     }
@@ -218,7 +220,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
                          .refreshAfterWrite(getUpdateInterval(), TimeUnit.MILLISECONDS)
                          .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
                          .maximumSize(getMaxEntries())
-                         .executor(MoreExecutors.directExecutor())
+                         .executor(cacheRefreshExecutor)
                          .build(loadFunction::apply);
         }
 
