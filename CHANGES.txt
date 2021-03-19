@@ -7,6 +7,7 @@ Merged from 3.0:
  * Fix ColumnFilter behaviour to prevent digest mitmatches during upgrades (CASSANDRA-16415)
  * Avoid pushing schema mutations when setting up distributed system keyspaces locally (CASSANDRA-16387)
 Merged from 2.2:
+ * Remove ant targets list-jvm-dtests and ant list-jvm-upgrade-dtests (CASSANDRA-16519)
  * Fix centos packaging for arm64, >=4.0 rpm's now require python3 (CASSANDRA-16477)
  * Make TokenMetadata's ring version increments atomic (CASSANDRA-16286)
 
