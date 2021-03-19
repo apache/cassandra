@@ -26,10 +26,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -79,7 +81,8 @@ public class ValidationExecutorTest
         while (threadsAvailable.get() > 0)
             TimeUnit.MILLISECONDS.sleep(10);
 
-        assertEquals(2, validationExecutor.getActiveTaskCount());
+        // getActiveTaskCount() relies on getActiveCount() which gives an approx number so we poll it
+        Util.spinAssertEquals(2, () -> validationExecutor.getActiveTaskCount(), 1);
         assertEquals(3, validationExecutor.getPendingTaskCount());
 
         taskBlocked.signalAll();
