@@ -93,4 +93,11 @@
 # -XX:+PrintPromotionFailure            maps to 'promotion' with level 'trace'
 # -XX:PrintFLSStatistics=1              maps to 'freelist' with level 'trace'
 
+### Netty Options
+
+# On Java >= 9 Netty requires the io.netty.tryReflectionSetAccessible system property to be set to true to enable
+# creation of direct buffers using Unsafe. Without it, this falls back to ByteBuffer.allocateDirect which has
+# inferior performance and risks exceeding MaxDirectMemory
+-Dio.netty.tryReflectionSetAccessible=true
+
 # The newline in the end of file is intentional
