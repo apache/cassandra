@@ -1,4 +1,5 @@
 4.0-beta5
+ * Make cassandra-stress -node support host:port notation (CASSANDRA-16529)
  * Better handle legacy gossip application states during (and after) upgrades (CASSANDRA-16525)
  * Mark StreamingMetrics.ActiveOutboundStreams as deprecated (CASSANDRA-11174)
  * Increase the cqlsh version number (CASSANDRA-16509)
