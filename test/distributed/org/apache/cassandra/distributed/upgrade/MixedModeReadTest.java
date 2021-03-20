@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.upgrade;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.gms.Gossiper;
@@ -35,6 +36,7 @@ public class MixedModeReadTest extends UpgradeTestBase
     public void mixedModeReadColumnSubsetDigestCheck() throws Throwable
     {
         new TestCase()
+        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
         .nodes(2)
         .nodesToUpgrade(1)
         .upgrade(Versions.Major.v30, Versions.Major.v4)
@@ -52,7 +54,7 @@ public class MixedModeReadTest extends UpgradeTestBase
             while (!((IInvokableInstance) (cluster.get(1))).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0.familyLowerBound.get()) &&
                                                                                  !Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion(("3.0")).familyLowerBound.get())))
             {
-                if (attempts++ > 30)
+                if (attempts++ > 90)
                     throw new RuntimeException("Gossiper.instance.haveMajorVersion3Nodes() continually returns false despite expecting to be true");
                 Thread.sleep(1000);
             }
