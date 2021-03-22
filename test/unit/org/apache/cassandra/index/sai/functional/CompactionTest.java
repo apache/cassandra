@@ -235,7 +235,7 @@ public class CompactionTest extends SAITester
 
         Injections.Barrier compactionLatch =
         Injections.newBarrier("pause_compaction", 2, false)
-                  .add(InvokePointBuilder.newInvokePoint().onClass(BigTableWriter.class).onMethod("afterAppend"))
+                  .add(InvokePointBuilder.newInvokePoint().onClass(CompactionManager.class).onMethod("performSSTableRewrite"))
                   .build();
 
         try
