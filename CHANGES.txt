@@ -1,4 +1,5 @@
 4.0-rc1
+ * Fix Streaming Repair metrics (CASSANDRA-16190)
  * Scheduled (delayed) schema pull tasks should not run after MIGRATION stage shutdown during decommission (CASSANDRA-16495)
  * When behind a firewall trunk is not buildable, need to allow overriding URLs (CASSANDRA-16563)
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
