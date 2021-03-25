@@ -1,4 +1,5 @@
 4.0-beta5
+ * Throw IOE in AbstractType.writeValue if value has wrong fixed length (CASSANDRA-16500)
  * Execute background refreshing of auth caches on a dedicated executor (CASSANDRA-15177)
  * Update bundled java and python drivers to 3.11.0 and 3.25.0 respectively (CASSANDRA-13951)
  * Add io.netty.tryReflectionSetAccessible=true to j11 server options in order to enable netty to use Unsafe direct byte buffer construction (CASSANDRA-16493)
