@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.metrics.ClientRangeRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -51,11 +52,13 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
-class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
+@VisibleForTesting
+public class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeCommandIterator.class);
 
-    private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
+    @VisibleForTesting
+    public static final ClientRangeRequestMetrics rangeMetrics = new ClientRangeRequestMetrics("RangeSlice");
 
     private final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
     private final int totalRangeCount;
@@ -259,6 +262,7 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
         }
         finally
         {
+            rangeMetrics.roundTrips.update(batchesRequested);
             long latency = System.nanoTime() - startTime;
             rangeMetrics.addNano(latency);
             Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
