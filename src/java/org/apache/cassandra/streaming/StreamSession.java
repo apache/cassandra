@@ -336,7 +336,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * On channel closing, if no channels are left just close the message sender; this must be closed last to ensure
      * keep alive messages are sent until the very end of the streaming session.
      */
-    private synchronized void onChannelClose(Channel channel)
+    private void onChannelClose(Channel channel)
     {
         if (channels.remove(channel.id()) != null && channels.isEmpty())
             messageSender.close();
