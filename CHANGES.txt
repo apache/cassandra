@@ -1,4 +1,6 @@
 4.0-beta5
+ * Fix 4.0 node sending a repair prepare message to a 3.x node breaking the connection
+   (CASSANDRA-16542)
  * Removed synchronized modifier from StreamSession#onChannelClose to prevent deadlocking on flush (CASSANDRA-15892)
  * Throw IOE in AbstractType.writeValue if value has wrong fixed length (CASSANDRA-16500)
  * Execute background refreshing of auth caches on a dedicated executor (CASSANDRA-15177)
