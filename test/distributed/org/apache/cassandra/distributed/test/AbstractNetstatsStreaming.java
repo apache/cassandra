@@ -40,8 +40,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.shared.NodeToolResultWithOutput;
-import org.apache.cassandra.distributed.util.NodetoolUtils;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.stream.Collectors.toList;
@@ -112,7 +111,7 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
 
             for (int i = 0; i < records; i++)
             {
-                s.execute("INSERT INTO test_table (id) VALUES (" + UUID.randomUUID() + ")");
+                s.execute("INSERT INTO test_table (id) VALUES (" + UUID.randomUUID() + ')');
             }
         }
     }
@@ -124,7 +123,7 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
             final Set<String> outputs = new LinkedHashSet<>();
 
             results.netstatOutputs.stream()
-                                  .map(NodeToolResultWithOutput::getStdout)
+                                  .map(NodeToolResult::getStdout)
                                   .filter(output -> !output.contains("Not sending any streams"))
                                   .filter(output -> output.contains("Receiving") || output.contains("Sending"))
                                   .forEach(outputs::add);
@@ -201,8 +200,8 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
             {
                 if (sending.sendingHeader != null)
                 {
-                    Assert.assertEquals(sending.sendingHeader.bytesTotalSoFar, (long) sending.sendingSSTable.stream().map(table -> table.bytesSent).reduce(Long::sum).orElseGet(() -> 0L));
-                    Assert.assertTrue(sending.sendingHeader.bytesTotal >= sending.sendingSSTable.stream().map(table -> table.bytesInTotal).reduce(Long::sum).orElseGet(() -> 0L));
+                    Assert.assertEquals(sending.sendingHeader.bytesTotalSoFar, (long) sending.sendingSSTable.stream().map(table -> table.bytesSent).reduce(Long::sum).orElse(0L));
+                    Assert.assertTrue(sending.sendingHeader.bytesTotal >= sending.sendingSSTable.stream().map(table -> table.bytesInTotal).reduce(Long::sum).orElse(0L));
 
                     if (sending.sendingHeader.bytesTotalSoFar != 0)
                     {
@@ -478,18 +477,18 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
 
     protected static final class NetstatResults
     {
-        private final List<NodeToolResultWithOutput> netstatOutputs = new ArrayList<>();
+        private final List<NodeToolResult> netstatOutputs = new ArrayList<>();
 
-        public void add(NodeToolResultWithOutput result)
+        public void add(NodeToolResult result)
         {
             netstatOutputs.add(result);
         }
 
         public void assertSuccessful()
         {
-            for (final NodeToolResultWithOutput result : netstatOutputs)
+            for (final NodeToolResult result : netstatOutputs)
             {
-                Assert.assertEquals(result.getResult().getRc(), 0);
+                Assert.assertEquals(result.getRc(), 0);
                 Assert.assertTrue(result.getStderr().isEmpty());
             }
         }
@@ -514,9 +513,9 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
             {
                 try
                 {
-                    final NodeToolResultWithOutput result = NodetoolUtils.nodetool(node, false, "netstats");
+                    final NodeToolResult result = node.nodetoolResult(false, "netstats");
 
-                    logger.info(node.broadcastAddress().toString() + " " + result.getStdout());
+                    logger.info(node.broadcastAddress().toString() + ' ' + result.getStdout());
 
                     if (!sawAnyStreamingOutput)
                     {
@@ -533,12 +532,12 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
 
                     results.add(result);
 
-                    Thread.currentThread().sleep(500);
+                    Thread.sleep(500);
                 }
                 catch (final Exception ex)
                 {
-                    System.out.println(ex.getMessage());
-                    Thread.currentThread().sleep(500);
+                    logger.error(ex.getMessage());
+                    Thread.sleep(500);
                 }
             }
 
