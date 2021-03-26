@@ -1,4 +1,4 @@
-4.0-beta5
+4.0-rc1
  * Fix 4.0 node sending a repair prepare message to a 3.x node breaking the connection
    (CASSANDRA-16542)
  * Removed synchronized modifier from StreamSession#onChannelClose to prevent deadlocking on flush (CASSANDRA-15892)
