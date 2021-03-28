@@ -9,6 +9,7 @@ data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
 pylib/src/
+lib/
 
 # C* debs
 build-stamp
@@ -53,6 +54,7 @@ out/
 target/
 
 # General
+**/__pycache__
 *.pyc
 *~
 *.bak
@@ -72,6 +74,7 @@ lib/jsr223/jython/*.jar
 lib/jsr223/jython/cachedir
 lib/jsr223/scala/*.jar
 
+/.ant-targets-build.xml
 .ant_targets
 
 # Python virtual environment
