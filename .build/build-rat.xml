@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more
   contributor license agreements.  See the NOTICE file distributed with
@@ -16,20 +15,15 @@
   limitations under the License.
 -->
 <project basedir="." name="apache-cassandra--rat-tasks"
-         xmlns:artifact="antlib:org.apache.maven.artifact.ant"
          xmlns:rat="antlib:org.apache.rat.anttasks">
 
     <!--
       License audit tool
     -->
 
-    <target name="_rat_init" depends="maven-ant-tasks-init">
-        <artifact:dependencies pathId="rat.classpath">
-          <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
-          <remoteRepository refid="central"/>
-          <remoteRepository refid="apache"/>
-        </artifact:dependencies>
-        <typedef uri="antlib:org.apache.rat.anttasks" classpathref="rat.classpath"/>
+
+	  <target name="_rat_init" depends="resolver-init">
+	      <typedef uri="antlib:org.apache.rat.anttasks" classpathref="rat.classpath"/>
     </target>
 
     <target name="_build_ratinclude" depends="_rat_init">

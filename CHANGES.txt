@@ -1,4 +1,5 @@
 3.11.11
+ * Migrate dependency handling from maven-ant-tasks to resolver-ant-tasks, removing lib/ directory from version control (CASSANDRA-16557)
  * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
  * Optimize bytes skipping when reading SSTable files (CASSANDRA-14415)
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
