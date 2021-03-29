@@ -96,7 +96,7 @@ public interface QueryEventListener
         /**
          * When a posting is successfully read from disk and decoded.
          */
-        void onPostingDecoded();
+        void postingDecoded(long postingsDecoded);
 
         PostingListEventListener NO_OP = new PostingListEventListener()
         {
@@ -107,7 +107,7 @@ public interface QueryEventListener
             }
 
             @Override
-            public void onPostingDecoded()
+            public void postingDecoded(long postingsDecoded)
             {
 
             }
