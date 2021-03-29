@@ -133,10 +133,10 @@ public final class MulticastQueryEventListeners
         }
 
         @Override
-        public void onPostingDecoded()
+        public void postingDecoded(long postingDecoded)
         {
-            ctx.bkdPostingsDecodes++;
-            listener.onPostingDecoded();
+            ctx.bkdPostingsDecodes += postingDecoded;
+            listener.postingDecoded(postingDecoded);
         }
     }
 
@@ -159,10 +159,10 @@ public final class MulticastQueryEventListeners
         }
 
         @Override
-        public void onPostingDecoded()
+        public void postingDecoded(long postingDecoded)
         {
-            ctx.triePostingsDecodes++;
-            listener.onPostingDecoded();
+            ctx.triePostingsDecodes += postingDecoded;
+            listener.postingDecoded(postingDecoded);
         }
     }
 }

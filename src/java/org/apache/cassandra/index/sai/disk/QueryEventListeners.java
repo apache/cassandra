@@ -92,6 +92,6 @@ public class QueryEventListeners
         public void onAdvance() { }
 
         @Override
-        public void onPostingDecoded() { }
+        public void postingDecoded(long postingsDecoded) { }
     }
 }

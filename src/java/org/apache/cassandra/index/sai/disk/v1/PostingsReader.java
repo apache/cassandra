@@ -59,6 +59,7 @@ public class PostingsReader implements OrdinalPostingList
 
     private long currentPosition;
     private DirectReaders.Reader currentFORValues;
+    private long postingsDecoded = 0;
 
     @VisibleForTesting
     PostingsReader(IndexInput input, long summaryOffset, QueryEventListener.PostingListEventListener listener) throws IOException
@@ -184,6 +185,7 @@ public class PostingsReader implements OrdinalPostingList
     @Override
     public void close() throws IOException
     {
+        listener.postingDecoded(postingsDecoded);
         try
         {
             input.close();
@@ -346,7 +348,7 @@ public class PostingsReader implements OrdinalPostingList
         else
         {
             final long id = currentFORValues.get(seekingInput, currentPosition, blockIdx);
-            listener.onPostingDecoded();
+            postingsDecoded++;
             return Math.toIntExact(id);
         }
     }
