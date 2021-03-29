@@ -138,9 +138,9 @@ public abstract class ColumnQueryMetrics extends AbstractMetrics
         public void onAdvance() { }
 
         @Override
-        public void onPostingDecoded()
+        public void postingDecoded(long postingsDecoded)
         {
-            postingDecodes.mark();
+            postingDecodes.mark(postingsDecoded);
         }
     }
 }
