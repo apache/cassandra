@@ -60,36 +60,35 @@ public class PostingsTest extends NdiRandomizedTest
         assertEquals(1, summary.offsets.length());
 
         CountingPostingListEventListener listener = new CountingPostingListEventListener();
-        try (PostingsReader reader = new PostingsReader(input, postingPointer, listener))
-        {
-            expectedPostingList.reset();
-            assertEquals(expectedPostingList.getOrdinal(), reader.getOrdinal());
-            assertEquals(expectedPostingList.size(), reader.size());
+        PostingsReader reader = new PostingsReader(input, postingPointer, listener);
 
-            long actualRowID;
-            while ((actualRowID = reader.nextPosting()) != PostingList.END_OF_STREAM)
-            {
-                assertEquals(expectedPostingList.nextPosting(), actualRowID);
-                assertEquals(expectedPostingList.getOrdinal(), reader.getOrdinal());
-            }
-            assertEquals(PostingList.END_OF_STREAM, expectedPostingList.nextPosting());
-            assertEquals(0, listener.advances);
-            assertEquals(reader.size(), listener.decodes);
+        expectedPostingList.reset();
+        assertEquals(expectedPostingList.getOrdinal(), reader.getOrdinal());
+        assertEquals(expectedPostingList.size(), reader.size());
+
+        long actualRowID;
+        while ((actualRowID = reader.nextPosting()) != PostingList.END_OF_STREAM)
+        {
+            assertEquals(expectedPostingList.nextPosting(), actualRowID);
+            assertEquals(expectedPostingList.getOrdinal(), reader.getOrdinal());
         }
+        assertEquals(PostingList.END_OF_STREAM, expectedPostingList.nextPosting());
+        assertEquals(0, listener.advances);
+        reader.close();
+        assertEquals(reader.size(), listener.decodes);
 
         input = indexComponents.openBlockingInput(indexComponents.postingLists);
         listener = new CountingPostingListEventListener();
-        try (PostingsReader reader = new PostingsReader(input, postingPointer, listener))
-        {
-            assertEquals(0, listener.decodes); // nothing is decoded up-front
-            assertEquals(50, reader.advance(45));
-            assertEquals(5, listener.decodes); // slow advance also decodes
-            assertEquals(60, reader.advance(60));
-            assertEquals(6, listener.decodes); // slow advance also decodes
-            assertEquals(PostingList.END_OF_STREAM, reader.nextPosting());
-            assertEquals(reader.size(), listener.decodes); // nothing more was decoded
-            assertEquals(2, listener.advances);
-        }
+        reader = new PostingsReader(input, postingPointer, listener);
+
+        assertEquals(50, reader.advance(45));
+
+        assertEquals(60, reader.advance(60));
+        assertEquals(PostingList.END_OF_STREAM, reader.nextPosting());
+        assertEquals(2, listener.advances);
+        reader.close();
+
+        assertEquals(reader.size(), listener.decodes); // nothing more was decoded
     }
 
     @Test
@@ -272,35 +271,29 @@ public class PostingsTest extends NdiRandomizedTest
     {
         expected.reset();
         final CountingPostingListEventListener listener = new CountingPostingListEventListener();
-        try (PostingsReader reader = openReader(indexComponents, fp, listener))
+        PostingsReader reader = openReader(indexComponents, fp, listener);
+        for (int i = 0; i < 2; ++i)
         {
-            for (int i = 0; i < 2; ++i)
-            {
-                assertEquals(expected.nextPosting(), reader.nextPosting());
-                assertEquals(expected.getOrdinal(), reader.getOrdinal());
-            }
-
-            // If all postings in a block have the same value, we don't actually decode any deltas ;)
-            if (expected.getPostingAt(0) != expected.getPostingAt(reader.getBlockSize() - 1))
-            {
-                assertEquals(2, listener.decodes);
-            }
-
-            for (int target : targetIDs)
-            {
-                final long actualRowId = reader.advance(target);
-                final long expectedRowId = expected.advance(target);
-
-                assertEquals(expectedRowId, actualRowId);
-
-                assertEquals(expected.getOrdinal(), reader.getOrdinal());
-            }
-
-            // check if iterator is correctly positioned
-            assertPostingListEquals(expected, reader);
-            // check if reader emitted all events
-            assertEquals(targetIDs.length, listener.advances);
+            assertEquals(expected.nextPosting(), reader.nextPosting());
+            assertEquals(expected.getOrdinal(), reader.getOrdinal());
         }
+
+        for (int target : targetIDs)
+        {
+            final long actualRowId = reader.advance(target);
+            final long expectedRowId = expected.advance(target);
+
+            assertEquals(expectedRowId, actualRowId);
+
+            assertEquals(expected.getOrdinal(), reader.getOrdinal());
+        }
+
+        // check if iterator is correctly positioned
+        assertPostingListEquals(expected, reader);
+        // check if reader emitted all events
+        assertEquals(targetIDs.length, listener.advances);
+
+        reader.close();
     }
 
     private PostingsReader openReader(IndexComponents indexComponents, long fp, QueryEventListener.PostingListEventListener listener) throws IOException
@@ -341,9 +334,9 @@ public class PostingsTest extends NdiRandomizedTest
         }
 
         @Override
-        public void onPostingDecoded()
+        public void postingDecoded(long postingsDecoded)
         {
-            decodes++;
+            this.decodes += postingsDecoded;
         }
     }
 }
