@@ -33,6 +33,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
@@ -115,6 +116,8 @@ public class CompactionManager implements CompactionManagerMBean
             return false;
         }
     };
+    private static final int ACQUIRE_GRANULARITY =
+    Integer.getInteger(Config.PROPERTY_PREFIX + "compaction_rate_limit_granularity_in_kb", 128) * 1024;
 
     static
     {
@@ -1263,9 +1266,8 @@ public class CompactionManager implements CompactionManagerMBean
 
                     long bytesScanned = scanner.getBytesScanned();
 
-                    compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
-
-                    lastBytesScanned = bytesScanned;
+                    if (compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio))
+                        lastBytesScanned = bytesScanned;
                 }
             }
 
@@ -1290,9 +1292,21 @@ public class CompactionManager implements CompactionManagerMBean
 
     }
 
-    static void compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
+    static boolean compactionRateLimiterAcquire(RateLimiter limiter, long bytesScanned, long lastBytesScanned, double compressionRatio)
     {
+        if (DatabaseDescriptor.getCompactionThroughputMbPerSec() == 0)
+            return false;
+
         long lengthRead = (long) ((bytesScanned - lastBytesScanned) * compressionRatio) + 1;
+        // Acquire at 128k granularity. At worst we'll exceed the limit a bit, but acquire is quite expensive.
+        if (lengthRead < ACQUIRE_GRANULARITY)
+            return false;
+
+        return actuallyAcquire(limiter, lengthRead);
+    }
+
+    private static boolean actuallyAcquire(RateLimiter limiter, long lengthRead)
+    {
         while (lengthRead >= Integer.MAX_VALUE)
         {
             limiter.acquire(Integer.MAX_VALUE);
@@ -1302,6 +1316,7 @@ public class CompactionManager implements CompactionManagerMBean
         {
             limiter.acquire((int) lengthRead);
         }
+        return true;
     }
 
     private static abstract class CleanupStrategy
@@ -1617,8 +1632,8 @@ public class CompactionManager implements CompactionManagerMBean
                         unrepairedWriter.append(partition);
                     }
                     long bytesScanned = scanners.getTotalBytesScanned();
-                    compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio);
-                    lastBytesScanned = bytesScanned;
+                    if (compactionRateLimiterAcquire(limiter, bytesScanned, lastBytesScanned, compressionRatio))
+                        lastBytesScanned = bytesScanned;
                 }
             }
 
