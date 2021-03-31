@@ -422,17 +422,28 @@ public class TTLTest extends CQLTester
                 else
                     tool = ToolRunner.invokeClass(StandaloneScrubber.class, KEYSPACE, cfs.name);
 
+                tool.assertOnCleanExit();
                 Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
                 if (reinsertOverflowedTTL)
                     Assertions.assertThat(tool.getStdout()).contains("Fixed 2 rows with overflowed local deletion time.");
                 else
                     Assertions.assertThat(tool.getStdout()).contains("Unable to recover 2 rows that were skipped.");
-                tool.assertOnCleanExit();
             }
             finally
             {
                 System.clearProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST);
             }
+        }
+
+        try
+        {
+            dropTable("DROP TABLE %s");
+        }
+        catch (Throwable e)
+        {
+            // StandaloneScrubber.class should be ran as a tool with a stable env. In a test env there are things moving
+            // under its feet such as the async CQLTester.afterTest() operations. We try to sync cleanup of tables here
+            // but we need to catch any exceptions we might run into bc of the hack. See CASSANDRA-16546
         }
     }
 
