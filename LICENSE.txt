@@ -226,7 +226,7 @@
    Apache License version 2.
 
    This product bundles a file (VIntCoding.java) from Protocol Buffers
-   copyright Google Inc., which is available under n BSD license.
+   copyright Google Inc., which is available under a BSD license.
 
    Thus product bundles material adapted from Cassandra, The Definitive Guide.
    Published by O'Reilly Media, Inc. Copyright Jeff Carpenter and Eben Hewitt 
