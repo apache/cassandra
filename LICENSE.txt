@@ -202,8 +202,39 @@
    limitations under the License.
 
 
-THIRD-PARTY DEPENDENCIES
-========================
-Convenience copies of some third-party dependencies are distributed with
-Apache Cassandra as Java jar files in lib/. Licensing information for
-these files can be found in the lib/licenses directory.
+   APACHE CASSANDRA SUBCOMPONENTS:
+
+   Apache Cassandra includes a number of subcomponents with
+   separate copyright notices and license terms. Your use of the source
+   code for these subcomponents is subject to the terms and
+   conditions of the following licenses.
+
+   This product bundles a file (AbstractIterator.java) from Chronicle-Bytes,
+   copyright higherfrequencytrading.com, which is available under an
+   Apache License version 2.
+
+   This product bundles a file (AbstractIterator.java) from Guava,
+   copyright The Guava Authors, which is available under an
+   Apache License version 2.
+
+   This product bundles a file (LongTimSort.java) from Android libcore,
+   copyright The Android Open Source Project, which is available under an
+   Apache License version 2.
+
+   This product bundles several files (LongTimSort.java) from PATRICIA Trie
+   copyright Roger Kapsi and Sam Berlin, which is available under an
+   Apache License version 2.
+
+   This product bundles a file (VIntCoding.java) from Protocol Buffers
+   copyright Google Inc., which is available under n BSD license.
+
+   Thus product bundles material adapted from Cassandra, The Definitive Guide.
+   Published by O'Reilly Media, Inc. Copyright Jeff Carpenter and Eben Hewitt 
+   and used with their permission.
+
+   This product bundles The Project Gutenberg EBook of Adventures of
+   Huckleberry Finn, Complete by Mark Twain (Samuel Clemens), which is in
+   the public domain.
+   
+   This product bundles code (internalOffer) that is written by Doug Lea and
+   Martin Buchholz available under a Creative Commons zero license.
