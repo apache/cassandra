@@ -47,8 +47,10 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             if (in != null)
                 return;
 
-            synchronized (this) {
-                if (in == null) {
+            synchronized (this)
+            {
+                if (in == null)
+                {
                     in = RandomAccessReader.open(path);
                 }
             }
