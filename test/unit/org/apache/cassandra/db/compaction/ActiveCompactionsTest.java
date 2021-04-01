@@ -93,8 +93,7 @@ public class ActiveCompactionsTest extends CQLTester
             });
             Future<?> f2 = es.submit(() -> {
                 Uninterruptibles.awaitUninterruptibly(trigger);
-                for (int i = 0; i < 100; i++)
-                    CompactionManager.instance.active.getCompactionsForSSTable(null, null);
+                CompactionManager.instance.active.getCompactionsForSSTable(null, null);
             });
             trigger.countDown();
             FBUtilities.waitOnFutures(Arrays.asList(f1, f2));
