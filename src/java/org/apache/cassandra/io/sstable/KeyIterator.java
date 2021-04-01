@@ -35,7 +35,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
     private final static class In
     {
         private final File path;
-        private RandomAccessReader in;
+        private volatile RandomAccessReader in;
 
         public In(File path)
         {
@@ -44,8 +44,14 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
         private void maybeInit()
         {
-            if (in == null)
-                in = RandomAccessReader.open(path);
+            if (in != null)
+                return;
+
+            synchronized (this) {
+                if (in == null) {
+                    in = RandomAccessReader.open(path);
+                }
+            }
         }
 
         public DataInputPlus get()
