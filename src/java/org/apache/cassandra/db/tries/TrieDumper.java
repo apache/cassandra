@@ -19,57 +19,74 @@ package org.apache.cassandra.db.tries;
 
 import java.util.function.Function;
 
+import org.agrona.concurrent.UnsafeBuffer;
+
 /**
  * Simple utility class for dumping the structure of a trie to string.
  */
-class TrieDumper<T> implements TrieWalker<T, String>
+class TrieDumper<T> implements Trie.Walker<T, String>
 {
+    private final StringBuilder b;
     private final Function<T, String> contentToString;
-    private final StringBuilder b = new StringBuilder();
-    private int depth = -1;
-    private boolean indented = true;
+    int needsIndent = -1;
+    int currentLength = 0;
 
-    TrieDumper(Function<T, String> contentToString)
+    public TrieDumper(Function<T, String> contentToString)
     {
         this.contentToString = contentToString;
+        this.b = new StringBuilder();
     }
 
-    public void onNodeEntry(int incomingTransition, T content)
+    private void endLineAndSetIndent(int newIndent)
     {
-        if (!indented)
+        needsIndent = newIndent;
+    }
+
+    @Override
+    public void resetPathLength(int newLength)
+    {
+        currentLength = newLength;
+        endLineAndSetIndent(newLength);
+    }
+
+    private void maybeIndent()
+    {
+        if (needsIndent >= 0)
         {
-            for (int i = 0; i < depth; ++i)
+            b.append('\n');
+            for (int i = 0; i < needsIndent; ++i)
                 b.append("  ");
-            indented = true;
-        }
-
-        ++depth;
-        if (incomingTransition != -1)
-            b.append(String.format("%02x", incomingTransition));
-
-        if (content != null)
-        {
-            // Only go to a new line once a payload is reached
-            indented = false;
-            b.append(" -> ");
-            b.append(contentToString.apply(content));
-            b.append('\n');
+            needsIndent = -1;
         }
     }
 
-    public void onNodeExit()
+    @Override
+    public void addPathByte(int nextByte)
     {
-        if (indented)
-        {
-            // We are backtracking without having printed content or meta. Although unexpected, this can legally happen
-            // (e.g. if an intersection has resulted in an empty node).
-            indented = false;
-            b.append('\n');
-        }
-        --depth;
+        maybeIndent();
+        ++currentLength;
+        b.append(String.format("%02x", nextByte));
     }
 
-    public String completion()
+    @Override
+    public void addPathBytes(UnsafeBuffer buffer, int pos, int count)
+    {
+        maybeIndent();
+        for (int i = 0; i < count; ++i)
+            b.append(String.format("%02x", buffer.getByte(pos + i) & 0xFF));
+        currentLength += count;
+    }
+
+    @Override
+    public void content(T content)
+    {
+        b.append(" -> ");
+        b.append(contentToString.apply(content));
+        endLineAndSetIndent(currentLength);
+    }
+
+    @Override
+    public String complete()
     {
         return b.toString();
     }

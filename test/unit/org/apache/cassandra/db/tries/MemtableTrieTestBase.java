@@ -23,14 +23,12 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multiset;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.io.compress.BufferType;
@@ -43,10 +41,15 @@ import static org.junit.Assert.fail;
 
 public abstract class MemtableTrieTestBase
 {
+    // Set this to true (in combination with smaller count) to dump the tries while debugging a problem.
+    // Do not commit the code with VERBOSE = true.
+    private static final boolean VERBOSE = false;
+
     private static final int COUNT = 100000;
     private static final int KEY_CHOICE = 25;
     private static final int MIN_LENGTH = 10;
     private static final int MAX_LENGTH = 50;
+
     Random rand = new Random();
 
     static final ByteComparable.Version VERSION = MemtableTrie.BYTE_COMPARABLE_VERSION;
@@ -138,90 +141,108 @@ public abstract class MemtableTrieTestBase
         }
     }
 
-    static class SpecifiedChildrenNode<L> extends Trie.Node<ByteBuffer, L>
+    static class SpecStackEntry
     {
-        final Object[] children;
+        Object[] children;
+        int curChild;
+        Object content;
+        SpecStackEntry parent;
 
-        SpecifiedChildrenNode(L parent, Object[] children)
+        public SpecStackEntry(Object[] spec, Object content, SpecStackEntry parent)
         {
-            super(parent);
-            this.children = children;
+            this.children = spec;
+            this.content = content;
+            this.parent = parent;
+            this.curChild = -1;
+        }
+    }
+
+    public static class CursorFromSpec implements Trie.Cursor<ByteBuffer>
+    {
+        SpecStackEntry stack;
+        int depth;
+
+        CursorFromSpec(Object[] spec)
+        {
+            stack = new SpecStackEntry(spec, null, null);
+            depth = 0;
         }
 
-        public Trie.Remaining startIteration()
+        public int advance()
         {
-            currentTransition = 0x30;
-            return remaining();
+            SpecStackEntry current = stack;
+            while (current != null && ++current.curChild >= current.children.length)
+            {
+                current = current.parent;
+                --depth;
+            }
+            if (current == null)
+            {
+                assert depth == -1;
+                return depth;
+            }
+
+            Object child = current.children[current.curChild];
+            if (child instanceof Object[])
+                stack = new SpecStackEntry((Object[]) child, null, current);
+            else
+                stack = new SpecStackEntry(new Object[0], child, current);
+
+            return ++depth;
         }
 
-        private Trie.Remaining remaining()
+        public int advanceMultiple()
         {
-            final int left = children.length - (currentTransition - 0x30);
-            return left > 1
-                   ? Trie.Remaining.MULTIPLE
-                   : left == 1
-                     ? Trie.Remaining.ONE
-                     : null;
+            if (++stack.curChild >= stack.children.length)
+                return skipChildren();
+
+            Object child = stack.children[stack.curChild];
+            while (child instanceof Object[])
+            {
+                stack = new SpecStackEntry((Object[]) child, null, stack);
+                ++depth;
+                if (stack.children.length == 0)
+                    return depth;
+                child = stack.children[0];
+            }
+            stack = new SpecStackEntry(new Object[0], child, stack);
+
+
+            return ++depth;
         }
 
-        public Trie.Remaining advanceIteration()
+        public int skipChildren()
         {
-            ++currentTransition;
-            return remaining();
+            --depth;
+            stack = stack.parent;
+            return advance();
         }
 
-        public Trie.Node<ByteBuffer, L> getCurrentChild(L parentLink)
+        public int depth()
         {
-            return makeSpecifiedChildrenNode(parentLink, children[currentTransition - 0x30]);
-        }
-
-        public Trie.Node<ByteBuffer, L> getUniqueDescendant(L parentLink, Trie.TransitionsReceiver receiver)
-        {
-            if (children.length != 1)
-                return this;
-
-            if (receiver != null)
-                receiver.add(0x30);
-
-            Object child;
-            for (child = children[0];
-                 child instanceof Object[] && ((Object[]) child).length == 1;
-                 child = ((Object[]) child)[0])
-                if (receiver != null)
-                    receiver.add(0x30);
-
-            return makeSpecifiedChildrenNode(parentLink, child);
+            return depth;
         }
 
         public ByteBuffer content()
         {
-            return null;
+            return (ByteBuffer) stack.content;
+        }
+
+        public int incomingTransition()
+        {
+            SpecStackEntry parent = stack.parent;
+            return parent != null ? parent.curChild + 0x30 : -1;
         }
     }
 
-    static <L> Trie.Node<ByteBuffer, L> makeSpecifiedChildrenNode(L parent, Object nodeDef)
-    {
-        if (nodeDef == null)
-            return null;
-        else if (nodeDef instanceof Object[])
-            return new SpecifiedChildrenNode<>(parent, (Object[]) nodeDef);
-        else
-            return new Trie.NoChildrenNode<ByteBuffer, L>(parent)
-            {
-                public ByteBuffer content()
-                {
-                    return (ByteBuffer) nodeDef;
-                }
-            };
-    }
-
-    static Trie<ByteBuffer> specifiedTrie(Object nodeDef)
+    static Trie<ByteBuffer> specifiedTrie(Object[] nodeDef)
     {
         return new Trie<ByteBuffer>()
         {
-            protected <L> Node<ByteBuffer, L> root()
+            @Override
+            protected Cursor<ByteBuffer> cursor()
             {
-                return makeSpecifiedChildrenNode(null, nodeDef);
+                return new CursorFromSpec(nodeDef);
             }
         };
     }
@@ -289,7 +310,8 @@ public abstract class MemtableTrieTestBase
                           trie.sizeOnHeap(), trie.sizeOffHeap(), onh, keysize, ts);
         System.out.format("per entry on heap %.2f off heap %.2f measured %.2f keys %.2f treemap %.2f\n",
                           trie.sizeOnHeap() * 1.0 / COUNT, trie.sizeOffHeap() * 1.0 / COUNT, onh * 1.0 / COUNT, keysize * 1.0 / COUNT, ts * 1.0 / COUNT);
-        // System.out.println("Trie " + trie.dump(ByteBufferUtil::bytesToHex).get());
+        if (VERBOSE)
+            System.out.println("Trie " + trie.dump(ByteBufferUtil::bytesToHex));
 
         assertSameContent(trie, content);
         checkGet(trie, content);
@@ -409,9 +431,11 @@ public abstract class MemtableTrieTestBase
             int payload = asString(b).hashCode();
             ByteBuffer v = ByteBufferUtil.bytes(payload);
             content.put(b, v);
-//             System.out.println("Adding " + asString(b) + ": " + ByteBufferUtil.bytesToHex(v));
+            if (VERBOSE)
+                System.out.println("Adding " + asString(b) + ": " + ByteBufferUtil.bytesToHex(v));
             putSimpleResolve(trie, b, v, (x, y) -> y, usePut);
-//             System.out.println(trie.dump(ByteBufferUtil::bytesToHex));
+            if (VERBOSE)
+                System.out.println(trie.dump(ByteBufferUtil::bytesToHex));
         }
     }
 
@@ -426,7 +450,9 @@ public abstract class MemtableTrieTestBase
     static void assertSameContent(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
     {
         assertMapEquals(trie, map);
+        assertForEachEntryEquals(trie, map);
         assertValuesEqual(trie, map);
+        assertForEachValueEquals(trie, map);
         assertUnorderedValuesEqual(trie, map);
     }
 
@@ -450,6 +476,29 @@ public abstract class MemtableTrieTestBase
             errors.append("\nExtra value in valuesUnordered: " + ByteBufferUtil.bytesToHex(b));
 
         assertEquals("", errors.toString());
+    }
+
+    private static void assertForEachEntryEquals(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
+    {
+        Iterator<Map.Entry<ByteComparable, ByteBuffer>> it = map.entrySet().iterator();
+        trie.forEachEntry((key, value) -> {
+            Assert.assertTrue("Map exhausted first, key " + asString(key), it.hasNext());
+            Map.Entry<ByteComparable, ByteBuffer> entry = it.next();
+            assertEquals(0, ByteComparable.compare(entry.getKey(), key, Trie.BYTE_COMPARABLE_VERSION));
+            assertEquals(entry.getValue(), value);
+        });
+        Assert.assertFalse("Trie exhausted first", it.hasNext());
+    }
+
+    private static void assertForEachValueEquals(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)
+    {
+        Iterator<ByteBuffer> it = map.values().iterator();
+        trie.forEachValue(value -> {
+            Assert.assertTrue("Map exhausted first, value " + ByteBufferUtil.bytesToHex(value), it.hasNext());
+            ByteBuffer entry = it.next();
+            assertEquals(entry, value);
+        });
+        Assert.assertFalse("Trie exhausted first", it.hasNext());
     }
 
     static void assertMapEquals(Trie<ByteBuffer> trie, SortedMap<ByteComparable, ByteBuffer> map)

@@ -21,15 +21,17 @@ import com.google.common.collect.Iterables;
 
 /**
  * A merged view of two tries.
+ *
+ * This is accomplished by walking the two cursors in parallel; the merged cursor takes the position and features of the
+ * smaller and advances with it; when the two cursors are equal, both are advanced.
+ *
+ * Crucial for the efficiency of this is the fact that when they are advanced like this, we can compare cursors'
+ * positions by their depth descending and then incomingTransition ascending.
+ *
+ * See Trie.md for further details.
  */
 class MergeTrie<T> extends Trie<T>
 {
-    /**
-     * Transition value used to indicate a transition is not present. Must be greater than all valid transition values
-     * (0-0xFF).
-     */
-    public static final int NOT_PRESENT = 0x100;
-
     private final MergeResolver<T> resolver;
     protected final Trie<T> t1;
     protected final Trie<T> t2;
@@ -42,115 +44,100 @@ class MergeTrie<T> extends Trie<T>
     }
 
     @Override
-    public <L> Node<T, L> root()
+    protected Cursor<T> cursor()
     {
-        return makeNode(resolver, t1.root(), t2.root());
+        return new MergeCursor<>(resolver, t1, t2);
     }
 
-    private static <T, L> Node<T, L> makeNode(MergeResolver<T> resolver, Node<T, L> child1, Node<T, L> child2)
-    {
-        if (child1 != null && child2 != null)
-            return new MergeNode<>(resolver, child1, child2);
-
-        if (child1 != null)
-            return child1;
-
-        if (child2 != null)
-            return child2;
-
-        return null;
-    }
-
-    static class MergeNode<T, L> extends Node<T, L>
+    static class MergeCursor<T> implements Cursor<T>
     {
         private final MergeResolver<T> resolver;
-        final Node<T, L> n1;
-        final Node<T, L> n2;
-        int b1;
-        int b2;
+        private final Cursor<T> c1;
+        private final Cursor<T> c2;
 
-        MergeNode(MergeResolver<T> resolver, Node<T, L> n1, Node<T, L> n2)
+        boolean atC1;
+        boolean atC2;
+
+        MergeCursor(MergeResolver<T> resolver, Trie<T> t1, Trie<T> t2)
         {
-            // Both children have the same parent link (passed during getCurrentChild). Use either as ours.
-            super(n1.parentLink);
-            assert n2.parentLink == n1.parentLink;
             this.resolver = resolver;
-            this.n1 = n1;
-            this.n2 = n2;
+            this.c1 = t1.cursor();
+            this.c2 = t2.cursor();
+            assert c1.depth() == 0;
+            assert c2.depth() == 0;
+            atC1 = atC2 = true;
         }
 
-        private Remaining makeState(Remaining has1, Remaining has2)
+        @Override
+        public int advance()
         {
-            Remaining result;
-            if (has1 != null)
-            {
-                b1 = n1.currentTransition;
-                result = Remaining.MULTIPLE;
-            }
-            else
-            {
-                b1 = NOT_PRESENT;
-                result = has2;
-            }
-            currentTransition = b1;
-            if (has2 != null)
-            {
-                b2 = n2.currentTransition;
-                if (b2 < b1)
-                    currentTransition = b2;
-                else if (b1 == b2 && has1 == Remaining.ONE && has2 == Remaining.ONE)
-                    result = Remaining.ONE;
-            }
-            else
-            {
-                b2 = NOT_PRESENT;
-                result = has1;
-            }
-            return result;
+            return checkOrder(atC1 ? c1.advance() : c1.depth(),
+                              atC2 ? c2.advance() : c2.depth());
         }
 
-        public Remaining startIteration()
+        @Override
+        public int skipChildren()
         {
-            return makeState(n1.startIteration(), n2.startIteration());
+            return checkOrder(atC1 ? c1.skipChildren() : c1.depth(),
+                              atC2 ? c2.skipChildren() : c2.depth());
         }
 
-        public Remaining advanceIteration()
+        @Override
+        public int advanceMultiple(TransitionsReceiver receiver)
         {
-            int prevb1 = b1;
-            int prevb2 = b2;
-            // We must advance the state of the source with the smaller transition byte.
-            // If their transition bytes are equal, we advance both.
-            if (prevb1 <= prevb2)
-            {
-                boolean has = n1.advanceIteration() != null;
-                b1 = has ? n1.currentTransition : NOT_PRESENT;
-            }
-            if (prevb1 >= prevb2)
-            {
-                boolean has = n2.advanceIteration() != null;
-                b2 = has ? n2.currentTransition : NOT_PRESENT;
-            }
-            currentTransition = Math.min(b1, b2);
-            return b1 < NOT_PRESENT || b2 < NOT_PRESENT ? Remaining.MULTIPLE : null;
+            // While we are on a shared position, we must descend one byte at a time to maintain the cursor ordering.
+            if (atC1 && atC2)
+                return checkOrder(c1.advance(), c2.advance());
+
+            // If we are in a branch that's only covered by one of the sources, we can use its advanceMultiple as it is
+            // only different from advance if it takes multiple steps down, which does not change the order of the
+            // cursors.
+            // Since it might ascend, we still have to check the order after the call.
+            if (atC1)
+                return checkOrder(c1.advanceMultiple(receiver), c2.depth());
+            else // atC2
+                return checkOrder(c1.depth(), c2.advanceMultiple(receiver));
         }
 
-        public Node<T, L> getCurrentChild(L parent)
+        private int checkOrder(int c1depth, int c2depth)
         {
-            Node<T, L> child1 = null;
-            Node<T, L> child2 = null;
+            if (c1depth > c2depth)
+            {
+                atC1 = true;
+                atC2 = false;
+                return c1depth;
+            }
+            if (c1depth < c2depth)
+            {
+                atC1 = false;
+                atC2 = true;
+                return c2depth;
+            }
+            // c1depth == c2depth
+            int c1trans = c1.incomingTransition();
+            int c2trans = c2.incomingTransition();
+            atC1 = c1trans <= c2trans;
+            atC2 = c1trans >= c2trans;
+            assert atC1 | atC2;
+            return c1depth;
+        }
 
-            if (b1 <= b2)
-                child1 = n1.getCurrentChild(parent);
-            if (b1 >= b2)
-                child2 = n2.getCurrentChild(parent);
+        @Override
+        public int depth()
+        {
+            return atC1 ? c1.depth() : c2.depth();
+        }
 
-            return makeNode(resolver, child1, child2);
+        @Override
+        public int incomingTransition()
+        {
+            return atC1 ? c1.incomingTransition() : c2.incomingTransition();
         }
 
         public T content()
         {
-            T mc = n2.content();
-            T nc = n1.content();
+            T mc = atC2 ? c2.content() : null;
+            T nc = atC1 ? c1.content() : null;
             if (mc == null)
                 return nc;
             else if (nc == null)

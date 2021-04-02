@@ -26,7 +26,15 @@ import com.google.common.collect.Iterables;
 /**
  * A merged view of multiple tries.
  *
- * Note: We use same input and output types to be able to switch to directly returning single-origin branches.
+ * This is accomplished by walking the cursors in parallel; the merged cursor takes the position and features of the
+ * smallest and advances with it; when multiple cursors are equal, all of them are advanced. The ordered view of the
+ * cursors is maintained using a custom binary min-heap, built for efficiently reforming the heap when the top elements
+ * are advanced (see {@link CollectionMergeCursor}).
+ *
+ * Crucial for the efficiency of this is the fact that when they are advanced like this, we can compare cursors'
+ * positions by their depth descending and then incomingTransition ascending.
+ *
+ * See Trie.md for further details.
  */
 class CollectionMergeTrie<T> extends Trie<T>
 {
@@ -39,257 +47,299 @@ class CollectionMergeTrie<T> extends Trie<T>
         this.inputs = inputs;
     }
 
-    public <L> Node<T, L> root()
+    @Override
+    protected Cursor<T> cursor()
     {
-        List<Node<T, L>> nodes = new ArrayList<>(inputs.size());
-        for (Trie<T> input : inputs)
-        {
-            Node<T, L> root = input.root();
-            if (root != null)
-                nodes.add(root);
-        }
-        return makeMerge(resolver, nodes);
+        return new CollectionMergeCursor<>(resolver, inputs);
     }
 
-    private static <T, L> Node<T, L> makeMerge(CollectionMergeResolver<T> resolver, List<Node<T, L>> nodes)
+    /**
+     * Compare the positions of two cursors. One is before the other when
+     * - its depth is greater, or
+     * - its depth is equal, and the incoming transition is smaller.
+     */
+    static <T> boolean greaterCursor(Cursor<T> c1, Cursor<T> c2)
     {
-        switch (nodes.size())
-        {
-        case 0:
-            return null;
-        case 1:
-            return nodes.get(0);
-        case 2:
-            return new MergeTrie.MergeNode<>(resolver, nodes.get(0), nodes.get(1));
-        default:
-            return new MergeNode<>(resolver, nodes);
-        }
+        int c1depth = c1.depth();
+        int c2depth = c2.depth();
+        if (c1depth != c2depth)
+            return c1depth < c2depth;
+        return c1.incomingTransition() > c2.incomingTransition();
     }
 
-    static class MergeNode<T, L> extends Node<T, L>
+    static <T> boolean equalCursor(Cursor<T> c1, Cursor<T> c2)
     {
-        private final CollectionMergeResolver<T> resolver;  // only called on more than one input
-        final List<Node<T, L>> nodes;
-        T content;
-        volatile boolean contentMerged = false;
+        return c1.depth() == c2.depth() && c1.incomingTransition() == c2.incomingTransition();
+    }
 
-        MergeNode(CollectionMergeResolver<T> resolver, List<Node<T, L>> nodes)
+    /*
+     * The merge cursor is a variation of the idea of a merge iterator with one key observation: because we advance
+     * the source iterators together, we can compare them just by depth and incoming transition.
+     *
+     * The most straightforward way to implement merging of iterators is to use a {@code PriorityQueue},
+     * {@code poll} it to find the next item to consume, then {@code add} the iterator back after advancing.
+     * This is not very efficient as {@code poll} and {@code add} in all cases require at least
+     * {@code log(size)} comparisons and swaps (usually more than {@code 2*log(size)}) per consumed item, even
+     * if the input is suitable for fast iteration.
+     *
+     * The implementation below makes use of the fact that replacing the top element in a binary heap can be
+     * done much more efficiently than separately removing it and placing it back, especially in the cases where
+     * the top iterator is to be used again very soon (e.g. when there are large sections of the output where
+     * only a limited number of input iterators overlap, which is normally the case in many practically useful
+     * situations, e.g. levelled compaction).
+     *
+     * The implementation builds and maintains a binary heap of sources (stored in an array), where we do not
+     * add items after the initial construction. Instead we advance the smallest element (which is at the top
+     * of the heap) and push it down to find its place for its new position. Should this source be exhausted,
+     * we swap it with the last source in the heap and proceed by pushing that down in the heap.
+     *
+     * In the case where we have multiple sources with matching positions, the merging algorithm
+     * must be able to merge all equal values. To achieve this {@code content} walks the heap to
+     * find all equal cursors without advancing them, and separately {@code advance} advances
+     * all equal sources and restores the heap structure.
+     *
+     * The latter is done equivalently to the process of initial construction of a min-heap using back-to-front
+     * heapification as done in the classic heapsort algorithm. It only needs to heapify subheaps whose top item
+     * is advanced (i.e. one whose position matches the current), and we can do that recursively from
+     * bottom to top. Should a source be exhausted when advancing, it can be thrown away by swapping in the last
+     * source in the heap (note: we must be careful to advance that source too if required).
+     *
+     * To make it easier to advance efficienty in single-sourced branches of tries, we extract the current smallest
+     * cursor (the head) separately, and start any advance with comparing that to the heap's first. When the smallest
+     * cursor remains the same (e.g. in branches coming from a single source) this makes it possible to advance with
+     * just one comparison instead of two at the expense of increasing the number by one in the general case.
+     *
+     * Note: This is a simplification of the MergeIterator code from CASSANDRA-8915, without the leading ordered
+     * section and equalParent flag since comparisons of cursor positions are cheap.
+     */
+    static class CollectionMergeCursor<T> implements Cursor<T>
+    {
+        private final CollectionMergeResolver<T> resolver;
+
+        /**
+         * The smallest cursor, tracked separately to improve performance in single-source sections of the trie.
+         */
+        private Cursor<T> head;
+
+        /**
+         * Binary heap of the remaining cursors. The smallest element is at position 0.
+         * Every element i is smaller than or equal to its two children, i.e.
+         *     heap[i] <= heap[i*2 + 1] && heap[i] <= heap[i*2 + 2]
+         */
+        private final Cursor<T>[] heap;
+
+        /**
+         * A list used to collect contents during content() calls.
+         */
+        private final List<T> contents;
+
+        public CollectionMergeCursor(CollectionMergeResolver<T> resolver, Collection<? extends Trie<T>> inputs)
         {
-            // All children necessarily use the same parent link (given during getCurrentChild). Make that ours.
-            super(nodes.get(0).parentLink);
             this.resolver = resolver;
-            this.nodes = nodes;
-        }
-
-        /*
-         * The merge node is effectively a merge iterator of children.
-         *
-         * The most straightforward way to implement merging of iterators is to use a {@code PriorityQueue},
-         * {@code poll} it to find the next item to consume, then {@code add} the iterator back after advancing.
-         * This is not very efficient as {@code poll} and {@code add} in all cases require at least
-         * {@code log(size)} comparisons and swaps (usually more than {@code 2*log(size)}) per consumed item, even
-         * if the input is suitable for fast iteration.
-         *
-         * The implementation below makes use of the fact that replacing the top element in a binary heap can be
-         * done much more efficiently than separately removing it and placing it back, especially in the cases where
-         * the top iterator is to be used again very soon (e.g. when there are large sections of the output where
-         * only a limited number of input iterators overlap, which is normally the case in many practically useful
-         * situations, e.g. levelled compaction).
-         *
-         * The implementation builds and maintains a binary heap of sources (stored in an array), where we do not
-         * add items after the initial construction. Instead we advance the smallest element (which is at the top
-         * of the heap) and push it down to find its place for its new transition character. Should this source
-         * be exhausted, we swap it with the last source in the heap and proceed by pushing that down in the
-         * heap.
-         *
-         * In the case where we have multiple sources with matching transition characters, the merging algorithm
-         * must be able to merge all equal values. To achieve this {@code getCurrentChild} walks the heap to
-         * find all equal items without advancing the sources, and separately {@code advanceIteration} advances
-         * all equal sources and restores the heap structure.
-         *
-         * The latter is done equivalently to the process of building the initial heap in {@code startIteration}
-         * using back-to-front heapification as done in the classic heapsort algorithm. It only needs to heapify
-         * subheaps whose top item is advanced (i.e. one whose transition character matches the current),
-         * and we can do that recursively from bottom to top. Should a source be exhausted when advancing, it can
-         * be thrown away by swapping in the last source in the heap (note: we must be careful to advance that
-         * source too if required).
-         *
-         * Note: This is a simplification of the MergeIterator code from CASSANDRA-8915, without the leading ordered
-         * section and equalParent flag since comparisons of transition characters are cheap.
-         */
-
-        public Remaining startIteration()
-        {
-            int count = nodes.size();
-            // Get every input's initial state and move nodes with no children at the end.
-            for (int i = 0; i < count; ++i)
+            int count = inputs.size();
+            // Get cursors for all inputs. Put one of them in head and the rest in the heap.
+            heap = new Cursor[count - 1];
+            contents = new ArrayList<>(count);
+            int i = -1;
+            for (Trie<T> trie : inputs)
             {
-                Node<T, L> ni = nodes.get(i);
-                boolean sHas = ni.startIteration() != null;
-                if (!sHas)
-                {
-                    --count;
-                    // put last one at its place (will do nothing if count now equals i)
-                    nodes.set(i, nodes.get(count));
-                    nodes.remove(count);
-                    // make sure the moved input is processed
-                    --i;
-                }
+                Cursor<T> cursor = trie.cursor();
+                assert cursor.depth() == 0;
+                if (i >= 0)
+                    heap[i] = cursor;
+                else
+                    head = cursor;
+                ++i;
             }
-            // We now create a heap from the input states we got. This process has linear complexity in the number
-            // of input states (see heapsort algorithm).
-            while (--count >= 0)
-                heapifyDown(count);
-
-            if (nodes.isEmpty())
-                return null;
-            currentTransition = nodes.get(0).currentTransition;
-            return Remaining.MULTIPLE;
-        }
-
-        public Remaining advanceIteration()
-        {
-            int current = currentTransition;
-            advance(current, 0);
-
-            if (nodes.isEmpty())
-                return null;
-            currentTransition = nodes.get(0).currentTransition;
-            return Remaining.MULTIPLE;
-        }
-
-        public Node<T, L> getCurrentChild(L parent)
-        {
-            int current = currentTransition;
-            List<Node<T, L>> children = new ArrayList<>(nodes.size());
-            collectEqual(0, current, parent, children);
-            return makeMerge(resolver, children);
+            // The cursors are all currently positioned on the root and thus in valid heap order.
         }
 
         /**
-         * Gets the child for every input in the heap rooted at the given index that is at the given transition.
-         * Calls itself recursively and used by getCurrentChild with index = 0 and transition = state[0].transition
-         * to get the child for all inputs that are positioned at the current minimal transition.
+         * Interface for internal operations that can be applied to the equal top elements of the heap.
          */
-        void collectEqual(int index, int transition, L parent, List<Node<T, L>> list)
+        interface HeapOp<T>
         {
-            Node<T, L> child = nodes.get(index).getCurrentChild(parent);
-            if (child != null)
-                list.add(child);
-
-            // Check if any of the children in the heap are at the same transition.
-            // If so, collect children recursively.
-            int next = index * 2 + 1;
-            if (next < nodes.size() && nodes.get(next).currentTransition == transition)
-                collectEqual(next, transition, parent, list);
-            ++next;
-            if (next < nodes.size() && nodes.get(next).currentTransition == transition)
-                collectEqual(next, transition, parent, list);
+            void apply(CollectionMergeCursor<T> self, Cursor<T> cursor, int index);
         }
 
         /**
-         * Advance the state of the input at the given index and any of its descendants that are at the same
-         * transition byte and restore the heap invariant for the subtree rooted at the given index.
-         * Calls itself recursively and used by advanceState with index = 0 and transition = state[0].transition
-         * to advance the state of the merge.
+         * Apply a non-interfering operation, i.e. one that does not change the cursor state, to all inputs in the heap
+         * that are on equal position to the head.
+         * For interfering operations like advancing the cursors, use {@link #advanceEqualAndRestoreHeap(AdvancingHeapOp)}.
          */
-        private void advance(int transition, int index)
+        private void applyToEqualOnHeap(HeapOp<T> action)
         {
-            Node<T, L> n = nodes.get(index);
-            // Advance current node and remove it from active heap if it has no further children.
-            while (n.advanceIteration() == null)
+            applyToEqualElementsInHeap(action, 0);
+        }
+
+        /**
+         * Interface for internal advancing operations that can be applied to the heap cursors. This interface provides
+         * the code to restore the heap structure after advancing the cursors.
+         */
+        interface AdvancingHeapOp<T> extends HeapOp<T>
+        {
+            void apply(Cursor<T> cursor);
+
+            default void apply(CollectionMergeCursor<T> self, Cursor<T> cursor, int index)
             {
-                // n has no further children, it needs to be removed from the active heap.
-                // Move the last to index'th position and continue processing with that node.
-                int nodeCount = nodes.size() - 1;
-                n = nodes.remove(nodeCount);
-                if (nodeCount == index)
-                    return; // done, n was at the end of the heap so the subheap to advance is now empty thus
-                            // the invariant is trivially true
+                // Apply the operation, which should advance the position of the element.
+                apply(cursor);
 
-                nodes.set(index, n);
-                // The node we swapped in may also need advancing. If so, repeat the procedure above.
-                if (n.currentTransition > transition)
-                    break;
+                // This method is called on the back path of the recursion. At this point the heaps at both children are
+                // advanced and well-formed.
+                // Place current node in its proper position.
+                self.heapifyDown(cursor, index);
+                // The heap rooted at index is now advanced and well-formed.
             }
+        }
 
-            // If the children are at the same transition byte, they also need advancing and their subheap
+
+        /**
+         * Advance the state of all inputs in the heap that are on equal position as the head and restore the heap
+         * invariant.
+         */
+        private void advanceEqualAndRestoreHeap(AdvancingHeapOp<T> action)
+        {
+            applyToEqualElementsInHeap(action, 0);
+        }
+
+        /**
+         * Apply an operation to all elements on the heap that are equal to the head. Descends recursively in the heap
+         * structure to all equal children and applies the operation on the way back.
+         *
+         * This operation can be something that does not change the cursor state (see {@link #content}) or an operation
+         * that advances the cursor to a new state, wrapped in a {@link AdvancingHeapOp} ({@link #advance} or
+         * {@link #skipChildren}). The latter interface takes care of pushing elements down in the heap after advancing
+         * and restores the subheap state on return from each level of the recursion.
+         */
+        private void applyToEqualElementsInHeap(HeapOp<T> action, int index)
+        {
+            if (index >= heap.length)
+                return;
+            Cursor<T> item = heap[index];
+            if (!equalCursor(item, head))
+                return;
+
+            // If the children are at the same position, they also need advancing and their subheap
             // invariant to be restored.
-            int next = index * 2 + 1;
-            if (next < nodes.size() && nodes.get(next).currentTransition == transition)
-                advance(transition, next);
-            ++next;
-            if (next < nodes.size() && nodes.get(next).currentTransition == transition)
-                advance(transition, next);
+            applyToEqualElementsInHeap(action, index * 2 + 1);
+            applyToEqualElementsInHeap(action, index * 2 + 2);
 
-            // At this point the heaps at both children are advanced and well-formed. Place current node in its
-            // proper position.
-            heapifyDown(index);
-            // The heap rooted at index is now advanced and well-formed.
+            // Apply the action. This is done on the reverse direction to give the action a chance to form proper
+            // subheaps and combine them on processing the parent.
+            action.apply(this, item, index);
         }
 
         /**
          * Push the given state down in the heap from the given index until it finds its proper place among
          * the subheap rooted at that position.
          */
-        private void heapifyDown(int index)
+        private void heapifyDown(Cursor<T> item, int index)
         {
-            Node<T, L> node = nodes.get(index);
-
-            int transition = node.currentTransition;
             while (true)
             {
                 int next = index * 2 + 1;
-                if (next >= nodes.size())
+                if (next >= heap.length)
                     break;
                 // Select the smaller of the two children to push down to.
-                if (next + 1 < nodes.size() && nodes.get(next).currentTransition > nodes.get(next + 1).currentTransition)
+                if (next + 1 < heap.length && greaterCursor(heap[next], heap[next + 1]))
                     ++next;
-                // If the child is greater, the invariant has been restored.
-                if (nodes.get(next).currentTransition >= transition)
+                // If the child is greater or equal, the invariant has been restored.
+                if (!greaterCursor(item, heap[next]))
                     break;
-                nodes.set(index, nodes.get(next));
+                heap[index] = heap[next];
                 index = next;
             }
-            nodes.set(index, node);
+            heap[index] = item;
         }
 
+        /**
+         * Check if the head is greater than the top element in the heap, and if so, swap them and push down the new
+         * top until its proper place.
+         * @param headDepth the depth of the head cursor (as returned by e.g. advance).
+         * @return the new head element's depth
+         */
+        private int maybeSwapHead(int headDepth)
+        {
+            int heap0Depth = heap[0].depth();
+            if (headDepth > heap0Depth ||
+                (headDepth == heap0Depth && head.incomingTransition() <= heap[0].incomingTransition()))
+                return headDepth;   // head is still smallest
+
+            // otherwise we need to swap heap and heap[0]
+            Cursor<T> newHeap0 = head;
+            head = heap[0];
+            heapifyDown(newHeap0, 0);
+            return heap0Depth;
+        }
+
+        @Override
+        public int advance()
+        {
+            advanceEqualAndRestoreHeap(Cursor::advance);
+            return maybeSwapHead(head.advance());
+        }
+
+        @Override
+        public int advanceMultiple(TransitionsReceiver receiver)
+        {
+            // If the current position is present in just one cursor, we can safely descend multiple levels within
+            // its branch as no one of the other tries has content for it.
+            if (equalCursor(heap[0], head))
+                return advance();   // More than one source at current position, do single-step advance.
+
+            // If there are no children, i.e. the cursor ascends, we have to check if it's become larger than some
+            // other candidate.
+            return maybeSwapHead(head.advanceMultiple(receiver));
+        }
+
+        @Override
+        public int skipChildren()
+        {
+            advanceEqualAndRestoreHeap(Cursor::skipChildren);
+            return maybeSwapHead(head.skipChildren());
+        }
+
+        @Override
+        public int depth()
+        {
+            return head.depth();
+        }
+
+        @Override
+        public int incomingTransition()
+        {
+            return head.incomingTransition();
+        }
+
+        @Override
         public T content()
         {
-            if (!contentMerged)
+            applyToEqualOnHeap(CollectionMergeCursor::collectContent);
+            collectContent(head, -1);
+
+            T toReturn;
+            switch (contents.size())
             {
-                // If we only have input from zero or one source, we will keep it here, avoiding the allocation
-                // of the list until necessary.
-                T v = null;
-                Collection<T> values = null;
-                for (Node<T, L> n : nodes)
-                {
-                    T c = n.content();
-                    if (c == null)
-                        continue;
-                    if (v == null)
-                    {
-                        v = c;  // one element
-                        continue;
-                    }
-                    if (values == null)
-                    {
-                        // more than one
-                        values = new ArrayList<>();
-                        values.add(v);
-                    }
-                    values.add(c);
-                }
-
-                if (values == null)
-                    content = v;
-                else
-                    content = resolver.resolve(values);
-
-                // Save content to avoid doing this costly operation again.
-                contentMerged = true;
+                case 0:
+                    toReturn = null;
+                    break;
+                case 1:
+                    toReturn = contents.get(0);
+                    break;
+                default:
+                    toReturn = resolver.resolve(contents);
+                    break;
             }
-            return content;
+            contents.clear();
+            return toReturn;
+        }
+
+        private void collectContent(Cursor<T> item, int index)
+        {
+            T itemContent = item.content();
+            if (itemContent != null)
+                contents.add(itemContent);
         }
     }
 

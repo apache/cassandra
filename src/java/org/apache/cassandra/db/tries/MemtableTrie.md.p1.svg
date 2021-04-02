@@ -90,7 +90,7 @@ digraph G {
         trees -> tree2 [label = " ~3"]
         tree2 -> tree2p [label = "0x0BB"]
         tree2p -> tre [label = "0x0BF"]
-        tre -> tr [label = "0x0DE"]
+        tre -> tr [label = "0x03B"]
         tr -> t [label = "0x07E"]
         t -> root [label = "0x09B"]
         root -> start [label = "0x09A"]
@@ -280,7 +280,7 @@ digraph G {
             <title>tre&#45;&gt;tr</title>
             <path fill="none" stroke="#ffc0cb" d="M220.1451,-399.8185C206.9606,-410.0222 196.0135,-423.5087 203.5777,-437.2526 207.8544,-445.0234 214.4401,-451.4422 221.7208,-456.6604"/>
             <polygon fill="#ffc0cb" stroke="#ffc0cb" points="230.4902,-462.2435 219.638,-460.6689 226.2725,-459.5582 222.0547,-456.8729 222.0547,-456.8729 222.0547,-456.8729 226.2725,-459.5582 224.4715,-453.0769 230.4902,-462.2435 230.4902,-462.2435"/>
-            <text text-anchor="middle" x="224.0665" y="-424.6526" font-family="Times,serif" font-size="14.00" fill="#ff0000">0x0DE</text>
+            <text text-anchor="middle" x="224.0665" y="-424.6526" font-family="Times,serif" font-size="14.00" fill="#ff0000">0x03B</text>
         </g>
         <!-- tre&#45;&gt;tree2p -->
         <g id="edge14" class="edge">
