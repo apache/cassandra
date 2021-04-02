@@ -72,3 +72,10 @@ lib/jsr223/jython/cachedir
 lib/jsr223/scala/*.jar
 
 .ant_targets
+
+# Python virtual environment
+venv/
+
+# build-scripts will put cassandra-builds and cassandra-dtest into the directory
+cassandra-builds/
+cassandra-dtest/
