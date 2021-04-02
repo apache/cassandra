@@ -21,12 +21,12 @@
 The `MemtableTrie` is one of the main components of the trie infrastructure, a mutable in-memory trie built for fast
 modification and reads executing concurrently with writes from a single mutator thread.
 
-The main features of its implementation is:
+The main features of its implementation are:
+- full support of the `Trie` interface
+- using nodes of several different types for efficiency
+- support for content on any node, including intermediate (prefix)
 - support for writes from a single mutator thread concurrent with multiple readers
-- full support of the Trie interface
-- uses nodes of several different types for efficiency
-- supports content on any node, including intermediate (prefix)
-- upper limit for the trie size
+- maximum trie size of 2GB
 
 
 ## Memory layout
@@ -299,8 +299,8 @@ Leading cell (e.g. `0x500`-`0x51F` with pointer `0x51C`)
 offset|content|example
 ---|---|---
 00 - 0F|unused|
-10 - 13|mid-cell for leading 00|00000520
-14 - 17|mid-cell for leading 01|00000560
+10 - 13|mid-cell for leading 00|0000053C
+14 - 17|mid-cell for leading 01|0000057C
 18 - 1B|mid-cell for leading 10|00000000 NONE
 1C - 1F|mid-cell for leading 11|00000000 NONE
 
@@ -314,7 +314,7 @@ offset|content|example
 0C - 0F|end-cell for middle 011|00000000 NONE
 10 - 13|end-cell for middle 100|00000000 NONE
 14 - 17|end-cell for middle 101|00000000 NONE
-18 - 1B|end-cell for middle 110|00000540
+18 - 1B|end-cell for middle 110|0000055C
 1C - 1F|end-cell for middle 111|00000000 NONE
 
 End cell `00 110` at `0x540`-`0x55F`:
@@ -334,9 +334,9 @@ Mid cell `01` at `0x560`-`0x57F`:
 
 offset|content|example
 ---|---|---
-00 - 03|end-cell for middle 000|00000580
+00 - 03|end-cell for middle 000|0000059C
 04 - 07|end-cell for middle 001|00000000 NONE
-08 - 0B|end-cell for middle 010|000005A0
+08 - 0B|end-cell for middle 010|000005BC
 0C - 0F|end-cell for middle 011|00000000 NONE
 10 - 13|end-cell for middle 100|00000000 NONE
 14 - 17|end-cell for middle 101|00000000 NONE
@@ -370,7 +370,7 @@ offset|content|example
 1C - 1F|pointer to child for ending 111|00000000 NONE
 
 To find a child in this structure, we follow the transitions along the bits of the mini-trie. For example, for `0x42`
-`B` = `0b01000010` we start at `0x51C`, take the `01` pointer to `0x560`, then the `000` pointer to `0x580` and finally
+`B` = `0b01000010` we start at `0x51C`, take the `01` pointer to `0x57C`, then the `000` pointer to `0x59C` and finally
 the `010` index to retrieve the node pointer `0x35C`. Note that the intermediate cells (dashed in the diagram) are not
 reachable with pointers, they only make sense as substructure of the split node.
 
@@ -426,7 +426,7 @@ offset|content|example
 1C - 1F|mid-cell for leading 11|00000000 NONE
 
 Both `0x51C` and `0x51F` are valid pointers in this cell. The former refers to the plain split node, the latter to its
-content-augmented version. The only difference between the two is the result of a call to `Node.content()`.
+content-augmented version. The only difference between the two is the result of a call to `content()`.
 
 ![graph](MemtableTrie.md.g4.svg)
 
@@ -437,47 +437,41 @@ content-augmented version. The only difference between the two is the result of 
 information is via some selection (i.e. intersection) of a subtrie followed by a walk over the content in this
 subtrie. Straightforward methods for direct retrieval of data by key are also provided, but they are mainly for testing.
 
-The `Trie` interface relies on nodes keeping track of the state of iteration, so that it can be continued over result
-consumption or pauses to retrieve information asynchronously. `MemtableTrie` supports this by providing `Trie.Node`
-implementations (residing in `MemtableReadTrie.xxxNode`) with several special features to aid quick walks over the
-trie's content:
+The methods for iterating over and transforming tries are provided by the `Trie` interface and are built on the cursor
+interface implemented by `MemtableTrie` (see `Trie.md` for a description of cursors).
 
-- Like all `Trie.Node` descendants, the nodes are stateful and keep track of the parent chain, as well as the current
- iteration position.
-- `Chain` nodes, which always have a single descendant, implement `getUniqueDescendant` so that walks can jump
- straight to the chain's child instead of walking it one character at a time; this also applies on backtracking
-  &mdash; the walk will skip over the intermediate nodes and go directly to the chain's parent.
-- `Chain` and `Sparse` nodes return `Remaining.ONE` to iteration requests when the returned item is the last. This
- helps with backtracking as it lets the walk know this node does not need to be visited on the backtracking path,
- which can jump straight to the parent.
+![graph](MemtableTrie.md.wc1.svg)
 
-As an example, suppose we want to walk the following trie:
+(Edges in black show the trie's structure, and the ones in <span style="color:lightblue">light blue</span> the path the cursor walk takes.)
 
-![graph](MemtableTrie.md.w1.svg)
+### Cursors over `MemtableTrie`
 
-The classic walk descends (blue) on every character and backtracks (pink) to the parent, resulting in the following
- walk:
+`MemtableTrie` implements cursors using arrays of integers to store the backtracking state (as the simplest
+possible structure that can be easily walked and garbage collected). No backtracking state is added for `Chain` or 
+`Leaf` nodes and any prefix. For `Sparse` we store the node address, depth and the remainder of the sparse order word.
+That is, we read the sparse order word on entry, peel off the next index to descend and store the remainder. When we 
+backtrack to the node we peel off another index -- if the remainder becomes 0, there are no further children and the 
+backtracking entry can be removed.
 
-![graph](MemtableTrie.md.w2.svg)
+For `Split` nodes we store one entry per split node cell. This means:
+- one entry for the head cell with address, depth and next child bits `0bHH000000` where HH is between 1 and 3
+- one entry for the mid cell with address, depth and next child bits `0bHHMMM000` where MMM is between 1 and 7
+- one entry for the tail cell with address, depth and next child bits `0bHHMMMTTT` where TTT is between 1 and 7
 
-Making use of `getUniqueDescendant` skips the intermediate transitions in `Chain` nodes, and also avoids the
-backtracking to the start of the chain (as there are no further transitions to examine there), resulting in:
+On backtracking we recognize the sublevel by the position of the lowest non-zero bit triple. For example, if the last
+three are not `0b000`, this is a tail cell, we can advance in it and use the HHMMM bits to form the transition byte.
 
-![graph](MemtableTrie.md.w3.svg)
+This substructure is a little more efficient than storing only one entry for the split node (the head-to-mid and 
+mid-to-tail links do not need to be followed for every new child) and also allows us to easily get the precise next 
+child and remove the backtracking entry when a cell has no further children.
 
-Finally, taking advantage of the `Remaining.ONE` returned by the `Sparse` node after the last child has been listed
-lets the backtracking avoid returning to that node, simplifying the walk to:
+`MemtableTrie` cursors also implement `advanceMultiple`, which jumps over intermediate nodes in `Chain` blocks:
 
-![graph](MemtableTrie.md.w4.svg)
-
-In addition to making the walk simpler, shortening the backtracking paths means a smaller walk state representation,
-which is quite helpful in keeping the garbage collection cost down.
-Technically, this is achieved by getting a child not with the current node in `parentLink`, but directly using
-the node's own `parentLink` (see `TrieValuesIterator.getChild` and `TrieIteratorWithKey.getChild`).
+![graph](MemtableTrie.md.wc2.svg)
 
 ## Mutation
 
-Mutation of `MemtableTrie` must be done by one thread only (for performance reasons we don't enforce it, user must
+Mutation of `MemtableTrie` must be done by one thread only (for performance reasons we don't enforce it, the user must
 make sure that's the case), but writes may be concurrent with multiple reads over the data that is being mutated. The
 trie is built to support this by making sure that any modification of a node is safe for any reader that is operating
 concurrently.
@@ -495,8 +489,8 @@ the trie node.
 
 ![graph](MemtableTrie.md.m1.svg)
 
-When it reaches the end of the path, it needs to attach the value. We don't support content in intermediate nodes, so
-we expect the matching trie node to either be `NONE` or a leaf node. Here it's `NONE`, so we create a item in the
+When it reaches the end of the path, it needs to attach the value. Unless this is a prefix of an existing entry, the 
+matching trie node will either be `NONE` or a leaf node. Here it's `NONE`, so we create a item in the
 content array, `contentArray[3]`, put the value in it, and thus form the leaf node `~3` (`0xFFFFFFFC`). The recursive
 process returns this to the previous step.
 
@@ -521,17 +515,18 @@ thus we need to copy this into a new `Sparse` node `0x0DE` with two children, th
 The parent step must then change its existing pointer for the character `a` from `0x018` to `0x0DE` which it can do in
 place by writing the new value in its pointer cell for `a`. This is the attachment point for the newly created
 substructure, i.e. before this, the new nodes were not reachable, and now become reachable; before this, the node
-`0x018 ` was reachable, and now becomes unreachable. The attachment is done by a volatile write, to enforce a happens
--before relationship that makes sure that all the new substructure (all written by this thread) is fully readable by all
-readers who pass through the new pointer (which is the only way they can reach it). The same happens-before also ensures
-that any new readers cannot reach the obsoleted nodes (there may be existing reader threads that are already in them).
+`0x018 ` was reachable, and now becomes unreachable. The attachment is done by a volatile write, to enforce a 
+happens-before relationship that makes sure that all the new substructure (all written by this thread) is fully readable
+by all readers who pass through the new pointer (which is the only way they can reach it). The same happens-before also 
+ensures that any new readers cannot reach the obsoleted nodes (there may be existing reader threads that are already in 
+them).
 
 It can then return its address `0x07E` unchanged up, and no changes need to be done in any of the remaining steps. The
 process finishes in a new value for `root`, which in this case remains unchanged.
 
 ![graph](MemtableTrie.md.m3.svg)
 
-The process created a few new nodes (in blue), and made one obsolete (in grey). What can concurrent readers see depends
+The process created a few new nodes (in blue), and made one obsolete (in grey). What concurrent readers can see depends
 on where they are at the time the attachment point write is done. Forward traversals, if they are in the path below
 `0x07E`, will continue working with the obsoleted data and will not see any of the new changes. If they are above
 `0x07E`, they will see the updated content. If they are _at_ the `0x07E` node, they may see either, depending on the
@@ -545,7 +540,7 @@ Note that if we perform multiple mutations in sequence, and a reader happens to 
 order), such reader may see only the mutation that is ahead of it _in iteration order_, which is not necessarily the
 mutation that happened first. For the example above, if we also inserted `trespass`, a reader thread that was paused
 at `0x018` in a forward traversal and wakes up after both insertions have completed will see `trespass`, but _will not_
-see `traverse` even though it was inserted earlier. This inconsistency is often undesirable.
+see `traverse` even though it was inserted earlier.
 
 ### In-place modifications
 
@@ -638,8 +633,8 @@ offset|content|before|after
 0C - 0F|end-cell for middle 011|00000000 NONE|00000000 NONE
 10 - 13|end-cell for middle 100|00000000 NONE|00000000 NONE
 14 - 17|end-cell for middle 101|00000000 NONE|00000000 NONE
-18 - 1B|end-cell for middle 110|00000540|00000540
-1C - 1F|end-cell for middle 111|00000000 NONE|_**00000720**_
+18 - 1B|end-cell for middle 110|0000055C|0000055C
+1C - 1F|end-cell for middle 111|00000000 NONE|_**0000073C**_
 
 The start cell, and the other mid and end cells remain unchanged.
 
@@ -691,13 +686,13 @@ is a volatile variable, so this also enforces the happens-before relationship we
 ### Merging a branch using `apply`
 
 This is a generalization of the mutation procedure above, which applies to more complex branches, where each node may
-potentially need multiple updates to attach more than one child. The process proceeds as above; instead of keeping the
-backtrack information in the call stack, we use the `Node.parentLink` pointers to point to `ApplyState` objects for
-each node, which point to
-- `mutationNode`, the node in the mutation trie, which contains a pointer up in its `parentLink`
-- `existingNode`, the corresponding pointer in the memtable trie
+potentially need multiple updates to attach more than one child. The process proceeds following the nodes that a cursor
+of the mutation trie produces and we maintain full (i.e. for all nodes in the parent chain) backtracking information in
+an array of integers that contains
+- `existingNode`, the corresponding pointer in the memtable trie,
 - `updatedNode`, the current corresponding pointer in the memtable trie, which may be different from the above if the
-  mutation node is branching and one or more of its children have been already added
+  mutation node is branching and one or more of its children have been already added,
+- `transition`, the incoming edge we took to reach the node.
 
 When we descend, we follow the transitions in the memtable trie corresponding to the ones from an iteration over the
 structure of the mutation trie to obtain the `existingNode` pointers, and initialize `updatedNode` to the same. When the
@@ -713,8 +708,8 @@ For example (adding a trie containing "traverse, truck" to the "tractor, tree, t
 
 ![graph](MemtableTrie.md.a1.svg)
 
-In this diagram `existingNode`s are the ones reached through the light blue arrows during the descent phase (e.g.
-`0x018` for the `ApplyState` at `tra`, or `NONE` for `tru`), and `updatedNode`s are the ones ascent (pink arrows)
+In this diagram `existingNode`s are the ones reached through the <span style="color:lightblue">light blue</span> arrows during the descent phase (e.g.
+`0x018` for the `ApplyState` at `tra`, or `NONE` for `tru`), and `updatedNode`s are the ones ascent (<span style="color:pink">pink</span> arrows)
 returns with (e.g . `0x0DE` and `0x0FA` for the respective states).
 
 During this process, readers can see any modifications made in place (each in-place modification is an attachment point
@@ -731,15 +726,19 @@ mutating thread applies the update during the pause.
 
 The descriptions above were given without prefix nodes. Handling prefixes is just a little complication over the update
 process where we must augment `updatedNode` with any applicable content before applying the change to the parent.
-To do this we expand the state tracked in `ApplyState` a little to:
-- `existingPreContentNode` which points to the existing node including any prefix
+To do this we expand the state tracked to:
+- `existingPreContentNode` which points to the existing node including any prefix,
 - `existingPostContentNode` which is obtained by skipping over the prefix (for simplicity we also treat leaf
   nodes like a prefix with no child) and is the base for all child updates (i.e. it takes the role of
-  `existingNode` in the descriptions above)
-- `updatedPostContentNode` which is the node as changed/copied after children modifications are applied
+  `existingNode` in the descriptions above),
+- `updatedPostContentNode` which is the node as changed/copied after children modifications are applied,
+- `contentIndex` which is the index in the content array for the result of merging existing and newly introduced 
+  content, (Note: The mutation content is only readable when the cursor enters the node, and we can only attach it when
+  we ascend from it.)
+- `transition` remains as before.
 
-and we then apply the content (from existing prefix or newly introduced) to compile an `updatedPreContentNode` which
-the parent is made to link to (which is equal to `updatedPostContentNode` if no content applies).
+and we then attach `contentIndex` to compile an `updatedPreContentNode` which the parent is made to link to. This will
+be equal to `updatedPostContentNode` if no content applies, i.e. `contentIndex == -1`.
 
 ("Pre-" and "post-" refer to descent/iteration order, not to construction order; e.g. `updatedPreContentNode` is
 constructed after `updatedPostContentNode` but links above it in the trie.)
@@ -748,7 +747,7 @@ As an example, consider the process of adding `trees` to our sample trie:
 
 ![graph](MemtableTrie.md.p1.svg)
 
-When descending at `tree` we set `existingPreContentNode = ~1` and `existingPostContentNode = NONE`. Ascending back
-to add the child `~3`, we add a child to `NONE` and get `updatedPostContentNode = 0x0BB`. To then apply the existing
-content, we create the embedded prefix node `updatedPreContentNode = 0x0BF` with `contentIndex = 1` and pass that on to
-the recursion.
+When descending at `tree` we set `existingPreContentNode = ~1`, `existingPostContentNode = NONE` and `contentIndex = 1`.
+Ascending back to add the child `~3`, we add a child to `NONE` and get `updatedPostContentNode = 0x0BB`. To then apply
+the existing content, we create the embedded prefix node `updatedPreContentNode = 0x0BF` with `contentIndex = 1` and
+pass that on to the recursion.

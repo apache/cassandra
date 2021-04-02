@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.db.tries;
 
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -25,19 +28,37 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
  * Convertor of trie entries to iterator where each entry is passed through {@link #mapContent} (to be implemented by
  * descendants).
  */
-public abstract class TrieEntriesIterator<T, V> extends TrieIteratorWithKey<T, V>
+public abstract class TrieEntriesIterator<T, V> extends TriePathReconstructor implements Iterator<V>
 {
+    private final Trie.Cursor<T> cursor;
+    T next;
+    boolean gotNext;
+
     protected TrieEntriesIterator(Trie<T> trie)
     {
-        super(trie);
+        cursor = trie.cursor();
+        assert cursor.depth() == 0;
+        next = cursor.content();
+        gotNext = next != null;
     }
 
-    V contentOf(Trie.Node<T, NodeWithPosition<T>> node)
+    public boolean hasNext()
     {
-        T content = node.content();
-        if (content == null)
-            return null;
-        return mapContent(content, path, ppos);
+        if (!gotNext)
+        {
+            next = cursor.advanceToContent(this);
+            gotNext = true;
+        }
+
+        return next != null;
+    }
+
+    public V next()
+    {
+        gotNext = false;
+        T v = next;
+        next = null;
+        return mapContent(v, keyBytes, keyPos);
     }
 
     protected abstract V mapContent(T content, byte[] bytes, int byteLength);
@@ -57,5 +78,10 @@ public abstract class TrieEntriesIterator<T, V> extends TrieIteratorWithKey<T, V
         {
             return toEntry(content, bytes, byteLength);
         }
+    }
+
+    static <T> java.util.Map.Entry<ByteComparable, T> toEntry(T content, byte[] bytes, int byteLength)
+    {
+        return new AbstractMap.SimpleImmutableEntry<>(toByteComparable(bytes, byteLength), content);
     }
 }
