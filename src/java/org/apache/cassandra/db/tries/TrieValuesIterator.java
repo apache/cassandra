@@ -17,41 +17,41 @@
  */
 package org.apache.cassandra.db.tries;
 
+import java.util.Iterator;
+
 /**
- * Convertor of trie contents to flow.
- *
- * Note: the type argument L must be equal to {@code Trie.Node<T, L>}, but we can't define such a recursive type in
- * Java. Using {@code <>} when instantiating works, but any subclasses will also need to declare this useless type
- * argument.
+ * Ordered iterator of trie content.
  */
-class TrieValuesIterator<T, L extends Trie.Node<T, L>> extends TrieIterator<T, L, T>
+class TrieValuesIterator<T> implements Iterator<T>
 {
-    public TrieValuesIterator(Trie<T> trie)
+    private final Trie.Cursor<T> cursor;
+    T next;
+    boolean gotNext;
+
+    protected TrieValuesIterator(Trie<T> trie)
     {
-        super(trie);
+        cursor = trie.cursor();
+        assert cursor.depth() == 0;
+        next = cursor.content();
+        gotNext = next != null;
     }
 
-    Trie.Node<T, L> getChild(Trie.Node<T, L> node, Trie.Remaining has)
+    public boolean hasNext()
     {
-        // If we know this is the last child for this node, we can just as well skip this node when backtracking,
-        final L parentLink = has == Trie.Remaining.ONE ? node.parentLink : (L) node;
+        if (!gotNext)
+        {
+            next = cursor.advanceToContent(null);
+            gotNext = true;
+        }
 
-        Trie.Node<T, L> child = node.getCurrentChild(parentLink);
-
-        // and as long as any child has single descendant, we don't need to backtrack to that either.
-        if (child != null)
-            child = child.getUniqueDescendant(parentLink, null);
-
-        return child;
+        return next != null;
     }
 
-    Trie.Node<T, L> exitNodeAndReturnParent(Trie.Node<T, L> n)
+    public T next()
     {
-        return n.parentLink;
-    }
-
-    T contentOf(Trie.Node<T, L> node)
-    {
-        return node.content();
+        gotNext = false;
+        T v = next;
+        next = null;
+        return v;
     }
 }

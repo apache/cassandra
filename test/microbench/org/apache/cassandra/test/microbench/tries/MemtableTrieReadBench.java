@@ -20,8 +20,11 @@ package org.apache.cassandra.test.microbench.tries;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import org.apache.cassandra.db.tries.MemtableTrie;
+import org.apache.cassandra.db.tries.Trie;
+import org.apache.cassandra.db.tries.TrieEntriesWalker;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.openjdk.jmh.annotations.*;
@@ -84,6 +87,66 @@ public class MemtableTrieReadBench
         for (byte b : trie.values())
             sum += b;
         return sum;
+    }
+
+    @Benchmark
+    public int consumeValues()
+    {
+        class Counter implements Trie.ValueConsumer<Byte>
+        {
+            int sum = 0;
+
+            @Override
+            public void accept(Byte aByte)
+            {
+                sum += aByte;
+            }
+        }
+        Counter counter = new Counter();
+        trie.forEachValue(counter);
+        return counter.sum;
+    }
+
+    @Benchmark
+    public int consumeEntries()
+    {
+        class Counter implements BiConsumer<ByteComparable, Byte>
+        {
+            int sum = 0;
+
+            @Override
+            public void accept(ByteComparable byteComparable, Byte aByte)
+            {
+                sum += aByte;
+            }
+        }
+        Counter counter = new Counter();
+        trie.forEachEntry(counter);
+        return counter.sum;
+    }
+
+    @Benchmark
+    public int processEntries()
+    {
+        class Counter extends TrieEntriesWalker<Byte, Void>
+        {
+            int sum = 0;
+
+            @Override
+            protected void content(Byte content, byte[] bytes, int byteLength)
+            {
+                sum += content;
+            }
+
+            @Override
+            public Void complete()
+            {
+                return null;
+            }
+        }
+        Counter counter = new Counter();
+        trie.process(counter);
+        return counter.sum;
     }
 
     @Benchmark
