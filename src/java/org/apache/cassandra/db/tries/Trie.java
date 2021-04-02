@@ -20,6 +20,8 @@ package org.apache.cassandra.db.tries;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableList;
@@ -30,224 +32,336 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 /**
  * Base class for tries.
  *
- * Normal users of tries will only use the public transformation methods, which various transformations of the trie
- * and conversion of its content to other formats (e.g. iterable of values).
+ * Normal users of tries will only use the public methods, which provide various transformations of the trie, conversion
+ * of its content to other formats (e.g. iterable of values), and several forms of processing.
  *
- * For any unimplemented data extraction operations one can rely on the TrieWalker (to aggregate value) and TrieIterator
- * (to iterator) base classes, which provide the necessary mechanisms to handle walking the trie.
+ * For any unimplemented data extraction operations one can build on the TrieEntriesWalker (for-each processing) and
+ * TrieEntriesIterator (to iterator) base classes, which provide the necessary mechanisms to handle walking the trie.
  *
- * The internal representation of tries using this interface is defined in the Node interface.
+ * The internal representation of tries using this interface is defined in the Cursor interface.
  *
- * Its design is largely defined by the requirement for iteratively retrieving content of the trie, for which it needs
- * to be able to represent and save the state of any traversal efficiently, so that it can be preserved while a consumer
- * is operating on an item. This also enables a possible future extension to support asynchronous retrieval of nodes.
+ * Cursors are a method of presenting the internal structure of a trie without representing nodes as objects, which is
+ * still useful for performing the basic operations on tries (iteration, slicing/intersection and merging). A cursor
+ * will list the nodes of a trie in order, together with information about the path that was taken to reach them.
  *
- * To enable that efficient state representation, the nodes that are used to retrieve the internal state of the trie are
- * light stateful objects and always contain a link to some parent state. The role of parent state can often be played
- * by the parent node, because its current state defines the transition that was taken to obtain the child, and it also
- * has a reference to its own parent, effectively building a stack of nodes left to process each holding its own state.
- * It is also possible to skip some levels of the descent in the state description, if e.g. there are no other paths to
- * examine at those levels to continue the traversal (see getUniqueDescendant). Some traversal types may require more
- * information (e.g. position in a character array or list of nodes being merged). The type of parent state link is
- * defined by the consumer through the generic parameter L and it is supplied by the consumer as an argument to the
- * getCurrentChild call -- that parent state is presented by the child in its parentLink field.
- *
- *
- * To begin traversal over a trie, one must retrieve the root node of the trie by calling root(). Because the nodes are
- * stateful, the traversal must always proceed from one thread. Should concurrent reads be required, separate calls to
- * root() must be made.
- *
- * Once a node is available, one can retrieve any associated content and list the children of the node along with their
- * associated transition byte by:
- * - calling startIteration to set the node's state to its first child
- * - retrieving the associated transition byte using the node's currentTransition field
- * - optionally retrieving the child using getCurrentChild giving it something you can use to restore your state
- *   to continue processing the rest of the children of this node
- * - when processing the child is complete/skipped or child is null, request the next child using advanceIteration and
- *   repeat
- * - if start/advanceIteration return null, there are no further children of the node
- * - if they return Remaining.ONE, this is the last child of the node (the inverse is not always true, nodes will try
- *   but do not guarantee they will report ONE on their last child)
- * - when the children are exhausted, use the node's parent link to restore your state to what it was when the relevant
- *   parent was being processed
- * For an example of simple traversal, see TrieWalker. For a more complex traversal example, refer to TrieValuesIterator
- * and TrieEntriesIterator.
+ * To begin traversal over a trie, one must retrieve a cursor by calling cursor(). Because cursors are stateful, the
+ * traversal must always proceed from one thread. Should concurrent reads be required, separate calls to cursor() must
+ * be made. Any modification that has completed before the construction of a cursor must be visible, but any later
+ * concurrent modifications may be presented fully, partially or not at all; this also means that if multiple are made,
+ * the cursor may see any part of any subset of them.
  *
  * Note: This model only supports depth-first traversals. We do not currently have a need for breadth-first walks.
  *
- * @param <T> The content type of the trie. Content is only allowed on leaf nodes.
+ * See Trie.md for further description of the trie representation model.
+ *
+ * @param <T> The content type of the trie.
  */
 public abstract class Trie<T>
 {
     /**
-     * Enum used to indicate the presence of more children during the iteration of a node.
-     * Generally iteration will return null or MULTIPLE, but it can return ONE if it is known that there are no further
-     * children to optimize walks.
+     * A trie cursor.
+     *
+     * This is the internal representation of the trie, which enables efficient walks and basic operations (merge,
+     * slice) on tries.
+     *
+     * The cursor represents the state of a walk over the nodes of trie. It provides three main features:
+     * - the current "depth" or descend-depth in the trie;
+     * - the "incomingTransition", i.e. the byte that was used to reach the current point;
+     * - the "content" associated with the current node,
+     * and provides methods for advancing to the next position.  This is enough information to extract all paths, and
+     * also to easily compare cursors over different tries that are advanced together. Advancing is always done in
+     * order; if one imagines the set of nodes in the trie with their associated paths, a cursor may only advance from a
+     * node with a lexicographically smaller path to one with bigger. The "advance" operation moves to the immediate
+     * next, it is also possible to skip over some items e.g. all children of the current node ("skipChildren").
+     *
+     * Moving to the immediate next position in the lexicographic order is accomplished by:
+     * - if the current node has children, moving to its first child;
+     * - otherwise, ascend the parent chain and return the next child of the closest parent that still has any.
+     * As long as the trie is not exhausted, advancing always takes one step down, from the current node, or from a node
+     * on the parent chain. By comparing the new depth (which "advance" also returns) with the one before the advance,
+     * one can tell if the former was the case (if newDepth == oldDepth + 1) and how many steps up we had to take
+     * (oldDepth + 1 - newDepth). When following a path down, the cursor will stop on all prefixes.
+     *
+     * When it is created the cursor is placed on the root node with depth() = 0, incomingTransition() = -1. Since
+     * tries can have mappings for empty, content() can possibly be non-null. It is not allowed for a cursor to start
+     * in exhausted state (i.e. with depth() = -1).
+     *
+     * For example, the following trie:
+     *  t
+     *   r
+     *    e
+     *     e *
+     *    i
+     *     e *
+     *     p *
+     *  w
+     *   i
+     *    n  *
+     * has nodes reachable with the paths
+     *  "", t, tr, tre, tree*, tri, trie*, trip*, w, wi, win*
+     * and the cursor will list them with the following (depth, incomingTransition) pairs:
+     *  (0, -1), (1, t), (2, r), (3, e), (4, e)*, (3, i), (4, e)*, (4, p)*, (1, w), (2, i), (3, n)*
+     *
+     * Because we exhaust transitions on bigger depths before we go the next transition on the smaller ones, when
+     * cursors are advanced together their positions can be easily compared using only the depth and incomingTransition:
+     * - one that is higher in depth is before one that is lower;
+     * - for equal depths, the one with smaller incomingTransition is first.
+     *
+     * If we consider walking the trie above in parallel with this:
+     *  t
+     *   r
+     *    i
+     *     c
+     *      k *
+     *  u
+     *   p *
+     * the combined iteration will proceed as follows:
+     *  (0, -1)+    (0, -1)+               cursors equal, advance both
+     *  (1, t)+     (1, t)+        t       cursors equal, advance both
+     *  (2, r)+     (2, r)+        tr      cursors equal, advance both
+     *  (3, e)+  <  (3, i)         tre     cursors not equal, advance smaller (3 = 3, e < i)
+     *  (4, e)+  <  (3, i)         tree*   cursors not equal, advance smaller (4 > 3)
+     *  (3, i)+     (3, i)+        tri     cursors equal, advance both
+     *  (4, e)   >  (4, c)+        tric    cursors not equal, advance smaller (4 = 4, e > c)
+     *  (4, e)   >  (5, k)+        trick*  cursors not equal, advance smaller (4 < 5)
+     *  (4, e)+  <  (1, u)         trie*   cursors not equal, advance smaller (4 > 1)
+     *  (4, p)+  <  (1, u)         trip*   cursors not equal, advance smaller (4 > 1)
+     *  (1, w)   >  (1, u)         u       cursors not equal, advance smaller (1 = 1, w > u)
+     *  (1, w)   >  (2, p)         up*     cursors not equal, advance smaller (1 = 1, w > u)
+     *  (1, w)+  <  (-1, -1)       w       cursors not equal, advance smaller (1 > -1)
+     *  (2, i)+  <  (-1, -1)       wi      cursors not equal, advance smaller (2 > -1)
+     *  (3, n)+  <  (-1, -1)       win*    cursors not equal, advance smaller (3 > -1)
+     *  (-1, -1)    (-1, -1)               both exhasted
      */
-    protected enum Remaining
+    interface Cursor<T>
     {
-        ONE, MULTIPLE
+
+        /**
+         * @return the current descend-depth; 0, if the cursor has just been created and is positioned on the root,
+         *         and -1, if the trie has been exhausted.
+         */
+        int depth();
+
+        /**
+         * @return the last transition taken; if positioned on the root, return -1
+         */
+        int incomingTransition();
+
+        /**
+         * @return the content associated with the current node. This may be non-null for any presented node, including
+         *         the root.
+         */
+        T content();
+
+        /**
+         * Advance one position to the node whose associated path is next lexicographically.
+         * This can be either:
+         * - descending one level to the first child of the current node,
+         * - ascending to the closest parent that has remaining children, and then descending one level to its next
+         *   child.
+         *
+         * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
+         * for performance reasons we won't always check this.
+         *
+         * @return depth (can be prev+1 or <=prev), -1 means that the trie is exhausted
+         */
+        int advance();
+
+        /**
+         * Advance, descending multiple levels if the cursor can do this for the current position without extra work
+         * (e.g. when positioned on a chain node in a memtable trie). If the current node does not have children this
+         * is exactly the same as advance(), otherwise it may take multiple steps down (but will not necessarily, even
+         * if they exist).
+         *
+         * Note that if any positions are skipped, their content must be null.
+         *
+         * This is an optional optimization; the default implementation falls back to calling advance.
+         *
+         * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
+         * for performance reasons we won't always check this.
+         *
+         * @param receiver object that will receive all transitions taken except the last;
+         *                 on ascend, or if only one step down was taken, it will not receive any
+         * @return the new depth, -1 if the trie is exhausted
+         */
+        default int advanceMultiple(TransitionsReceiver receiver)
+        {
+            return advance();
+        }
+
+        /**
+         * Advance all the way to the next node with non-null content.
+         *
+         * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
+         * for performance reasons we won't always check this.
+         *
+         * @param receiver object that will receive all taken transitions
+         * @return the content, null if the trie is exhausted
+         */
+        default T advanceToContent(ResettingTransitionsReceiver receiver)
+        {
+            int prevDepth = depth();
+            while (true)
+            {
+                int currDepth = advanceMultiple(receiver);
+                if (currDepth <= 0)
+                    return null;
+                if (receiver != null)
+                {
+                    if (currDepth <= prevDepth)
+                        receiver.resetPathLength(currDepth - 1);
+                    receiver.addPathByte(incomingTransition());
+                }
+                T content = content();
+                if (content != null)
+                    return content;
+                prevDepth = currDepth;
+            }
+        }
+
+        /**
+         * Ignore the current node's children and advance to the next child of the closest node on the parent chain that
+         * has any.
+         *
+         * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
+         * for performance reasons we won't always check this.
+         *
+         * @return the new depth, always <= previous depth; -1 if the trie is exhausted
+         */
+        int skipChildren();
     }
 
+    protected abstract Cursor<T> cursor();
+
     /**
-     * Used by {@link Node#getUniqueDescendant} to feed the transitions taken.
+     * Used by {@link Cursor#advanceMultiple} to feed the transitions taken.
      */
     protected interface TransitionsReceiver
     {
         /** Add a single byte to the path. */
-        void add(int t);
-        /** Add the count bytes from position pos at the given buffer. */
-        void add(UnsafeBuffer b, int pos, int count);
+        void addPathByte(int nextByte);
+        /** Add the count bytes from position pos in the given buffer. */
+        void addPathBytes(UnsafeBuffer buffer, int pos, int count);
     }
 
     /**
-     * A trie node. Provides methods for listing the transition bytes and children of the node, as well as its content.
-     * Once a node is made available, all its methods, except the ones retrieving children, must proceed without
-     * blocking or throwing exceptions.
-     *
-     * To enable efficient traversals the node effectively stores a call stack, a back link to the state that
-     * was used to obtain the node. This data is used to resume walks along the items in a trie.
-     *
-     * A node is a stateful non-thread-safe object. It is okay to access it from different threads, provided such
-     * accesses are not concurrent, i.e. there is a happens-before relationship between calling each of a node's
-     * methods.
+     * Used by {@link Cursor#advanceToContent} to track the transitions and backtracking taken.
      */
-    protected abstract static class Node<T, L>
+    interface ResettingTransitionsReceiver extends TransitionsReceiver
     {
-        /**
-         * Parent state, as set when {@link #getCurrentChild} or {@link #getUniqueDescendant} is called, or
-         * {@code null} if this is a root node.
-         * Often a node (which also holds its iteration state), but it does not need to be. Users/subscribers of the
-         * trie interface can choose what this link needs to contain, e.g. a merge node with a list of source nodes
-         * or a pair of a parent node with a byte array containing the key that leads to it.
-         */
-        public final L parentLink;
-
-        /** Current transition byte, set after each call to {@link #startIteration} and {@link #advanceIteration}. */
-        protected int currentTransition = -1;
-
-        protected Node(L parentLink)
-        {
-            this.parentLink = parentLink;
-        }
-
-        /**
-         * Sets up the node for forward iteration, positions it on the first child and sets {@link #currentTransition}.
-         * Note: It is expected that the node will be traversed only once, more precisely that no consumer will ask
-         * twice for the same child. Some implementations (e.g. singleton, subtrie) may fail if this is violated.
-         *
-         * @return null if the node has no children, otherwise {@link Remaining#MULTIPLE} or {@link Remaining#ONE} (if
-         * it knows this is the only transition).
-         */
-        public abstract Remaining startIteration();
-
-        /**
-         * Advances the node state to the next transition of the node and sets {@link #currentTransition}.
-         * <p>
-         * This can only be called after an iteration has been started by {@link #startIteration}.
-         *
-         * @return null if the node has no more children, otherwise {@link Remaining#MULTIPLE} or {@link Remaining#ONE}
-         * (if it knows this is the last transition).
-         *
-         * @throws IllegalStateException if no iteration has been started (with {@link #startIteration}), or if the
-         * preceding call to {@link #startIteration} or this method returned {@code null}. (Note: Implementations
-         * should permit this to be called after {@link Remaining#ONE}, which is redundant but easier to work with.)
-         */
-        public abstract Remaining advanceIteration();
-
-        /**
-         * Gets the child of this node corresponding to the current transition and with the given parent link.
-         * The current transition must have been set using {@link #startIteration} or {@link #advanceIteration},
-         * and it's an error to call this after either has returned {@code null}. This should only be
-         * called once for a given transition/child.
-         *
-         * The method may return null if the child turns out to not be present (e.g. in a dense node where it could be
-         * better to leave the check for the request call, or if a concurrent write has prepared the transition but not
-         * yet made it active by writing the child).
-         *
-         * @param parentLink the parent state to use to set {@link Node#parentLink} in the node provided as result to
-         * this request.
-         * @return the child corresponding to the current transition or null if the child does not exist
-         * (even though {@link #startIteration}/{@link #advanceIteration} thought it did).
-         */
-        public abstract Node<T, L> getCurrentChild(L parentLink);
-
-        /**
-         * If the node has exactly one child and no content, go to that child and continue descending while this is
-         * the case.
-         * This is done so that iteration over the content of the trie does not need to remember the parts of the path
-         * that are not branching points and thus don't need to be revisited while backtracking up the trie.
-         * Overridden by chain nodes (MemtableTrie.ChainNode); see TrieValuesIterator for usage.
-         * The receiver argument can be null if the caller does not need a record of the transitions taken.
-         */
-        public Node<T, L> getUniqueDescendant(L parentLink, TransitionsReceiver receiver)
-        {
-            return this;
-        }
-
-        /**
-         * The content of this node, if any.
-         *
-         * @return the content of this node, or {@code null} if it has no attached content.
-         */
-        public abstract T content();
+        /** Delete all bytes beyond the given length. */
+        void resetPathLength(int newLength);
     }
 
     /**
-     * Returns an instantiation of the root node with null parent link.
-     * This is the only method that needs to be implemented in children.
-     *
-     * @param <L> The type of parent link that will be used in the traversal.
+     * A push interface for walking over the trie. Builds upon TransitionsReceiver to be given the bytes of the
+     * path, and adds methods called on encountering content and completion.
+     * See {@link TrieDumper} for an example of how this can be used, and {@link TrieEntriesWalker} as a base class
+     * for other common usages.
      */
-    protected abstract <L> Node<T, L> root();
+    interface Walker<T, R> extends ResettingTransitionsReceiver
+    {
+        /** Called when content is found. */
+        void content(T content);
+
+        /** Called at the completion of the walk. */
+        R complete();
+    }
 
     // Version of the byte comparable conversion to use for all operations
     static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS41;
 
     /**
-     * Base helper class to write node having no childen.
+     * Adapter interface providing the methods a {@link Walker} to a {@link Consumer}, so that the latter can be used
+     * with {@link #process}.
+     *
+     * This enables calls like
+     *     trie.forEachEntry(x -> System.out.println(x));
+     * to be mapped directly to a single call to {@link #process} without extra allocations.
      */
-    protected abstract static class NoChildrenNode<T, L> extends Node<T, L>
+    public interface ValueConsumer<T> extends Consumer<T>, Walker<T, Void>
     {
-        NoChildrenNode(L parent)
+        default void content(T content)
         {
-            super(parent);
+            accept(content);
         }
 
-        public IllegalStateException error()
-        {
-            return new IllegalStateException("Node has no children.");
-        }
-
-        public Remaining startIteration()
+        default Void complete()
         {
             return null;
         }
 
-        public Remaining advanceIteration()
+        default void resetPathLength(int newDepth)
         {
-            throw error();
+            // not tracking path
         }
 
-        public Node<T, L> getCurrentChild(L parent)
+        default void addPathByte(int nextByte)
         {
-            throw error();
+            // not tracking path
+        }
+
+        default void addPathBytes(UnsafeBuffer buffer, int pos, int count)
+        {
+            // not tracking path
         }
     }
 
-    public <V> V walk(TrieWalker<T, V> walker)
+    /**
+     * Call the given consumer on all content values in the trie in order.
+     */
+    public void forEachValue(ValueConsumer<T> consumer)
     {
-        return TrieWalker.process(walker, this);
+        process(consumer);
     }
 
+    /**
+     * Call the given consumer on all (path, content) pairs with non-null content in the trie in order.
+     */
+    public void forEachEntry(BiConsumer<ByteComparable, T> consumer)
+    {
+        process(new TrieEntriesWalker.WithConsumer<T>(consumer));
+        // Note: we can't do the ValueConsumer trick here, because the implementation requires state and cannot be
+        // implemented with default methods alone.
+    }
+
+    /**
+     * Process the trie using the given Walker.
+     */
+    public <R> R process(Walker<T, R> walker)
+    {
+        return process(walker, cursor());
+    }
+
+    static <T, R> R process(Walker<T, R> walker, Cursor<T> cursor)
+    {
+        assert cursor.depth() == 0;
+        T content = cursor.content();   // handle content on the root node
+        if (content == null)
+            content = cursor.advanceToContent(walker);
+
+        while (content != null)
+        {
+            walker.content(content);
+            content = cursor.advanceToContent(walker);
+        }
+        return walker.complete();
+    }
+
+    /**
+     * Constuct a textual representation of the trie.
+     */
     public String dump()
     {
         return dump(Object::toString);
     }
 
+    /**
+     * Constuct a textual representation of the trie using the given content-to-string mapper.
+     */
     public String dump(Function<T, String> contentToString)
     {
-        return walk(new TrieDumper<>(contentToString));
+        return process(new TrieDumper<>(contentToString));
     }
 
     /**
@@ -260,6 +374,7 @@ public abstract class Trie<T>
 
     /**
      * Returns a view of the subtrie containing everything in this trie whose keys fall between the given boundaries.
+     * The view is live, i.e. any write to the source will be reflected in the subtrie.
      *
      * This method will throw an assertion error if the bounds provided are not correctly ordered, including with
      * respect to the `includeLeft` and `includeRight` constraints (i.e. subtrie(x, false, x, false) is an invalid call
@@ -276,8 +391,7 @@ public abstract class Trie<T>
     {
         if (left == null && right == null)
             return this;
-
-        return new SetIntersectionTrie<>(this, TrieSet.range(left, includeLeft, right, includeRight));
+        return new SlicedTrie<>(this, left, includeLeft, right, includeRight);
     }
 
     /**
@@ -386,10 +500,10 @@ public abstract class Trie<T>
 
     /**
      * Constructs a view of the merge of multiple tries. The view is live, i.e. any write to any of the
-     * sources will be reflected (eventually consistently) in the merged view.
+     * sources will be reflected in the merged view.
      *
-     * If there is content for a given key in more than one sources, the resolver will be called to obtain the combination.
-     * (The resolver will not be called if there's content from only one source.)
+     * If there is content for a given key in more than one sources, the resolver will be called to obtain the
+     * combination. (The resolver will not be called if there's content from only one source.)
      */
     public static <T> Trie<T> merge(Collection<? extends Trie<T>> sources, CollectionMergeResolver<T> resolver)
     {
@@ -439,9 +553,37 @@ public abstract class Trie<T>
 
     private static final Trie<Object> EMPTY = new Trie<Object>()
     {
-        public <L> Node<Object, L> root()
+        protected Cursor<Object> cursor()
         {
-            return null;
+            return new Cursor<Object>()
+            {
+                int depth = 0;
+
+                public int advance()
+                {
+                    return depth = -1;
+                }
+
+                public int skipChildren()
+                {
+                    return depth = -1;
+                }
+
+                public int depth()
+                {
+                    return depth;
+                }
+
+                public Object content()
+                {
+                    return null;
+                }
+
+                public int incomingTransition()
+                {
+                    return -1;
+                }
+            };
         }
     };
 

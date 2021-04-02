@@ -22,7 +22,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * Singleton trie, mapping the given key to value.
- * Formed as a chain of single-child SNodes leading to one ENode with no children and the given value as content.
  */
 class SingletonTrie<T> extends Trie<T>
 {
@@ -35,87 +34,69 @@ class SingletonTrie<T> extends Trie<T>
         this.value = value;
     }
 
-    private class ENode<L> extends NoChildrenNode<T, L>
+    public Cursor cursor()
     {
-        ENode(L parent)
-        {
-            super(parent);
-        }
-
-        @Override
-        public T content()
-        {
-            return value;
-        }
+        return new Cursor();
     }
 
-    private class SNode<L> extends Node<T, L>
+    class Cursor implements Trie.Cursor<T>
     {
-        private final ByteSource source;
-        boolean requested = false;
+        ByteSource src = key.asComparableBytes(BYTE_COMPARABLE_VERSION);
+        int currentDepth = 0;
+        int currentTransition = -1;
+        int nextTransition = src.next();
 
-        SNode(int trans, L parent, ByteSource source)
+        public int advance()
         {
-            super(parent);
-            this.currentTransition = trans;
-            this.source = source;
-        }
-
-        @Override
-        public Node<T, L> getCurrentChild(L parent)
-        {
-            // Requesting more than once will screw up the iteration of source.
-            assert !requested : "getCurrentChild can only be called once for a given transition.";
-            requested = true;
-            return makeNode(parent, source);
-        }
-
-        @Override
-        public Node<T, L> getUniqueDescendant(L parentLink, TransitionsReceiver receiver)
-        {
-            if (receiver != null)
+            currentTransition = nextTransition;
+            if (currentTransition != ByteSource.END_OF_STREAM)
             {
-                receiver.add(currentTransition);
-                int next;
-                while ((next = source.next()) != ByteSource.END_OF_STREAM)
-                {
-                    receiver.add(next);
-                }
+                nextTransition = src.next();
+                return ++currentDepth;
             }
-
-            return new ENode<>(parentLink);
+            else
+                return currentDepth = -1;
         }
 
         @Override
-        public Remaining startIteration()
+        public int advanceMultiple(TransitionsReceiver receiver)
         {
-            return Remaining.ONE;
+            if (nextTransition == ByteSource.END_OF_STREAM)
+                return currentDepth = -1;
+            int current = nextTransition;
+            int depth = currentDepth;
+            int next = src.next();
+            while (next != ByteSource.END_OF_STREAM)
+            {
+                if (receiver != null)
+                    receiver.addPathByte(current);
+                current = next;
+                next = src.next();
+                ++depth;
+            }
+            currentTransition = current;
+            nextTransition = next;
+            return currentDepth = ++depth;
         }
 
-        @Override
-        public Remaining advanceIteration()
+        public int skipChildren()
         {
-            return null;
+            return currentDepth = -1;  // no alternatives
         }
 
-        @Override
+        public int depth()
+        {
+            return currentDepth;
+        }
+
         public T content()
         {
-            return null;
+            return nextTransition == ByteSource.END_OF_STREAM ? value : null;
         }
-    }
 
-    private <L> Node<T, L> makeNode(L parent, ByteSource source)
-    {
-        int next = source.next();
-        if (next == ByteSource.END_OF_STREAM)
-            return new ENode<>(parent);
-        else
-            return new SNode<>(next, parent, source);
-    }
-
-    public <L> Node<T, L> root()
-    {
-        return makeNode(null, key.asComparableBytes(BYTE_COMPARABLE_VERSION));
+        public int incomingTransition()
+        {
+            return currentTransition;
+        }
     }
 }
