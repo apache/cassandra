@@ -243,7 +243,7 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         private CredentialsCache(PasswordAuthenticator authenticator)
         {
-            super("CredentialsCache",
+            super(CACHE_NAME,
                   DatabaseDescriptor::setCredentialsValidity,
                   DatabaseDescriptor::getCredentialsValidity,
                   DatabaseDescriptor::setCredentialsUpdateInterval,
@@ -262,6 +262,8 @@ public class PasswordAuthenticator implements IAuthenticator
 
     public static interface CredentialsCacheMBean extends AuthCacheMBean
     {
+        public static final String CACHE_NAME = "CredentialsCache";
+
         public void invalidateCredentials(String roleName);
     }
 }

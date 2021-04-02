@@ -477,10 +477,11 @@ public class AuthorizationProxy implements InvocationHandler
     }
 
     private static final class JMXPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+        implements JMXPermissionsCacheMBean
     {
         protected JMXPermissionsCache()
         {
-            super("JMXPermissionsCache",
+            super(CACHE_NAME,
                   DatabaseDescriptor::setPermissionsValidity,
                   DatabaseDescriptor::getPermissionsValidity,
                   DatabaseDescriptor::setPermissionsUpdateInterval,
@@ -490,5 +491,17 @@ public class AuthorizationProxy implements InvocationHandler
                   AuthorizationProxy::loadPermissions,
                   () -> true);
         }
+
+        public void invalidatePermissions(String roleName)
+        {
+            invalidate(RoleResource.role(roleName));
+        }
+    }
+
+    public static interface JMXPermissionsCacheMBean extends AuthCacheMBean
+    {
+        public static final String CACHE_NAME = "JMXPermissionsCache";
+
+        public void invalidatePermissions(String roleName);
     }
 }

@@ -18,25 +18,9 @@
 
 package org.apache.cassandra.auth;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-
-public class NetworkAuthCache extends AuthCache<RoleResource, DCPermissions> implements NetworkAuthCacheMBean
+public interface RolesCacheMBean extends AuthCacheMBean
 {
-    public NetworkAuthCache(INetworkAuthorizer authorizer)
-    {
-        super(CACHE_NAME,
-              DatabaseDescriptor::setRolesValidity,
-              DatabaseDescriptor::getRolesValidity,
-              DatabaseDescriptor::setRolesUpdateInterval,
-              DatabaseDescriptor::getRolesUpdateInterval,
-              DatabaseDescriptor::setRolesCacheMaxEntries,
-              DatabaseDescriptor::getRolesCacheMaxEntries,
-              authorizer::authorize,
-              () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
-    }
+    public static final String CACHE_NAME = "RolesCache";
 
-    public void invalidateNetworkAuths(String roleName)
-    {
-        invalidate(RoleResource.role(roleName));
-    }
+    void invalidateRoles(String primaryRoleName);
 }

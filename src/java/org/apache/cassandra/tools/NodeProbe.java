@@ -55,6 +55,15 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.auth.NetworkAuthCache;
+import org.apache.cassandra.auth.NetworkAuthCacheMBean;
+import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.auth.PermissionsCache;
+import org.apache.cassandra.auth.PermissionsCacheMBean;
+import org.apache.cassandra.auth.RolesCache;
+import org.apache.cassandra.auth.RolesCacheMBean;
+import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
@@ -133,6 +142,11 @@ public class NodeProbe implements AutoCloseable
     protected HintsServiceMBean hsProxy;
     protected BatchlogManagerMBean bmProxy;
     protected ActiveRepairServiceMBean arsProxy;
+    protected PasswordAuthenticator.CredentialsCacheMBean ccProxy;
+    protected AuthorizationProxy.JMXPermissionsCacheMBean jpcProxy;
+    protected NetworkAuthCacheMBean nacProxy;
+    protected PermissionsCacheMBean pcProxy;
+    protected RolesCacheMBean rcProxy;
     protected Output output;
     private boolean failed;
 
@@ -239,6 +253,16 @@ public class NodeProbe implements AutoCloseable
             bmProxy = JMX.newMBeanProxy(mbeanServerConn, name, BatchlogManagerMBean.class);
             name = new ObjectName(ActiveRepairServiceMBean.MBEAN_NAME);
             arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
+            ccProxy = JMX.newMBeanProxy(mbeanServerConn, name, PasswordAuthenticator.CredentialsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + AuthorizationProxy.JMXPermissionsCacheMBean.CACHE_NAME);
+            jpcProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuthorizationProxy.JMXPermissionsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + NetworkAuthCache.CACHE_NAME);
+            nacProxy = JMX.newMBeanProxy(mbeanServerConn, name, NetworkAuthCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PermissionsCache.CACHE_NAME);
+            pcProxy = JMX.newMBeanProxy(mbeanServerConn, name, PermissionsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + RolesCache.CACHE_NAME);
+            rcProxy = JMX.newMBeanProxy(mbeanServerConn, name, RolesCacheMBean.class);
         }
         catch (MalformedObjectNameException e)
         {
@@ -472,9 +496,59 @@ public class NodeProbe implements AutoCloseable
         cacheService.invalidateCounterCache();
     }
 
+    public void invalidateCredentialsCache()
+    {
+        ccProxy.invalidate();
+    }
+
+    public void invalidateCredentialsCache(String roleName)
+    {
+        ccProxy.invalidateCredentials(roleName);
+    }
+
+    public void invalidateJmxPermissionsCache()
+    {
+        jpcProxy.invalidate();
+    }
+
+    public void invalidateJmxPermissionsCache(String roleName)
+    {
+        jpcProxy.invalidatePermissions(roleName);
+    }
+
     public void invalidateKeyCache()
     {
         cacheService.invalidateKeyCache();
+    }
+
+    public void invalidateNetworkAuthCache()
+    {
+        nacProxy.invalidate();
+    }
+
+    public void invalidateNetworkAuthCache(String resourceName)
+    {
+        nacProxy.invalidateNetworkAuths(resourceName);
+    }
+
+    public void invalidatePermissionsCache()
+    {
+        pcProxy.invalidate();
+    }
+
+    public void invalidatePermissionsCache(String userName, String resourceName)
+    {
+        pcProxy.invalidatePermissions(userName, resourceName);
+    }
+
+    public void invalidateRolesCache()
+    {
+        rcProxy.invalidate();
+    }
+
+    public void invalidateRolesCache(String primaryRoleName)
+    {
+        rcProxy.invalidateRoles(primaryRoleName);
     }
 
     public void invalidateRowCache()
