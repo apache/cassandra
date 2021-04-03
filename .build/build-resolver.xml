@@ -15,47 +15,49 @@
   limitations under the License.
 -->
 <project basedir="." name="apache-cassandra--resolver-tasks"
-         xmlns:resolver="antlib:org.apache.maven.resolver.ant">
+         xmlns:resolver="antlib:org.apache.maven.resolver.ant"
+         xmlns:if="ant:if"
+         xmlns:unless="ant:unless">
 
     <!-- details of what version of Resolver ANT Tasks to fetch -->
     <property name="resolver-ant-tasks.version" value="1.3.0" />
-    <property name="resolver-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks"/>
+    <property name="resolver-ant-tasks.local" value="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}.jar"/>
     <property name="resolver-ant-tasks.url" value="https://repo1.maven.org/maven2/org/apache/maven/resolver/maven-resolver-ant-tasks" />
 
     <!-- version of lib/ downloads -->
     <property name="lib.download.sha" value="6c29ee84a2f62ccd05c328bbaa0c364eb1a7a821"/>
+
     <condition property="resolver-ant-tasks.jar.exists">
-        <available file="${build.dir}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar" />
+        <available file="${resolver-ant-tasks.local}" />
     </condition>
 
-    <condition property="resolver-ant-tasks.jar.local">
-        <available file="${resolver-ant-tasks.local}/${resolver-ant-tasks.version}/maven-resolver-${resolver-ant-tasks.version}-uber.jar" />
+    <!-- version of lib/ downloads -->
+    <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
+
+    <!-- jstackunit is not in maven central -->
+    <property name="jstackunit.local" value="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar"/>
+    <condition property="jstackunit.jar.exists">
+        <available file="${jstackunit.local}" />
     </condition>
 
-    <path id="resolver-ant-tasks.classpath" path="${build.dir}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar" />
+    <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
     <!--
-       Fetch Resolver Ant Tasks and Cassandra's dependencies
-       These targets are intentionally free of dependencies so that they
-       can be run stand-alone from a binary release artifact.
+       Fetch Resolver Ant Tasks and Cassandra's dependencies.
     -->
-    <target name="_resolver_localrepo" unless="resolver-ant-tasks.jar.exists" if="resolver-ant-tasks.jar.local"
-            depends="init" description="Fetch Resolver ANT Tasks from Maven Local Repository">
 
-        <copy file="${resolver-ant-tasks.local}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
-              tofile="${build.dir}/resolver-ant-tasks-${resolver-ant-tasks.version}.jar" quiet="true"/>
+    <target name="_resolver_download" unless="resolver-ant-tasks.jar.exists" description="Fetch Resolver ANT Tasks from Maven Central Repository">
+        <echo>Downloading Resolver ANT Tasks...</echo>
+        <mkdir dir="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
 
-        <property name="resolver-ant-tasks.jar.exists" value="true"/>
+        <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
+             dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
     </target>
 
-    <target name="_resolver_download" depends="init,_resolver_localrepo" unless="resolver-ant-tasks.jar.exists"
-            description="Fetch Resolver ANT Tasks from Maven Central Repositroy">
-
-        <echo>Downloading Resolver ANT Tasks...</echo>
-        <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
-             dest="${build.dir}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar" usetimestamp="true" quiet="true"/>
-        <copy file="${build.dir}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
-              tofile="${resolver-ant-tasks.local}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}.jar" quiet="true"/>
+    <target name="_jstackunit_download" unless="jstackunit.jar.exists" description="Fetch jstackunit">
+        <echo>Downloading jstackunit...</echo>
+        <mkdir dir="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1" />
+        <get src="https://github.com/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
     </target>
 
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
@@ -143,7 +145,7 @@
         <property name="resolver-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="resolver-retrieve-build" depends="resolver-init,write-poms">
+    <target name="resolver-retrieve-build" depends="resolver-init,_jstackunit_download,write-poms">
         <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
         <resolver:pom file="${build.dir}/${ant.project.name}-thrift-${version}.pom" id="thrift-pom"/>
         <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps"/>
@@ -160,24 +162,14 @@
         </resolver:resolve>
         <resolver:resolve>
             <remoterepos refid="all"/>
-            <dependencies pomRef="pom-deps">
-                <exclusion artifactId="tools"/>
-                <exclusion artifactId="asm"/>
-                <exclusion artifactId="asm-analysis"/>
-                <exclusion artifactId="asm-commons"/>
-                <exclusion artifactId="asm-tree"/>
-                <exclusion artifactId="asm-util"/>
-                <exclusion artifactId="asm-xml"/>
-            </dependencies>
+            <dependencies pomRef="pom-deps"/>
             <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
         </resolver:resolve>
 
-        <mkdir dir="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1" />
-        <get src="https://github.com/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar" usetimestamp="true" quiet="true"/>
-        <copy todir="${test.lib}/jars/" file="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar" quiet="true"/>
+        <copy todir="${test.lib}/jars/" file="${jstackunit.local}" quiet="true"/>
 
         <!-- jacoco agent jar comes wrapped in a jar -->
-        <unzip src="${test.lib}/jars/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
+        <unzip src="${user.home}/.m2/repository/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
             <patternset>
                 <include name="*.jar"/>
             </patternset>
