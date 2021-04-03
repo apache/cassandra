@@ -115,6 +115,7 @@
 
     <property name="byteman.version" value="3.0.3"/>
     <property name="bytebuddy.version" value="1.10.10"/>
+    <property name="jamm.version" value="0.3.0"/>
 
     <property name="ecj.version" value="4.4.2"/>
     <property name="asm.version" value="5.0.4"/>
@@ -154,21 +155,15 @@
         <pathelement location="${build.classes.thrift}" />
         <fileset dir="${build.dir.lib}">
             <include name="**/*.jar" />
-            <exclude name="**/*-sources.jar"/>
-            <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
     <path id="cassandra.classpath.test">
         <file file="${build.dir}/${final.name}.jar"/> <!-- we need the jar for tests and benchmarks (multi-version jar) -->
         <fileset dir="${build.dir.lib}">
             <include name="**/*.jar" />
-            <exclude name="**/*-sources.jar"/>
-            <exclude name="**/ant-*.jar"/>
         </fileset>
         <fileset dir="${test.lib}/jars">
             <include name="**/*.jar" />
-            <exclude name="**/*-sources.jar"/>
-            <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
 
@@ -359,8 +354,7 @@
           <dependency groupId="com.fasterxml.jackson.core" artifactId="jackson-annotations" version="2.9.10"/>
           <dependency groupId="com.googlecode.json-simple" artifactId="json-simple" version="1.1"/>
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
-          <dependency groupId="com.github.jbellis" artifactId="jamm" version="0.3.0"/>
-
+          <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
           <dependency groupId="com.thinkaurelius.thrift" artifactId="thrift-server" version="0.3.7">
             <exclusion groupId="org.slf4j" artifactId="slf4j-log4j12"/>
             <exclusion groupId="junit" artifactId="junit"/>
@@ -371,7 +365,9 @@
 	         <exclusion groupId="org.apache.httpcomponents" artifactId="httpclient"/>
 	         <exclusion groupId="org.apache.httpcomponents" artifactId="httpcore"/>
           </dependency>
-          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test"/>
+          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test">
+            <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
+          </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.8" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
@@ -452,6 +448,7 @@
           <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom"/>
           <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
           <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="test"/>
+          <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -528,6 +525,7 @@
 				
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom" scope="test"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
+        <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
         <!-- coverage debs -->
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" scope="test"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" scope="test"/>
