@@ -143,7 +143,6 @@
             <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
         </resolver:resolve>
 
-
         <!-- jacoco agent jar comes wrapped in a jar -->
         <unzip src="${user.home}/.m2/repository/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
             <patternset>
