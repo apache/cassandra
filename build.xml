@@ -267,21 +267,15 @@
         <pathelement location="${build.classes.main}" />
         <fileset dir="${build.dir.lib}">
             <include name="**/*.jar" />
-            <exclude name="**/*-sources.jar"/>
-            <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
     <path id="cassandra.classpath.test">
         <file file="${build.dir}/${final.name}.jar"/> <!-- we need the jar for tests and benchmarks (multi-version jar) -->
         <fileset dir="${build.dir.lib}">
             <include name="**/*.jar" />
-            <exclude name="**/*-sources.jar"/>
-            <exclude name="**/ant-*.jar"/>
         </fileset>
         <fileset dir="${test.lib}/jars">
             <include name="**/*.jar" />
-            <exclude name="**/*-sources.jar"/>
-            <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
 
@@ -530,7 +524,9 @@
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
-          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test"/>
+          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test">
+            <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
+          </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26" scope="test"/>
           <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" />
@@ -652,7 +648,10 @@
           <dependency groupId="org.junit" artifactId="junit-bom" version="5.6.0" type="pom" scope="test"/>
           <!-- when updating assertj, make sure to also update the corresponding junit-bom dependency -->
           <dependency groupId="org.assertj" artifactId="assertj-core" version="3.15.0" scope="test"/>
-          <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3"  scope="test"/>
+          <dependency groupId="org.awaitility" artifactId="awaitility" version="4.0.3"  scope="test">
+            <exclusion groupId="org.hamcrest" artifactId="hamcrest"/>
+          </dependency>
+          <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
         </dependencyManagement>
         <developer id="adelapena" name="Andres de la Peña"/>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -725,6 +724,7 @@
         <dependency groupId="org.junit" artifactId="junit-bom" type="pom" scope="test"/>
         <dependency groupId="org.assertj" artifactId="assertj-core" scope="test"/>
         <dependency groupId="org.awaitility" artifactId="awaitility" scope="test"/>
+        <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
         <!-- coverage debs -->
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" scope="test"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" scope="test"/>
@@ -918,6 +918,10 @@
     </target>
 
     <target name="stress-build" depends="build" description="build stress tool">
+        <antcall target="_stress_build"/>
+    </target>
+
+    <target name="_stress_build">
     	<mkdir dir="${stress.build.classes}" />
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
                source="${source.version}" target="${target.version}"
@@ -968,6 +972,10 @@
     </target>
 
     <target name="fqltool-build" depends="build" description="build fqltool">
+        <antcall target="_fqltool_build"/>
+    </target>
+
+    <target name="_fqltool_build">
     	<mkdir dir="${fqltool.build.classes}" />
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
                source="${source.version}" target="${target.version}"
@@ -1022,7 +1030,7 @@
       </jar>
     </target>
     <target name="jar"
-            depends="_main-jar, build-test, stress-build, fqltool-build, write-poms"
+            depends="_main-jar,build-test,stress-build,fqltool-build,write-poms"
             description="Assemble Cassandra JAR files">
       <!-- Stress jar -->
       <manifest file="${stress.manifest}">
@@ -1070,7 +1078,7 @@
       </jar>
     </target>
 
-    <target name="_artifacts-init" depends="jar,javadoc,resolver-dist-lib">
+    <target name="_artifacts-init" depends="jar,javadoc">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />
@@ -1267,7 +1275,7 @@
       </jar>
   </target>
 
-  <target name="build-test" depends="_main-jar, stress-build, fqltool-build,resolver-dist-lib" description="Compile test classes">
+  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib" description="Compile test classes">
     <antcall target="_build-test"/>
   </target>
 
