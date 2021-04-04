@@ -1220,7 +1220,7 @@
               <include name="jopt*.jar"/>
               <include name="commons*.jar"/>
           </zipgroupfileset>
-          <zipgroupfileset dir="{build.lib}" includes="*.jar"/>
+          <zipgroupfileset dir="${build.lib}" includes="*.jar"/>
       </jar>
       <jar jarfile="${build.test.dir}/benchmarks.jar">
           <manifest>

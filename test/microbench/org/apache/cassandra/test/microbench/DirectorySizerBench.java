@@ -35,7 +35,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 1)
 @Measurement(iterations = 30)
-@Fork(value = 1,jvmArgsAppend = "-Xmx512M")
+@Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
 public class DirectorySizerBench

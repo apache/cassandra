@@ -37,7 +37,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Thread)
 @Warmup(iterations = 4, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 8, time = 4, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1,jvmArgsAppend = "-Xmx512M")
+@Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @BenchmarkMode(Mode.SampleTime)
 public class PreaggregatedByteBufsBench
