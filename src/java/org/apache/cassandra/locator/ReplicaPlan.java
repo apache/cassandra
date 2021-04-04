@@ -148,7 +148,7 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
             this.live = live;
         }
 
-        public int blockFor() { return consistencyLevel.blockForWrite(keyspace, pending()); }
+        public int blockFor() { return consistencyLevel.blockForWrite(keyspace.getReplicationStrategy(), pending()); }
 
         /** Replicas that a region of the ring is moving to; not yet ready to serve reads, but should receive writes */
         public E pending() { return pending; }

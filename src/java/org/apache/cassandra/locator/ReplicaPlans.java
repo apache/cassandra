@@ -72,7 +72,7 @@ public class ReplicaPlans
 {
     private static final Logger logger = LoggerFactory.getLogger(ReplicaPlans.class);
 
-    public static boolean isSufficientLiveReplicasForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
+    public static boolean isSufficientLiveReplicasForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas)
     {
         switch (consistencyLevel)
         {
@@ -82,16 +82,16 @@ public class ReplicaPlans
             case LOCAL_ONE:
                 return countInOurDc(liveReplicas).hasAtleast(1, 1);
             case LOCAL_QUORUM:
-                return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(keyspace), 1);
+                return countInOurDc(liveReplicas).hasAtleast(localQuorumForOurDc(replicationStrategy), 1);
             case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                if (replicationStrategy instanceof NetworkTopologyStrategy)
                 {
                     int fullCount = 0;
-                    Collection<String> dcs = ((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getDatacenters();
+                    Collection<String> dcs = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
                     for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, liveReplicas))
                     {
                         Replicas.ReplicaCount count = entry.value;
-                        if (!count.hasAtleast(localQuorumFor(keyspace, entry.key), 0))
+                        if (!count.hasAtleast(localQuorumFor(replicationStrategy, entry.key), 0))
                             return false;
                         fullCount += count.fullReplicas();
                     }
@@ -99,20 +99,20 @@ public class ReplicaPlans
                 }
                 // Fallthough on purpose for SimpleStrategy
             default:
-                return liveReplicas.size() >= consistencyLevel.blockFor(keyspace)
+                return liveReplicas.size() >= consistencyLevel.blockFor(replicationStrategy)
                         && Replicas.countFull(liveReplicas) > 0;
         }
     }
 
-    static void assureSufficientLiveReplicasForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas) throws UnavailableException
+    static void assureSufficientLiveReplicasForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> liveReplicas) throws UnavailableException
     {
-        assureSufficientLiveReplicas(keyspace, consistencyLevel, liveReplicas, consistencyLevel.blockFor(keyspace), 1);
+        assureSufficientLiveReplicas(replicationStrategy, consistencyLevel, liveReplicas, consistencyLevel.blockFor(replicationStrategy), 1);
     }
-    static void assureSufficientLiveReplicasForWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
+    static void assureSufficientLiveReplicasForWrite(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, Endpoints<?> pendingWithDown) throws UnavailableException
     {
-        assureSufficientLiveReplicas(keyspace, consistencyLevel, allLive, consistencyLevel.blockForWrite(keyspace, pendingWithDown), 0);
+        assureSufficientLiveReplicas(replicationStrategy, consistencyLevel, allLive, consistencyLevel.blockForWrite(replicationStrategy, pendingWithDown), 0);
     }
-    static void assureSufficientLiveReplicas(Keyspace keyspace, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
+    static void assureSufficientLiveReplicas(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, Endpoints<?> allLive, int blockFor, int blockForFullReplicas) throws UnavailableException
     {
         switch (consistencyLevel)
         {
@@ -141,14 +141,14 @@ public class ReplicaPlans
                 break;
             }
             case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                if (replicationStrategy instanceof NetworkTopologyStrategy)
                 {
                     int total = 0;
                     int totalFull = 0;
-                    Collection<String> dcs = ((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getDatacenters();
+                    Collection<String> dcs = ((NetworkTopologyStrategy) replicationStrategy).getDatacenters();
                     for (ObjectObjectCursor<String, Replicas.ReplicaCount> entry : countPerDc(dcs, allLive))
                     {
-                        int dcBlockFor = localQuorumFor(keyspace, entry.key);
+                        int dcBlockFor = localQuorumFor(replicationStrategy, entry.key);
                         Replicas.ReplicaCount dcCount = entry.value;
                         if (!dcCount.hasAtleast(dcBlockFor, 0))
                             throw UnavailableException.create(consistencyLevel, entry.key, dcBlockFor, dcCount.allReplicas(), 0, dcCount.fullReplicas());
@@ -199,10 +199,10 @@ public class ReplicaPlans
         Replica localSystemReplica = SystemReplicas.getSystemReplica(FBUtilities.getBroadcastAddressAndPort());
 
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
+                systemKeypsace.getReplicationStrategy(),
                 EndpointsForToken.of(token, localSystemReplica),
                 EndpointsForToken.empty(token)
         );
-
         return forWrite(systemKeypsace, ConsistencyLevel.ONE, liveAndDown, liveAndDown, writeAll);
     }
 
@@ -231,16 +231,14 @@ public class ReplicaPlans
         if (chosenEndpoints.isEmpty() && isAny)
             chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
 
+        Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
+                systemKeypsace.getReplicationStrategy(),
                 SystemReplicas.getSystemReplicas(chosenEndpoints).forToken(token),
                 EndpointsForToken.empty(token)
         );
-
         // Batchlog is hosted by either one node or two nodes from different racks.
         ConsistencyLevel consistencyLevel = liveAndDown.all().size() == 1 ? ConsistencyLevel.ONE : ConsistencyLevel.TWO;
-
-        Keyspace systemKeypsace = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME);
-
         // assume that we have already been given live endpoints, and skip applying the failure detector
         return forWrite(systemKeypsace, consistencyLevel, liveAndDown, liveAndDown, writeAll);
     }
@@ -333,7 +331,7 @@ public class ReplicaPlans
     @VisibleForTesting
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForToken natural, EndpointsForToken pending, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
     {
-        return forWrite(keyspace, consistencyLevel, ReplicaLayout.forTokenWrite(natural, pending), isAlive, selector);
+        return forWrite(keyspace, consistencyLevel, ReplicaLayout.forTokenWrite(keyspace.getReplicationStrategy(), natural, pending), isAlive, selector);
     }
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Selector selector) throws UnavailableException
@@ -341,8 +339,7 @@ public class ReplicaPlans
         return forWrite(keyspace, consistencyLevel, liveAndDown, FailureDetector.isReplicaAlive, selector);
     }
 
-    @VisibleForTesting
-    public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
+    private static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
     {
         ReplicaLayout.ForTokenWrite live = liveAndDown.filter(isAlive);
         return forWrite(keyspace, consistencyLevel, liveAndDown, live, selector);
@@ -350,15 +347,20 @@ public class ReplicaPlans
 
     public static ReplicaPlan.ForTokenWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, ReplicaLayout.ForTokenWrite liveAndDown, ReplicaLayout.ForTokenWrite live, Selector selector) throws UnavailableException
     {
-        EndpointsForToken contacts = selector.select(keyspace, consistencyLevel, liveAndDown, live);
-        assureSufficientLiveReplicasForWrite(keyspace, consistencyLevel, live.all(), liveAndDown.pending());
+        assert liveAndDown.replicationStrategy() == live.replicationStrategy()
+               : "ReplicaLayout liveAndDown and live should be derived from the same replication strategy.";
+        EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
+        assureSufficientLiveReplicasForWrite(liveAndDown.replicationStrategy(), consistencyLevel, live.all(), liveAndDown.pending());
         return new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
 
     public interface Selector
     {
+        /**
+         * Select the {@code Endpoints} from {@param liveAndDown} and {@param live} to contact according to the consistency level.
+         */
         <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live);
+        E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live);
     }
 
     /**
@@ -371,7 +373,7 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+        E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             return liveAndDown.all();
         }
@@ -390,7 +392,7 @@ public class ReplicaPlans
     {
         @Override
         public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-        E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+        E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
         {
             if (!any(liveAndDown.all(), Replica::isTransient))
                 return liveAndDown.all();
@@ -406,7 +408,7 @@ public class ReplicaPlans
              * soft-ensure that we reach QUORUM in all DCs we are able to, by writing to every node;
              * even if we don't wait for ACK, we have in both cases sent sufficient messages.
               */
-            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+            ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(liveAndDown.replicationStrategy(), liveAndDown.pending());
             addToCountPerDc(requiredPerDc, live.natural().filter(Replica::isFull), -1);
             addToCountPerDc(requiredPerDc, live.pending(), -1);
 
@@ -438,7 +440,7 @@ public class ReplicaPlans
         {
             @Override
             public <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
-            E select(Keyspace keyspace, ConsistencyLevel consistencyLevel, L liveAndDown, L live)
+            E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live)
             {
                 assert !any(liveAndDown.all(), Replica::isTransient);
 
@@ -449,7 +451,7 @@ public class ReplicaPlans
                 // finally, add sufficient nodes to achieve our consistency level
                 if (consistencyLevel != EACH_QUORUM)
                 {
-                    int add = consistencyLevel.blockForWrite(keyspace, liveAndDown.pending()) - contacts.size();
+                    int add = consistencyLevel.blockForWrite(liveAndDown.replicationStrategy(), liveAndDown.pending()) - contacts.size();
                     if (add > 0)
                     {
                         for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
@@ -462,7 +464,7 @@ public class ReplicaPlans
                 }
                 else
                 {
-                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(keyspace, liveAndDown.pending());
+                    ObjectIntHashMap<String> requiredPerDc = eachQuorumForWrite(liveAndDown.replicationStrategy(), liveAndDown.pending());
                     addToCountPerDc(requiredPerDc, contacts.snapshot(), -1);
                     IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
                     for (Replica replica : filter(live.all(), r -> !contacts.contains(r)))
@@ -486,6 +488,7 @@ public class ReplicaPlans
     public static ReplicaPlan.ForPaxosWrite forPaxos(Keyspace keyspace, DecoratedKey key, ConsistencyLevel consistencyForPaxos) throws UnavailableException
     {
         Token tk = key.getToken();
+
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
 
         Replicas.temporaryAssertFull(liveAndDown.all()); // TODO CASSANDRA-14547
@@ -527,10 +530,9 @@ public class ReplicaPlans
                 : liveNaturalReplicas;
     }
 
-    private static <E extends Endpoints<E>> E contactForEachQuorumRead(Keyspace keyspace, E candidates)
+    private static <E extends Endpoints<E>> E contactForEachQuorumRead(NetworkTopologyStrategy replicationStrategy, E candidates)
     {
-        assert keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy;
-        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
 
         final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         return candidates.filter(replica -> {
@@ -539,7 +541,7 @@ public class ReplicaPlans
         });
     }
 
-    private static <E extends Endpoints<E>> E contactForRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, boolean alwaysSpeculate, E candidates)
+    private static <E extends Endpoints<E>> E contactForRead(AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, boolean alwaysSpeculate, E candidates)
     {
         /*
          * If we are doing an each quorum query, we have to make sure that the endpoints we select
@@ -550,10 +552,10 @@ public class ReplicaPlans
          *
          * TODO: this is still very inconistently managed between {LOCAL,EACH}_QUORUM and other consistency levels - should address this in a follow-up
          */
-        if (consistencyLevel == EACH_QUORUM && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-            return contactForEachQuorumRead(keyspace, candidates);
+        if (consistencyLevel == EACH_QUORUM && replicationStrategy instanceof NetworkTopologyStrategy)
+            return contactForEachQuorumRead((NetworkTopologyStrategy) replicationStrategy, candidates);
 
-        int count = consistencyLevel.blockFor(keyspace) + (alwaysSpeculate ? 1 : 0);
+        int count = consistencyLevel.blockFor(replicationStrategy) + (alwaysSpeculate ? 1 : 0);
         return candidates.subList(0, Math.min(count, candidates.size()));
     }
 
@@ -587,10 +589,11 @@ public class ReplicaPlans
      */
     public static ReplicaPlan.ForTokenRead forRead(Keyspace keyspace, Token token, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry)
     {
-        EndpointsForToken candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forTokenReadLiveSorted(keyspace, token).natural());
-        EndpointsForToken contacts = contactForRead(keyspace, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
+        EndpointsForToken candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forTokenReadLiveSorted(replicationStrategy, token).natural());
+        EndpointsForToken contacts = contactForRead(replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
-        assureSufficientLiveReplicasForRead(keyspace, consistencyLevel, contacts);
+        assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
         return new ReplicaPlan.ForTokenRead(keyspace, consistencyLevel, candidates, contacts);
     }
 
@@ -603,10 +606,11 @@ public class ReplicaPlans
      */
     public static ReplicaPlan.ForRangeRead forRangeRead(Keyspace keyspace, ConsistencyLevel consistencyLevel, AbstractBounds<PartitionPosition> range, int vnodeCount)
     {
-        EndpointsForRange candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(keyspace, range).natural());
-        EndpointsForRange contacts = contactForRead(keyspace, consistencyLevel, false, candidates);
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
+        EndpointsForRange candidates = candidatesForRead(consistencyLevel, ReplicaLayout.forRangeReadLiveSorted(replicationStrategy, range).natural());
+        EndpointsForRange contacts = contactForRead(replicationStrategy, consistencyLevel, false, candidates);
 
-        assureSufficientLiveReplicasForRead(keyspace, consistencyLevel, contacts);
+        assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
         return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates, contacts, vnodeCount);
     }
 
@@ -618,12 +622,13 @@ public class ReplicaPlans
         // TODO: should we be asserting that the ranges are adjacent?
         AbstractBounds<PartitionPosition> newRange = left.range().withNewRight(right.range().right);
         EndpointsForRange mergedCandidates = left.candidates().keep(right.candidates().endpoints());
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
 
         // Check if there are enough shared endpoints for the merge to be possible.
-        if (!isSufficientLiveReplicasForRead(keyspace, consistencyLevel, mergedCandidates))
+        if (!isSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, mergedCandidates))
             return null;
 
-        EndpointsForRange contacts = contactForRead(keyspace, consistencyLevel, false, mergedCandidates);
+        EndpointsForRange contacts = contactForRead(replicationStrategy, consistencyLevel, false, mergedCandidates);
 
         // Estimate whether merging will be a win or not
         if (!DatabaseDescriptor.getEndpointSnitch().isWorthMergingForRangeQuery(contacts, left.contacts(), right.contacts()))

@@ -77,7 +77,7 @@ public class ViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.load(meta);
 
-        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open("Keyspace1").getReplicationStrategy(),
                                                                              new StringToken("CA"),
                                                                              new StringToken("BB"));
 
@@ -110,7 +110,7 @@ public class ViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.load(meta);
 
-        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open("Keyspace1").getReplicationStrategy(),
                                                                              new StringToken("CA"),
                                                                              new StringToken("BB"));
 
@@ -142,7 +142,7 @@ public class ViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.load(meta);
 
-        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open("Keyspace1").getReplicationStrategy(),
                                                                              new StringToken("AB"),
                                                                              new StringToken("BB"));
 
