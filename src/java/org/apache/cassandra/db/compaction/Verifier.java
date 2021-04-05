@@ -59,6 +59,9 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 
@@ -69,7 +72,7 @@ public class Verifier implements Closeable
 
     private final CompactionController controller;
 
-
+    private final ReadWriteLock fileAccessLock;
     private final RandomAccessReader dataFile;
     private final RandomAccessReader indexFile;
     private final VerifyInfo verifyInfo;
@@ -102,11 +105,12 @@ public class Verifier implements Closeable
 
         this.controller = new VerifyController(cfs);
 
+        this.fileAccessLock = new ReentrantReadWriteLock();
         this.dataFile = isOffline
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
         this.indexFile = RandomAccessReader.open(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)));
-        this.verifyInfo = new VerifyInfo(dataFile, sstable);
+        this.verifyInfo = new VerifyInfo(dataFile, sstable, fileAccessLock.readLock());
         this.options = options;
         this.isOffline = isOffline;
         this.tokenLookup = options.tokenLookup;
@@ -445,8 +449,16 @@ public class Verifier implements Closeable
 
     public void close()
     {
-        FileUtils.closeQuietly(dataFile);
-        FileUtils.closeQuietly(indexFile);
+        fileAccessLock.writeLock().lock();
+        try
+        {
+            FileUtils.closeQuietly(dataFile);
+            FileUtils.closeQuietly(indexFile);
+        }
+        finally
+        {
+            fileAccessLock.writeLock().unlock();
+        }
     }
 
     private void throwIfFatal(Throwable th)
@@ -491,16 +503,19 @@ public class Verifier implements Closeable
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
         private final UUID verificationCompactionId;
+        private final Lock fileReadLock;
 
-        public VerifyInfo(RandomAccessReader dataFile, SSTableReader sstable)
+        public VerifyInfo(RandomAccessReader dataFile, SSTableReader sstable, Lock fileReadLock)
         {
             this.dataFile = dataFile;
             this.sstable = sstable;
+            this.fileReadLock = fileReadLock;
             verificationCompactionId = UUIDGen.getTimeUUID();
         }
 
         public CompactionInfo getCompactionInfo()
         {
+            fileReadLock.lock();
             try
             {
                 return new CompactionInfo(sstable.metadata(),
@@ -513,6 +528,10 @@ public class Verifier implements Closeable
             catch (Exception e)
             {
                 throw new RuntimeException();
+            }
+            finally
+            {
+                fileReadLock.unlock();
             }
         }
 

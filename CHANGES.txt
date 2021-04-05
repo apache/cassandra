@@ -1,4 +1,5 @@
 4.0-rc1
+ * Fix race between secondary index building and active compactions tracking (CASSANDRA-16554)
  * Migrate dependency handling from maven-ant-tasks to resolver-ant-tasks, removing lib/ directory from version control (CASSANDRA-16391)
  * Fix 4.0 node sending a repair prepare message to a 3.x node breaking the connection (CASSANDRA-16542)
  * Removed synchronized modifier from StreamSession#onChannelClose to prevent deadlocking on flush (CASSANDRA-15892)
