@@ -1736,17 +1736,25 @@
  	 <fileset dir="build/lib/jars">
   	    <include name="**/*.jar" />
   	 </fileset>
+     <fileset dir="build/test/lib/jars">
+        <include name="**/*.jar" />
+     </fileset>
   	</path>
   	<property name="eclipse-project-libs" refid="eclipse-project-libs-path"/>
-  	<script language="javascript" classpathref="cassandra.classpath"> <![CDATA[
-  		var File = java.io.File;
+       <script language="javascript">
+        <classpath>
+            <path refid="cassandra.classpath"/>
+            <path refid="cassandra.classpath.test"/>
+        </classpath>
+        <![CDATA[
+        var File = java.io.File;
   		var FilenameUtils = Packages.org.apache.commons.io.FilenameUtils;
   		jars = project.getProperty("eclipse-project-libs").split(project.getProperty("path.separator"));
 
   		cp = "";
   	    for (i=0; i< jars.length; i++) {
   	       srcjar = FilenameUtils.getBaseName(jars[i]) + '-sources.jar';
-  		   srcdir = FilenameUtils.concat(project.getProperty("build.dir.lib"), 'sources');
+           srcdir = FilenameUtils.concat(project.getProperty("build.test.dir"), 'sources');
   		   srcfile = new File(FilenameUtils.concat(srcdir, srcjar));
 
   		   cp += ' <classpathentry kind="lib" path="' + jars[i] + '"';
