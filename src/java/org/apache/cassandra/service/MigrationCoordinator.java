@@ -343,17 +343,29 @@ public class MigrationCoordinator
 
     Future<Void> scheduleSchemaPull(InetAddress endpoint, VersionInfo info)
     {
-        LocalAwareExecutorService stage = StageManager.getStage(Stage.MIGRATION);
         FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)), null);
         if (shouldPullImmediately(endpoint, info.version))
         {
-            stage.submit(task);
+            submitToMigrationIfNotShutdown(task);
         }
         else
         {
-            ScheduledExecutors.nonPeriodicTasks.schedule(() -> stage.submit(task), MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
+            ScheduledExecutors.nonPeriodicTasks.schedule(() -> submitToMigrationIfNotShutdown(task), MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
         }
         return task;
+    }
+
+    private static Future<?> submitToMigrationIfNotShutdown(Runnable task)
+    {
+        LocalAwareExecutorService stage = StageManager.getStage(Stage.MIGRATION);
+
+        if (stage.isShutdown() || stage.isTerminated())
+        {
+            logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            return null;
+        }
+        else
+            return stage.submit(task);
     }
 
     @VisibleForTesting
