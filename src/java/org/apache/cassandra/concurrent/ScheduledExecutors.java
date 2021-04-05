@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
