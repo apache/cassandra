@@ -66,6 +66,7 @@
                     <root url="file://$MODULE_DIR$/build/lib/sources" />
                 </SOURCES>
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/jars" recursive="false" />
+                <jarDirectory url="file://$MODULE_DIR$/build/test/lib/jars" recursive="false" />
                 <jarDirectory url="file://$MODULE_DIR$/build/lib/sources" recursive="false" type="SOURCES" />
             </library>
         </orderEntry>
