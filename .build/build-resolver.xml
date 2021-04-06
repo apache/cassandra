@@ -33,6 +33,8 @@
     <!-- version of lib/ downloads -->
     <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
 
+    <property name="artifact.github.release" value="https://github.com" />
+
     <!-- jstackunit is not in maven central -->
     <property name="jstackunit.local" value="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar"/>
     <condition property="jstackunit.jar.exists">
@@ -56,7 +58,7 @@
     <target name="_jstackunit_download" unless="jstackunit.jar.exists" description="Fetch jstackunit">
         <echo>Downloading jstackunit...</echo>
         <mkdir dir="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1" />
-        <get src="https://github.com/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
+        <get src="${artifact.github.release}/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
     </target>
 
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
