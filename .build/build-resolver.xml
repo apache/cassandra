@@ -68,49 +68,54 @@
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
 
         <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
-        <resolver:remoterepos id="all">
-            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
-            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
-        </resolver:remoterepos>
+        <!-- resolve doesn't really retry, so need to explicitly add extra retries to get stable -->
+        <retry retrycount="3">
+            <sequential>
+                <resolver:remoterepos id="all">
+                    <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
+                    <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+                </resolver:remoterepos>
 
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies>
-                <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
-                <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>
-            </dependencies>
-            <path refid="wikitext.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies>
-                <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
-            </dependencies>
-            <path refid="rat.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies>
-                <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" />
-            </dependencies>
-            <path refid="jacocoant.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies>
-                <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2"/>
-                <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2"/>
-                <dependency groupId="org.antlr" artifactId="ST4" version="4.0.8"/>
-            </dependencies>
-            <path refid="cql3-grammar.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies>
-                <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
-            </dependencies>
-            <path refid="jflex.classpath" classpath="runtime"/>
-        </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies>
+                        <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
+                        <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>
+                    </dependencies>
+                    <path refid="wikitext.classpath" classpath="runtime"/>
+                </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies>
+                        <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
+                    </dependencies>
+                    <path refid="rat.classpath" classpath="runtime"/>
+                </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies>
+                        <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" />
+                    </dependencies>
+                    <path refid="jacocoant.classpath" classpath="runtime"/>
+                </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies>
+                        <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2"/>
+                        <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2"/>
+                        <dependency groupId="org.antlr" artifactId="ST4" version="4.0.8"/>
+                    </dependencies>
+                    <path refid="cql3-grammar.classpath" classpath="runtime"/>
+                </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies>
+                        <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
+                    </dependencies>
+                    <path refid="jflex.classpath" classpath="runtime"/>
+                </resolver:resolve>
+            </sequential>
+        </retry>
 
         <macrodef name="install">
             <attribute name="pomFile"/>
@@ -151,23 +156,28 @@
     </target>
 
     <target name="resolver-retrieve-build" depends="resolver-init,_jstackunit_download,write-poms">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom">
-            <remoterepos refid="all"/>
-        </resolver:pom>
-        <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps">
-            <remoterepos refid="all"/>
-        </resolver:pom>
+        <!-- resolve doesn't really retry, so need to explicitly add extra retries to get stable -->
+        <retry retrycount="3">
+            <sequential>
+                <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom">
+                    <remoterepos refid="all"/>
+                </resolver:pom>
+                <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps">
+                    <remoterepos refid="all"/>
+                </resolver:pom>
 
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies pomRef="all-pom"/>
-            <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
-            <dependencies pomRef="pom-deps"/>
-            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
-        </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies pomRef="all-pom"/>
+                    <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
+                </resolver:resolve>
+                <resolver:resolve>
+                    <remoterepos refid="all"/>
+                    <dependencies pomRef="pom-deps"/>
+                    <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
+                </resolver:resolve>
+            </sequential>
+        </retry>
 
         <copy todir="${test.lib}/jars/" file="${jstackunit.local}" quiet="true"/>
 
