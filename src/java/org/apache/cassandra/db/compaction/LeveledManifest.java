@@ -666,11 +666,7 @@ public class LeveledManifest
 
     synchronized void newLevel(SSTableReader sstable, int oldLevel)
     {
-        boolean removed = generations.get(oldLevel).remove(sstable);
-        // if reload races with the metadataChanged notification the sstable might already be removed
-        if (!removed)
-            logger.warn("Could not remove "+sstable+" from "+oldLevel);
-        generations.addAll(Collections.singleton(sstable));
+        generations.newLevel(sstable, oldLevel);
         lastCompactedSSTables[oldLevel] = sstable;
     }
 
