@@ -180,7 +180,7 @@ public class ReplicaPlans
     {
         EndpointsForToken one = EndpointsForToken.of(token, replica);
         EndpointsForToken empty = EndpointsForToken.empty(token);
-        return new ReplicaPlan.ForTokenWrite(keyspace, ConsistencyLevel.ONE, empty, one, one, one);
+        return new ReplicaPlan.ForTokenWrite(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, empty, one, one, one);
     }
 
     /**
@@ -349,9 +349,10 @@ public class ReplicaPlans
     {
         assert liveAndDown.replicationStrategy() == live.replicationStrategy()
                : "ReplicaLayout liveAndDown and live should be derived from the same replication strategy.";
+        AbstractReplicationStrategy replicationStrategy = liveAndDown.replicationStrategy();
         EndpointsForToken contacts = selector.select(consistencyLevel, liveAndDown, live);
-        assureSufficientLiveReplicasForWrite(liveAndDown.replicationStrategy(), consistencyLevel, live.all(), liveAndDown.pending());
-        return new ReplicaPlan.ForTokenWrite(keyspace, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
+        assureSufficientLiveReplicasForWrite(replicationStrategy, consistencyLevel, live.all(), liveAndDown.pending());
+        return new ReplicaPlan.ForTokenWrite(keyspace, replicationStrategy, consistencyLevel, liveAndDown.pending(), liveAndDown.all(), live.all(), contacts);
     }
 
     public interface Selector
@@ -566,7 +567,7 @@ public class ReplicaPlans
     public static ReplicaPlan.ForTokenRead forSingleReplicaRead(Keyspace keyspace, Token token, Replica replica)
     {
         EndpointsForToken one = EndpointsForToken.of(token, replica);
-        return new ReplicaPlan.ForTokenRead(keyspace, ConsistencyLevel.ONE, one, one);
+        return new ReplicaPlan.ForTokenRead(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, one, one);
     }
 
     /**
@@ -576,7 +577,7 @@ public class ReplicaPlans
     {
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
         EndpointsForRange one = EndpointsForRange.of(replica);
-        return new ReplicaPlan.ForRangeRead(keyspace, ConsistencyLevel.ONE, range, one, one, vnodeCount);
+        return new ReplicaPlan.ForRangeRead(keyspace, keyspace.getReplicationStrategy(), ConsistencyLevel.ONE, range, one, one, vnodeCount);
     }
 
     /**
@@ -594,7 +595,7 @@ public class ReplicaPlans
         EndpointsForToken contacts = contactForRead(replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
         assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
-        return new ReplicaPlan.ForTokenRead(keyspace, consistencyLevel, candidates, contacts);
+        return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts);
     }
 
     /**
@@ -611,7 +612,7 @@ public class ReplicaPlans
         EndpointsForRange contacts = contactForRead(replicationStrategy, consistencyLevel, false, candidates);
 
         assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, range, candidates, contacts, vnodeCount);
+        return new ReplicaPlan.ForRangeRead(keyspace, replicationStrategy, consistencyLevel, range, candidates, contacts, vnodeCount);
     }
 
     /**
@@ -635,6 +636,6 @@ public class ReplicaPlans
             return null;
 
         // If we get there, merge this range and the next one
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, newRange, mergedCandidates, contacts, left.vnodeCount() + right.vnodeCount());
+        return new ReplicaPlan.ForRangeRead(keyspace, replicationStrategy, consistencyLevel, newRange, mergedCandidates, contacts, left.vnodeCount() + right.vnodeCount());
     }
 }

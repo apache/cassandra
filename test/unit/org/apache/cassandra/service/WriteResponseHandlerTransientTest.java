@@ -160,7 +160,7 @@ public class WriteResponseHandlerTransientTest
 
     private static ReplicaPlan.ForTokenWrite expected(EndpointsForToken natural, EndpointsForToken selected)
     {
-        return new ReplicaPlan.ForTokenWrite(ks, ConsistencyLevel.QUORUM, EndpointsForToken.empty(dummy.getToken()), natural, natural, selected);
+        return new ReplicaPlan.ForTokenWrite(ks, ks.getReplicationStrategy(), ConsistencyLevel.QUORUM, EndpointsForToken.empty(dummy.getToken()), natural, natural, selected);
     }
 
     private static ReplicaPlan.ForTokenWrite getSpeculationContext(EndpointsForToken natural, Predicate<InetAddressAndPort> livePredicate)

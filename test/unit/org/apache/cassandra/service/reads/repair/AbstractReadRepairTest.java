@@ -311,7 +311,7 @@ public abstract  class AbstractReadRepairTest
     }
     static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas, EndpointsForRange targets)
     {
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, targets, 1);
+        return new ReplicaPlan.ForRangeRead(keyspace, keyspace.getReplicationStrategy(), consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, targets, 1);
     }
 
     public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime);
