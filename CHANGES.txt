@@ -3,6 +3,7 @@
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
  * Add autocomplete and error messages for provide_overlapping_tombstones (CASSANDRA-16350)
  * Add StorageServiceMBean.getKeyspaceReplicationInfo(keyspaceName) (CASSANDRA-16447)
+ * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
  * Fix materialized view builders inserting truncated data (CASSANDRA-16567)
