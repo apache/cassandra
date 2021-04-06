@@ -81,11 +81,6 @@ public enum ConsistencyLevel
         return codeIdx[code];
     }
 
-    public static int quorumFor(Keyspace keyspace)
-    {
-        return quorumFor(keyspace.getReplicationStrategy());
-    }
-
     public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
     {
         return (replicationStrategy.getReplicationFactor().allReplicas / 2) + 1;
@@ -126,11 +121,6 @@ public enum ConsistencyLevel
         ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
         addToCountPerDc(perDc, pendingWithDown, 1);
         return perDc;
-    }
-
-    public int blockFor(Keyspace keyspace)
-    {
-        return blockFor(keyspace.getReplicationStrategy());
     }
 
     public int blockFor(AbstractReplicationStrategy replicationStrategy)
@@ -198,9 +188,8 @@ public enum ConsistencyLevel
      * Determine if this consistency level meets or exceeds the consistency requirements of the given cl for the given keyspace
      * WARNING: this is not locality aware; you cannot safely use this with mixed locality consistency levels (e.g. LOCAL_QUORUM and QUORUM)
      */
-    public boolean satisfies(ConsistencyLevel other, Keyspace keyspace)
+    public boolean satisfies(ConsistencyLevel other, AbstractReplicationStrategy replicationStrategy)
     {
-        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         return blockFor(replicationStrategy) >= other.blockFor(replicationStrategy);
     }
 
