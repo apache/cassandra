@@ -145,8 +145,12 @@
     </target>
 
     <target name="resolver-retrieve-build" depends="resolver-init,_jstackunit_download,write-poms">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
-        <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps"/>
+        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom">
+            <remoterepos refid="all"/>
+        </resolver:pom>
+        <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps">
+            <remoterepos refid="all"/>
+        </resolver:pom>
 
         <resolver:resolve>
             <remoterepos refid="all"/>
@@ -171,7 +175,9 @@
     </target>
 
     <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
+        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom">
+            <remoterepos refid="all"/>
+        </resolver:pom>
 
         <resolver:resolve failOnMissingAttachments="true">
             <remoterepos refid="all"/>
