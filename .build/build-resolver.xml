@@ -33,6 +33,7 @@
     <!-- version of lib/ downloads -->
     <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
 
+    <property name="artifact.python.pypi" value="https://files.pythonhosted.org/packages" />
     <property name="artifact.github.release" value="https://github.com" />
 
     <!-- jstackunit is not in maven central -->
@@ -190,8 +191,8 @@
         <mkdir dir="${build.lib}/sigar-bin"/>
 
         <!-- files.pythonhosted.org -->
-        <get src="https://files.pythonhosted.org/packages/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="https://files.pythonhosted.org/packages/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- python-driver -->
         <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.25.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
