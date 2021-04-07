@@ -1,5 +1,12 @@
-{% extends "defindex.html" %}
-{% block tables %}
+{% extends "layout.html" %}
+{%- block htmltitle -%}
+<title>{{ html_title }}</title>
+{%- endblock -%}
+{% block body %}
+  <h1>{{ docstitle|e }}</h1>
+  <p>
+  {% trans %}Welcome! This is the documentation for Apache Cassandra {{ version }}.{% endtrans %}
+  </p>
 <div id="wipwarning">This documentation is a work-in-progress.
     <a href="{{ pathto("bugs") }}">Contributions</a> are welcome.</div>
 
