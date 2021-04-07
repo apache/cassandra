@@ -72,10 +72,13 @@
             <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
         </resolver:remoterepos>
 
-        <!-- resolve doesn't really retry, so need to explicitly add extra retries to get stable -->
         <macrodef name="resolve">
             <!--
-              Address retries and defaults repos while setting up a resolver:resolve block
+              maven-resolver-ant-tasks's resolve logic doesn't have retry logic and does not respect settings.xml, 
+              this causes issues when overriding maven central is required (such as when behind a corporate firewall);
+              it is critical to always provide the 'all' remoterepos to override resolve's default hard coded logic.
+
+              This macro simplifies this logic by centralizing retries and forcing the remoterepo 'all' to be used.
             -->
             <attribute name="failonmissingattachments" default="true"/>
             <element name="elements" implicit="yes"/>
