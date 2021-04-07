@@ -38,12 +38,6 @@
     <property name="lib.download.base.url" value="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}" />
     <property name="lib.download.url.postfix" value="" />
 
-    <!-- jstackunit is not in maven central -->
-    <property name="jstackunit.local" value="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar"/>
-    <condition property="jstackunit.jar.exists">
-        <available file="${jstackunit.local}" />
-    </condition>
-
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
     <!--
@@ -56,12 +50,6 @@
 
         <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
              dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
-    </target>
-
-    <target name="_jstackunit_download" unless="jstackunit.jar.exists" description="Fetch jstackunit">
-        <echo>Downloading jstackunit...</echo>
-        <mkdir dir="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1" />
-        <get src="${artifact.github.release}/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
     </target>
 
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
@@ -177,7 +165,7 @@
         <property name="resolver-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="resolver-retrieve-build" depends="resolver-init,_jstackunit_download,write-poms">
+    <target name="resolver-retrieve-build" depends="resolver-init,write-poms">
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
         <resolvepom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps" />
 
@@ -190,7 +178,6 @@
             <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
         </resolve>
 
-        <copy todir="${test.lib}/jars/" file="${jstackunit.local}" quiet="true"/>
 
         <!-- jacoco agent jar comes wrapped in a jar -->
         <unzip src="${user.home}/.m2/repository/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
@@ -252,7 +239,6 @@
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
-            <file file="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
         </copy>
         <copy todir="${build.lib}/sigar-bin/" quiet="true">
