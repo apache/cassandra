@@ -62,7 +62,6 @@ public enum Stage
     INTERNAL_RESPONSE ("InternalResponseStage", "internal", FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedStage),
     IMMEDIATE         ("ImmediateStage",        "internal", () -> 0,                                         null,                                            Stage::immediateExecutor);
 
-
     public static final long KEEP_ALIVE_SECONDS = 60; // seconds to keep "extra" threads alive for when idle
     public final String jmxName;
     private final Supplier<LocalAwareExecutorService> initialiser;
@@ -124,7 +123,7 @@ public enum Stage
     // Convenience functions to execute on this stage
     public void execute(Runnable command) { executor().execute(command); }
     public void execute(Runnable command, ExecutorLocals locals) { executor().execute(command, locals); }
-    public void maybeExecuteImmediately(Runnable command) { executor().maybeExecuteImmediately(command); };
+    public void maybeExecuteImmediately(Runnable command) { executor().maybeExecuteImmediately(command); }
     public <T> Future<T> submit(Callable<T> task) { return executor().submit(task); }
     public Future<?> submit(Runnable task) { return executor().submit(task); }
     public <T> Future<T> submit(Runnable task, T result) { return executor().submit(task, result); }
