@@ -17,15 +17,10 @@
  */
 package org.apache.cassandra.concurrent;
 
-import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-
-import org.apache.cassandra.utils.ExecutorUtils;
 
 import org.apache.cassandra.utils.ExecutorUtils;
 

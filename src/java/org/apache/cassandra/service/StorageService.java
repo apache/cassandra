@@ -4429,6 +4429,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     {
                         logger.info("failed to shutdown message service: {}", ioe);
                     }
+
                     Stage.shutdownNow();
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
                     setMode(Mode.DECOMMISSIONED, true);
@@ -4967,7 +4968,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ScheduledExecutors.nonPeriodicTasks.shutdown();
             if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, MINUTES))
-                logger.warn("Failed to wait for non periodic tasks to shutdown");
+                logger.warn("Unable to terminate non-periodic tasks within 1 minute.");
 
             ColumnFamilyStore.shutdownPostFlushExecutor();
             setMode(Mode.DRAINED, !isFinalShutdown);

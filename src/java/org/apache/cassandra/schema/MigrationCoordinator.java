@@ -19,7 +19,6 @@
 package org.apache.cassandra.schema;
 
 import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -355,13 +354,24 @@ public class MigrationCoordinator
         FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)), null);
         if (shouldPullImmediately(endpoint, info.version))
         {
-            Stage.MIGRATION.submit(task);
+            submitToMigrationIfNotShutdown(task);
         }
         else
         {
-            ScheduledExecutors.nonPeriodicTasks.schedule(() -> Stage.MIGRATION.submit(task), MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
+            ScheduledExecutors.nonPeriodicTasks.schedule(()->submitToMigrationIfNotShutdown(task), MIGRATION_DELAY_IN_MS, TimeUnit.MILLISECONDS);
         }
         return task;
+    }
+
+    private static Future<?> submitToMigrationIfNotShutdown(Runnable task)
+    {
+        if (Stage.MIGRATION.executor().isShutdown() || Stage.MIGRATION.executor().isTerminated())
+        {
+            logger.info("Skipped scheduled pulling schema from other nodes: the MIGRATION executor service has been shutdown.");
+            return null;
+        }
+        else
+            return Stage.MIGRATION.submit(task);
     }
 
     @VisibleForTesting
