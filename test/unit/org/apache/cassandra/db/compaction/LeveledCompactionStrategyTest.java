@@ -662,7 +662,7 @@ public class LeveledCompactionStrategyTest
     }
 
     @Test
-    public void singleTokenSSTableTest()
+    public void testSingleTokenSSTable()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
@@ -695,10 +695,10 @@ public class LeveledCompactionStrategyTest
     }
 
     @Test
-    public void randomMultiLevelAddTest()
+    public void testRandomMultiLevelAdd()
     {
         int iterations = 100;
-        int levelCount = 8;
+        int levelCount = 9;
 
         ColumnFamilyStore cfs = MockSchema.newCFS();
         LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
@@ -822,5 +822,22 @@ public class LeveledCompactionStrategyTest
     {
         assertEquals(l1.size(), l2.size());
         assertEquals(new HashSet<>(l1), new HashSet<>(l2));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testErrorWhenMoreDataThanSupportedExistOnHighestLevel()
+    {
+        int fanoutSize = 2; // to generate less sstables
+        int highestLevel = 8;
+
+        int maxBytesForHighestLevel = (int) (Math.pow(fanoutSize, highestLevel) * 1024 * 1024);
+        int sstablesSizeForHighestLevel = (int) (maxBytesForHighestLevel * 1.001) + 1;
+
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        LeveledManifest lm = new LeveledManifest(cfs, 1, fanoutSize, new SizeTieredCompactionStrategyOptions());
+        List<SSTableReader> sstables = Collections.singletonList(MockSchema.sstableWithLevel( 1, sstablesSizeForHighestLevel, highestLevel, cfs));
+        lm.addSSTables(sstables);
+
+        lm.getCompactionCandidates();
     }
 }

@@ -49,9 +49,10 @@ class LeveledGenerations
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledGenerations.class);
     private final boolean strictLCSChecksTest = Boolean.getBoolean(Config.PROPERTY_PREFIX + "test.strict_lcs_checks");
-    // allocate enough generations for a PB of data, with a 1-MB sstable size.  (Note that if maxSSTableSize is
-    // updated, we will still have sstables of the older, potentially smaller size.  So don't make this
-    // dependent on maxSSTableSize.)
+    // Allocate enough generations to handle about 95 TB of data, with a 1-MB sstable size and default fanout size
+    // (10). (Note that if maxSSTableSize is updated, we will still have sstables of the older, potentially smaller
+    // size. So don't make this dependent on maxSSTableSize). Max level count actually includes L0 and finally, we
+    // support [L0 - L8] levels with the current implementation.
     static final int MAX_LEVEL_COUNT = (int) Math.log10(1000 * 1000 * 1000);
 
     private final Set<SSTableReader> l0 = new HashSet<>();
@@ -74,7 +75,7 @@ class LeveledGenerations
 
     Set<SSTableReader> get(int level)
     {
-        if (level > levelCount() - 1 || level < 0)
+        if (level >= levelCount() || level < 0)
             throw new ArrayIndexOutOfBoundsException("Invalid generation " + level + " - maximum is " + (levelCount() - 1));
         if (level == 0)
             return l0;
@@ -142,7 +143,7 @@ class LeveledGenerations
                 after != null && after.first.compareTo(sstable.last) <= 0)
             {
                 if (strictLCSChecksTest) // we can only assert this in tests since this is normal when for example moving sstables from unrepaired to repaired
-                    throw new AssertionError("Got unexpected overlap in level "+sstable.getSSTableLevel());
+                    throw new AssertionError("Got unexpected overlap in level " + sstable.getSSTableLevel());
                 sendToL0(sstable);
             }
             else
@@ -222,16 +223,17 @@ class LeveledGenerations
      * given a level with sstables with first tokens [0, 10, 20, 30] and a lastCompactedSSTable with last = 15, we will
      * return an Iterator over [20, 30, 0, 10].
      */
-    Iterator<SSTableReader> wrappingIterator(int lvl, SSTableReader lastCompactedSSTable)
+    Iterator<SSTableReader> wrappingIterator(int level, SSTableReader lastCompactedSSTable)
     {
-        assert lvl > 0; // only makes sense in L1+
-        TreeSet<SSTableReader> level = levels[lvl - 1];
-        if (level.isEmpty())
+        assert level > 0; // only makes sense in L1+
+        TreeSet<SSTableReader> sstables = levels[level - 1];
+        if (sstables.isEmpty())
             return Collections.emptyIterator();
         if (lastCompactedSSTable == null)
-            return level.iterator();
+            return sstables.iterator();
 
-        PeekingIterator<SSTableReader> tail = Iterators.peekingIterator(level.tailSet(lastCompactedSSTable).iterator());
+        PeekingIterator<SSTableReader> tail = Iterators.peekingIterator(
+                sstables.tailSet(lastCompactedSSTable).iterator());
         SSTableReader pivot = null;
         // then we need to make sure that the first token of the pivot is greater than the last token of the lastCompactedSSTable
         while (tail.hasNext())
@@ -246,9 +248,9 @@ class LeveledGenerations
         }
 
         if (pivot == null)
-            return level.iterator();
+            return sstables.iterator();
 
-        return Iterators.concat(tail, level.headSet(pivot, false).iterator());
+        return Iterators.concat(tail, sstables.headSet(pivot, false).iterator());
     }
 
     void logDistribution()
