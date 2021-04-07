@@ -35,7 +35,6 @@
 
     <!-- some artifacts are fetched from github as blobs; these are all in the cassandra project, but in an older commit -->
     <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
-    <property name="lib.download.address" value="raw.githubusercontent.com" />
     <property name="lib.download.base.url" value="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}" />
     <property name="lib.download.url.postfix" value="" />
 
