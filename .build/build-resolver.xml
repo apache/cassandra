@@ -30,8 +30,13 @@
         <available file="${resolver-ant-tasks.local}" />
     </condition>
 
-    <!-- version of lib/ downloads -->
+    <property name="artifact.python.pypi" value="https://files.pythonhosted.org/packages" />
+    <property name="artifact.github.release" value="https://github.com" />
+
+    <!-- some artifacts are fetched from github as blobs; these are all in the cassandra project, but in an older commit -->
     <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
+    <property name="lib.download.base.url" value="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}" />
+    <property name="lib.download.url.postfix" value="" />
 
     <!-- jstackunit is not in maven central -->
     <property name="jstackunit.local" value="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar"/>
@@ -56,7 +61,7 @@
     <target name="_jstackunit_download" unless="jstackunit.jar.exists" description="Fetch jstackunit">
         <echo>Downloading jstackunit...</echo>
         <mkdir dir="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1" />
-        <get src="https://github.com/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
+        <get src="${artifact.github.release}/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
     </target>
 
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
@@ -67,44 +72,72 @@
             <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
         </resolver:remoterepos>
 
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        <macrodef name="resolve">
+            <!--
+              maven-resolver-ant-tasks's resolve logic doesn't have retry logic and does not respect settings.xml, 
+              this causes issues when overriding maven central is required (such as when behind a corporate firewall);
+              it is critical to always provide the 'all' remoterepos to override resolve's default hard coded logic.
+
+              This macro simplifies this logic by centralizing retries and forcing the remoterepo 'all' to be used.
+            -->
+            <attribute name="failonmissingattachments" default="true"/>
+            <element name="elements" implicit="yes"/>
+            <sequential>
+                <retry retrycount="3">
+                  <resolver:resolve failonmissingattachments="@{failonmissingattachments}">
+                        <resolver:remoterepos refid="all"/>
+                        <elements/>
+                    </resolver:resolve>
+                </retry>
+            </sequential>
+        </macrodef>
+        <macrodef name="resolvepom">
+            <attribute name="file"/>
+            <attribute name="id"/>
+            <element name="elements" implicit="yes" optional="yes"/>
+            <sequential>
+                <retry retrycount="3">
+                    <resolver:pom file="@{file}" id="@{id}">
+                          <remoterepos refid="all"/>
+                          <elements/>
+                    </resolver:pom>
+                </retry>
+            </sequential>
+        </macrodef>
+
+        <resolve>
             <dependencies>
                 <dependency groupId="com.datastax.wikitext" artifactId="wikitext-core-ant" version="1.3"/>
                 <dependency groupId="org.fusesource.wikitext" artifactId="textile-core" version="1.3"/>
             </dependencies>
             <path refid="wikitext.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        </resolve>
+        <resolve>
             <dependencies>
                 <dependency groupId="org.apache.rat" artifactId="apache-rat-tasks" version="0.6" />
             </dependencies>
             <path refid="rat.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        </resolve>
+        <resolve>
             <dependencies>
                 <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" />
             </dependencies>
             <path refid="jacocoant.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        </resolve>
+        <resolve>
             <dependencies>
                 <dependency groupId="org.antlr" artifactId="antlr" version="3.5.2"/>
                 <dependency groupId="org.antlr" artifactId="antlr-runtime" version="3.5.2"/>
                 <dependency groupId="org.antlr" artifactId="ST4" version="4.0.8"/>
             </dependencies>
             <path refid="cql3-grammar.classpath" classpath="runtime"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        </resolve>
+        <resolve>
             <dependencies>
                 <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
             </dependencies>
             <path refid="jflex.classpath" classpath="runtime"/>
-        </resolver:resolve>
+        </resolve>
 
         <macrodef name="install">
             <attribute name="pomFile"/>
@@ -145,19 +178,17 @@
     </target>
 
     <target name="resolver-retrieve-build" depends="resolver-init,_jstackunit_download,write-poms">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
-        <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps"/>
+        <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
+        <resolvepom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps" />
 
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        <resolve>
             <dependencies pomRef="all-pom"/>
             <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
-        </resolver:resolve>
-        <resolver:resolve>
-            <remoterepos refid="all"/>
+        </resolve>
+        <resolve>
             <dependencies pomRef="pom-deps"/>
             <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
-        </resolver:resolve>
+        </resolve>
 
         <copy todir="${test.lib}/jars/" file="${jstackunit.local}" quiet="true"/>
 
@@ -171,51 +202,50 @@
     </target>
 
     <target name="resolver-dist-lib" depends="resolver-retrieve-build,write-poms">
-        <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
+        <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
-        <resolver:resolve failOnMissingAttachments="true">
-            <remoterepos refid="all"/>
+        <resolve failOnMissingAttachments="true">
             <dependencies pomRef="all-pom"/>
             <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
-        </resolver:resolve>
+        </resolve>
         <mkdir dir="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin"/>
         <mkdir dir="${build.lib}/sigar-bin"/>
 
         <!-- files.pythonhosted.org -->
-        <get src="https://files.pythonhosted.org/packages/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="https://files.pythonhosted.org/packages/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- python-driver -->
-        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/cassandra-driver-internal-only-3.25.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${lib.download.base.url}/lib/cassandra-driver-internal-only-3.25.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <!-- the following would be better, but its subdirectory is python-driver-3.25.0 instead of cassandra-driver-3.25.0 -->
         <!--get src="https://codeload.github.com/datastax/python-driver/zip/refs/tags/3.25.0" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip" usetimestamp="true" quiet="true"/-->
 
         <!-- apache/cassandra/lib -->
-        <get src="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/geomet-0.1.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get dest="${user.home}/.m2/repository/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ia64-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-ppc64le-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-s390x-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-linux.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/libsigar-x86-solaris.so"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-amd64-winnt.dll"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-x86-winnt.dll"/>
-            <url url="https://raw.githubusercontent.com/apache/cassandra/${lib.download.sha}/lib/sigar-bin/sigar-x86-winnt.lib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64le-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-s390x-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-amd64-winnt.dll"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.dll"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.lib"/>
         </get>
         
         <copy todir="${build.lib}" quiet="true">
