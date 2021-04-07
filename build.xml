@@ -1151,8 +1151,11 @@
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
-      <!-- use https://github.com/krummas/jstackjunit to get thread dumps when unit tests time out -->
-      <taskdef name="junit-timeout" classname="org.krummas.junit.JStackJUnitTask" classpath="${test.lib}/jars/jstackjunit-0.0.1.jar"/>
+      <taskdef name="junit-timeout" classname="org.apache.cassandra.JStackJUnitTask">
+        <classpath>
+          <pathelement location="${test.classes}"/>
+        </classpath>
+      </taskdef>
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
