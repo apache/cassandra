@@ -276,6 +276,7 @@
         </fileset>
         <fileset dir="${test.lib}/jars">
             <include name="**/*.jar" />
+            <exclude name="**/ant-*.jar"/>
         </fileset>
     </path>
 
@@ -1389,6 +1390,7 @@
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
+              <exclude name="**/ant-*.jar"/>
           </fileset>
         </classpath>
         <batchtest todir="${build.test.dir}/output/@{testtag}">
