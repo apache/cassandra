@@ -34,12 +34,6 @@
     <!-- version of lib/ downloads -->
     <property name="lib.download.sha" value="1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe"/>
 
-    <!-- jstackunit is not in maven central -->
-    <property name="jstackunit.local" value="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1/jstackjunit-0.0.1.jar"/>
-    <condition property="jstackunit.jar.exists">
-        <available file="${jstackunit.local}" />
-    </condition>
-
     <path id="resolver-ant-tasks.classpath" path="${resolver-ant-tasks.local}" />
 
     <!--
@@ -52,12 +46,6 @@
 
         <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
              dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
-    </target>
-
-    <target name="_jstackunit_download" unless="jstackunit.jar.exists" description="Fetch jstackunit">
-        <echo>Downloading jstackunit...</echo>
-        <mkdir dir="${user.home}/.m2/repository/org/krummas/junit/jstackjunit/0.0.1" />
-        <get src="https://github.com/krummas/jstackjunit/releases/download/v0.0.1/jstackjunit-0.0.1.jar" dest="${jstackunit.local}" usetimestamp="true" quiet="true"/>
     </target>
 
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
@@ -145,11 +133,11 @@
         <property name="resolver-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="resolver-retrieve-build" depends="resolver-init,_jstackunit_download,write-poms">
+    <target name="resolver-retrieve-build" depends="resolver-init,write-poms">
         <resolver:pom file="${build.dir}/${final.name}.pom" id="all-pom"/>
         <resolver:pom file="${build.dir}/${ant.project.name}-thrift-${version}.pom" id="thrift-pom"/>
         <resolver:pom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps"/>
-
+				
         <resolver:resolve>
             <remoterepos refid="all"/>
             <dependencies pomRef="thrift-pom"/>
@@ -166,7 +154,6 @@
             <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="test,!provide,!system"/>
         </resolver:resolve>
 
-        <copy todir="${test.lib}/jars/" file="${jstackunit.local}" quiet="true"/>
 
         <!-- jacoco agent jar comes wrapped in a jar -->
         <unzip src="${user.home}/.m2/repository/org/jacoco/org.jacoco.agent/${jacoco.version}/org.jacoco.agent-${jacoco.version}.jar" dest="${build.dir.lib}/jars">
