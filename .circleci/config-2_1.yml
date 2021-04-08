@@ -816,6 +816,7 @@ commands:
             git remote set-branches --add apache '$branch'
             git fetch --depth 1 apache $branch
             git checkout $branch
+            git clean -fd
             # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
             for x in $(seq 1 3); do
                 ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
@@ -832,7 +833,9 @@ commands:
             fi
           done
           # and build the dtest-jar for the branch under test
+          ${ANT_HOME}/bin/ant realclean
           git checkout origin/$CIRCLE_BRANCH
+          git clean -fd
           for x in $(seq 1 3); do
               ${ANT_HOME}/bin/ant realclean; ${ANT_HOME}/bin/ant jar dtest-jar
               RETURN="$?"
