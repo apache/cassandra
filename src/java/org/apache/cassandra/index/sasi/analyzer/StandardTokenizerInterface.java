@@ -35,7 +35,7 @@ public interface StandardTokenizerInterface
     /**
      * Returns the current position.
      */
-    int yychar();
+    long yychar();
 
     /**
      * Returns the length of the matched text region.
