@@ -191,6 +191,27 @@ public class MigrationCoordinatorTest
         Assert.assertTrue(signal.isSignalled());
     }
 
+	/**
+	 * If an endpoint is removed and no other endpoints are reporting its
+	 * schema version, the version should be removed and we should signal
+	 * anyone waiting on that version
+	 */
+	@Test
+	public void versionsAreSignaledWhenEndpointsRemoved()
+	{
+		InstrumentedCoordinator coordinator = new InstrumentedCoordinator();
+
+		coordinator.reportEndpointVersion(EP1, V1);
+		WaitQueue.Signal signal = coordinator.getVersionInfoUnsafe(V1).register();
+		Assert.assertFalse(signal.isSignalled());
+
+		coordinator.removeVersionInfoForEndpoint(EP1);
+		Assert.assertNull(coordinator.getVersionInfoUnsafe(V1));
+
+		Assert.assertTrue(signal.isSignalled());
+	}
+
+
     private static void assertNoContact(InstrumentedCoordinator coordinator, InetAddress endpoint, UUID version, boolean startupShouldBeUnblocked)
     {
         Assert.assertTrue(coordinator.requests.isEmpty());
