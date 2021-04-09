@@ -55,6 +55,7 @@ import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
@@ -147,7 +148,7 @@ public class StorageServiceServerTest
         for (int i = 0; i < 5; i++)
             WindowsFailedSnapshotTracker.handleFailedSnapshot(new File(f, Integer.toString(i)));
 
-        assert new File(WindowsFailedSnapshotTracker.TODELETEFILE).exists();
+        assertTrue(new File(WindowsFailedSnapshotTracker.TODELETEFILE).exists());
 
         // Simulate shutdown and restart of C* node, closing out the list of failed snapshots.
         WindowsFailedSnapshotTracker.resetForTests();
@@ -170,8 +171,8 @@ public class StorageServiceServerTest
         WindowsFailedSnapshotTracker.handleFailedSnapshot(protectedDir);
         WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
-        assert protectedDir.exists();
-        assert protectedFile.exists();
+        assertTrue(protectedDir.exists());
+        assertTrue(protectedFile.exists());
 
         protectedFile.delete();
         protectedDir.delete();
@@ -190,6 +191,7 @@ public class StorageServiceServerTest
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
         StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), SchemaConstants.SCHEMA_KEYSPACE_NAME);
     }
+
     @Test
     public void testLocalPrimaryRangeForEndpointWithNetworkTopologyStrategy() throws Exception
     {
@@ -214,20 +216,20 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getLocalPrimaryRangeForEndpoint(InetAddressAndPort.getByName("127.0.0.1"));
-        assertEquals(1, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("A"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
 
         primaryRanges = StorageService.instance.getLocalPrimaryRangeForEndpoint(InetAddressAndPort.getByName("127.0.0.2"));
-        assertEquals(1, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("C"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("C")));
 
         primaryRanges = StorageService.instance.getLocalPrimaryRangeForEndpoint(InetAddressAndPort.getByName("127.0.0.4"));
-        assertEquals(1, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("B"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getLocalPrimaryRangeForEndpoint(InetAddressAndPort.getByName("127.0.0.5"));
-        assertEquals(1, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("D"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("D")));
     }
 
     @Test
@@ -255,24 +257,24 @@ public class StorageServiceServerTest
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
                                                                                                             InetAddressAndPort.getByName("127.0.0.1"));
-        assertEquals(2, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assertEquals(2, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
-        assertEquals(2, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
-        assertEquals(2, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
     }
 
     @Test
@@ -297,20 +299,20 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
     }
 
     @Test
@@ -335,21 +337,21 @@ public class StorageServiceServerTest
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assert primaryRanges.isEmpty();
+        Assertions.assertThat(primaryRanges).isEmpty();
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assert primaryRanges.isEmpty();
+        Assertions.assertThat(primaryRanges).isEmpty();
 
         // endpoints in DC2 should have primary ranges which also cover DC1
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
-        assert primaryRanges.size() == 2;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
-        assert primaryRanges.size() == 2;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
     }
 
     @Test
@@ -374,22 +376,22 @@ public class StorageServiceServerTest
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assertTrue(primaryRanges.isEmpty());
+        Assertions.assertThat(primaryRanges).isEmpty();
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name,
                                                                                    InetAddressAndPort.getByName("127.0.0.2"));
-        assertTrue(primaryRanges.isEmpty());
+        Assertions.assertThat(primaryRanges).isEmpty();
 
         // endpoints in DC2 should have primary ranges which also cover DC1
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
-        assertTrue(primaryRanges.size() == 2);
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("A"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
-        assertTrue(primaryRanges.size() == 2);
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(2);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
     }
 
     @Test
@@ -426,34 +428,34 @@ public class StorageServiceServerTest
 
         // endpoints in DC1 should not have primary range
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assert primaryRanges.isEmpty();
+        Assertions.assertThat(primaryRanges).isEmpty();
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assert primaryRanges.isEmpty();
+        Assertions.assertThat(primaryRanges).isEmpty();
 
         // endpoints in DC2 should have primary ranges which also cover DC1
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
-        assert primaryRanges.size() == 4;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("F"), new StringToken("G")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("K"), new StringToken("L")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(4);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("F"), new StringToken("G")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("K"), new StringToken("L")));
         // because /127.0.0.4 holds token "B" which is the next to token "A" from /127.0.0.1,
         // the node covers range (L, A]
-        assert primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("L"), new StringToken("A")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
-        assert primaryRanges.size() == 8;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("E"), new StringToken("F")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("J"), new StringToken("K")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(8);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("E"), new StringToken("F")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("J"), new StringToken("K")));
         // ranges from /127.0.0.1
-        assert primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("E")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("E")));
         // the next token to "H" in DC2 is "K" in /127.0.0.5, so (G, H] goes to /127.0.0.5
-        assert primaryRanges.contains(new Range<Token>(new StringToken("G"), new StringToken("H")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("G"), new StringToken("H")));
         // ranges from /127.0.0.2
-        assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("H"), new StringToken("I")));
-        assert primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("H"), new StringToken("I")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("I"), new StringToken("J")));
     }
 
     @Test
@@ -493,47 +495,47 @@ public class StorageServiceServerTest
 
         // endpoints in DC1 should have primary ranges which also cover DC2
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assertEquals(8, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("J"), new StringToken("K"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("K"), new StringToken("L"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("E"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("E"), new StringToken("F"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("F"), new StringToken("G"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("G"), new StringToken("H"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(8);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("J"), new StringToken("K")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("K"), new StringToken("L")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("L"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("E")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("E"), new StringToken("F")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("F"), new StringToken("G")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("G"), new StringToken("H")));
 
         // endpoints in DC1 should have primary ranges which also cover DC2
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assertEquals(4, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("H"), new StringToken("I"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(4);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("H"), new StringToken("I")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("I"), new StringToken("J")));
 
         // endpoints in DC2 should have primary ranges which also cover DC1
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.4"));
-        assertEquals(4, primaryRanges.size());
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("F"), new StringToken("G"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("K"), new StringToken("L"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(4);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("F"), new StringToken("G")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("K"), new StringToken("L")));
         // because /127.0.0.4 holds token "B" which is the next to token "A" from /127.0.0.1,
         // the node covers range (L, A]
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("L"), new StringToken("A"))));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("L"), new StringToken("A")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.5"));
-        assertTrue(primaryRanges.size() == 8);
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("D"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("E"), new StringToken("F"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("J"), new StringToken("K"))));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(8);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("D")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("E"), new StringToken("F")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("J"), new StringToken("K")));
         // ranges from /127.0.0.1
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("D"), new StringToken("E"))));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("D"), new StringToken("E")));
         // the next token to "H" in DC2 is "K" in /127.0.0.5, so (G, H] goes to /127.0.0.5
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("G"), new StringToken("H"))));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("G"), new StringToken("H")));
         // ranges from /127.0.0.2
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("H"), new StringToken("I"))));
-        assertTrue(primaryRanges.contains(new Range<Token>(new StringToken("I"), new StringToken("J"))));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("H"), new StringToken("I")));
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("I"), new StringToken("J")));
     }
 
     @Test
@@ -551,16 +553,16 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getPrimaryRangesForEndpoint(meta.name, InetAddressAndPort.getByName("127.0.0.3"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
     }
 
     /* Does not make much sense to use -local and -pr with simplestrategy, but just to prevent human errors */
@@ -582,16 +584,16 @@ public class StorageServiceServerTest
         Schema.instance.load(meta);
 
         Collection<Range<Token>> primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.1"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("C"), new StringToken("A")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.2"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("A"), new StringToken("B")));
 
         primaryRanges = StorageService.instance.getPrimaryRangeForEndpointWithinDC(meta.name, InetAddressAndPort.getByName("127.0.0.3"));
-        assert primaryRanges.size() == 1;
-        assert primaryRanges.contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
+        Assertions.assertThat(primaryRanges.size()).as(primaryRanges.toString()).isEqualTo(1);
+        Assertions.assertThat(primaryRanges).contains(new Range<Token>(new StringToken("B"), new StringToken("C")));
     }
 
     @Test
@@ -608,34 +610,34 @@ public class StorageServiceServerTest
         metadata.updateNormalToken(new LongToken(4000L), InetAddressAndPort.getByName("127.0.0.4"));
 
         Collection<Range<Token>> repairRangeFrom = StorageService.instance.createRepairRangeFrom("1500", "3700");
-        assert repairRangeFrom.size() == 3;
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(1500L), new LongToken(2000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2000L), new LongToken(3000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(3000L), new LongToken(3700L)));
+        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(3);
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(1500L), new LongToken(2000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(2000L), new LongToken(3000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(3000L), new LongToken(3700L)));
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "700");
-        assert repairRangeFrom.size() == 1;
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(500L), new LongToken(700L)));
+        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(1);
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(500L), new LongToken(700L)));
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("500", "1700");
-        assert repairRangeFrom.size() == 2;
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(500L), new LongToken(1000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(1000L), new LongToken(1700L)));
+        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(2);
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(500L), new LongToken(1000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(1000L), new LongToken(1700L)));
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2500", "2300");
-        assert repairRangeFrom.size() == 5;
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2500L), new LongToken(3000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(3000L), new LongToken(4000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(4000L), new LongToken(1000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(1000L), new LongToken(2000L)));
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2000L), new LongToken(2300L)));
+        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(5);
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(2500L), new LongToken(3000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(3000L), new LongToken(4000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(4000L), new LongToken(1000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(1000L), new LongToken(2000L)));
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(2000L), new LongToken(2300L)));
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "3000");
-        assert repairRangeFrom.size() == 1;
-        assert repairRangeFrom.contains(new Range<Token>(new LongToken(2000L), new LongToken(3000L)));
+        Assertions.assertThat(repairRangeFrom.size()).as(repairRangeFrom.toString()).isEqualTo(1);
+        Assertions.assertThat(repairRangeFrom).contains(new Range<Token>(new LongToken(2000L), new LongToken(3000L)));
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
-        assert repairRangeFrom.size() == 0;
+        Assertions.assertThat(repairRangeFrom).isEmpty();
     }
 
     /**
