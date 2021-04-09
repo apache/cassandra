@@ -1055,7 +1055,7 @@
     <!--
         The javadoc-jar target makes cassandra-javadoc.jar output required for publishing to Maven central repository.
     -->
-    <target name="javadoc-jar" depends="javadoc" description="Assemble Cassandra JavaDoc JAR file">
+    <target name="javadoc-jar" depends="javadoc" unless="no-javadoc" description="Assemble Cassandra JavaDoc JAR file">
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar" basedir="${javadoc.dir}"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent
            being pulled into the distribution by accident -->
@@ -1076,7 +1076,7 @@
       </jar>
     </target>
 
-    <target name="_artifacts-init" depends="jar,javadoc">
+    <target name="_artifacts-init" depends="jar">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
       <fixcrlf srcdir="bin" includes="**/*" eol="lf" eof="remove" />
@@ -1087,9 +1087,6 @@
         <fileset dir="${build.dir}">
           <include name="${final.name}.jar" />
         </fileset>
-      </copy>
-      <copy todir="${dist.dir}/javadoc" failonerror="false">
-        <fileset dir="${javadoc.dir}"/>
       </copy>
       <copy todir="${dist.dir}/doc" failonerror="false">
         <fileset dir="doc">
@@ -1135,7 +1132,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,gen-doc"
+    <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar,javadoc-jar"
             description="Create Cassandra release artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
