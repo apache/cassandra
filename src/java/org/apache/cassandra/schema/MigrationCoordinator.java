@@ -349,7 +349,16 @@ public class MigrationCoordinator
         }
     }
 
-    Future<Void> scheduleSchemaPull(InetAddressAndPort endpoint, VersionInfo info)
+    public synchronized void removeVersionInfoForEndpoint(InetAddress endpoint)
+    {
+        Set<UUID> versions = ImmutableSet.copyOf(versionInfo.keySet());
+        for (UUID version : versions)
+        {
+            removeEndpointFromVersion(endpoint, version);
+        }
+    } 
+
+    Future<Void> scheduleSchemaPull(InetAddress endpoint, VersionInfo info)
     {
         FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)), null);
         if (shouldPullImmediately(endpoint, info.version))
