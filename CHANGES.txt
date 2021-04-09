@@ -1,4 +1,5 @@
 4.0-rc1
+ * Upgrade jflex to 1.8.2 (CASSANDRA-16576)
  * Binary releases no longer bundle the apidocs (javadoc) (CASSANDRA-15561)
  * Fix Streaming Repair metrics (CASSANDRA-16190)
  * Scheduled (delayed) schema pull tasks should not run after MIGRATION stage shutdown during decommission (CASSANDRA-16495)
