@@ -916,7 +916,6 @@
     </target>
 
     <!-- creates release tarballs -->
-
     <target name="artifacts" depends="jar,build-test,sources-jar,javadoc-jar"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
