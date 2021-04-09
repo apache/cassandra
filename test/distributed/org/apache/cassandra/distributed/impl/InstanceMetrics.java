@@ -69,10 +69,7 @@ class InstanceMetrics implements Metrics
     public double getHistogram(String name, MetricValue value)
     {
         Histogram histogram = metricsRegistry.getHistograms().get(name);
-        if (value == MetricValue.COUNT)
-            return histogram.getCount();
-
-        return getValue(histogram.getSnapshot(), value);
+        return getValue(histogram, value);
     }
 
     public Map<String, Double> getHistograms(Predicate<String> filter, MetricValue value)
@@ -81,7 +78,7 @@ class InstanceMetrics implements Metrics
         for (Map.Entry<String, Histogram> e : metricsRegistry.getHistograms().entrySet())
         {
             if (filter.test(e.getKey()))
-                values.put(e.getKey(), getValue(e.getValue().getSnapshot(), value));
+                values.put(e.getKey(), getValue(e.getValue(), value));
         }
         return values;
     }
@@ -133,6 +130,14 @@ class InstanceMetrics implements Metrics
         }
 
         return values;
+    }
+
+    static double getValue(Histogram histogram, MetricValue value)
+    {
+        if (value == MetricValue.COUNT)
+            return histogram.getCount();
+
+        return getValue(histogram.getSnapshot(), value);
     }
 
     static double getValue(Snapshot snapshot, MetricValue value)
