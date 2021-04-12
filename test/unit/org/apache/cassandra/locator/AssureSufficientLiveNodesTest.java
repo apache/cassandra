@@ -58,6 +58,12 @@ import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * The test cases check that no false unavailable exception is thrown due to
+ * the concurrent modification to the ReplicationStrategy, e.g. alter keyspace.
+ *
+ * See https://issues.apache.org/jira/browse/CASSANDRA-16545 for details.
+ */
 @RunWith(BMUnitRunner.class)
 @BMRule(name = "FailureDecector sees all nodes as live", // applies to all test cases in the class
         targetClass = "FailureDetector",
@@ -117,12 +123,12 @@ public class AssureSufficientLiveNodesTest
     {
         final KeyspaceParams largeRF = KeyspaceParams.nts("datacenter1", 6);
         // Not a race in fact. It is just testing the Unavailable can be correctly thrown.
-        assertThatThrownBy(() -> {
-            raceOfReplicationStrategyTest(largeRF, largeRF, 1,
-                                          keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal));
-        }).as("Unavailable should be thrown given 3 live nodes is less than a quorum of 6")
-          .isInstanceOf(UnavailableException.class)
-          .hasMessageContaining("Cannot achieve consistency level QUORUM");
+        assertThatThrownBy(() ->
+           raceOfReplicationStrategyTest(largeRF, largeRF, 1,
+                                         keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal))
+        ).as("Unavailable should be thrown given 3 live nodes is less than a quorum of 6")
+         .isInstanceOf(UnavailableException.class)
+         .hasMessageContaining("Cannot achieve consistency level QUORUM");
     }
 
     @Test
@@ -135,9 +141,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeNormal);
-            }
+            keyspace -> ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeNormal)
         );
         // read
         raceOfReplicationStrategyTest(
@@ -146,9 +150,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forRead(keyspace, tk, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE);
-            }
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -163,9 +165,7 @@ public class AssureSufficientLiveNodesTest
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal);
-            }
+            keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal)
         );
         raceOfReplicationStrategyTest(
             // init. The # of live endpoints is 3 = 2 + 1
@@ -173,9 +173,7 @@ public class AssureSufficientLiveNodesTest
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 2, DC2, 1, DC3, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal);
-            }
+            keyspace -> ReplicaPlans.forWrite(keyspace, QUORUM, tk, ReplicaPlans.writeNormal)
         );
 
         // read
@@ -185,9 +183,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forRead(keyspace, tk, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE);
-            }
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
         raceOfReplicationStrategyTest(
             // init. The # of live endpoints is 3 = 2 + 1
@@ -195,9 +191,7 @@ public class AssureSufficientLiveNodesTest
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 2, DC2, 1, DC3, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forRead(keyspace, tk, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE);
-            }
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -211,9 +205,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeNormal);
-            }
+            keyspace -> ReplicaPlans.forWrite(keyspace, EACH_QUORUM, tk, ReplicaPlans.writeNormal)
         );
 
         // read
@@ -223,9 +215,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forRead(keyspace, tk, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE);
-            }
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -239,9 +229,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forWrite(keyspace, LOCAL_QUORUM, tk, ReplicaPlans.writeNormal);
-            }
+            keyspace -> ReplicaPlans.forWrite(keyspace, LOCAL_QUORUM, tk, ReplicaPlans.writeNormal)
         );
 
         // read
@@ -251,9 +239,7 @@ public class AssureSufficientLiveNodesTest
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> {
-                ReplicaPlans.forRead(keyspace, tk, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE);
-            }
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
         );
     }
 
@@ -261,10 +247,10 @@ public class AssureSufficientLiveNodesTest
      * A test runner that runs the `test` while changing the ReplicationStrategy of the raced keyspace.
      * It loops at most for RACE_TEST_LOOPS time if unable to produce the race or any exception.
      */
-    private void raceOfReplicationStrategyTest(KeyspaceParams init,
-                                               KeyspaceParams alterTo,
-                                               int loopCount,
-                                               Consumer<Keyspace> test) throws Throwable
+    private static void raceOfReplicationStrategyTest(KeyspaceParams init,
+                                                      KeyspaceParams alterTo,
+                                                      int loopCount,
+                                                      Consumer<Keyspace> test) throws Throwable
     {
         String keyspaceName = keyspaceNameGen.get();
         KeyspaceMetadata initKsMeta = KeyspaceMetadata.create(keyspaceName, init, Tables.of(SchemaLoader.standardCFMD("Foo", "Bar").build()));
@@ -308,9 +294,9 @@ public class AssureSufficientLiveNodesTest
         }
     }
 
-    private void raceOfReplicationStrategyTest(KeyspaceParams init,
-                                               KeyspaceParams alterTo,
-                                               Consumer<Keyspace> test) throws Throwable
+    private static void raceOfReplicationStrategyTest(KeyspaceParams init,
+                                                      KeyspaceParams alterTo,
+                                                      Consumer<Keyspace> test) throws Throwable
     {
         raceOfReplicationStrategyTest(init, alterTo, RACE_TEST_LOOPS, test);
     }

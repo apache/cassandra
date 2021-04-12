@@ -98,7 +98,11 @@ public abstract class ReplicaPlan<E extends Endpoints<E>>
 
     public static class ForTokenRead extends ForRead<EndpointsForToken>
     {
-        public ForTokenRead(Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, ConsistencyLevel consistencyLevel, EndpointsForToken candidates, EndpointsForToken contacts)
+        public ForTokenRead(Keyspace keyspace,
+                            AbstractReplicationStrategy replicationStrategy,
+                            ConsistencyLevel consistencyLevel,
+                            EndpointsForToken candidates,
+                            EndpointsForToken contacts)
         {
             super(keyspace, replicationStrategy, consistencyLevel, candidates, contacts);
         }

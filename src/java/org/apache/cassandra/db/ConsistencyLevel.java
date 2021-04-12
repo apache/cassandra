@@ -198,7 +198,7 @@ public enum ConsistencyLevel
         return isDCLocal;
     }
 
-    public void validateForRead(String keyspaceName) throws InvalidRequestException
+    public void validateForRead() throws InvalidRequestException
     {
         switch (this)
         {
@@ -207,7 +207,7 @@ public enum ConsistencyLevel
         }
     }
 
-    public void validateForWrite(String keyspaceName) throws InvalidRequestException
+    public void validateForWrite() throws InvalidRequestException
     {
         switch (this)
         {
@@ -218,12 +218,12 @@ public enum ConsistencyLevel
     }
 
     // This is the same than validateForWrite really, but we include a slightly different error message for SERIAL/LOCAL_SERIAL
-    public void validateForCasCommit(String keyspaceName) throws InvalidRequestException
+    public void validateForCasCommit(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException
     {
         switch (this)
         {
             case EACH_QUORUM:
-                requireNetworkTopologyStrategy(keyspaceName);
+                requireNetworkTopologyStrategy(replicationStrategy);
                 break;
             case SERIAL:
             case LOCAL_SERIAL:
@@ -251,10 +251,10 @@ public enum ConsistencyLevel
             throw new InvalidRequestException("Counter operations are inherently non-serializable");
     }
 
-    private void requireNetworkTopologyStrategy(String keyspaceName) throws InvalidRequestException
+    private void requireNetworkTopologyStrategy(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException
     {
-        AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
-        if (!(strategy instanceof NetworkTopologyStrategy))
-            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)", this, strategy.getClass().getName()));
+        if (!(replicationStrategy instanceof NetworkTopologyStrategy))
+            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)",
+                                                            this, replicationStrategy.getClass().getName()));
     }
 }
