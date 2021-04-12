@@ -11,7 +11,7 @@ Use [Cassandra JIRA](https://issues.apache.org/jira/browse/CASSANDRA/) to create
 
 - How you can contribute to Apache Cassandra [presentation](http://www.slideshare.net/yukim/cassandrasummit2013) by Yuki Morishita
 - Code style [wiki page](https://wiki.apache.org/cassandra/CodeStyle)
-- Running Cassandra in IDEA [guide](https://wiki.apache.org/cassandra/RunningCassandraInIDEA)
+- Running Cassandra in IDEA [guide](https://cwiki.apache.org/confluence/display/CASSANDRA2/RunningCassandraInIDEA)
 - Running Cassandra in Eclipse [guide](https://wiki.apache.org/cassandra/RunningCassandraInEclipse)
 - Cassandra Cluster Manager - [CCM](https://github.com/pcmanus/ccm) and a guide [blog post](http://www.datastax.com/dev/blog/ccm-a-development-tool-for-creating-local-cassandra-clusters)
 - Cassandra Distributed Tests aka [dtests](https://github.com/apache/cassandra-dtest)
