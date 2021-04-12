@@ -1,4 +1,5 @@
 4.0-rc1
+ * Fix mixed cluster GROUP BY queries (CASSANDRA-16582)
  * Upgrade jflex to 1.8.2 (CASSANDRA-16576)
  * Binary releases no longer bundle the apidocs (javadoc) (CASSANDRA-15561)
  * Fix Streaming Repair metrics (CASSANDRA-16190)
