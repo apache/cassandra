@@ -1,3 +1,6 @@
+Add autocomplete and error messages for provide_overlapping_tombstones (CASSANDRA-16350)
+patch by bhouse99@protonmail.com; reviewed by ... for CASSANDRA-16350
+
 3.11.11
  * Add StorageServiceMBean.getKeyspaceReplicationInfo(keyspaceName) (CASSANDRA-16447)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
