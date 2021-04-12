@@ -81,7 +81,15 @@ public abstract class DataLimits
     // partition (see SelectStatement.makeFilter). So an "unbounded" distinct is still actually doing some filtering.
     public static final DataLimits DISTINCT_NONE = new CQLLimits(NO_LIMIT, 1, true);
 
-    public enum Kind { CQL_LIMIT, CQL_PAGING_LIMIT, CQL_GROUP_BY_LIMIT, CQL_GROUP_BY_PAGING_LIMIT }
+    public enum Kind
+    {
+        CQL_LIMIT,
+        CQL_PAGING_LIMIT,
+        @Deprecated THRIFT_LIMIT, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+        @Deprecated SUPER_COLUMN_COUNTING_LIMIT, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+        CQL_GROUP_BY_LIMIT,
+        CQL_GROUP_BY_PAGING_LIMIT,
+    }
 
     public static DataLimits cqlLimits(int cqlRowLimit)
     {

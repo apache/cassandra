@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import com.google.common.base.Preconditions;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -33,9 +34,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.distributed.impl.AbstractCluster.AbstractBuilder;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
@@ -44,6 +43,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.distributed.shared.Versions.Major;
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
+import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
@@ -83,6 +83,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
         public TestVersions(Version initial, Version ... upgrade)
         {
+            Preconditions.checkArgument(isNotEmpty(upgrade), "TestVersions must be constructed with one or more target upgrade versions.");
             this.initial = initial;
             this.upgrade = upgrade;
         }
@@ -189,7 +190,6 @@ public class UpgradeTestBase extends DistributedTestBase
                         runAfterClusterUpgrade.run(cluster);
                     }
                 }
-
             }
         }
         public TestCase nodesToUpgrade(int ... nodes)
