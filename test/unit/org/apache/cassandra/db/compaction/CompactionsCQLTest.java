@@ -25,7 +25,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.schema.CompactionParams;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -58,6 +60,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         waitForMinor(KEYSPACE, currentTable(), SLEEP_TIME, true);
     }
+
 
 
     @Test
@@ -225,6 +228,29 @@ public class CompactionsCQLTest extends CQLTester
         localOptions.put("sstable_size_in_mb","1234"); // not for STCS
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
     }
+
+     @Test(expected = IllegalArgumentException.class)
+     public void testBadProvidesTombstoneOption()
+     {
+         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+         Map<String, String> localOptions = new HashMap<>();
+         localOptions.put("class","SizeTieredCompactionStrategy");
+         localOptions.put("provide_overlapping_tombstones","IllegalValue");
+
+         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
+     }
+     @Test
+     public void testProvidesTombstoneOptionverifiation()
+     {
+         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+         Map<String, String> localOptions = new HashMap<>();
+         localOptions.put("class","SizeTieredCompactionStrategy");
+         localOptions.put("provide_overlapping_tombstones","row");
+
+         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
+         assertEquals(CompactionParams.TombstoneOption.ROW, getCurrentColumnFamilyStore().getCompactionStrategyManager().getCompactionParams().tombstoneOption());
+     }
+
 
     public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
     {

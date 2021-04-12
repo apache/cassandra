@@ -639,7 +639,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'tombstone_compaction_interval',
                                      'tombstone_threshold',
                                      'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones'])
+                                     'only_purge_repaired_tombstones',
+                                     'provide_overlapping_tombstones'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'SizeTieredCompactionStrategy'}",
                             choices=[';', 'AND'])
@@ -660,14 +661,15 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'max_window_size_seconds', 'only_purge_repaired_tombstones'])
+                                     'max_window_size_seconds',
+                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'TimeWindowCompactionStrategy', '",
                             choices=['compaction_window_unit', 'compaction_window_size',
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones'])
+                                     'only_purge_repaired_tombstones','provide_overlapping_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])
