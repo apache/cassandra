@@ -27,6 +27,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.net.Verb;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
@@ -34,6 +35,7 @@ import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static java.lang.String.format;
@@ -61,8 +63,8 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
         .upgrade(initial, upgrade)
-        .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(1))
-                                    .set("write_request_timeout_in_ms", SECONDS.toMillis(1)))
+        .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(2))
+                                    .set("write_request_timeout_in_ms", SECONDS.toMillis(2)))
         .setup(c -> c.schemaChange(withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c))")))
         .runAfterNodeUpgrade((cluster, n) -> {
 
@@ -71,7 +73,10 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
             {
                 // disable communications to the down nodes
                 if (numNodesDown > 0)
-                    cluster.get(replica(COORDINATOR, numNodesDown)).shutdown();
+                {
+                    cluster.filters().outbound().verbs(READ_REQ.id).to(replica(COORDINATOR, numNodesDown)).drop();
+                    cluster.filters().outbound().verbs(Verb.MUTATION_REQ.id).to(replica(COORDINATOR, numNodesDown)).drop();
+                }
 
                 // run the test cases that are compatible with the number of down nodes
                 ICoordinator coordinator = cluster.coordinator(COORDINATOR);
@@ -107,6 +112,7 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
             Object[] row1 = row(key, 1, 10);
             Object[] row2 = row(key, 2, 20);
 
+            boolean wrote = false;
             try
             {
                 // test write
@@ -114,6 +120,8 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
                     coordinator.execute(INSERT, writeConsistencyLevel, row1);
                     coordinator.execute(INSERT, writeConsistencyLevel, row2);
                 });
+
+                wrote = true;
 
                 // test read
                 maybeFail(ReadTimeoutException.class, numNodesDown > maxNodesDown(readConsistencyLevel), () -> {
@@ -124,7 +132,8 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
             }
             catch (Throwable t)
             {
-                throw new AssertionError(format("Unexpected error in case %s-%s with %s coordinator and %d nodes down",
+                throw new AssertionError(format("Unexpected error while %s in case write-read consistency %s-%s with %s coordinator and %d nodes down",
+                                                wrote ? "reading" : "writing",
                                                 writeConsistencyLevel,
                                                 readConsistencyLevel,
                                                 upgradedCoordinator ? "upgraded" : "not upgraded",
@@ -164,7 +173,7 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
             if (cl == ALL)
                 return 0;
 
-            throw new IllegalArgumentException("Usupported consistency level: " + cl);
+            throw new IllegalArgumentException("Unsupported consistency level: " + cl);
         }
     }
 }
