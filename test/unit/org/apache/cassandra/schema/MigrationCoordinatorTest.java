@@ -212,7 +212,7 @@ public class MigrationCoordinatorTest
 	}
 
 
-    private static void assertNoContact(InstrumentedCoordinator coordinator, InetAddress endpoint, UUID version, boolean startupShouldBeUnblocked)
+    private static void assertNoContact(InstrumentedCoordinator coordinator, InetAddressAndPort endpoint, UUID version, boolean startupShouldBeUnblocked)
     {
         Assert.assertTrue(coordinator.requests.isEmpty());
         Future<Void> future = coordinator.reportEndpointVersion(EP1, V1);
