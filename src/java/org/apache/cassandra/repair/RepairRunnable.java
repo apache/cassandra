@@ -32,6 +32,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -112,6 +113,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private final List<ProgressListener> listeners = new ArrayList<>();
 
     private static final AtomicInteger threadCounter = new AtomicInteger(1);
+    private final AtomicReference<Throwable> firstError = new AtomicReference<>(null);
 
     private TraceState traceState;
 
@@ -178,6 +180,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         StorageMetrics.repairExceptions.inc();
         String errorMessage = String.format("Repair command #%d failed with error %s", cmd, error.getMessage());
         fireProgressEvent(new ProgressEvent(ProgressEventType.ERROR, progressCounter.get(), totalProgress, errorMessage));
+        firstError.compareAndSet(null, error);
 
         // since this can fail, update table only after updating in-memory and notification state
         maybeStoreParentRepairFailure(error);
@@ -186,7 +189,10 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     private void fail(String reason)
     {
         if (reason == null)
-            reason = "Some repair failed";
+        {
+            Throwable error = firstError.get();
+            reason = error != null ? error.getMessage() : "Some repair failed";
+        }
         String completionMessage = String.format("Repair command #%d finished with error", cmd);
 
         // Note we rely on the first message being the reason for the failure
