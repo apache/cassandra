@@ -39,11 +39,9 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
-import org.apache.cassandra.db.compaction.writers.MajorLeveledCompactionWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -55,6 +53,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.schema.CompactionParams;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -713,6 +712,29 @@ public class CompactionsCQLTest extends CQLTester
         }
         assertEquals(expectTS, foundTombstone);
     }
+
+     @Test(expected = IllegalArgumentException.class)
+     public void testBadProvidesTombstoneOption()
+     {
+         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+         Map<String, String> localOptions = new HashMap<>();
+         localOptions.put("class","SizeTieredCompactionStrategy");
+         localOptions.put("provide_overlapping_tombstones","IllegalValue");
+
+         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
+     }
+     @Test
+     public void testProvidesTombstoneOptionverifiation()
+     {
+         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+         Map<String, String> localOptions = new HashMap<>();
+         localOptions.put("class","SizeTieredCompactionStrategy");
+         localOptions.put("provide_overlapping_tombstones","row");
+
+         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
+         assertEquals(CompactionParams.TombstoneOption.ROW, getCurrentColumnFamilyStore().getCompactionStrategyManager().getCompactionParams().tombstoneOption());
+     }
+
 
     public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
     {

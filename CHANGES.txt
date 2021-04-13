@@ -52,6 +52,7 @@
  * Restore sasi dependencies jflex, snowball-stemmer, and concurrent-trees, in the cassandra-all pom (CASSANDRA-16303)
  * Fix DecimalDeserializer#toString OOM (CASSANDRA-14925)
 Merged from 3.11:
+ * Add autocomplete and error messages for provide_overlapping_tombstones (CASSANDRA-16350)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
  * Fix digest computation for queries with fetched but non queried columns (CASSANDRA-15962)
  * Reduce amount of allocations during batch statement execution (CASSANDRA-16201)
