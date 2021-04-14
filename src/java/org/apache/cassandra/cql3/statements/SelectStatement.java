@@ -232,7 +232,7 @@ public class SelectStatement implements CQLStatement
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
 
-        cl.validateForRead(keyspace());
+        cl.validateForRead();
 
         int nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
