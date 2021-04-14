@@ -1,4 +1,5 @@
 4.1
+ * Modify SecondaryIndexManager#indexPartition() to retrieve only columns for which indexes are actually being built (CASSANDRA-16776)
  * Batch the token metadata update to improve the speed (CASSANDRA-15291)
  * Reduce the log level on "expected" repair exceptions (CASSANDRA-16775)
  * Make JMXTimer expose attributes using consistent time unit (CASSANDRA-16760)
