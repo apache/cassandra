@@ -9,6 +9,7 @@ data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
 lib/
+!lib/cassandra-driver-internal-only-*.zip
 
 # C* debs
 build-stamp

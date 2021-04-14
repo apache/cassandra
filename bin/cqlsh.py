@@ -27,8 +27,6 @@ import os
 import platform
 import re
 import sys
-import tarfile
-import tempfile
 import traceback
 import warnings
 import webbrowser
@@ -59,7 +57,7 @@ try:
 except ImportError:
     pass
 
-CQL_LIB_PREFIX = 'cassandra-driver-'
+CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
 CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/cql3/CQL-3.2.html'
@@ -95,7 +93,7 @@ elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '
 
 # use bundled lib for python-cql if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
-LIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
+ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
 myplatform = platform.system()
 is_win = myplatform == 'Windows'
 
@@ -104,39 +102,23 @@ if is_win and sys.version_info < (3, 3):
     codecs.register(lambda name: codecs.lookup(UTF8) if name == CP65001 else None)
 
 if myplatform == 'Linux':
-    LIB_DIRS.append('/usr/share/cassandra/lib')
+    ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
 
 if os.environ.get('CQLSH_NO_BUNDLED', ''):
-    LIB_DIRS = ()
+    ZIPLIB_DIRS = ()
 
 
 def find_zip(libprefix):
-    for ziplibdir in LIB_DIRS:
+    for ziplibdir in ZIPLIB_DIRS:
         zips = glob(os.path.join(ziplibdir, libprefix + '*.zip'))
         if zips:
             return max(zips)   # probably the highest version, if multiple
 
-def find_tarball(libprefix):
-    for libdir in LIB_DIRS:
-        matches = glob(os.path.join(libdir, libprefix + '*.tar.gz'))
-        if matches:
-            return max(matches)   # probably the highest version, if multiple
 
-
-cql_tarball = find_tarball(CQL_LIB_PREFIX)
-if cql_tarball:
-    # python doesn't support tar.gz when inserting into the path, so extract the contents and use that
-    extract_dir = os.path.join(tempfile.gettempdir(), "cassandra-python-driver", "lib")
-    dest = os.path.join(extract_dir, os.path.basename(cql_tarball).replace(".tar.gz", ""))
-    # if extract fails in the middle then the .DONE file won't exist, so check for this to avoid extracting when not needed
-    done = os.path.join(dest, ".DONE")
-    if not os.path.exists(done):
-        with tarfile.open(cql_tarball, "r:gz") as tar:
-            tar.extractall(extract_dir)
-        with open(done, "w"):
-            pass
-
-    sys.path.insert(0, dest)
+cql_zip = find_zip(CQL_LIB_PREFIX)
+if cql_zip:
+    ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
+    sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
 third_parties = ('futures-', 'six-', 'geomet-')
 
