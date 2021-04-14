@@ -367,7 +367,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public boolean requiresRead()
     {
-        // Lists SET operation incurs a read.
+        // A subset of operations require a read before write:
+        // * Setting list element by index
+        // * Deleting list element by index
+        // * Deleting list element by value
+        // * Performing addition on a StringType (i.e. concatenation, only supported for CAS operations)
+        // * Performing addition on a NumberType, again only supported for CAS operations.
         return !requiresRead.isEmpty();
     }
 

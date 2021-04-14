@@ -35,7 +35,7 @@ import org.apache.cassandra.serializers.AsciiSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class AsciiType extends AbstractType<String>
+public class AsciiType extends StringType
 {
     public static final AsciiType instance = new AsciiType();
 

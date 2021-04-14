@@ -23,6 +23,9 @@ import java.nio.ByteBuffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
@@ -30,6 +33,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FastByteOperations;
 
 /**
  * Static helper methods and classes for constants.
@@ -446,16 +450,56 @@ public abstract class Constants
             super(column, t);
         }
 
+        public boolean requiresRead()
+        {
+            return !(column.type instanceof CounterColumnType);
+        }
+
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer bytes = t.bindAndGet(params.options);
-            if (bytes == null)
-                throw new InvalidRequestException("Invalid null value for counter increment");
-            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return;
+            if (column.type instanceof CounterColumnType)
+            {
+                ByteBuffer bytes = t.bindAndGet(params.options);
+                if (bytes == null)
+                    throw new InvalidRequestException("Invalid null value for counter increment");
+                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                    return;
 
-            long increment = ByteBufferUtil.toLong(bytes);
-            params.addCounter(column, increment);
+                long increment = ByteBufferUtil.toLong(bytes);
+                params.addCounter(column, increment);
+            }
+            else if (column.type instanceof NumberType<?>)
+            {
+                @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
+                ByteBuffer increment = t.bindAndGet(params.options);
+                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                ByteBuffer newValue = type.add(type, current, type, increment);
+                params.addCell(column, newValue);
+            }
+            else if (column.type instanceof StringType)
+            {
+                ByteBuffer append = t.bindAndGet(params.options);
+                ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
+                ByteBuffer newValue;
+                if (current == null)
+                {
+                    newValue = append;
+                }
+                else
+                {
+                    newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
+                    FastByteOperations.copy(current, current.position(), newValue, newValue.position(), current.remaining());
+                    FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
+                }
+                params.addCell(column, newValue);
+            }
+        }
+
+        private ByteBuffer getCurrentCellBuffer(DecoratedKey key, UpdateParameters params)
+        {
+            Row currentRow = params.getPrefetchedRow(key, column.isStatic() ? Clustering.STATIC_CLUSTERING : params.currentClustering());
+            Cell<?> currentCell = currentRow == null ? null : currentRow.getCell(column);
+            return currentCell == null ? null : currentCell.buffer();
         }
     }
 
