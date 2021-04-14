@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -57,6 +58,7 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
@@ -142,7 +144,7 @@ public class Verifier implements Closeable
         catch (Throwable t)
         {
             outputHandler.warn(t.getMessage());
-            markAndThrow(false);
+            markAndThrow(t, false);
         }
 
         try
@@ -153,7 +155,7 @@ public class Verifier implements Closeable
         catch (Throwable t)
         {
             outputHandler.warn(t.getMessage());
-            markAndThrow();
+            markAndThrow(t);
         }
 
         try
@@ -165,7 +167,7 @@ public class Verifier implements Closeable
         {
             outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup "+sstable.descriptor.filenameFor(Component.SUMMARY));
             outputHandler.warn(t.getMessage());
-            markAndThrow(false);
+            markAndThrow(t, false);
         }
 
         try
@@ -177,10 +179,10 @@ public class Verifier implements Closeable
         catch (Throwable t)
         {
             outputHandler.warn(t.getMessage());
-            markAndThrow();
+            markAndThrow(t);
         }
 
-        if (options.checkOwnsTokens && !isOffline)
+        if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner))
         {
             outputHandler.debug("Checking that all tokens are owned by the current node");
             try (KeyIterator iter = new KeyIterator(sstable.descriptor, sstable.metadata()))
@@ -198,7 +200,7 @@ public class Verifier implements Closeable
             catch (Throwable t)
             {
                 outputHandler.warn(t.getMessage());
-                markAndThrow();
+                markAndThrow(t);
             }
         }
 
@@ -225,7 +227,7 @@ public class Verifier implements Closeable
         catch (IOException e)
         {
             outputHandler.warn(e.getMessage());
-            markAndThrow();
+            markAndThrow(e);
         }
         finally
         {
@@ -243,7 +245,7 @@ public class Verifier implements Closeable
             {
                 long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
                 if (firstRowPositionFromIndex != 0)
-                    markAndThrow();
+                    markAndThrow(new RuntimeException("firstRowPositionFromIndex != 0: "+firstRowPositionFromIndex));
             }
 
             List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
@@ -270,7 +272,7 @@ public class Verifier implements Closeable
                     // check for null key below
                 }
 
-                if (options.checkOwnsTokens && ownedRanges.size() > 0)
+                if (options.checkOwnsTokens && ownedRanges.size() > 0 && !(cfs.getPartitioner() instanceof LocalPartitioner))
                 {
                     try
                     {
@@ -279,7 +281,7 @@ public class Verifier implements Closeable
                     catch (Throwable t)
                     {
                         outputHandler.warn(String.format("Key %s in sstable %s not owned by local ranges %s", key, sstable, ownedRanges), t);
-                        markAndThrow();
+                        markAndThrow(t);
                     }
                 }
 
@@ -294,7 +296,7 @@ public class Verifier implements Closeable
                 }
                 catch (Throwable th)
                 {
-                    markAndThrow();
+                    markAndThrow(th);
                 }
 
                 long dataStart = dataFile.getFilePointer();
@@ -312,7 +314,7 @@ public class Verifier implements Closeable
                 try
                 {
                     if (key == null || dataSize > dataFile.length())
-                        markAndThrow();
+                        markAndThrow(new RuntimeException(String.format("key = %s, dataSize=%d, dataFile.length() = %d", key, dataSize, dataFile.length())));
 
                     //mimic the scrub read path, intentionally unused
                     try (UnfilteredRowIterator iterator = SSTableIdentityIterator.create(sstable, dataFile, key))
@@ -320,7 +322,7 @@ public class Verifier implements Closeable
                     }
 
                     if ( (prevKey != null && prevKey.compareTo(key) > 0) || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex )
-                        markAndThrow();
+                        markAndThrow(new RuntimeException("Key out of order: previous = "+prevKey + " : current = " + key));
                     
                     goodRows++;
                     prevKey = key;
@@ -331,7 +333,7 @@ public class Verifier implements Closeable
                 }
                 catch (Throwable th)
                 {
-                    markAndThrow();
+                    markAndThrow(th);
                 }
             }
         }
@@ -442,9 +444,14 @@ public class Verifier implements Closeable
 
     private void deserializeBloomFilter(SSTableReader sstable) throws IOException
     {
-        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(sstable.descriptor.filenameFor(Component.FILTER)))));
-             IFilter bf = BloomFilterSerializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
-        {}
+        Path bfPath = Paths.get(sstable.descriptor.filenameFor(Component.FILTER));
+        if (Files.exists(bfPath))
+        {
+            try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(bfPath)));
+                 IFilter bf = BloomFilterSerializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
+            {
+            }
+        }
     }
 
     public void close()
@@ -467,12 +474,12 @@ public class Verifier implements Closeable
             throw (Error) th;
     }
 
-    private void markAndThrow()
+    private void markAndThrow(Throwable cause)
     {
-        markAndThrow(true);
+        markAndThrow(cause, true);
     }
 
-    private void markAndThrow(boolean mutateRepaired)
+    private void markAndThrow(Throwable cause, boolean mutateRepaired)
     {
         if (mutateRepaired && options.mutateRepairStatus) // if we are able to mutate repaired flag, an incremental repair should be enough
         {
@@ -486,7 +493,7 @@ public class Verifier implements Closeable
                 outputHandler.output("Error mutating repairedAt for SSTable " +  sstable.getFilename() + ", as part of markAndThrow");
             }
         }
-        Exception e = new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), (mutateRepaired && options.mutateRepairStatus) ? "" : "a full "));
+        Exception e = new Exception(String.format("Invalid SSTable %s, please force %srepair", sstable.getFilename(), (mutateRepaired && options.mutateRepairStatus) ? "" : "a full "), cause);
         if (options.invokeDiskFailurePolicy)
             throw new CorruptSSTableException(e, sstable.getFilename());
         else
