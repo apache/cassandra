@@ -2241,6 +2241,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.info("Truncating {}.{}", keyspace.getName(), name);
 
+        viewManager.stopBuild();
+
         final long truncatedAt;
         final CommitLogPosition replayAfter;
 
@@ -2270,17 +2272,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 now = Math.max(now, sstable.maxDataAge);
         truncatedAt = now;
 
-        Runnable truncateRunnable = new Runnable()
-        {
-            public void run()
-            {
-                logger.info("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
-                // since truncation can happen at different times on different nodes, we need to make sure
-                // that any repairs are aborted, otherwise we might clear the data on one node and then
-                // stream in data that is actually supposed to have been deleted
-                ActiveRepairService.instance.abort((prs) -> prs.getTableIds().contains(metadata.id),
-                                                   "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
-                data.notifyTruncated(truncatedAt);
+        Runnable truncateRunnable = () -> {
+
+            logger.info("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
+            // since truncation can happen at different times on different nodes, we need to make sure
+            // that any repairs are aborted, otherwise we might clear the data on one node and then
+            // stream in data that is actually supposed to have been deleted
+            ActiveRepairService.instance.abort((prs) -> prs.getTableIds().contains(metadata.id),
+                                               "Stopping parent sessions {} due to truncation of tableId="+metadata.id);
+            data.notifyTruncated(truncatedAt);
 
             if (DatabaseDescriptor.isAutoSnapshot())
                 snapshot(Keyspace.getTimestampedSnapshotNameWithPrefix(name, SNAPSHOT_TRUNCATE_PREFIX));
@@ -2290,14 +2290,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             indexManager.truncateAllIndexesBlocking(truncatedAt);
             viewManager.truncateBlocking(replayAfter, truncatedAt);
 
-                SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
-                logger.trace("cleaning out row cache");
-                invalidateCaches();
-
-            }
+            SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
+            logger.trace("cleaning out row cache");
+            invalidateCaches();
         };
 
         runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true);
+
+        viewManager.build();
+
         logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
     }
 
