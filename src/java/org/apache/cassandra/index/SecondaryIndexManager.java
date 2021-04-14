@@ -53,10 +53,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -889,19 +891,34 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return !indexes.isEmpty();
     }
 
+    public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize)
+    {
+        indexPartition(key, indexes, pageSize, baseCfs.metadata().regularAndStaticColumns());
+    }
+
     /**
      * When building an index against existing data in sstables, add the given partition to the index
+     * 
+     * @param key the key for the partition being indexed
+     * @param indexes the indexes that must be updated
+     * @param pageSize the number of {@link Unfiltered} objects to process in a single page
+     * @param columns the columns indexed by at least one of the supplied indexes
      */
-    public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize)
+    public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize, RegularAndStaticColumns columns)
     {
         if (logger.isTraceEnabled())
             logger.trace("Indexing partition {}", baseCfs.metadata().partitionKeyType.getString(key.getKey()));
 
         if (!indexes.isEmpty())
         {
-            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.fullPartitionRead(baseCfs.metadata(),
-                                                                                          FBUtilities.nowInSeconds(),
-                                                                                          key);
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(baseCfs.metadata(), 
+                                                                               FBUtilities.nowInSeconds(), 
+                                                                               ColumnFilter.selection(columns), 
+                                                                               RowFilter.NONE, 
+                                                                               DataLimits.NONE, 
+                                                                               key, 
+                                                                               new ClusteringIndexSliceFilter(Slices.ALL, false));
+
             int nowInSec = cmd.nowInSec();
             boolean readStatic = false;
 
