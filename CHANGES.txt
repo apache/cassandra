@@ -1,4 +1,5 @@
 3.11.11
+ * Ignore stale acks received in the shadow round (CASSANDRA-16588)
  * Add autocomplete and error messages for provide_overlapping_tombstones (CASSANDRA-16350)
  * Add StorageServiceMBean.getKeyspaceReplicationInfo(keyspaceName) (CASSANDRA-16447)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
