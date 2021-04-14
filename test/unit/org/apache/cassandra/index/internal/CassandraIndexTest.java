@@ -558,13 +558,15 @@ public class CassandraIndexTest extends CQLTester
     @Test
     public void indexCorrectlyMarkedAsBuildAndRemoved() throws Throwable
     {
-        String selectBuiltIndexesQuery = String.format("SELECT * FROM %s.\"%s\"",
+        String indexName = "build_remove_test_idx";
+        String selectBuiltIndexesQuery = String.format("SELECT * FROM %s.\"%s\" WHERE table_name='%s' AND index_name='%s'",
                                                        SchemaConstants.SYSTEM_KEYSPACE_NAME,
-                                                       SystemKeyspace.BUILT_INDEXES);
+                                                       SystemKeyspace.BUILT_INDEXES,
+                                                       KEYSPACE,
+                                                       indexName);
         UntypedResultSet rs = execute(selectBuiltIndexesQuery);
         int initialSize = rs.size();
 
-        String indexName = "build_remove_test_idx";
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
         waitForIndex(KEYSPACE, tableName, indexName);
