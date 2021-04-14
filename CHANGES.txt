@@ -1,4 +1,5 @@
 4.0-rc1
+ * Fix false unavailable for queries due to cluster topology changes (CASSANDRA-16545)
  * Fixed a race condition issue in nodetool repair where we poll for the error before seeing the error notification, leading to a less meaningful message (CASSANDRA-16585)
  * Fix mixed cluster GROUP BY queries (CASSANDRA-16582)
  * Upgrade jflex to 1.8.2 (CASSANDRA-16576)

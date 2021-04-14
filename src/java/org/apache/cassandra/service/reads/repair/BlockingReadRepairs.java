@@ -85,7 +85,7 @@ public class BlockingReadRepairs
 
                 if (!suppressException)
                 {
-                    int blockFor = consistency.blockFor(keyspace);
+                    int blockFor = consistency.blockFor(keyspace.getReplicationStrategy());
                     Tracing.trace("Timed out while read-repairing after receiving all {} data and digest responses", blockFor);
                     throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
                 }

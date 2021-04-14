@@ -81,50 +81,49 @@ public enum ConsistencyLevel
         return codeIdx[code];
     }
 
-    public static int quorumFor(Keyspace keyspace)
+    public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
     {
-        return (keyspace.getReplicationStrategy().getReplicationFactor().allReplicas / 2) + 1;
+        return (replicationStrategy.getReplicationFactor().allReplicas / 2) + 1;
     }
 
-    public static int localQuorumFor(Keyspace keyspace, String dc)
+    public static int localQuorumFor(AbstractReplicationStrategy replicationStrategy, String dc)
     {
-        return (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-             ? (((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getReplicationFactor(dc).allReplicas / 2) + 1
-             : quorumFor(keyspace);
+        return (replicationStrategy instanceof NetworkTopologyStrategy)
+             ? (((NetworkTopologyStrategy) replicationStrategy).getReplicationFactor(dc).allReplicas / 2) + 1
+             : quorumFor(replicationStrategy);
     }
 
-    public static int localQuorumForOurDc(Keyspace keyspace)
+    public static int localQuorumForOurDc(AbstractReplicationStrategy replicationStrategy)
     {
-        return localQuorumFor(keyspace, DatabaseDescriptor.getLocalDataCenter());
+        return localQuorumFor(replicationStrategy, DatabaseDescriptor.getLocalDataCenter());
     }
 
-    public static ObjectIntHashMap<String> eachQuorumForRead(Keyspace keyspace)
+    public static ObjectIntHashMap<String> eachQuorumForRead(AbstractReplicationStrategy replicationStrategy)
     {
-        AbstractReplicationStrategy strategy = keyspace.getReplicationStrategy();
-        if (strategy instanceof NetworkTopologyStrategy)
+        if (replicationStrategy instanceof NetworkTopologyStrategy)
         {
-            NetworkTopologyStrategy npStrategy = (NetworkTopologyStrategy) strategy;
+            NetworkTopologyStrategy npStrategy = (NetworkTopologyStrategy) replicationStrategy;
             ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(((npStrategy.getDatacenters().size() + 1) * 4) / 3);
             for (String dc : npStrategy.getDatacenters())
-                perDc.put(dc, ConsistencyLevel.localQuorumFor(keyspace, dc));
+                perDc.put(dc, ConsistencyLevel.localQuorumFor(replicationStrategy, dc));
             return perDc;
         }
         else
         {
             ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(1);
-            perDc.put(DatabaseDescriptor.getLocalDataCenter(), quorumFor(keyspace));
+            perDc.put(DatabaseDescriptor.getLocalDataCenter(), quorumFor(replicationStrategy));
             return perDc;
         }
     }
 
-    public static ObjectIntHashMap<String> eachQuorumForWrite(Keyspace keyspace, Endpoints<?> pendingWithDown)
+    public static ObjectIntHashMap<String> eachQuorumForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
     {
-        ObjectIntHashMap<String> perDc = eachQuorumForRead(keyspace);
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
         addToCountPerDc(perDc, pendingWithDown, 1);
         return perDc;
     }
 
-    public int blockFor(Keyspace keyspace)
+    public int blockFor(AbstractReplicationStrategy replicationStrategy)
     {
         switch (this)
         {
@@ -139,35 +138,35 @@ public enum ConsistencyLevel
                 return 3;
             case QUORUM:
             case SERIAL:
-                return quorumFor(keyspace);
+                return quorumFor(replicationStrategy);
             case ALL:
-                return keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+                return replicationStrategy.getReplicationFactor().allReplicas;
             case LOCAL_QUORUM:
             case LOCAL_SERIAL:
-                return localQuorumForOurDc(keyspace);
+                return localQuorumForOurDc(replicationStrategy);
             case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                if (replicationStrategy instanceof NetworkTopologyStrategy)
                 {
-                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicationStrategy;
                     int n = 0;
                     for (String dc : strategy.getDatacenters())
-                        n += localQuorumFor(keyspace, dc);
+                        n += localQuorumFor(replicationStrategy, dc);
                     return n;
                 }
                 else
                 {
-                    return quorumFor(keyspace);
+                    return quorumFor(replicationStrategy);
                 }
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
         }
     }
 
-    public int blockForWrite(Keyspace keyspace, Endpoints<?> pending)
+    public int blockForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pending)
     {
         assert pending != null;
 
-        int blockFor = blockFor(keyspace);
+        int blockFor = blockFor(replicationStrategy);
         switch (this)
         {
             case ANY:
@@ -189,9 +188,9 @@ public enum ConsistencyLevel
      * Determine if this consistency level meets or exceeds the consistency requirements of the given cl for the given keyspace
      * WARNING: this is not locality aware; you cannot safely use this with mixed locality consistency levels (e.g. LOCAL_QUORUM and QUORUM)
      */
-    public boolean satisfies(ConsistencyLevel other, Keyspace keyspace)
+    public boolean satisfies(ConsistencyLevel other, AbstractReplicationStrategy replicationStrategy)
     {
-        return blockFor(keyspace) >= other.blockFor(keyspace);
+        return blockFor(replicationStrategy) >= other.blockFor(replicationStrategy);
     }
 
     public boolean isDatacenterLocal()
@@ -199,7 +198,7 @@ public enum ConsistencyLevel
         return isDCLocal;
     }
 
-    public void validateForRead(String keyspaceName) throws InvalidRequestException
+    public void validateForRead() throws InvalidRequestException
     {
         switch (this)
         {
@@ -208,7 +207,7 @@ public enum ConsistencyLevel
         }
     }
 
-    public void validateForWrite(String keyspaceName) throws InvalidRequestException
+    public void validateForWrite() throws InvalidRequestException
     {
         switch (this)
         {
@@ -219,12 +218,12 @@ public enum ConsistencyLevel
     }
 
     // This is the same than validateForWrite really, but we include a slightly different error message for SERIAL/LOCAL_SERIAL
-    public void validateForCasCommit(String keyspaceName) throws InvalidRequestException
+    public void validateForCasCommit(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException
     {
         switch (this)
         {
             case EACH_QUORUM:
-                requireNetworkTopologyStrategy(keyspaceName);
+                requireNetworkTopologyStrategy(replicationStrategy);
                 break;
             case SERIAL:
             case LOCAL_SERIAL:
@@ -252,10 +251,10 @@ public enum ConsistencyLevel
             throw new InvalidRequestException("Counter operations are inherently non-serializable");
     }
 
-    private void requireNetworkTopologyStrategy(String keyspaceName) throws InvalidRequestException
+    private void requireNetworkTopologyStrategy(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException
     {
-        AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
-        if (!(strategy instanceof NetworkTopologyStrategy))
-            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)", this, strategy.getClass().getName()));
+        if (!(replicationStrategy instanceof NetworkTopologyStrategy))
+            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)",
+                                                            this, replicationStrategy.getClass().getName()));
     }
 }

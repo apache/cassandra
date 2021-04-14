@@ -383,7 +383,7 @@ public abstract class ModificationStatement implements CQLStatement
 
         try
         {
-            cl.validateForRead(keyspace());
+            cl.validateForRead();
         }
         catch (InvalidRequestException e)
         {
@@ -463,7 +463,7 @@ public abstract class ModificationStatement implements CQLStatement
         if (isCounter())
             cl.validateCounterForWrite(metadata());
         else
-            cl.validateForWrite(metadata.keyspace);
+            cl.validateForWrite();
 
         List<? extends IMutation> mutations =
             getMutations(options,

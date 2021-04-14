@@ -537,12 +537,12 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             }
             catch (ReadTimeoutException e)
             {
-                int blockFor = consistency.blockFor(keyspace);
+                int blockFor = consistency.blockFor(replicaPlan.replicationStrategy());
                 throw new ReadTimeoutException(consistency, blockFor - 1, blockFor, true);
             }
             catch (UnavailableException e)
             {
-                int blockFor = consistency.blockFor(keyspace);
+                int blockFor = consistency.blockFor(replicaPlan.replicationStrategy());
                 throw UnavailableException.create(consistency, blockFor, blockFor - 1);
             }
         }

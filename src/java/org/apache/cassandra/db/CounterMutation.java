@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
@@ -151,18 +152,19 @@ public class CounterMutation implements IMutation
     {
         long startTime = System.nanoTime();
 
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
         {
             long timeout = getTimeout(NANOSECONDS) - (System.nanoTime() - startTime);
             try
             {
                 if (!lock.tryLock(timeout, NANOSECONDS))
-                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
                 locks.add(lock);
             }
             catch (InterruptedException e)
             {
-                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
             }
         }
     }
