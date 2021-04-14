@@ -168,7 +168,7 @@ public class UpdateStatement extends ModificationStatement
                 }
                 else
                 {
-                    Operation operation = new Operation.SetValue(value).prepare(metadata, def);
+                    Operation operation = new Operation.SetValue(value).prepare(metadata, def, !conditions.isEmpty());
                     operation.collectMarkerSpecification(bindVariables);
                     operations.add(operation);
                 }
@@ -236,7 +236,7 @@ public class UpdateStatement extends ModificationStatement
                 }
                 else
                 {
-                    Operation operation = new Operation.SetValue(raw).prepare(metadata, def);
+                    Operation operation = new Operation.SetValue(raw).prepare(metadata, def, !conditions.isEmpty());
                     operation.collectMarkerSpecification(bindVariables);
                     operations.add(operation);
                 }
@@ -304,7 +304,7 @@ public class UpdateStatement extends ModificationStatement
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
 
-                Operation operation = entry.right.prepare(metadata, def);
+                Operation operation = entry.right.prepare(metadata, def, !conditions.isEmpty());
                 operation.collectMarkerSpecification(bindVariables);
                 operations.add(operation);
             }
