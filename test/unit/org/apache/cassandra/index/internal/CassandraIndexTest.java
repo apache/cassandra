@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.internal;
 
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -42,6 +43,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertArrayEquals;
@@ -561,33 +563,32 @@ public class CassandraIndexTest extends CQLTester
         String selectBuiltIndexesQuery = String.format("SELECT * FROM %s.\"%s\"",
                                                        SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                                        SystemKeyspace.BUILT_INDEXES);
-        UntypedResultSet rs = execute(selectBuiltIndexesQuery);
-        int initialSize = rs.size();
+
+        // Wait for any background index clearing tasks to complete. Warn: When we used to run tests in parallel there
+        // could also be cross test class talk and have other indices pop up here.
+        Awaitility.await()
+                  .atMost(1, TimeUnit.MINUTES)
+                  .pollDelay(1, TimeUnit.SECONDS)
+                  .untilAsserted(() -> assertRows(execute(selectBuiltIndexesQuery)));
 
         String indexName = "build_remove_test_idx";
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
         waitForIndex(KEYSPACE, tableName, indexName);
+
         // check that there are no other rows in the built indexes table
-        rs = execute(selectBuiltIndexesQuery);
-        int sizeAfterBuild = rs.size();
-        assertRowsIgnoringOrderAndExtra(rs, row(KEYSPACE, indexName, null));
+        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null));
 
         // rebuild the index and verify the built status table
         getCurrentColumnFamilyStore().rebuildSecondaryIndex(indexName);
         waitForIndex(KEYSPACE, tableName, indexName);
 
         // check that there are no other rows in the built indexes table
-        rs = execute(selectBuiltIndexesQuery);
-        assertEquals(sizeAfterBuild, rs.size());
-        assertRowsIgnoringOrderAndExtra(rs, row(KEYSPACE, indexName, null));
+        assertRows(execute(selectBuiltIndexesQuery), row(KEYSPACE, indexName, null));
 
         // check that dropping the index removes it from the built indexes table
         dropIndex("DROP INDEX %s." + indexName);
-        rs = execute(selectBuiltIndexesQuery);
-        assertEquals(initialSize, rs.size());
-        rs.forEach(row -> assertFalse(row.getString("table_name").equals(KEYSPACE)  // table_name is actually keyspace
-                                      && row.getString("index_name").equals(indexName)));
+        assertRows(execute(selectBuiltIndexesQuery));
     }
 
 
