@@ -201,9 +201,9 @@
         <!-- files.pythonhosted.org -->
         <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-
         <!-- python-driver -->
-        <get src="${lib.download.base.url}/lib/cassandra-driver-internal-only-3.25.0.zip" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/af/aa/3d3a6dae349d4f9b69d37e6f3f8b8ef286a06005aa312f0a3dc7af0eb556/cassandra-driver-3.25.0.tar.gz" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-3.25.0.tar.gz"  usetimestamp="true" quiet="true" skipexisting="true"/>
+
         <!-- the following would be better, but its subdirectory is python-driver-3.25.0 instead of cassandra-driver-3.25.0 -->
         <!--get src="https://codeload.github.com/datastax/python-driver/zip/refs/tags/3.25.0" dest="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip" usetimestamp="true" quiet="true"/-->
 
@@ -237,7 +237,7 @@
         
         <copy todir="${build.lib}" quiet="true">
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
-            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-internal-only-3.25.0.zip"/>
+            <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/cassandra-driver-3.25.0.tar.gz"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
             <file file="${user.home}/.m2/repository/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
         </copy>
