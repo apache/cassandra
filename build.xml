@@ -1304,6 +1304,43 @@
     </copy>
   </target>
 
+  <!-- Run tests separately and report errors after and generate a junit report -->
+  <macrodef name="testhelper">
+    <attribute name="testdelegate"/>
+    <sequential>
+      <testhelper_ testdelegate="@{testdelegate}"/>
+      <fail message="Some test(s) failed.">
+        <condition>
+            <and>
+            <isset property="testfailed"/>
+            <not>
+              <isset property="ant.test.failure.ignore"/>
+            </not>
+          </and>
+        </condition>
+      </fail>
+    </sequential>
+  </macrodef>
+
+  <!-- Run a list of junit tasks but don't track errors or generate a report after
+       If a test fails the testfailed property will be set. All the tests are run using the testdelegate
+       macro that is specified as an attribute and they will be run sequentially in this ant process -->
+  <scriptdef name="testhelper_" language="javascript">
+    <attribute name="testdelegate"/>
+    <![CDATA[
+        sep = project.getProperty("path.separator");
+        all = project.getProperty("all-test-classes").split(sep);
+        var p = project.createTask('sequential');
+        for (i = 0; i < all.length; i++) {
+            if (all[i] == undefined) continue;
+            task = project.createTask( attributes.get("testdelegate") );
+            task.setDynamicAttribute( "test.file.list", "" + all[i]);
+            p.addTask(task);
+        }
+        p.perform();
+    ]]>
+  </scriptdef>
+
   <!-- Defines how to run a set of tests. If you change the defaults for attributes
        you should also update them in testmacro.,
        The two are split because the helper doesn't generate
@@ -1316,7 +1353,6 @@
     <attribute name="filter" default="**/${test.name}.java"/>
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
-    <attribute name="poffset" default="0"/>
     <attribute name="testtag" default=""/>
     <attribute name="usejacoco" default="no"/>
     <attribute name="showoutput" default="false"/>
@@ -1356,7 +1392,6 @@
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
-        <jvmarg value="-Dcassandra.test.offsetseed=@{poffset}"/>
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
@@ -1392,24 +1427,16 @@
         </batchtest>
       </junit-timeout>
 
-      <condition property="fileSep" value=";">
-        <os family="windows"/>
-      </condition>
-      <condition property="fileSep" else=":">
-        <isset property="fileSep"/>
-      </condition>
-      <fail unless="fileSep">Failed to set File Separator. This shouldn't happen.</fail>
-
-      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog${fileSep}@{poffset}"/>
-      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/cdc_raw${fileSep}@{poffset}"/>
-      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/data${fileSep}@{poffset}"/>
-      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/system_data${fileSep}@{poffset}"/>
-      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/saved_caches${fileSep}@{poffset}"/>
-      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/hints${fileSep}@{poffset}"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/commitlog"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/cdc_raw"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/data"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/system_data"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/saved_caches"/>
+      <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/hints"/>
     </sequential>
   </macrodef>
 
-    <target name="testold" depends="build-test" description="Execute unit tests">
+  <target name="testold" depends="build-test" description="Execute unit tests">
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1429,7 +1456,6 @@
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
-        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
       </testmacrohelper>
     </sequential>
@@ -1453,7 +1479,6 @@
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${compressed_yaml}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
-        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1474,7 +1499,6 @@
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${cdc_yaml}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
-        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1495,7 +1519,6 @@
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${system_keyspaces_directory_yaml}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
-        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1555,24 +1578,24 @@
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
       <fileset dir="${test.distributed.src}" includes="**/${test.name}.java" />
     </path>
-    <property name="test.file.list" refid="all-test-classes-path"/>
-    <testlist-compression test.file.list="${test.file.list}"/>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-compression" />
   </target>
 
   <target name="test-cdc" depends="build-test" description="Execute unit tests with change-data-capture enabled">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
-    <property name="test.file.list" refid="all-test-classes-path"/>
-    <testlist-cdc test.file.list="${test.file.list}"/>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-cdc" />
   </target>
 
   <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
-    <property name="test.file.list" refid="all-test-classes-path"/>
-    <testlist-system-keyspace-directory test.file.list="${test.file.list}"/>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist-system-keyspace-directory" />
   </target>
 
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
@@ -1784,13 +1807,12 @@
     <attribute name="filter" default="**/${test.name}.java"/>
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
-    <attribute name="poffset" default="0"/>
     <attribute name="testtag" default=""/>
 
     <sequential>
       <testmacrohelper inputdir="@{inputdir}" timeout="@{timeout}"
                        forkmode="@{forkmode}" filter="@{filter}"
-                       exclude="@{exclude}" filelist="@{filelist}" poffset="@{poffset}"
+                       exclude="@{exclude}" filelist="@{filelist}"
                        testtag="@{testtag}" showoutput="false" >
           <optjvmargs/>
       </testmacrohelper>
@@ -1811,8 +1833,8 @@
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
-    <property name="test.file.list" refid="all-test-classes-path"/>
-    <testlist test.file.list="${test.file.list}"/>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist"/>
   </target>
 
   <target name="generate-test-report" description="Generates JUnit's HTML report from results already in build/output">
@@ -1831,29 +1853,29 @@
     <path id="all-test-classes-path">
       <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
     </path>
-    <property name="test.file.list" refid="all-test-classes-path"/>
-    <testlist test.file.list="${test.file.list}"/>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testhelper testdelegate="testlist"/>
   </target>
   <target name="testclasslist-compression" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>
-      <property name="test.file.list" refid="all-test-classes-path"/>
-      <testlist-compression test.file.list="${test.file.list}"/>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-compression"/>
   </target>
   <target name="testclasslist-cdc" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>
-      <property name="test.file.list" refid="all-test-classes-path"/>
-      <testlist-cdc test.file.list="${test.file.list}"/>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-cdc"/>
   </target>
   <target name="testclasslist-system-keyspace-directory" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>
-      <property name="test.file.list" refid="all-test-classes-path"/>
-      <testlist-system-keyspace-directory test.file.list="${test.file.list}"/>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testhelper testdelegate="testlist-system-keyspace-directory"/>
   </target>
 
   <!-- Build a self-contained jar for e.g. remote execution; not currently used for running burn tests with this build script -->
