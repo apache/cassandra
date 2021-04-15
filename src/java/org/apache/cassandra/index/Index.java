@@ -897,6 +897,14 @@ public interface Index
          *         the index was used to narrow the initial result set
          */
         RowFilter postIndexQueryFilter();
+
+        /**
+         * @return true if the indexes in this plan support querying multiple vnode ranges at once.
+         */
+        default boolean supportsMultiRangeReadCommand()
+        {
+            return false;
+        }
     }
 
     /*

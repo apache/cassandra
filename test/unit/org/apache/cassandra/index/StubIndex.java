@@ -93,6 +93,10 @@ public class StubIndex implements Index
         return UTF8Type.instance;
     }
 
+    public RowFilter postIndexQueryFilter(RowFilter filter)
+    {
+        return filter;
+    }
     public RowFilter getPostIndexQueryFilter(RowFilter filter)
     {
         return filter;

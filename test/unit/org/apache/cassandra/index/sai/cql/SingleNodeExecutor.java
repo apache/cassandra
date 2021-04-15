@@ -21,9 +21,7 @@ package org.apache.cassandra.index.sai.cql;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.SimpleStatement;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.inject.Injections;
 

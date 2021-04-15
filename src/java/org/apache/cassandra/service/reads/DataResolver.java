@@ -147,9 +147,9 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return index.supportsReplicaFilteringProtection(command.rowFilter());
     }
 
-    private class ResolveContext
+    protected class ResolveContext
     {
-        private final E replicas;
+        public final E replicas;
         private final DataLimits.Counter mergedResultCounter;
 
         private ResolveContext(E replicas)
@@ -166,7 +166,12 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             return replicas.size() > 1;
         }
 
-        private boolean needShortReadProtection()
+        public DataLimits.Counter mergedResultCounter()
+        {
+            return mergedResultCounter;
+        }
+
+        public boolean needShortReadProtection()
         {
             // If we have only one result, there is no read repair to do and we can't get short reads
             // Also, so-called "short reads" stems from nodes returning only a subset of the results they have for a
@@ -182,19 +187,24 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         UnfilteredPartitionIterator getResponse(int i);
     }
 
-    private UnfilteredPartitionIterator shortReadProtectedResponse(int i, ResolveContext context)
+    protected UnfilteredPartitionIterator shortReadProtectedResponse(int i, ResolveContext context)
     {
         UnfilteredPartitionIterator originalResponse = responses.get(i).payload.makeIterator(command);
 
-        return context.needShortReadProtection()
-               ? ShortReadProtection.extend(context.replicas.get(i),
-                                            () -> responses.clearUnsafe(i),
-                                            originalResponse,
-                                            command,
-                                            context.mergedResultCounter,
-                                            queryStartNanoTime,
-                                            enforceStrictLiveness)
-               : originalResponse;
+        if (context.needShortReadProtection())
+        {
+            DataLimits.Counter singleResultCounter = command.createLimitedCounter(false);
+            return ShortReadProtection.extend(originalResponse,
+                                              command,
+                                              new ShortReadPartitionsProtection(command,
+                                                                                context.replicas.get(i),
+                                                                                () -> responses.clearUnsafe(i),
+                                                                                singleResultCounter,
+                                                                                context.mergedResultCounter(),
+                                                                                queryStartNanoTime),
+                                              singleResultCounter);
+        }
+        return originalResponse;
     }
 
     private PartitionIterator resolveWithReadRepair(ResolveContext context,
