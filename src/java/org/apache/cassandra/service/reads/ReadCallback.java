@@ -80,6 +80,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return replicaPlan.get();
     }
 
+    public ReadCommand command()
+    {
+        return command;
+    }
+
     public boolean await(long timePastStart, TimeUnit unit)
     {
         long time = unit.toNanos(timePastStart) - (System.nanoTime() - queryStartNanoTime);
