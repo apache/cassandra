@@ -234,6 +234,18 @@ public class Message<T>
         return outWithParam(0, verb, payload, null, null);
     }
 
+    /**
+     * Used by the {@code MultiRangeReadCommand} to split multi-range responses from a replica
+     * into single-range responses.
+     */
+    public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
+    {
+        assert verb.isResponse();
+        long createdAtNanos = approxTime.now();
+        long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
+        return new Message<>(new Header(0, verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
+    }
+
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
     public <T> Message<T> responseWith(T payload)
     {
