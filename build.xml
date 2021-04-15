@@ -1307,8 +1307,7 @@
   <!-- Defines how to run a set of tests. If you change the defaults for attributes
        you should also update them in testmacro.,
        The two are split because the helper doesn't generate
-       a junit report or fail on errors, since this is called in parallel to run tests
-       when we choose to run tests in parallel -->
+       a junit report or fail on errors -->
   <macrodef name="testmacrohelper">
     <attribute name="inputdir" />
     <attribute name="timeout" default="${test.timeout}" />
@@ -1421,13 +1420,11 @@
     <fileset dir="${test.unit.src}" />
   </target>
 
-  <!-- Will not generate a junit report or fail on error since it is called in parallel for test-compression
-       That is taken care of by testparallel -->
+  <!-- Will not generate a junit report or fail on error  -->
   <macrodef name="testlist">
     <attribute name="test.file.list"/>
-    <attribute name="testlist.offset"/>
     <sequential>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" poffset="@{testlist.offset}" exclude="**/*.java" timeout="${test.timeout}">
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" exclude="**/*.java" timeout="${test.timeout}">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
@@ -1438,18 +1435,16 @@
     </sequential>
   </macrodef>
 
-  <!-- Will not generate a junit report or fail on error since it is called in parallel for test-compression
-       That is taken care of by testparallel -->
+  <!-- Will not generate a junit report  -->
   <macrodef name="testlist-compression">
     <attribute name="test.file.list" />
-    <attribute name="testlist.offset" />
     <sequential>
       <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
       <concat destfile="${compressed_yaml}">
           <fileset file="${test.conf}/cassandra.yaml"/>
           <fileset file="${test.conf}/commitlog_compression.yaml"/>
       </concat>
-      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
+      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="compression">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1465,14 +1460,13 @@
 
   <macrodef name="testlist-cdc">
     <attribute name="test.file.list" />
-    <attribute name="testlist.offset" />
     <sequential>
       <property name="cdc_yaml" value="${build.test.dir}/cassandra.cdc.yaml"/>
       <concat destfile="${cdc_yaml}">
         <fileset file="${test.conf}/cassandra.yaml"/>
         <fileset file="${test.conf}/cdc.yaml"/>
       </concat>
-      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
+      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="cdc">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1487,14 +1481,13 @@
 
   <macrodef name="testlist-system-keyspace-directory">
     <attribute name="test.file.list" />
-    <attribute name="testlist.offset" />
     <sequential>
       <property name="system_keyspaces_directory_yaml" value="${build.test.dir}/cassandra.system.yaml"/>
       <concat destfile="${system_keyspaces_directory_yaml}">
         <fileset file="${test.conf}/cassandra.yaml"/>
         <fileset file="${test.conf}/system_keyspaces_directory.yaml"/>
       </concat>
-      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
+      <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="system_keyspace_directory">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1562,24 +1555,24 @@
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
       <fileset dir="${test.distributed.src}" includes="**/${test.name}.java" />
     </path>
-    <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testparallel testdelegate="testlist-compression" />
+    <property name="test.file.list" refid="all-test-classes-path"/>
+    <testlist-compression test.file.list="${test.file.list}"/>
   </target>
 
   <target name="test-cdc" depends="build-test" description="Execute unit tests with change-data-capture enabled">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
-    <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testparallel testdelegate="testlist-cdc" />
+    <property name="test.file.list" refid="all-test-classes-path"/>
+    <testlist-cdc test.file.list="${test.file.list}"/>
   </target>
 
   <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
-    <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testparallel testdelegate="testlist-system-keyspace-directory" />
+    <property name="test.file.list" refid="all-test-classes-path"/>
+    <testlist-system-keyspace-directory test.file.list="${test.file.list}"/>
   </target>
 
   <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
@@ -1781,7 +1774,7 @@
     </create-javadoc>
    </target>
 
-  <!-- Run tests not in parallel and reports errors and generates a junit report after -->
+  <!-- Run tests and reports errors and generates a junit report after -->
   <macrodef name="testmacro">
     <attribute name="inputdir" />
     <attribute name="timeout" default="${test.timeout}" />
@@ -1814,111 +1807,12 @@
     </sequential>
   </macrodef>
 
-  <!-- Run tests in parallel and report errors after and generate a junit report -->
-  <macrodef name="testparallel">
-    <attribute name="testdelegate"/>
-    <sequential>
-      <testparallelhelper testdelegate="@{testdelegate}"/>
-      <fail message="Some test(s) failed.">
-        <condition>
-            <and>
-            <isset property="testfailed"/>
-            <not>
-              <isset property="ant.test.failure.ignore"/>
-            </not>
-          </and>
-        </condition>
-      </fail>
-    </sequential>
-  </macrodef>
-
-  <!-- Run multiple junit tasks in parallel, but don't track errors or generate a report after
-       If a test fails the testfailed property will be set. All the tests are run using te testdelegate
-       macro that is specified as an attribute and they will be run concurrently in this ant process -->
-  <scriptdef name="testparallelhelper" language="javascript">
-    <attribute name="testdelegate"/>
-    <![CDATA[
-        sep = project.getProperty("path.separator");
-        all = project.getProperty("all-test-classes").split(sep);
-        runners = project.getProperty("test.runners")
-        cores = project.getProperty("cores.count")
-        mem = project.getProperty("mem.size")
-
-        numRunners = 1
-        if (runners != null) // there's test.runners override
-            numRunners = parseInt(runners) || 1;
-        else if (cores != null && mem != null) // only if cores and memory size is set
-            numRunners = Math.min(Math.floor(Math.sqrt(parseInt(cores) || 1)),
-                                  Math.floor((parseInt(mem) || 1)/(4*1024*1024*1024)));
-
-        if (numRunners < 1)
-            numRunners = 1
-
-        var echo = project.createTask("echo");
-        echo.setMessage("Number of test runners: " + numRunners);
-        echo.perform();
-
-        var p = project.createTask('parallel');
-        p.setThreadCount(numRunners);
-
-        for (i = 0; i < all.length; i++) {
-
-            if (all[i] == undefined) continue;
-
-            task = project.createTask( attributes.get("testdelegate") );
-
-            task.setDynamicAttribute( "test.file.list", "" + all[i]);
-
-            task.setDynamicAttribute( "testlist.offset", "" + i );
-
-            p.addTask(task);
-        }
-
-        p.perform();
-    ]]>
-  </scriptdef>
-
-  <target name="get-cores">
-    <property environment="env"/>
-    <!-- support for Windows -->
-    <condition property="cores.count" value="${env.NUMBER_OF_PROCESSORS}">
-      <os family="windows" />
-    </condition>
-    <!-- support for Linux and Solaris (package SUNWgnu-coreutils is required) -->
-    <exec executable="nproc" outputproperty="cores.count" os="Linux,SunOS,Solaris" failifexecutionfails="false">
-      <arg value="--all"/>
-    </exec>
-    <!-- support for Mac OS X -->
-    <exec executable="sysctl" outputproperty="cores.count" os="Mac,Mac OS X,Darwin" failifexecutionfails="false">
-      <arg value="-n"/>
-      <arg value="hw.ncpu"/>
-    </exec>
-    <echo message="Number of cores: ${cores.count}"/>
-  </target>
-
-  <target name="get-mem">
-    <condition property="mem.size" value="unknown">
-      <os family="windows" />
-    </condition>
-    <!-- support for Linux and Solaris (package SUNWgnu-coreutils is required) -->
-    <exec executable="bash" outputproperty="mem.size" os="Linux,SunOS,Solaris" failifexecutionfails="false">
-      <arg value="-c"/>
-      <arg value="free -b | grep Mem: | awk '{print $2}'"/>
-    </exec>
-    <!-- support for Mac OS X -->
-    <exec executable="sysctl" outputproperty="mem.size" os="Mac,Mac OS X,Darwin" failifexecutionfails="false">
-      <arg value="-n"/>
-      <arg value="hw.memsize"/>
-    </exec>
-    <echo message="Mem size : ${mem.size}"/>
-  </target>
-
-  <target name="test" depends="eclipse-warnings,build-test,get-cores,get-mem" description="Parallel Test Runner">
+  <target name="test" depends="eclipse-warnings,build-test" description="Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
-    <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testparallel testdelegate="testlist"/>
+    <property name="test.file.list" refid="all-test-classes-path"/>
+    <testlist test.file.list="${test.file.list}"/>
   </target>
 
   <target name="generate-test-report" description="Generates JUnit's HTML report from results already in build/output">
@@ -1933,33 +1827,33 @@
   <!-- run a list of tests as provided in -Dtest.classlistfile (or default of 'testnames.txt')
   The class list file should be one test class per line, with the path starting after test/unit
   e.g. org/apache/cassandra/hints/HintMessageTest.java -->
-  <target name="testclasslist" depends="build-test,get-cores,get-mem" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
     <path id="all-test-classes-path">
       <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
     </path>
-    <property name="all-test-classes" refid="all-test-classes-path"/>
-    <testparallel testdelegate="testlist"/>
+    <property name="test.file.list" refid="all-test-classes-path"/>
+    <testlist test.file.list="${test.file.list}"/>
   </target>
-  <target name="testclasslist-compression" depends="build-test,get-cores,get-mem" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist-compression" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>
-      <property name="all-test-classes" refid="all-test-classes-path"/>
-      <testparallel testdelegate="testlist-compression"/>
+      <property name="test.file.list" refid="all-test-classes-path"/>
+      <testlist-compression test.file.list="${test.file.list}"/>
   </target>
-  <target name="testclasslist-cdc" depends="build-test,get-cores,get-mem" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist-cdc" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>
-      <property name="all-test-classes" refid="all-test-classes-path"/>
-      <testparallel testdelegate="testlist-cdc"/>
+      <property name="test.file.list" refid="all-test-classes-path"/>
+      <testlist-cdc test.file.list="${test.file.list}"/>
   </target>
-  <target name="testclasslist-system-keyspace-directory" depends="build-test,get-cores,get-mem" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+  <target name="testclasslist-system-keyspace-directory" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">
           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
       </path>
-      <property name="all-test-classes" refid="all-test-classes-path"/>
-      <testparallel testdelegate="testlist-system-keyspace-directory"/>
+      <property name="test.file.list" refid="all-test-classes-path"/>
+      <testlist-system-keyspace-directory test.file.list="${test.file.list}"/>
   </target>
 
   <!-- Build a self-contained jar for e.g. remote execution; not currently used for running burn tests with this build script -->
