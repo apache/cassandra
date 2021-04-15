@@ -78,8 +78,10 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         if (command instanceof SinglePartitionReadCommand)
             token = ((SinglePartitionReadCommand) command).partitionKey().getToken();
-        else
+        else if (command instanceof PartitionRangeReadCommand)
             token = ((PartitionRangeReadCommand) command).dataRange().keyRange().right.getToken();
+        else
+            return;
 
         Replica replica = Keyspace.open(command.metadata().keyspace)
                                   .getReplicationStrategy()

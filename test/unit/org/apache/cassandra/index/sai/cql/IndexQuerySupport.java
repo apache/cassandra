@@ -23,7 +23,6 @@ package org.apache.cassandra.index.sai.cql;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.base.MoreObjects;

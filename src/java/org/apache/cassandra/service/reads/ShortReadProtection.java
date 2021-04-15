@@ -18,16 +18,11 @@
 
 package org.apache.cassandra.service.reads;
 
-import java.net.InetAddress;
-
-
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 
 /**
  * We have a potential short read if the result from a given node contains the requested number of rows
@@ -42,26 +37,11 @@ import org.apache.cassandra.locator.Replica;
 public class ShortReadProtection
 {
     @SuppressWarnings("resource")
-    public static UnfilteredPartitionIterator extend(Replica source,
-                                                     Runnable preFetchCallback,
-                                                     UnfilteredPartitionIterator partitions,
+    public static UnfilteredPartitionIterator extend(UnfilteredPartitionIterator partitions,
                                                      ReadCommand command,
-                                                     DataLimits.Counter mergedResultCounter,
-                                                     long queryStartNanoTime,
-                                                     boolean enforceStrictLiveness)
+                                                     ShortReadPartitionsProtection protection,
+                                                     DataLimits.Counter singleResultCounter)
     {
-        DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
-                                                                             false,
-                                                                             command.selectsFullPartition(),
-                                                                             enforceStrictLiveness).onlyCount();
-
-        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command,
-                                                                                     source,
-                                                                                     preFetchCallback,
-                                                                                     singleResultCounter,
-                                                                                     mergedResultCounter,
-                                                                                     queryStartNanoTime);
-
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen
          * first due to the way BaseIterator.hasMoreContents() works: only transformations applied after extension will

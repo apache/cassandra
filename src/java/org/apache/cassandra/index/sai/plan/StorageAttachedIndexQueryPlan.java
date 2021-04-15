@@ -133,10 +133,9 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         return postIndexFilter;
     }
 
-    //TODO Do we need to support this
-//    @Override
-//    public boolean supportsMultiRangeReadCommand()
-//    {
-//        return true;
-//    }
+    @Override
+    public boolean supportsMultiRangeReadCommand()
+    {
+        return true;
+    }
 }

@@ -90,7 +90,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     private int digestVersion;
 
     @Nullable
-    private final Index.QueryPlan indexQueryPlan;
+    protected final Index.QueryPlan indexQueryPlan;
 
     protected static abstract class SelectionDeserializer
     {
@@ -110,7 +110,8 @@ public abstract class ReadCommand extends AbstractReadQuery
     protected enum Kind
     {
         SINGLE_PARTITION (SinglePartitionReadCommand.selectionDeserializer),
-        PARTITION_RANGE  (PartitionRangeReadCommand.selectionDeserializer);
+        PARTITION_RANGE  (PartitionRangeReadCommand.selectionDeserializer),
+        MULTI_RANGE      (MultiRangeReadCommand.selectionDeserializer);
 
         private final SelectionDeserializer selectionDeserializer;
 
@@ -312,6 +313,16 @@ public abstract class ReadCommand extends AbstractReadQuery
                : ReadResponse.createDataResponse(iterator, this, rdi);
     }
 
+    public DataLimits.Counter createLimitedCounter(boolean assumeLiveData)
+    {
+        return limits().newCounter(nowInSec(), assumeLiveData, selectsFullPartition(), metadata().enforceStrictLiveness()).onlyCount();
+    }
+
+    public DataLimits.Counter createUnlimitedCounter(boolean assumeLiveData)
+    {
+        return DataLimits.NONE.newCounter(nowInSec(), assumeLiveData, selectsFullPartition(), metadata().enforceStrictLiveness());
+    }
+
     long indexSerializedSize(int version)
     {
         return null != indexQueryPlan
@@ -362,19 +373,18 @@ public abstract class ReadCommand extends AbstractReadQuery
         long startTimeNanos = System.nanoTime();
 
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
-        Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
         Index.Searcher searcher = null;
         if (indexQueryPlan != null)
         {
             cfs.indexManager.checkQueryability(indexQueryPlan);
-
+            searcher = indexSearcher();
             Index index = indexQueryPlan.getFirst();
-            searcher = indexQueryPlan.searcherFor(this);
             Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
         }
 
-        UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
+        UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController)
+                                                                  : searchStorage(searcher, executionController);
         iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
         try
@@ -422,6 +432,11 @@ public abstract class ReadCommand extends AbstractReadQuery
             iterator.close();
             throw e;
         }
+    }
+
+    public UnfilteredPartitionIterator searchStorage(Index.Searcher searcher, ReadExecutionController executionController)
+    {
+        return searcher.search(executionController);
     }
 
     protected abstract void recordLatency(TableMetrics metric, long latencyNanos);

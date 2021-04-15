@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.MultiRangeReadCommand;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
@@ -384,6 +385,11 @@ public class QueryController
         {
             PartitionRangeReadCommand cmd = (PartitionRangeReadCommand) command;
             return Lists.newArrayList(cmd.dataRange());
+        }
+        else if (command instanceof MultiRangeReadCommand)
+        {
+            MultiRangeReadCommand cmd = (MultiRangeReadCommand) command;
+            return cmd.ranges();
         }
         else
         {
