@@ -377,7 +377,9 @@
     <target depends="clean" name="cleanall"/>
 
     <target name="realclean" depends="clean" description="Remove the entire build directory and all downloaded artifacts">
-        <delete dir="${build.lib}" />
+        <delete>
+          <fileset dir="${build.lib}" excludes="cassandra-driver-internal-only-*"/>
+        </delete>
         <delete dir="${build.dir}" />
         <delete dir="${doc.dir}/build" />
         <delete dir="${doc.dir}/source/tools/nodetool" />
