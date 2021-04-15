@@ -133,6 +133,10 @@ public interface DataModel
 
     DataModel withTableOptions(String tableOptions) throws Throwable;
 
+    String indexedTable();
+
+    String nonIndexedTable();
+
     List<Pair<String, String>> keyColumns();
 
     void createTables(Executor tester) throws Throwable;
@@ -185,6 +189,16 @@ public interface DataModel
             this.rows = rows;
 
             this.keys = new SimplePrimaryKeyList(rows.size());
+        }
+
+        public String indexedTable()
+        {
+            return indexedTable;
+        }
+
+        public String nonIndexedTable()
+        {
+            return nonIndexedTable;
         }
 
         public DataModel withTableOptions(String tableOptions)

@@ -74,6 +74,26 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                                                    ColumnFilter columnFilter,
                                                    RowFilter rowFilter,
                                                    DataLimits limits,
+                                                   DataRange dataRange,
+                                                   Index.QueryPlan indexQueryPlan)
+    {
+        return new PartitionRangeReadCommand(false,
+                                             0,
+                                             false,
+                                             metadata,
+                                             nowInSec,
+                                             columnFilter,
+                                             rowFilter,
+                                             limits,
+                                             dataRange,
+                                             indexQueryPlan);
+    }
+
+    public static PartitionRangeReadCommand create(TableMetadata metadata,
+                                                   int nowInSec,
+                                                   ColumnFilter columnFilter,
+                                                   RowFilter rowFilter,
+                                                   DataLimits limits,
                                                    DataRange dataRange)
     {
         return new PartitionRangeReadCommand(false,

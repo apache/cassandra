@@ -55,12 +55,13 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private final Runnable preFetchCallback; // called immediately before fetching more contents
 
-    private final DataLimits.Counter singleResultCounter; // unmerged per-source counter
+    protected final DataLimits.Counter singleResultCounter; // unmerged per-source counter
     private final DataLimits.Counter mergedResultCounter; // merged end-result counter
 
     private DecoratedKey lastPartitionKey; // key of the last observed partition
 
     private boolean partitionsFetched; // whether we've seen any new partitions since iteration start or last moreContents() call
+    protected boolean rangeFetched = false; // fetched by original read request or SRP request
 
     private final long queryStartNanoTime;
 
@@ -134,9 +135,10 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
          * Either we had an empty iterator as the initial response, or our moreContents() call got us an empty iterator.
          * There is no point to ask the replica for more rows - it has no more in the requested range.
          */
-        if (!partitionsFetched)
+        if (rangeExhausted())
             return null;
         partitionsFetched = false;
+        rangeFetched = true;
 
         /*
          * We are going to fetch one partition at a time for thrift and potentially more for CQL.
@@ -156,6 +158,11 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         preFetchCallback.run();
 
         return makeAndExecuteFetchAdditionalPartitionReadCommand(toQuery);
+    }
+
+    public boolean rangeExhausted()
+    {
+        return !partitionsFetched;
     }
 
     private UnfilteredPartitionIterator makeAndExecuteFetchAdditionalPartitionReadCommand(int toQuery)
