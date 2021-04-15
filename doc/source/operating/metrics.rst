@@ -184,7 +184,7 @@ Name                                    Type           Description
 IdealCLWriteLatency                     Latency        Coordinator latency of writes at the configured ideal consistency level. No values are recorded if ideal consistency level is not configured
 RepairPrepareTime                       Timer          Total time spent preparing for repair.
 RepairTime                              Timer          Total time spent as repair coordinator.
-WriteFailedIdeaCL                       Counter        Number of writes that failed to achieve the configured ideal consistency level or 0 if none is configured
+WriteFailedIdealCL                      Counter        Number of writes that failed to achieve the configured ideal consistency level or 0 if none is configured
 ======================================= ============== ===========
 
 ThreadPool Metrics
