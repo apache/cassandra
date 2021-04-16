@@ -531,9 +531,9 @@ public class LocalSessions
                                        Date.from(Instant.ofEpochSecond(session.getLastUpdate())),
                                        Date.from(Instant.ofEpochMilli(session.repairedAt)),
                                        session.getState().ordinal(),
-                                       session.coordinator.address,
-                                       session.coordinator.port,
-                                       session.participants.stream().map(participant -> participant.address).collect(Collectors.toSet()),
+                                       session.coordinator.getAddress(),
+                                       session.coordinator.getPort(),
+                                       session.participants.stream().map(participant -> participant.getAddress()).collect(Collectors.toSet()),
                                        session.participants.stream().map(participant -> participant.getHostAddressAndPort()).collect(Collectors.toSet()),
                                        serializeRanges(session.ranges),
                                        tableIdToUuid(session.tableIds));

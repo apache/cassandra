@@ -69,7 +69,7 @@ public class RangeFetchMapCalculatorTest
 
             private int getIPLastPart(InetAddressAndPort endpoint)
             {
-                String str = endpoint.address.toString();
+                String str = endpoint.getAddress().toString();
                 int index = str.lastIndexOf(".");
                 return Integer.parseInt(str.substring(index + 1).trim());
             }

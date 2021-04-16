@@ -184,7 +184,7 @@ public class RepairJobTest
         this.sessionJobDesc = new RepairJobDesc(session.parentRepairSession, session.getId(),
                                                 session.keyspace, CF, session.ranges());
 
-        FBUtilities.setBroadcastInetAddress(addr1.address);
+        FBUtilities.setBroadcastInetAddress(addr1.getAddress());
     }
 
     @After
@@ -561,7 +561,7 @@ public class RepairJobTest
         for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
             FBUtilities.reset();
-            FBUtilities.setBroadcastInetAddress(local.address);
+            FBUtilities.setBroadcastInetAddress(local.getAddress());
             testLocalSyncWithTransient(local, false);
         }
     }
@@ -572,7 +572,7 @@ public class RepairJobTest
         for (InetAddressAndPort local : new InetAddressAndPort[]{ addr1, addr2, addr3 })
         {
             FBUtilities.reset();
-            FBUtilities.setBroadcastInetAddress(local.address);
+            FBUtilities.setBroadcastInetAddress(local.getAddress());
             testLocalSyncWithTransient(local, true);
         }
     }
@@ -628,7 +628,7 @@ public class RepairJobTest
 
     private static void testLocalAndRemoteTransient(boolean pullRepair)
     {
-        FBUtilities.setBroadcastInetAddress(addr4.address);
+        FBUtilities.setBroadcastInetAddress(addr4.getAddress());
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "one", RANGE_2, "one", RANGE_3, "one"),
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "three", RANGE_3, "three"),

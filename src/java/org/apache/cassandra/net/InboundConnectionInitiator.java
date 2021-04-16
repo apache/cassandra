@@ -156,7 +156,7 @@ public class InboundConnectionInitiator
             bootstrap.childOption(ChannelOption.SO_RCVBUF, socketReceiveBufferSizeInBytes);
 
         InetAddressAndPort bind = initializer.settings.bindAddress;
-        ChannelFuture channelFuture = bootstrap.bind(new InetSocketAddress(bind.address, bind.port));
+        ChannelFuture channelFuture = bootstrap.bind(new InetSocketAddress(bind.getAddress(), bind.getPort()));
 
         if (!channelFuture.awaitUninterruptibly().isSuccess())
         {

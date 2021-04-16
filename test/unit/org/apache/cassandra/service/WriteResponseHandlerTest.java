@@ -94,7 +94,7 @@ public class WriteResponseHandlerTest
 
             public String getDatacenter(InetAddressAndPort endpoint)
             {
-                byte[] address = endpoint.address.getAddress();
+                byte[] address = endpoint.getAddress().getAddress();
                 if (address[1] == 1)
                     return "datacenter1";
                 else

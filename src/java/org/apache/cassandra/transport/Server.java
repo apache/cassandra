@@ -381,7 +381,7 @@ public class Server implements CassandraDaemon.Server
                 // That should not happen, so log an error, but return the
                 // endpoint address since there's a good change this is right
                 logger.error("Problem retrieving RPC address for {}", endpoint, e);
-                return InetAddressAndPort.getByAddressOverrideDefaults(endpoint.address, DatabaseDescriptor.getNativeTransportPort());
+                return InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), DatabaseDescriptor.getNativeTransportPort());
             }
         }
 
