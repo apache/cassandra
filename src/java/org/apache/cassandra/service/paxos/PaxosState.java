@@ -20,12 +20,10 @@
  */
 package org.apache.cassandra.service.paxos;
 
-import java.util.concurrent.locks.Lock;
-
-import com.google.common.util.concurrent.Striped;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.UUIDGen;
@@ -34,7 +32,26 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class PaxosState
 {
-    private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
+    private static class Lock
+    {
+        private static final ConcurrentMap<DecoratedKey, Lock> LOCKS = new ConcurrentHashMap<>();
+        int count = 1;
+
+        static Lock get(DecoratedKey key)
+        {
+            return LOCKS.compute(key, (ignore, cur) -> {
+                if (cur == null)
+                    return new Lock();
+                ++cur.count;
+                return cur;
+            });
+        }
+
+        void put(DecoratedKey key)
+        {
+            LOCKS.compute(key, (ignore, cur) -> --cur.count == 0 ? null : cur);
+        }
+    }
 
     private final Commit promised;
     private final Commit accepted;
@@ -60,33 +77,35 @@ public class PaxosState
         long start = nanoTime();
         try
         {
-            Lock lock = LOCKS.get(toPrepare.update.partitionKey());
-            lock.lock();
+            Lock lock = Lock.get(toPrepare.update.partitionKey());
             try
             {
-                // When preparing, we need to use the same time as "now" (that's the time we use to decide if something
-                // is expired or not) accross nodes otherwise we may have a window where a Most Recent Commit shows up
-                // on some replica and not others during a new proposal (in StorageProxy.beginAndRepairPaxos()), and no
-                // amount of re-submit will fix this (because the node on which the commit has expired will have a
-                // tombstone that hides any re-submit). See CASSANDRA-12043 for details.
-                int nowInSec = UUIDGen.unixTimestampInSec(toPrepare.ballot);
-                PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.update.partitionKey(), toPrepare.update.metadata(), nowInSec);
-                if (toPrepare.isAfter(state.promised))
+                synchronized (lock)
                 {
-                    Tracing.trace("Promising ballot {}", toPrepare.ballot);
-                    SystemKeyspace.savePaxosPromise(toPrepare);
-                    return new PrepareResponse(true, state.accepted, state.mostRecentCommit);
-                }
-                else
-                {
-                    Tracing.trace("Promise rejected; {} is not sufficiently newer than {}", toPrepare, state.promised);
-                    // return the currently promised ballot (not the last accepted one) so the coordinator can make sure it uses newer ballot next time (#5667)
-                    return new PrepareResponse(false, state.promised, state.mostRecentCommit);
+                    // When preparing, we need to use the same time as "now" (that's the time we use to decide if something
+                    // is expired or not) accross nodes otherwise we may have a window where a Most Recent Commit shows up
+                    // on some replica and not others during a new proposal (in StorageProxy.beginAndRepairPaxos()), and no
+                    // amount of re-submit will fix this (because the node on which the commit has expired will have a
+                    // tombstone that hides any re-submit). See CASSANDRA-12043 for details.
+                    int nowInSec = UUIDGen.unixTimestampInSec(toPrepare.ballot);
+                    PaxosState state = SystemKeyspace.loadPaxosState(toPrepare.update.partitionKey(), toPrepare.update.metadata(), nowInSec);
+                    if (toPrepare.isAfter(state.promised))
+                    {
+                        Tracing.trace("Promising ballot {}", toPrepare.ballot);
+                        SystemKeyspace.savePaxosPromise(toPrepare);
+                        return new PrepareResponse(true, state.accepted, state.mostRecentCommit);
+                    }
+                    else
+                    {
+                        Tracing.trace("Promise rejected; {} is not sufficiently newer than {}", toPrepare, state.promised);
+                        // return the currently promised ballot (not the last accepted one) so the coordinator can make sure it uses newer ballot next time (#5667)
+                        return new PrepareResponse(false, state.promised, state.mostRecentCommit);
+                    }
                 }
             }
             finally
             {
-                lock.unlock();
+                lock.put(toPrepare.update.partitionKey());
             }
         }
         finally
@@ -101,27 +120,30 @@ public class PaxosState
         long start = nanoTime();
         try
         {
-            Lock lock = LOCKS.get(proposal.update.partitionKey());
-            lock.lock();
+            Lock lock = Lock.get(proposal.update.partitionKey());
             try
             {
-                int nowInSec = UUIDGen.unixTimestampInSec(proposal.ballot);
-                PaxosState state = SystemKeyspace.loadPaxosState(proposal.update.partitionKey(), proposal.update.metadata(), nowInSec);
-                if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
+                synchronized (lock)
                 {
-                    Tracing.trace("Accepting proposal {}", proposal);
-                    SystemKeyspace.savePaxosProposal(proposal);
-                    return true;
-                }
-                else
-                {
-                    Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
-                    return false;
+
+                    int nowInSec = UUIDGen.unixTimestampInSec(proposal.ballot);
+                    PaxosState state = SystemKeyspace.loadPaxosState(proposal.update.partitionKey(), proposal.update.metadata(), nowInSec);
+                    if (proposal.hasBallot(state.promised.ballot) || proposal.isAfter(state.promised))
+                    {
+                        Tracing.trace("Accepting proposal {}", proposal);
+                        SystemKeyspace.savePaxosProposal(proposal);
+                        return true;
+                    }
+                    else
+                    {
+                        Tracing.trace("Rejecting proposal for {} because inProgress is now {}", proposal, state.promised);
+                        return false;
+                    }
                 }
             }
             finally
             {
-                lock.unlock();
+                lock.put(proposal.update.partitionKey());
             }
         }
         finally
