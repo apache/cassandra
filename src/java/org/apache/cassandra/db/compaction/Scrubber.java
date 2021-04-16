@@ -391,19 +391,31 @@ public class Scrubber implements Closeable
 
     private void seekToNextPartition()
     {
-        long nextRowPositionFromIndex = indexIterator.isExhausted()
-                                        ? dataFile.length()
-                                        : indexIterator.dataPosition();
+        while (!indexIterator.isExhausted())
+        {
+            long nextRowPositionFromIndex = indexIterator.dataPosition();
 
-        try
-        {
-            dataFile.seek(nextRowPositionFromIndex);
-        }
-        catch (Throwable th)
-        {
-            throwIfFatal(th);
-            outputHandler.warn(String.format("Failed to seek to next row position %d", nextRowPositionFromIndex), th);
-            badPartitions++;
+            try
+            {
+                dataFile.seek(nextRowPositionFromIndex);
+                return;
+            }
+            catch (Throwable th)
+            {
+                throwIfFatal(th);
+                outputHandler.warn(String.format("Failed to seek to next row position %d", nextRowPositionFromIndex), th);
+                badPartitions++;
+            }
+
+            try
+            {
+                indexIterator.advance();
+            }
+            catch (Throwable th)
+            {
+                outputHandler.warn(String.format("Failed to go to the next entry in index, index position: %d", indexIterator.indexPosition()), th);
+                throw Throwables.cleaned(th);
+            }
         }
     }
 
