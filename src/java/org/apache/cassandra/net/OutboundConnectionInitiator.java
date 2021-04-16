@@ -188,7 +188,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             bootstrap.option(ChannelOption.SO_SNDBUF, settings.socketSendBufferSizeInBytes);
 
         InetAddressAndPort remoteAddress = settings.connectTo;
-        bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.address, remoteAddress.port));
+        bootstrap.remoteAddress(new InetSocketAddress(remoteAddress.getAddress(), remoteAddress.getPort()));
         return bootstrap;
     }
 
@@ -206,7 +206,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                                                                          ISslContextFactory.SocketType.CLIENT);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = settings.to;
-                InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.address, address.port) : null;
+                InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                 logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
                 pipeline.addFirst("ssl", sslHandler);

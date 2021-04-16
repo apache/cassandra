@@ -619,8 +619,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     CassandraDaemon.getInstanceForTesting().start();
                 }
 
-                if (!FBUtilities.getBroadcastAddressAndPort().address.equals(broadcastAddress().getAddress()) ||
-                    FBUtilities.getBroadcastAddressAndPort().port != broadcastAddress().getPort())
+                if (!FBUtilities.getBroadcastAddressAndPort().getAddress().equals(broadcastAddress().getAddress()) ||
+                    FBUtilities.getBroadcastAddressAndPort().getPort() != broadcastAddress().getPort())
                     throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
                 ActiveRepairService.instance.start();

@@ -23,6 +23,7 @@ import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
@@ -1772,8 +1773,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, replacing?
                                                             valueFactory.bootReplacingWithPort(DatabaseDescriptor.getReplaceAddress()) :
                                                             valueFactory.bootstrapping(tokens)));
-            states.add(Pair.create(ApplicationState.STATUS, replacing?
-                                                            valueFactory.bootReplacing(DatabaseDescriptor.getReplaceAddress().address) :
+            states.add(Pair.create(ApplicationState.STATUS, replacing ?
+                                                            valueFactory.bootReplacing(DatabaseDescriptor.getReplaceAddress().getAddress()) :
                                                             valueFactory.bootstrapping(tokens)));
             Gossiper.instance.addLocalApplicationStates(states);
             setMode(Mode.JOINING, "sleeping " + RING_DELAY + " ms for pending range setup", true);
@@ -1999,7 +2000,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
-            return endpoint.address.getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
+            return endpoint.getAddress().getHostAddress() + ":" + DatabaseDescriptor.getNativeTransportPort();
         else
             return Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value + ":" + DatabaseDescriptor.getNativeTransportPort();
     }
@@ -2488,8 +2489,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     try
                     {
                         InetAddressAndPort address = InetAddressAndPort.getByName(entry.getValue().value);
-                        native_address = address.address;
-                        native_port = address.port;
+                        native_address = address.getAddress();
+                        native_port = address.getPort();
                     }
                     catch (UnknownHostException e)
                     {
@@ -3500,7 +3501,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         for (Pair<Token, InetAddressAndPort> node : tokenMetadata.getMovingEndpoints())
         {
-            endpoints.add(node.right.address.getHostAddress());
+            endpoints.add(node.right.getAddress().getHostAddress());
         }
 
         return endpoints;
@@ -4354,7 +4355,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, cf, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
-        replicas.forEach(r -> inetList.add(r.endpoint().address));
+        replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
         return inetList;
     }
 
@@ -4368,7 +4369,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
         List<InetAddress> inetList = new ArrayList<>(replicas.size());
-        replicas.forEach(r -> inetList.add(r.endpoint().address));
+        replicas.forEach(r -> inetList.add(r.endpoint().getAddress()));
         return inetList;
     }
 
@@ -5221,10 +5222,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             InetAddressAndPort endpoint = tokenMetadata.getEndpoint(entry.getKey());
             Float tokenOwnership = entry.getValue();
-            if (nodeMap.containsKey(endpoint.address))
-                nodeMap.put(endpoint.address, nodeMap.get(endpoint.address) + tokenOwnership);
+            if (nodeMap.containsKey(endpoint.getAddress()))
+                nodeMap.put(endpoint.getAddress(), nodeMap.get(endpoint.getAddress()) + tokenOwnership);
             else
-                nodeMap.put(endpoint.address, tokenOwnership);
+                nodeMap.put(endpoint.getAddress(), tokenOwnership);
         }
         return nodeMap;
     }
@@ -5328,7 +5329,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         LinkedHashMap<InetAddressAndPort, Float> result = getEffectiveOwnership(keyspace);
         LinkedHashMap<InetAddress, Float> asInets = new LinkedHashMap<>();
-        result.entrySet().stream().forEachOrdered(entry -> asInets.put(entry.getKey().address, entry.getValue()));
+        result.entrySet().stream().forEachOrdered(entry -> asInets.put(entry.getKey().getAddress(), entry.getValue()));
         return asInets;
     }
 
@@ -6053,7 +6054,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<UUID, Set<InetAddressAndPort>> outstanding = MigrationCoordinator.instance.outstandingVersions();
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
-                                                                        e -> e.getValue().stream().map(i -> i.address).collect(Collectors.toSet())));
+                                                                        e -> e.getValue().stream().map(InetSocketAddress::getAddress).collect(Collectors.toSet())));
     }
 
     @Override
@@ -6061,7 +6062,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<UUID, Set<InetAddressAndPort>> outstanding = MigrationCoordinator.instance.outstandingVersions();
         return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
-                                                                        e -> e.getValue().stream().map(InetAddressAndPort::toString).collect(Collectors.toSet())));
+                                                                        e -> e.getValue().stream().map(Object::toString).collect(Collectors.toSet())));
     }
 
     public boolean autoOptimiseIncRepairStreams()

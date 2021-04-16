@@ -47,13 +47,13 @@ public class InetAddressAndPortTest
 
         //Test default port
         InetAddressAndPort address = InetAddressAndPort.getByName("127.0.0.1");
-        assertEquals(InetAddress.getByName("127.0.0.1"), address.address);
-        assertEquals(InetAddressAndPort.defaultPort, address.port);
+        assertEquals(InetAddress.getByName("127.0.0.1"), address.getAddress());
+        assertEquals(InetAddressAndPort.defaultPort, address.getPort());
 
         //Test overriding default port
         address = InetAddressAndPort.getByName("127.0.0.1:42");
-        assertEquals(InetAddress.getByName("127.0.0.1"), address.address);
-        assertEquals(42, address.port);
+        assertEquals(InetAddress.getByName("127.0.0.1"), address.getAddress());
+        assertEquals(42, address.getPort());
     }
 
     @Test
@@ -69,13 +69,13 @@ public class InetAddressAndPortTest
 
         //Test default port
         InetAddressAndPort address = InetAddressAndPort.getByName("2001:0db8:0000:0000:0000:ff00:0042:8329");
-        assertEquals(InetAddress.getByName("2001:0db8:0000:0000:0000:ff00:0042:8329"), address.address);
-        assertEquals(InetAddressAndPort.defaultPort, address.port);
+        assertEquals(InetAddress.getByName("2001:0db8:0000:0000:0000:ff00:0042:8329"), address.getAddress());
+        assertEquals(InetAddressAndPort.defaultPort, address.getPort());
 
         //Test overriding default port
         address = InetAddressAndPort.getByName("[2001:0db8:0000:0000:0000:ff00:0042:8329]:42");
-        assertEquals(InetAddress.getByName("2001:0db8:0000:0000:0000:ff00:0042:8329"), address.address);
-        assertEquals(42, address.port);
+        assertEquals(InetAddress.getByName("2001:0db8:0000:0000:0000:ff00:0042:8329"), address.getAddress());
+        assertEquals(42, address.getPort());
     }
 
     @Test

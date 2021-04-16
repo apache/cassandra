@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.*;
@@ -36,7 +37,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
-import com.google.common.util.concurrent.ListenableFuture;
+
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -716,9 +717,9 @@ public final class SystemKeyspace
             return;
 
         String req = "INSERT INTO system.%s (peer, tokens) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address, tokensAsSet(tokens));
+        executeInternal(String.format(req, LEGACY_PEERS), ep.getAddress(), tokensAsSet(tokens));
         req = "INSERT INTO system.%s (peer, peer_port, tokens) VALUES (?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, tokensAsSet(tokens));
+        executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort(), tokensAsSet(tokens));
     }
 
     public static synchronized boolean updatePreferredIP(InetAddressAndPort ep, InetAddressAndPort preferred_ip)
@@ -727,9 +728,9 @@ public final class SystemKeyspace
             return false;
 
         String req = "INSERT INTO system.%s (peer, preferred_ip) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address, preferred_ip.address);
+        executeInternal(String.format(req, LEGACY_PEERS), ep.getAddress(), preferred_ip.getAddress());
         req = "INSERT INTO system.%s (peer, peer_port, preferred_ip, preferred_port) VALUES (?, ?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, preferred_ip.address, preferred_ip.port);
+        executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort(), preferred_ip.getAddress(), preferred_ip.getPort());
         forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
         return true;
     }
@@ -740,14 +741,14 @@ public final class SystemKeyspace
             return;
 
         String req = "INSERT INTO system.%s (peer, %s) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS, columnName), ep.address, value);
+        executeInternal(String.format(req, LEGACY_PEERS, columnName), ep.getAddress(), value);
         //This column doesn't match across the two tables
         if (columnName.equals("rpc_address"))
         {
             columnName = "native_address";
         }
         req = "INSERT INTO system.%s (peer, peer_port, %s) VALUES (?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2, columnName), ep.address, ep.port, value);
+        executeInternal(String.format(req, PEERS_V2, columnName), ep.getAddress(), ep.getPort(), value);
     }
 
     public static synchronized void updatePeerNativeAddress(InetAddressAndPort ep, InetAddressAndPort address)
@@ -756,9 +757,9 @@ public final class SystemKeyspace
             return;
 
         String req = "INSERT INTO system.%s (peer, rpc_address) VALUES (?, ?)";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address, address.address);
+        executeInternal(String.format(req, LEGACY_PEERS), ep.getAddress(), address.getAddress());
         req = "INSERT INTO system.%s (peer, peer_port, native_address, native_port) VALUES (?, ?, ?, ?)";
-        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, address.address, address.port);
+        executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort(), address.getAddress(), address.getPort());
     }
 
 
@@ -766,9 +767,9 @@ public final class SystemKeyspace
     {
         // with 30 day TTL
         String req = "UPDATE system.%s USING TTL 2592000 SET hints_dropped[ ? ] = ? WHERE peer = ?";
-        executeInternal(String.format(req, LEGACY_PEER_EVENTS), timePeriod, value, ep.address);
+        executeInternal(String.format(req, LEGACY_PEER_EVENTS), timePeriod, value, ep.getAddress());
         req = "UPDATE system.%s USING TTL 2592000 SET hints_dropped[ ? ] = ? WHERE peer = ? AND peer_port = ?";
-        executeInternal(String.format(req, PEER_EVENTS_V2), timePeriod, value, ep.address, ep.port);
+        executeInternal(String.format(req, PEER_EVENTS_V2), timePeriod, value, ep.getAddress(), ep.getPort());
     }
 
     public static synchronized void updateSchemaVersion(UUID version)
@@ -800,12 +801,12 @@ public final class SystemKeyspace
     /**
      * Remove stored tokens being used by another node
      */
-    public static synchronized void removeEndpoint(InetAddressAndPort ep)
+    public static synchronized void removeEndpoint(InetSocketAddress ep)
     {
         String req = "DELETE FROM system.%s WHERE peer = ?";
-        executeInternal(String.format(req, LEGACY_PEERS), ep.address);
+        executeInternal(String.format(req, LEGACY_PEERS), ep.getAddress());
         req = String.format("DELETE FROM system.%s WHERE peer = ? AND peer_port = ?", PEERS_V2);
-        executeInternal(req, ep.address, ep.port);
+        executeInternal(req, ep.getAddress(), ep.getPort());
         forceBlockingFlush(LEGACY_PEERS, PEERS_V2);
     }
 
@@ -887,7 +888,7 @@ public final class SystemKeyspace
     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
     {
         String req = "SELECT preferred_ip, preferred_port FROM system.%s WHERE peer=? AND peer_port = ?";
-        UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
+        UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort());
         if (!result.isEmpty() && result.one().has("preferred_ip"))
         {
             UntypedResultSet.Row row = result.one();
@@ -934,7 +935,7 @@ public final class SystemKeyspace
                 return CURRENT_VERSION;
             }
             String req = "SELECT release_version FROM system.%s WHERE peer=? AND peer_port=?";
-            UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
+            UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort());
             if (result != null && result.one().has("release_version"))
             {
                 return new CassandraVersion(result.one().getString("release_version"));
@@ -1428,9 +1429,9 @@ public final class SystemKeyspace
         {
             rangesToUpdate.add(rangeToBytes(range));
         }
-        executeInternal(format(cql, LEGACY_TRANSFERRED_RANGES), rangesToUpdate, streamOperation.getDescription(), peer.address, keyspace);
+        executeInternal(format(cql, LEGACY_TRANSFERRED_RANGES), rangesToUpdate, streamOperation.getDescription(), peer.getAddress(), keyspace);
         cql = "UPDATE system.%s SET ranges = ranges + ? WHERE operation = ? AND peer = ? AND peer_port = ? AND keyspace_name = ?";
-        executeInternal(String.format(cql, TRANSFERRED_RANGES_V2), rangesToUpdate, streamOperation.getDescription(), peer.address, peer.port, keyspace);
+        executeInternal(String.format(cql, TRANSFERRED_RANGES_V2), rangesToUpdate, streamOperation.getDescription(), peer.getAddress(), peer.getPort(), keyspace);
     }
 
     public static synchronized Map<InetAddressAndPort, Set<Range<Token>>> getTransferredRanges(String description, String keyspace, IPartitioner partitioner)

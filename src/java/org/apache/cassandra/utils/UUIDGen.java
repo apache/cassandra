@@ -398,7 +398,7 @@ public class UUIDGen
         for(InetAddressAndPort addr : data)
         {
             hasher.putBytes(addr.addressBytes);
-            hasher.putInt(addr.port);
+            hasher.putInt(addr.getPort());
         }
 
         // Identify the process on the load: we use both the PID and class loader hash.

@@ -61,8 +61,8 @@ public class SessionCompleteEventCompositeData
     {
         Map<String, Object> valueMap = new HashMap<>();
         valueMap.put(ITEM_NAMES[0], event.planId.toString());
-        valueMap.put(ITEM_NAMES[1], event.peer.address.getHostAddress());
-        valueMap.put(ITEM_NAMES[2], event.peer.port);
+        valueMap.put(ITEM_NAMES[1], event.peer.getAddress().getHostAddress());
+        valueMap.put(ITEM_NAMES[2], event.peer.getPort());
         valueMap.put(ITEM_NAMES[3], event.success);
         try
         {

@@ -248,7 +248,7 @@ public final class SystemDistributedKeyspace
                                     range.left.toString(),
                                     range.right.toString(),
                                     coordinator.getHostAddress(false),
-                                    coordinator.port,
+                                    coordinator.getPort(),
                                     Joiner.on("', '").join(participants),
                                     Joiner.on("', '").join(participants_v2),
                                     RepairState.STARTED.toString());
