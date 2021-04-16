@@ -24,17 +24,17 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.apache.cassandra.net.MockMessagingService.all;
 import static org.apache.cassandra.net.MockMessagingService.to;
 import static org.apache.cassandra.net.MockMessagingService.verb;
+import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 
 public class MockMessagingServiceTest
 {
@@ -74,10 +74,10 @@ public class MockMessagingServiceTest
 
         // we must have intercepted the outgoing message at this point
         Message<?> msg = spy.captureMessageOut().get();
-        assertEquals(1, spy.messagesIntercepted);
+        assertEquals(1, spy.messagesIntercepted());
         assertSame(echoMessage.payload, msg.payload);
 
         // and return a mocked response
-        assertEquals(1, spy.mockedMessageResponses);
+        Util.spinAssertEquals(1, spy::mockedMessageResponses, 60);
     }
 }
