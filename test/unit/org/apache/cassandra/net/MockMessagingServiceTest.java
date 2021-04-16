@@ -25,6 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.EchoMessage;
 import org.apache.cassandra.service.StorageService;
@@ -86,10 +87,10 @@ public class MockMessagingServiceTest
 
         // we must have intercepted the outgoing message at this point
         MessageOut<?> msg = spy.captureMessageOut().get();
-        assertEquals(1, spy.messagesIntercepted);
+        assertEquals(1, spy.messagesIntercepted());
         assertTrue(msg == echoMessageOut);
 
         // and return a mocked response
-        assertEquals(1, spy.mockedMessageResponses);
+        Util.spinAssertEquals(1, spy::mockedMessageResponses, 60);
     }
 }
