@@ -109,7 +109,7 @@ public class WriteResponseHandlerTransientTest
 
             public String getDatacenter(InetAddressAndPort endpoint)
             {
-                byte[] address = endpoint.address.getAddress();
+                byte[] address = endpoint.getAddress().getAddress();
                 if (address[1] == 1)
                     return DC1;
                 else

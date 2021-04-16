@@ -115,7 +115,7 @@ public final class InternodeOutboundTable extends AbstractVirtualTable
         String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(addressAndPort);
         String rack = DatabaseDescriptor.getEndpointSnitch().getRack(addressAndPort);
         long pendingBytes = sum(connections, OutboundConnection::pendingBytes);
-        dataSet.row(addressAndPort.address, addressAndPort.port, dc, rack)
+        dataSet.row(addressAndPort.getAddress(), addressAndPort.getPort(), dc, rack)
                .column(USING_BYTES, pendingBytes)
                .column(USING_RESERVE_BYTES, connections.usingReserveBytes())
                .column(PENDING_COUNT, sum(connections, OutboundConnection::pendingCount))

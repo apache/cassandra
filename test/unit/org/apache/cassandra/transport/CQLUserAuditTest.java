@@ -230,9 +230,9 @@ public class CQLUserAuditTest
         AuditEvent event = auditEvents.poll(100, TimeUnit.MILLISECONDS);
         assertEquals(expectedAuthType, event.getType());
         assertTrue(!authFailed || event.getType() == AuditLogEntryType.LOGIN_ERROR);
-        assertEquals(InetAddressAndPort.getLoopbackAddress().address,
-                     event.getEntry().getSource().address);
-        assertTrue(event.getEntry().getSource().port > 0);
+        assertEquals(InetAddressAndPort.getLoopbackAddress().getAddress(),
+                     event.getEntry().getSource().getAddress());
+        assertTrue(event.getEntry().getSource().getPort() > 0);
         if (event.getType() != AuditLogEntryType.LOGIN_ERROR)
             assertEquals(username, event.toMap().get("user"));
 

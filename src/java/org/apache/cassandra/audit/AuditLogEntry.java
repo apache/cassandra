@@ -76,10 +76,10 @@ public class AuditLogEntry
         StringBuilder builder = new StringBuilder(100);
         builder.append("user:").append(user)
                .append("|host:").append(host)
-               .append("|source:").append(source.address);
-        if (source.port > 0)
+               .append("|source:").append(source.getAddress());
+        if (source.getPort() > 0)
         {
-            builder.append("|port:").append(source.port);
+            builder.append("|port:").append(source.getPort());
         }
 
         builder.append("|timestamp:").append(timestamp)

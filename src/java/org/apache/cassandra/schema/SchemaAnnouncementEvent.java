@@ -78,12 +78,12 @@ final class SchemaAnnouncementEvent extends DiagnosticEvent
         HashMap<String, Serializable> ret = new HashMap<>();
         if (schemaDestinationEndpoints != null)
         {
-            Set<String> eps = schemaDestinationEndpoints.stream().map(InetAddressAndPort::toString).collect(Collectors.toSet());
+            Set<String> eps = schemaDestinationEndpoints.stream().map(Object::toString).collect(Collectors.toSet());
             ret.put("endpointDestinations", new HashSet<>(eps));
         }
         if (schemaEndpointsIgnored != null)
         {
-            Set<String> eps = schemaEndpointsIgnored.stream().map(InetAddressAndPort::toString).collect(Collectors.toSet());
+            Set<String> eps = schemaEndpointsIgnored.stream().map(Object::toString).collect(Collectors.toSet());
             ret.put("endpointIgnored", new HashSet<>(eps));
         }
         if (statement != null)

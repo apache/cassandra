@@ -274,12 +274,12 @@ public class GossiperTest
         {
             gossiper.seeds.add(addr);
             nextSeeds.add(addr);
-            addr = InetAddressAndPort.getByAddress(InetAddresses.increment(addr.address));
+            addr = InetAddressAndPort.getByAddress(InetAddresses.increment(addr.getAddress()));
         }
         Assert.assertEquals(nextSize, gossiper.seeds.size());
 
         // Add another unique address to the list
-        addr = InetAddressAndPort.getByAddress(InetAddresses.increment(addr.address));
+        addr = InetAddressAndPort.getByAddress(InetAddresses.increment(addr.getAddress()));
         nextSeeds.add(addr);
         nextSize++;
         DatabaseDescriptor.setSeedProvider(new TestSeedProvider(nextSeeds));
@@ -318,7 +318,7 @@ public class GossiperTest
         for (int i = 0; i < disjointSize; i ++)
         {
             disjointSeeds.add(addr);
-            addr = InetAddressAndPort.getByAddress(InetAddresses.increment(addr.address));
+            addr = InetAddressAndPort.getByAddress(InetAddresses.increment(addr.getAddress()));
         }
         DatabaseDescriptor.setSeedProvider(new TestSeedProvider(disjointSeeds));
         loadedList = gossiper.reloadSeeds();

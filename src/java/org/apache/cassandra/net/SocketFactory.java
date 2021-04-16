@@ -316,7 +316,7 @@ public final class SocketFactory
     static String addressId(InetAddressAndPort address, InetSocketAddress realAddress)
     {
         String str = address.toString();
-        if (!address.address.equals(realAddress.getAddress()) || address.port != realAddress.getPort())
+        if (!address.getAddress().equals(realAddress.getAddress()) || address.getPort() != realAddress.getPort())
             str += '(' + InetAddressAndPort.toString(realAddress.getAddress(), realAddress.getPort()) + ')';
         return str;
     }

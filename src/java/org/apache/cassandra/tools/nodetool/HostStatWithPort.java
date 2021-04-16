@@ -26,7 +26,7 @@ public class HostStatWithPort extends HostStat
 
     public HostStatWithPort(String token, InetAddressAndPort endpoint, boolean resolveIp, Float owns)
     {
-        super(token, endpoint.address, resolveIp, owns);
+        super(token, endpoint.getAddress(), resolveIp, owns);
         this.endpointWithPort = endpoint;
     }
 
@@ -41,7 +41,7 @@ public class HostStatWithPort extends HostStat
             return super.ipOrDns();
 
         return resolveIp ?
-               endpointWithPort.address.getHostName() + ':' + endpointWithPort.port :
+               endpointWithPort.getAddress().getHostName() + ':' + endpointWithPort.getPort() :
                endpointWithPort.getHostAddressAndPort();
     }
 }

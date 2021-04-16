@@ -65,8 +65,8 @@ public class InetAddressAndPortSerializerTest
         }
         else
         {
-            assertEquals(address.address, roundtripped.address);
-            assertEquals(InetAddressAndPort.getDefaultPort(), roundtripped.port);
+            assertEquals(address.getAddress(), roundtripped.getAddress());
+            assertEquals(InetAddressAndPort.getDefaultPort(), roundtripped.getPort());
         }
     }
 }

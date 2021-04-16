@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.regex.Pattern;
@@ -51,7 +52,7 @@ import org.apache.cassandra.utils.FastByteOperations;
  *
  */
 @SuppressWarnings("UnstableApiUsage")
-public final class InetAddressAndPort implements Comparable<InetAddressAndPort>, Serializable
+public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable
 {
     private static final long serialVersionUID = 0;
 
@@ -61,23 +62,20 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     //to always override the defaults.
     static volatile int defaultPort = 7000;
 
-    public final InetAddress address;
     public final byte[] addressBytes;
-    public final int port;
 
     private InetAddressAndPort(InetAddress address, byte[] addressBytes, int port)
     {
+        super(address, port);
         Preconditions.checkNotNull(address);
         Preconditions.checkNotNull(addressBytes);
         validatePortRange(port);
-        this.address = address;
-        this.port = port;
         this.addressBytes = addressBytes;
     }
 
     public InetAddressAndPort withPort(int port)
     {
-        return new InetAddressAndPort(address, addressBytes, port);
+        return new InetAddressAndPort(getAddress(), addressBytes, port);
     }
 
     private static void validatePortRange(int port)
@@ -89,26 +87,6 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
     }
 
     @Override
-    public boolean equals(Object o)
-    {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        InetAddressAndPort that = (InetAddressAndPort) o;
-
-        if (port != that.port) return false;
-        return address.equals(that.address);
-    }
-
-    @Override
-    public int hashCode()
-    {
-        int result = address.hashCode();
-        result = 31 * result + port;
-        return result;
-    }
-
-    @Override
     public int compareTo(InetAddressAndPort o)
     {
         int retval = FastByteOperations.compareUnsigned(addressBytes, 0, addressBytes.length, o.addressBytes, 0, o.addressBytes.length);
@@ -117,7 +95,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
             return retval;
         }
 
-        return Integer.compare(port, o.port);
+        return Integer.compare(getPort(), o.getPort());
     }
 
     public String getHostAddressAndPort()
@@ -141,31 +119,51 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
     public String getHostAddress(boolean withPort)
     {
+        return hostAddress(this, withPort);
+    }
+
+    public static String hostAddressAndPort(InetSocketAddress address)
+    {
+        return hostAddress(address, true);
+    }
+
+    public static String hostAddress(InetSocketAddress address, boolean withPort)
+    {
         if (withPort)
         {
-            return HostAndPort.fromParts(address.getHostAddress(), port).toString();
+            return HostAndPort.fromParts(address.getAddress().getHostAddress(), address.getPort()).toString();
         }
         else
         {
-            return address.getHostAddress();
+            return address.getAddress().getHostAddress();
         }
     }
 
     @Override
     public String toString()
     {
-        return toString(true);
+        return toString(this);
     }
 
     public String toString(boolean withPort)
     {
+        return toString(this, withPort);
+    }
+
+    public static String toString(InetSocketAddress address)
+    {
+        return toString(address, true);
+    }
+
+    public static String toString(InetSocketAddress address, boolean withPort)
+    {
         if (withPort)
         {
-            return toString(address, port);
+            return toString(address.getAddress(), address.getPort());
         }
         else
         {
-            return address.toString();
+            return address.getAddress().toString();
         }
     }
 
@@ -237,6 +235,13 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return getByAddressOverrideDefaults(address, null);
     }
 
+    public static InetAddressAndPort getByAddress(InetSocketAddress address)
+    {
+        if (address instanceof InetAddressAndPort)
+            return (InetAddressAndPort) address;
+        return new InetAddressAndPort(address.getAddress(), address.getAddress().getAddress(), address.getPort());
+    }
+
     public static InetAddressAndPort getByAddressOverrideDefaults(InetAddress address, Integer port)
     {
         if (port == null)
@@ -296,18 +301,27 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
         public void serialize(InetAddressAndPort endpoint, DataOutputPlus out, int version) throws IOException
         {
-            byte[] buf = endpoint.addressBytes;
+            serialize(endpoint.addressBytes, endpoint.getPort(), out, version);
+        }
 
+        public void serialize(InetSocketAddress endpoint, DataOutputPlus out, int version) throws IOException
+        {
+            byte[] address = endpoint instanceof InetAddressAndPort ? ((InetAddressAndPort) endpoint).addressBytes : endpoint.getAddress().getAddress();
+            serialize(address, endpoint.getPort(), out, version);
+        }
+
+        void serialize(byte[] address, int port, DataOutputPlus out, int version) throws IOException
+        {
             if (version >= MessagingService.VERSION_40)
             {
-                out.writeByte(buf.length + 2);
-                out.write(buf);
-                out.writeShort(endpoint.port);
+                out.writeByte(address.length + 2);
+                out.write(address);
+                out.writeShort(port);
             }
             else
             {
-                out.writeByte(buf.length);
-                out.write(buf);
+                out.writeByte(address.length);
+                out.write(address);
             }
         }
 
@@ -366,19 +380,24 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
 
         public long serializedSize(InetAddressAndPort from, int version)
         {
+            return serializedSize((InetSocketAddress) from, version);
+        }
+
+        public long serializedSize(InetSocketAddress from, int version)
+        {
             //4.0 includes a port number
             if (version >= MessagingService.VERSION_40)
             {
-                if (from.address instanceof Inet4Address)
+                if (from.getAddress() instanceof Inet4Address)
                     return 1 + 4 + 2;
-                assert from.address instanceof Inet6Address;
+                assert from.getAddress() instanceof Inet6Address;
                 return 1 + 16 + 2;
             }
             else
             {
-                if (from.address instanceof Inet4Address)
+                if (from.getAddress() instanceof Inet4Address)
                     return 1 + 4;
-                assert from.address instanceof Inet6Address;
+                assert from.getAddress() instanceof Inet6Address;
                 return 1 + 16;
             }
         }
@@ -400,7 +419,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
             {
                 out.writeByte(buf.length + 2);
                 out.write(buf);
-                out.writeShort(endpoint.port);
+                out.writeShort(endpoint.getPort());
             }
             else
             {
@@ -413,16 +432,16 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
             //4.0 includes a port number
             if (version >= MessagingService.VERSION_40)
             {
-                if (from.address instanceof Inet4Address)
+                if (from.getAddress() instanceof Inet4Address)
                     return 1 + 4 + 2;
-                assert from.address instanceof Inet6Address;
+                assert from.getAddress() instanceof Inet6Address;
                 return 1 + 16 + 2;
             }
             else
             {
-                if (from.address instanceof Inet4Address)
+                if (from.getAddress() instanceof Inet4Address)
                     return 4;
-                assert from.address instanceof Inet6Address;
+                assert from.getAddress() instanceof Inet6Address;
                 return 16;
             }
         }

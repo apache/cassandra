@@ -91,9 +91,9 @@ public class ForwardingInfoTest
             {
                 InetAddressAndPort original = addresses.get(ii);
                 InetAddressAndPort roundtripped = iterator.next();
-                assertEquals(original.address, roundtripped.address);
+                assertEquals(original.getAddress(), roundtripped.getAddress());
                 //3.0 can't send port numbers so you get the defaults
-                assertEquals(65532, roundtripped.port);
+                assertEquals(65532, roundtripped.getPort());
             }
         }
     }

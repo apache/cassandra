@@ -94,7 +94,7 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         // If the truncation hasn't succeeded on some replica, abort and indicate this back to the client.
-        truncateFailingReplica = from.address;
+        truncateFailingReplica = from.getAddress();
         condition.signalAll();
     }
 

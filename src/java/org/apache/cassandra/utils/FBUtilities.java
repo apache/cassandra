@@ -241,7 +241,7 @@ public class FBUtilities
      */
     public static void setBroadcastInetAddressAndPort(InetAddressAndPort addr)
     {
-        broadcastInetAddress = addr.address;
+        broadcastInetAddress = addr.getAddress();
         broadcastInetAddressAndPort = addr;
     }
 
