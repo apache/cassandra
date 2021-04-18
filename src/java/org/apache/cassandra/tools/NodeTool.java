@@ -33,7 +33,6 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOError;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -143,7 +142,7 @@ public class NodeTool
                 InvalidateCredentialsCache.class,
                 InvalidateJmxPermissionsCache.class,
                 InvalidateKeyCache.class,
-                InvalidateNetworkAuthCache.class,
+                InvalidateNetworkPermissionsCache.class,
                 InvalidatePermissionsCache.class,
                 InvalidateRolesCache.class,
                 InvalidateRowCache.class,

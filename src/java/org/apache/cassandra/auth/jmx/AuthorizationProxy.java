@@ -103,7 +103,7 @@ public class AuthorizationProxy implements InvocationHandler
                                                                       "registerMBean",
                                                                       "unregisterMBean");
 
-    private static final JMXPermissionsCache permissionsCache = new JMXPermissionsCache();
+    private static final JmxPermissionsCache permissionsCache = new JmxPermissionsCache();
     private MBeanServer mbs;
 
     /*
@@ -476,10 +476,10 @@ public class AuthorizationProxy implements InvocationHandler
                                                  .collect(Collectors.toSet());
     }
 
-    private static final class JMXPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
-        implements JMXPermissionsCacheMBean
+    private static final class JmxPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+        implements JmxPermissionsCacheMBean
     {
-        protected JMXPermissionsCache()
+        protected JmxPermissionsCache()
         {
             super(CACHE_NAME,
                   DatabaseDescriptor::setPermissionsValidity,
@@ -498,7 +498,7 @@ public class AuthorizationProxy implements InvocationHandler
         }
     }
 
-    public static interface JMXPermissionsCacheMBean extends AuthCacheMBean
+    public static interface JmxPermissionsCacheMBean extends AuthCacheMBean
     {
         public static final String CACHE_NAME = "JMXPermissionsCache";
 

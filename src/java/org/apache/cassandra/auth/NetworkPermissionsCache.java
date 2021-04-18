@@ -20,9 +20,9 @@ package org.apache.cassandra.auth;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class NetworkAuthCache extends AuthCache<RoleResource, DCPermissions> implements NetworkAuthCacheMBean
+public class NetworkPermissionsCache extends AuthCache<RoleResource, DCPermissions> implements NetworkPermissionsCacheMBean
 {
-    public NetworkAuthCache(INetworkAuthorizer authorizer)
+    public NetworkPermissionsCache(INetworkAuthorizer authorizer)
     {
         super(CACHE_NAME,
               DatabaseDescriptor::setRolesValidity,
@@ -35,7 +35,7 @@ public class NetworkAuthCache extends AuthCache<RoleResource, DCPermissions> imp
               () -> DatabaseDescriptor.getAuthenticator().requireAuthentication());
     }
 
-    public void invalidateNetworkAuths(String roleName)
+    public void invalidateNetworkPermissions(String roleName)
     {
         invalidate(RoleResource.role(roleName));
     }

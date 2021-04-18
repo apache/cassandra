@@ -22,5 +22,5 @@ public interface RolesCacheMBean extends AuthCacheMBean
 {
     public static final String CACHE_NAME = "RolesCache";
 
-    void invalidateRoles(String primaryRoleName);
+    void invalidateRoles(String roleName);
 }

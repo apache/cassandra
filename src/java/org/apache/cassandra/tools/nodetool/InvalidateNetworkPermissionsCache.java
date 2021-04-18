@@ -25,8 +25,8 @@ import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "invalidatenetworkauthcache", description = "Invalidate the network auth cache")
-public class InvalidateNetworkAuthCache extends NodeToolCmd
+@Command(name = "invalidatenetworkpermissionscache", description = "Invalidate the network permissions cache")
+public class InvalidateNetworkPermissionsCache extends NodeToolCmd
 {
     @Arguments(usage = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
     private List<String> args = new ArrayList<>();
@@ -34,11 +34,15 @@ public class InvalidateNetworkAuthCache extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        if (args.isEmpty()) {
-            probe.invalidateNetworkAuthCache();
-        } else {
-            for (String roleName : args) {
-                probe.invalidateNetworkAuthCache(roleName);
+        if (args.isEmpty())
+        {
+            probe.invalidateNetworkPermissionsCache();
+        }
+        else
+        {
+            for (String roleName : args)
+            {
+                probe.invalidateNetworkPermissionsCache(roleName);
             }
         }
     }

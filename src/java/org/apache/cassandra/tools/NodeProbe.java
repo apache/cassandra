@@ -56,8 +56,8 @@ import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
 import org.apache.cassandra.auth.AuthCache;
-import org.apache.cassandra.auth.NetworkAuthCache;
-import org.apache.cassandra.auth.NetworkAuthCacheMBean;
+import org.apache.cassandra.auth.NetworkPermissionsCache;
+import org.apache.cassandra.auth.NetworkPermissionsCacheMBean;
 import org.apache.cassandra.auth.PasswordAuthenticator;
 import org.apache.cassandra.auth.PermissionsCache;
 import org.apache.cassandra.auth.PermissionsCacheMBean;
@@ -143,8 +143,8 @@ public class NodeProbe implements AutoCloseable
     protected BatchlogManagerMBean bmProxy;
     protected ActiveRepairServiceMBean arsProxy;
     protected PasswordAuthenticator.CredentialsCacheMBean ccProxy;
-    protected AuthorizationProxy.JMXPermissionsCacheMBean jpcProxy;
-    protected NetworkAuthCacheMBean nacProxy;
+    protected AuthorizationProxy.JmxPermissionsCacheMBean jpcProxy;
+    protected NetworkPermissionsCacheMBean npcProxy;
     protected PermissionsCacheMBean pcProxy;
     protected RolesCacheMBean rcProxy;
     protected Output output;
@@ -255,10 +255,10 @@ public class NodeProbe implements AutoCloseable
             arsProxy = JMX.newMBeanProxy(mbeanServerConn, name, ActiveRepairServiceMBean.class);
             name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PasswordAuthenticator.CredentialsCacheMBean.CACHE_NAME);
             ccProxy = JMX.newMBeanProxy(mbeanServerConn, name, PasswordAuthenticator.CredentialsCacheMBean.class);
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + AuthorizationProxy.JMXPermissionsCacheMBean.CACHE_NAME);
-            jpcProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuthorizationProxy.JMXPermissionsCacheMBean.class);
-            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + NetworkAuthCache.CACHE_NAME);
-            nacProxy = JMX.newMBeanProxy(mbeanServerConn, name, NetworkAuthCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + AuthorizationProxy.JmxPermissionsCacheMBean.CACHE_NAME);
+            jpcProxy = JMX.newMBeanProxy(mbeanServerConn, name, AuthorizationProxy.JmxPermissionsCacheMBean.class);
+            name = new ObjectName(AuthCache.MBEAN_NAME_BASE + NetworkPermissionsCache.CACHE_NAME);
+            npcProxy = JMX.newMBeanProxy(mbeanServerConn, name, NetworkPermissionsCacheMBean.class);
             name = new ObjectName(AuthCache.MBEAN_NAME_BASE + PermissionsCache.CACHE_NAME);
             pcProxy = JMX.newMBeanProxy(mbeanServerConn, name, PermissionsCacheMBean.class);
             name = new ObjectName(AuthCache.MBEAN_NAME_BASE + RolesCache.CACHE_NAME);
@@ -521,14 +521,14 @@ public class NodeProbe implements AutoCloseable
         cacheService.invalidateKeyCache();
     }
 
-    public void invalidateNetworkAuthCache()
+    public void invalidateNetworkPermissionsCache()
     {
-        nacProxy.invalidate();
+        npcProxy.invalidate();
     }
 
-    public void invalidateNetworkAuthCache(String resourceName)
+    public void invalidateNetworkPermissionsCache(String roleName)
     {
-        nacProxy.invalidateNetworkAuths(resourceName);
+        npcProxy.invalidateNetworkPermissions(roleName);
     }
 
     public void invalidatePermissionsCache()
@@ -546,9 +546,9 @@ public class NodeProbe implements AutoCloseable
         rcProxy.invalidate();
     }
 
-    public void invalidateRolesCache(String primaryRoleName)
+    public void invalidateRolesCache(String roleName)
     {
-        rcProxy.invalidateRoles(primaryRoleName);
+        rcProxy.invalidateRoles(roleName);
     }
 
     public void invalidateRowCache()

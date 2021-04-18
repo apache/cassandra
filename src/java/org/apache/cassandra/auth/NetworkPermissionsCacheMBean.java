@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.auth;
 
-public interface NetworkAuthCacheMBean extends AuthCacheMBean
+public interface NetworkPermissionsCacheMBean extends AuthCacheMBean
 {
-    public static final String CACHE_NAME = "NetworkAuthCache";
+    public static final String CACHE_NAME = "NetworkPermissionsCache";
 
-    public void invalidateNetworkAuths(String roleName);
+    public void invalidateNetworkPermissions(String roleName);
 }
