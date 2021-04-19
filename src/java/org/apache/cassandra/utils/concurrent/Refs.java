@@ -89,7 +89,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      */
     public void release(T referenced)
     {
-        Ref ref = references.remove(referenced);
+        Ref<T> ref = references.remove(referenced);
         if (ref == null)
             throw new IllegalStateException("This Refs collection does not hold a reference to " + referenced);
         ref.release();
@@ -102,7 +102,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
      */
     public boolean releaseIfHolds(T referenced)
     {
-        Ref ref = references.remove(referenced);
+        Ref<T> ref = references.remove(referenced);
         if (ref != null)
             ref.release();
         return ref != null;
@@ -114,9 +114,9 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
         release.retainAll(keep);
         release(release);
     }
+
     /**
      * Release a retained Ref to all of the provided objects; if any is not held, an exception will be thrown
-     * @param release
      */
     public void release(Collection<T> release)
     {
@@ -217,7 +217,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
             }
             refs.put(rc, ref);
         }
-        return new Refs<T>(refs);
+        return new Refs<>(refs);
     }
 
     public static <T extends RefCounted<T>> Refs<T> ref(Iterable<T> reference)
@@ -232,9 +232,10 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
     {
         maybeFail(release(refs, null));
     }
+
     public static Throwable release(Iterable<? extends Ref<?>> refs, Throwable accumulate)
     {
-        for (Ref ref : refs)
+        for (Ref<?> ref : refs)
         {
             try
             {

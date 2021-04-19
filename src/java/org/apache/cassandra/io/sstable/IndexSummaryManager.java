@@ -182,7 +182,8 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         for (Keyspace ks : Keyspace.all())
         {
             for (ColumnFamilyStore cfStore: ks.getColumnFamilyStores())
-                result.addAll(cfStore.getLiveSSTables());
+                for (SSTableReader tr : SSTableReader.selectOnlyBigTableReaders(cfStore.getLiveSSTables()))
+                    result.add(tr);
         }
 
         return result;
@@ -209,8 +210,8 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                 do
                 {
                     View view = cfStore.getTracker().getView();
-                    allSSTables = ImmutableSet.copyOf(view.select(SSTableSet.CANONICAL));
-                    nonCompacting = ImmutableSet.copyOf(view.getUncompacting(allSSTables));
+                    allSSTables = ImmutableSet.copyOf(SSTableReader.selectOnlyBigTableReaders(view.select(SSTableSet.CANONICAL)));
+                    nonCompacting = ImmutableSet.copyOf(SSTableReader.selectOnlyBigTableReaders(view.getUncompacting(allSSTables)));
                 }
                 while (null == (txn = cfStore.getTracker().tryModify(nonCompacting, OperationType.INDEX_SUMMARY)));
 

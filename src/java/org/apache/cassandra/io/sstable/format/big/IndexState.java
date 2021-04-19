@@ -24,7 +24,7 @@ import java.util.Comparator;
 import org.apache.cassandra.db.ClusteringBound;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ClusteringPrefix;
-import org.apache.cassandra.io.sstable.format.big.AbstractBigTableIterator.RowReader;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableIterator.RowReader;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.FileHandle;
 

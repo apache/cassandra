@@ -163,21 +163,14 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         return toReturn;
     }
 
-    /**
-     * This method must be async-read-safe. Every read from new buffering position (the go() calls) can
-     * trigger NotInCacheException, and iteration must be able to redo the work that was interrupted during the next
-     * call. Hence the mutable state must be fully ready before all go() calls (i.e. they must either be the
-     * last step in the loop or the state must be unchanged until that call has succeeded).
-     */
     private long advanceNode()
     {
         long child;
         int transitionByte;
 
-        go(stack.node); // can throw NotInCacheException, OK no state modified yet
+        go(stack.node);
         while (true)
         {
-            // advance position in node but don't change the stack just yet due to NotInCacheExceptions
             int childIndex = stack.childIndex + 1;
             transitionByte = transitionByte(childIndex);
 
@@ -187,7 +180,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
                 stack = stack.prev;
                 if (stack == null)        // exhausted whole trie
                     return -1;
-                go(stack.node); // can throw NotInCacheException, OK - stack ready to re-enter loop with parent
+                go(stack.node);
                 continue;
             }
 
@@ -198,7 +191,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
                 assert child >= 0 : String.format("Expected value >= 0 but got %d - %s", child, this);
 
                 // descend
-                go(child); // can throw NotInCacheException, OK - stack not yet changed, limit not yet incremented
+                go(child);
 
                 int l = 256;
                 if (transitionByte == stack.limit)

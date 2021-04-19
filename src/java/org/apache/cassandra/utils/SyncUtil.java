@@ -25,6 +25,7 @@ import java.lang.reflect.Field;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.Config;
@@ -183,6 +184,12 @@ public class SyncUtil
     {
         Preconditions.checkNotNull(fos);
         sync(fos.getFD());
+    }
+
+    public static void sync(FileChannel fc) throws IOException
+    {
+        Objects.requireNonNull(fc);
+        sync(NativeLibrary.getFileDescriptor(fc));
     }
 
     public static void trySync(int fd)

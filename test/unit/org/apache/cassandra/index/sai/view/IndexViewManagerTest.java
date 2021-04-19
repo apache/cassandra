@@ -156,7 +156,7 @@ public class IndexViewManagerTest extends SAITester
 
         List<SSTableReader> sstables = descriptors.stream()
                                                 .map(desc -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, desc.id))
-                                                .map(SSTableReader::open)
+                                                .map(desc -> desc.getFormat().getReaderFactory().open(desc))
                                                 .collect(Collectors.toList());
         assertThat(sstables).hasSize(4);
 

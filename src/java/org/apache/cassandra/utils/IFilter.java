@@ -25,6 +25,12 @@ public interface IFilter extends SharedCloseable
     {
         /** Places the murmur3 hash of the key in the given long array of size at least two. */
         void filterHash(long[] dest);
+        default short filterHashLowerBits()
+        {
+            long[] dest = new long[2];
+            filterHash(dest);
+            return (short) dest[1];
+        }
     }
 
     void add(FilterKey key);

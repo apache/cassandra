@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
 
@@ -296,7 +295,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public UnfilteredRowIterator simpleIterator(Supplier<FileDataInput> dfile, DecoratedKey key, boolean tombstoneOnly)
+    public UnfilteredRowIterator simpleIterator(FileDataInput dfile, DecoratedKey key, boolean tombstoneOnly)
     {
         return delegate.simpleIterator(dfile, key, tombstoneOnly);
     }
@@ -413,12 +412,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public boolean isRepaired()
     {
         return delegate.isRepaired();
-    }
-
-    @Override
-    public DecoratedKey keyAt(long indexPosition) throws IOException
-    {
-        return delegate.keyAt(indexPosition);
     }
 
     @Override
@@ -614,6 +607,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public RandomAccessReader openKeyComponentReader()
+    {
+        return delegate.openKeyComponentReader();
+    }
+
+    @Override
     public ChannelProxy getDataChannel()
     {
         return delegate.getDataChannel();
@@ -680,7 +679,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    protected void setup(boolean trackHotness)
+    public void setup(boolean trackHotness)
     {
         delegate.setup(trackHotness);
     }
@@ -713,12 +712,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return delegate.decorateKey(key);
-    }
-
-    @Override
-    public String getIndexFilename()
-    {
-        return delegate.getIndexFilename();
     }
 
     @Override
@@ -762,4 +755,17 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     {
         return delegate.getBounds();
     }
+
+    @Override
+    public boolean hasIndex()
+    {
+        return delegate.hasIndex();
+    }
+
+    @Override
+    public ScrubPartitionIterator scrubPartitionsIterator() throws IOException
+    {
+        return delegate.scrubPartitionsIterator();
+    }
+
 }

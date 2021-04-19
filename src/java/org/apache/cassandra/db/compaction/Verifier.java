@@ -146,7 +146,7 @@ public class Verifier implements Closeable
 
         try
         {
-            outputHandler.debug("Deserializing index for "+sstable);
+            outputHandler.debug("Deserializing index for " + sstable);
             deserializeIndex(sstable);
         }
         catch (Throwable t)
@@ -155,16 +155,19 @@ public class Verifier implements Closeable
             markAndThrow(t);
         }
 
-        try
+        if (sstable.descriptor.getFormat().supportedComponents().contains(Component.SUMMARY))
         {
-            outputHandler.debug("Deserializing index summary for "+sstable);
-            deserializeIndexSummary(sstable);
-        }
-        catch (Throwable t)
-        {
-            outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup "+sstable.descriptor.filenameFor(Component.SUMMARY));
-            outputHandler.warn(t);
+            try
+            {
+                outputHandler.debug("Deserializing index summary for " + sstable);
+                deserializeIndexSummary(sstable);
+            }
+            catch (Throwable t)
+            {
+                outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup " + sstable.descriptor.filenameFor(Component.SUMMARY));
+                outputHandler.warn(t);
             markAndThrow(t, false);
+            }
         }
 
         try
@@ -410,7 +413,10 @@ public class Verifier implements Closeable
     {
         try (PartitionIndexIterator it = sstable.allKeysIterator()) {
             //noinspection StatementWithEmptyBody
-            while (it.advance()); // no-op, just check if index is readable
+            ByteBuffer last = it.key();
+            while (it.advance()) last = it.key(); // no-op, just check if index is readable
+            if (!Objects.equals(last, sstable.last.getKey()))
+                throw new CorruptSSTableException(new IOException("Failed to read partition index"), it.toString());
         }
     }
 

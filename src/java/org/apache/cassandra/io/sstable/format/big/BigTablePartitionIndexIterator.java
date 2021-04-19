@@ -29,6 +29,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 @NotThreadSafe
+// TODO STAR-247: implement unit test
 public class BigTablePartitionIndexIterator implements PartitionIndexIterator
 {
     private final FileHandle indexFile;
@@ -38,6 +39,7 @@ public class BigTablePartitionIndexIterator implements PartitionIndexIterator
 
     private ByteBuffer key;
     private long dataPosition;
+    private long keyPosition;
 
     private BigTablePartitionIndexIterator(FileHandle indexFile,
                                            RandomAccessReader reader,
@@ -100,6 +102,7 @@ public class BigTablePartitionIndexIterator implements PartitionIndexIterator
     {
         key = null;
         dataPosition = -1;
+        keyPosition = -1;
         FileUtils.closeQuietly(reader);
         FileUtils.closeQuietly(indexFile);
     }
@@ -109,12 +112,14 @@ public class BigTablePartitionIndexIterator implements PartitionIndexIterator
     {
         if (!reader.isEOF())
         {
+            keyPosition = reader.getFilePointer();
             key = ByteBufferUtil.readWithShortLength(reader);
             dataPosition = rowIndexEntrySerializer.deserializePositionAndSkip(reader);
             return true;
         }
         else
         {
+            keyPosition = -1;
             dataPosition = -1;
             key = null;
             return false;
@@ -131,6 +136,12 @@ public class BigTablePartitionIndexIterator implements PartitionIndexIterator
     public ByteBuffer key()
     {
         return key;
+    }
+
+    @Override
+    public long keyPosition()
+    {
+        return keyPosition;
     }
 
     @Override
@@ -152,6 +163,7 @@ public class BigTablePartitionIndexIterator implements PartitionIndexIterator
             throw new IndexOutOfBoundsException("The requested position exceeds the index length");
         reader.seek(position);
         key = null;
+        keyPosition = 0;
         dataPosition = 0;
         advance();
     }
@@ -167,7 +179,14 @@ public class BigTablePartitionIndexIterator implements PartitionIndexIterator
     {
         reader.seek(initialPosition);
         key = null;
+        keyPosition = 0;
         dataPosition = 0;
         advance();
+    }
+
+    @Override
+    public String toString()
+    {
+        return String.format("BigTable-PartitionIndexIterator(%s)", indexFile.path());
     }
 }

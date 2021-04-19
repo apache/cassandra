@@ -17,17 +17,21 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.function.Supplier;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
 
-import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
-import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -35,12 +39,19 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
+import org.apache.cassandra.io.sstable.format.ScrubPartitionIterator;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -54,12 +65,23 @@ public class BigTableReader extends SSTableReader
 
     protected final BigTableRowIndexEntry.IndexSerializer<IndexInfo> rowIndexEntrySerializer;
 
-    BigTableReader(SSTableReaderBuilder builder)
+    @Override
+    public boolean hasIndex()
+    {
+        return new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).exists();
+    }
+
+    public BigTableReader(SSTableReaderBuilder builder)
     {
         super(builder);
         this.rowIndexEntrySerializer = new BigTableRowIndexEntry.Serializer(descriptor.version, header);
     }
 
+    @Override
+    public void setup(boolean trackHotness) {
+        tidy.setup(this, trackHotness, Arrays.asList(bf, indexSummary, dfile, ifile));
+        super.setup(trackHotness);
+    }
     @Override
     public PartitionIndexIterator allKeysIterator() throws IOException
     {
@@ -130,12 +152,12 @@ public class BigTableReader extends SSTableReader
 
     @SuppressWarnings("resource") // caller to close
     @Override
-    public UnfilteredRowIterator simpleIterator(Supplier<FileDataInput> dfile, DecoratedKey key, boolean tombstoneOnly)
+    public UnfilteredRowIterator simpleIterator(FileDataInput dfile, DecoratedKey key, boolean tombstoneOnly)
     {
         BigTableRowIndexEntry position = getPosition(key, SSTableReader.Operator.EQ, true, false, SSTableReadsListener.NOOP_LISTENER);
         if (position == null)
             return null;
-        return SSTableIdentityIterator.create(this, dfile.get(), position, key, tombstoneOnly);
+        return SSTableIdentityIterator.create(this, dfile, position, key, tombstoneOnly);
     }
 
     /**
@@ -144,6 +166,7 @@ public class BigTableReader extends SSTableReader
      * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
+     * TODO @param permitMatchPastLast is always set to false, we should remove it
      */
     protected BigTableRowIndexEntry getPosition(PartitionPosition key,
                                                 Operator op,
@@ -307,29 +330,25 @@ public class BigTableReader extends SSTableReader
         return null;
     }
 
-
-    @Override
-    public DecoratedKey keyAt(long indexPosition) throws IOException
-    {
-        try (FileDataInput in = ifile.createReader(indexPosition))
-        {
-            return keyAt(in);
-        }
-    }
-
     @Override
     public DecoratedKey keyAt(FileDataInput reader) throws IOException
     {
         if (reader.isEOF()) return null;
 
-        DecoratedKey key = decorateKey(ByteBufferUtil.readWithShortLength(reader));
+        return decorateKey(ByteBufferUtil.readWithShortLength(reader));
+    }
 
-        // hint read path about key location if caching is enabled
-        // this saves index summary lookup and index file iteration which whould be pretty costly
-        // especially in presence of promoted column indexes
-        if (isKeyCacheEnabled())
-            cacheKey(key, rowIndexEntrySerializer.deserialize(reader));
+    @Override
+    public RandomAccessReader openKeyComponentReader()
+    {
+        return openIndexReader();
+    }
 
-        return key;
+    @Override
+    public ScrubPartitionIterator scrubPartitionsIterator() throws IOException
+    {
+        if (ifile == null)
+            return null;
+        return new ScrubIterator(ifile, rowIndexEntrySerializer);
     }
 }

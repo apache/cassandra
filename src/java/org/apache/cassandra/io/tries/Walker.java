@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
  * <p>
  * Assumes data was written using page-aware builder and thus no node crosses a page and thus a buffer boundary.
  */
+// TODO STAR-247: unit test are insufficient - they did not catch a problem fixed in STAR-247
 public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
 {
     private final Rebufferer source;
@@ -82,9 +83,9 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
         long curOffset = position - bh.offset();
         if (curOffset < 0 || curOffset >= buf.limit())
         {
-            BufferHolder currentBh = bh;
+            bh.release();
+            bh = Rebufferer.EMPTY; // prevents double release if the call below fails
             bh = source.rebuffer(position);
-            currentBh.release();
             buf = bh.buffer();
             curOffset = position - bh.offset();
             assert curOffset >= 0 && curOffset < buf.limit() : String.format("Invalid offset: %d, buf: %s, bh: %s", curOffset, buf, bh);
@@ -305,16 +306,19 @@ public class Walker<VALUE extends Walker<VALUE>> implements AutoCloseable
         {
             int b = stream.next();
             int searchIndex = search(b);
-            payload = null;
 
             greaterBranch = greaterTransition(searchIndex, greaterBranch);
-            lesserBranch = lesserTransition(searchIndex, lesserBranch);
 
             if (searchIndex == -1 || searchIndex == 0)
             {
                 int payloadBits = payloadFlags();
                 if (payloadBits > 0)
                     payload = extractor.extract((VALUE) this, payloadPosition(), payloadBits);
+            }
+            else
+            {
+                lesserBranch = lesserTransition(searchIndex, lesserBranch);
+                payload = null;
             }
 
             if (searchIndex < 0)

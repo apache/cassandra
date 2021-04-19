@@ -20,7 +20,7 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.nio.ByteBuffer;
+import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
@@ -30,20 +30,18 @@ import com.google.common.util.concurrent.RateLimiter;
  *
  * Instantiated once per RandomAccessReader, thread-unsafe.
  * The instances reuse themselves as the BufferHolder to avoid having to return a new object for each rebuffer call.
+ * Only one BufferHolder can be active at a time. Calling {@link #rebuffer(long)} before the previously obtained
+ * buffer holder is released will throw {@link AssertionError}.
  */
-public class LimitingRebufferer implements Rebufferer, Rebufferer.BufferHolder
+@NotThreadSafe
+public class LimitingRebufferer extends WrappingRebufferer
 {
-    final private Rebufferer wrapped;
     final private RateLimiter limiter;
     final private int limitQuant;
 
-    private BufferHolder bufferHolder;
-    private ByteBuffer buffer;
-    private long offset;
-
     public LimitingRebufferer(Rebufferer wrapped, RateLimiter limiter, int limitQuant)
     {
-        this.wrapped = wrapped;
+        super(wrapped);
         this.limiter = limiter;
         this.limitQuant = limitQuant;
     }
@@ -51,9 +49,7 @@ public class LimitingRebufferer implements Rebufferer, Rebufferer.BufferHolder
     @Override
     public BufferHolder rebuffer(long position)
     {
-        bufferHolder = wrapped.rebuffer(position);
-        buffer = bufferHolder.buffer();
-        offset = bufferHolder.offset();
+        super.rebuffer(position);
         int posInBuffer = Ints.checkedCast(position - offset);
         int remaining = buffer.limit() - posInBuffer;
         if (remaining == 0)
@@ -69,58 +65,9 @@ public class LimitingRebufferer implements Rebufferer, Rebufferer.BufferHolder
     }
 
     @Override
-    public ChannelProxy channel()
-    {
-        return wrapped.channel();
-    }
-
-    @Override
-    public long fileLength()
-    {
-        return wrapped.fileLength();
-    }
-
-    @Override
-    public double getCrcCheckChance()
-    {
-        return wrapped.getCrcCheckChance();
-    }
-
-    @Override
-    public void close()
-    {
-        wrapped.close();
-    }
-
-    @Override
-    public void closeReader()
-    {
-        wrapped.closeReader();
-    }
-
-    @Override
     public String toString()
     {
-        return "LimitingRebufferer[" + limiter + "]:" + wrapped;
+        return "LimitingRebufferer[" + limiter + "]:" + this.source;
     }
 
-    // BufferHolder methods
-
-    @Override
-    public ByteBuffer buffer()
-    {
-        return buffer;
-    }
-
-    @Override
-    public long offset()
-    {
-        return offset;
-    }
-
-    @Override
-    public void release()
-    {
-        bufferHolder.release();
-    }
 }

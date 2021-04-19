@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.streaming;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +58,7 @@ public class ComponentContext implements AutoCloseable
     {
         Map<Component, File> hardLinks = new HashMap<>(1);
 
-        for (Component component : MUTABLE_COMPONENTS)
+        for (Component component : Sets.intersection(MUTABLE_COMPONENTS, descriptor.getFormat().supportedComponents()))
         {
             File file = new File(descriptor.filenameFor(component));
             if (!file.exists())

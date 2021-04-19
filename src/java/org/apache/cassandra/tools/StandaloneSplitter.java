@@ -102,13 +102,7 @@ public class StandaloneSplitter
                 else if (!cfName.equals(desc.cfname))
                     throw new IllegalArgumentException("All sstables must be part of the same table");
 
-                Set<Component> components = new HashSet<Component>(Arrays.asList(new Component[]{
-                    Component.DATA,
-                    Component.PRIMARY_INDEX,
-                    Component.FILTER,
-                    Component.COMPRESSION_INFO,
-                    Component.STATS
-                }));
+                Set<Component> components = new HashSet<>(desc.getFormat().supportedComponents());
 
                 Iterator<Component> iter = components.iterator();
                 while (iter.hasNext()) {
@@ -135,7 +129,7 @@ public class StandaloneSplitter
             {
                 try
                 {
-                    SSTableReader sstable = SSTableReader.openNoValidation(fn.getKey(), fn.getValue(), cfs);
+                    SSTableReader sstable = fn.getKey().getFormat().getReaderFactory().openNoValidation(fn.getKey(), fn.getValue(), cfs);
                     if (!isSSTableLargerEnough(sstable, options.sizeInMB)) {
                         System.out.println(String.format("Skipping %s: it's size (%.3f MB) is less than the split size (%d MB)",
                                 sstable.getFilename(), ((sstable.onDiskLength() * 1.0d) / 1024L) / 1024L, options.sizeInMB));

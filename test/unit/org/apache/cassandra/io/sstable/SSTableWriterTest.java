@@ -63,21 +63,23 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 writer.append(builder.build().unfilteredIterator());
             }
 
-            SSTableReader s = writer.setMaxDataAge(1000).openEarly();
-            assert s != null;
-            assertFileCounts(dir.list());
-            for (int i = 10000; i < 20000; i++)
-            {
-                UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
-                for (int j = 0; j < 100; j++)
-                    builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
-                writer.append(builder.build().unfilteredIterator());
-            }
-            SSTableReader s2 = writer.setMaxDataAge(1000).openEarly();
-            assertTrue(s.last.compareTo(s2.last) < 0);
-            assertFileCounts(dir.list());
-            s.selfRef().release();
-            s2.selfRef().release();
+            writer.setMaxDataAge(1000).openEarly(s -> {
+                assert s != null;
+                assertFileCounts(dir.list());
+                for (int i = 10000; i < 20000; i++)
+                {
+                    UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
+                    for (int j = 0; j < 100; j++)
+                        builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
+                    writer.append(builder.build().unfilteredIterator());
+                }
+                writer.setMaxDataAge(1000).openEarly(s2 -> {
+                    assertTrue(s.last.compareTo(s2.last) < 0);
+                    assertFileCounts(dir.list());
+                    s2.selfRef().release();
+                    s.selfRef().release();
+                });
+            });
 
             int datafiles = assertFileCounts(dir.list());
             assertEquals(datafiles, 1);

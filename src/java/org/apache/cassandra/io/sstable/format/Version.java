@@ -126,5 +126,14 @@ public abstract class Version
         return version != null ? version.hashCode() : 0;
     }
 
+    // the fields below are present only in DSE but we do not use them here; though in order to be able to read
+    // DSE sstables we need to at least skip that data
+    public abstract boolean hasZeroCopyMetadata();
+
+    public abstract boolean hasIncrementalNodeSyncMetadata();
+
+    // TODO TBD
+    public abstract boolean hasMaxColumnValueLengths();
+
     public abstract boolean hasOriginatingHostId();
 }
