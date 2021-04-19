@@ -36,6 +36,6 @@ public class GlobalBufferPoolAllocator extends BufferPoolAllocator
 
     static ByteBuf wrap(ByteBuffer buffer)
     {
-        return new Wrapped(instance, buffer);
+        return new Wrapped(instance, buffer, buffer.capacity());
     }
 }
