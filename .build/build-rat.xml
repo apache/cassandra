@@ -35,7 +35,7 @@
     <target name="rat-check" depends="_rat_init" if="${rat.enabled}" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="."
-                     includes="**/*.java,**/*.py,**/*.sh,**/.xml,**/*.spec,**/*.md,**/*.iml,**/*.bat,**/*.btm,**/*.cql,**/*.css,**/*.g,**/*.hmtl,**/*.jflex,**/*.jks,**/*.mod,**/*.name,**/*.pom,**/*.textile,**/*.yml,**/*.yaml"
+                     includes="**/*.java,**/*.py,**/*.sh,**/.xml,**/*.spec,**/*.md,**/*.iml,**/*.bat,**/*.btm,**/*.cql,**/*.css,**/*.g,**/*.hmtl,**/*.jflex,**/*.jks,**/*.mod,**/*.name,**/*.pom,**/*.textile,**/*.yml,**/*.yaml,**/*.MIDRES,**/*.HIGHRES,**/*.LOWRES"
                      excludesfile=".gitignore">
                      <!-- Config files with not much creativity -->
                      <exclude name="**/metrics-reporter-config-sample.yaml"/>
