@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -75,12 +76,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
     public void testTermEnum() throws IOException
     {
         final IndexComponents components = newIndexComponents();
-        final int numKeys = randomIntBetween(16, 512);
-        final List<ByteComparable> byteComparables = Stream.generate(() -> randomSimpleString(4, 48))
-                                                           .limit(numKeys)
-                                                           .sorted()
-                                                           .map(this::asByteComparable)
-                                                           .collect(Collectors.toList());
+        final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
         try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(components, false))
@@ -114,12 +110,7 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
     public void testMinMaxTerm() throws IOException
     {
         final IndexComponents components = newIndexComponents();
-        final int numKeys = randomIntBetween(16, 512);
-        final List<ByteComparable> byteComparables = Stream.generate(() -> randomSimpleString(4, 48))
-                                                           .limit(numKeys)
-                                                           .sorted()
-                                                           .map(this::asByteComparable)
-                                                           .collect(Collectors.toList());
+        final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
         try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(components, false))
@@ -142,6 +133,21 @@ public class TrieTermsDictionaryTest extends NdiRandomizedTest
             final ByteComparable actualMinTerm = reader.getMinTerm();
             assertEquals(0, compare(expectedMinTerm, actualMinTerm, OSS41));
         }
+    }
+
+    private List<ByteComparable> generateSortedByteComparables()
+    {
+        final int numKeys = randomIntBetween(16, 512);
+        final List<String> randomStrings = Stream.generate(() -> randomSimpleString(4, 48))
+                                                 .limit(numKeys)
+                                                 .sorted()
+                                                 .collect(Collectors.toList());
+
+        // Get rid of any duplicates otherwise the tests will fail.
+        return randomStrings.stream()
+                            .filter(string -> Collections.frequency(randomStrings, string) == 1)
+                            .map(this::asByteComparable)
+                            .collect(Collectors.toList());
     }
 
     private ByteComparable asByteComparable(String s)
