@@ -2017,7 +2017,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                     if (logger.isTraceEnabled())
                         logger.trace("using snapshot sstable {}", entries.getKey());
                     // open offline so we don't modify components or track hotness.
-                    sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, true, true);
+                    sstable = entries.getKey().getFormat().getReaderFactory().open(entries.getKey(), entries.getValue(), metadata, true, true);
                     refs.tryRef(sstable);
                     // release the self ref as we never add the snapshot sstable to DataTracker where it is otherwise released
                     sstable.selfRef().release();

@@ -28,6 +28,9 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.github.benmanes.caffeine.cache.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
@@ -39,6 +42,8 @@ import org.apache.cassandra.utils.memory.BufferPools;
 public class ChunkCache
         implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
 {
+    private final static Logger logger = LoggerFactory.getLogger(ChunkCache.class);
+
     public static final int RESERVED_POOL_SPACE_IN_MB = 32;
     public static final long cacheSize = 1024L * 1024L * Math.max(0, DatabaseDescriptor.getFileCacheSizeInMB() - RESERVED_POOL_SPACE_IN_MB);
     public static final boolean roundUp = DatabaseDescriptor.getFileCacheRoundUp();
@@ -226,15 +231,28 @@ public class ChunkCache
         @Override
         public Buffer rebuffer(long position)
         {
+            int spin = 0;
             try
             {
                 long pageAlignedPos = position & alignmentMask;
                 Buffer buf;
-                do
-                    buf = cache.get(new Key(source, pageAlignedPos)).reference();
-                while (buf == null);
+                Key key = new Key(source, pageAlignedPos);
+                while (true)
+                {
+                    buf = cache.get(key).reference();
+                    if (buf != null)
+                        return buf;
 
-                return buf;
+                    if (++spin == 1000)
+                    {
+                        String msg = String.format("Could not acquire a reference to for %s after 1000 attempts. " +
+                                                   "This is likely due to the chunk cache being too small for the " +
+                                                   "number of concurrently running requests.", key);
+                        throw new RuntimeException(msg);
+                        // Note: this might also be caused by reference counting errors, especially double release of
+                        // chunks.
+                    }
+                }
             }
             catch (Throwable t)
             {

@@ -113,8 +113,8 @@ public class SerializationHeaderTest
 
             Descriptor sstableWithRegular = writer.apply(schemaWithRegular, BufferClustering::new).call();
             Descriptor sstableWithStatic = writer.apply(schemaWithStatic, value -> Clustering.STATIC_CLUSTERING).call();
-            SSTableReader readerWithStatic = SSTableReader.openNoValidation(sstableWithStatic, TableMetadataRef.forOfflineTools(schemaWithRegular));
-            SSTableReader readerWithRegular = SSTableReader.openNoValidation(sstableWithRegular, TableMetadataRef.forOfflineTools(schemaWithStatic));
+            SSTableReader readerWithStatic = sstableWithStatic.getFormat().getReaderFactory().openNoValidation(sstableWithStatic, TableMetadataRef.forOfflineTools(schemaWithRegular));
+            SSTableReader readerWithRegular = sstableWithStatic.getFormat().getReaderFactory().openNoValidation(sstableWithRegular, TableMetadataRef.forOfflineTools(schemaWithStatic));
 
             try (ISSTableScanner partitions = readerWithStatic.getScanner()) {
                 for (int i = 0 ; i < 5 ; ++i)

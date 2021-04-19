@@ -17,16 +17,22 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.Set;
+
 import com.google.common.base.CharMatcher;
 
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
 
 /**
  * Provides the accessors to data on disk.
  */
 public interface SSTableFormat
 {
-    static boolean enableSSTableDevelopmentTestMode = Boolean.getBoolean("cassandra.test.sstableformatdevelopment");
+    public final static String FORMAT_DEFAULT_PROP = "cassandra.sstable.format.default";
 
     Type getType();
 
@@ -39,14 +45,17 @@ public interface SSTableFormat
     public enum Type
     {
         //The original sstable format
-        BIG("big", BigFormat.instance);
+        BIG("big", BigFormat.instance),
+
+        //Sstable format with trie indices
+        BTI("bti", TrieIndexFormat.instance);
 
         public final SSTableFormat info;
         public final String name;
 
         public static Type current()
         {
-            return BIG;
+            return Type.valueOf(System.getProperty(FORMAT_DEFAULT_PROP, BTI.name()).toUpperCase());
         }
 
         Type(String name, SSTableFormat info)
@@ -70,4 +79,22 @@ public interface SSTableFormat
             throw new IllegalArgumentException("No Type constant " + name);
         }
     }
+
+    /**
+     * Returns components required by the particular implementation of SSTable reader so that it can operate on
+     * the SSTable in a regular way.
+     */
+    Set<Component> requiredComponents();
+
+    /**
+     * Returns all the components, both mandatory and optional, which are used by the particular implemetation of
+     * SSTable format.
+     */
+    Set<Component> supportedComponents();
+
+    /**
+     * Returns all the components of the particular implementation of SSTable format which are suitable for streaming.
+     */
+    Set<Component> streamingComponents();
+
 }

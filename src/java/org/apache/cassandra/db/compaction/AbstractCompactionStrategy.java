@@ -30,6 +30,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
@@ -214,7 +216,7 @@ public abstract class AbstractCompactionStrategy
      * @param originalCandidates The collection to check for excluded SSTables
      * @return list of the SSTables with excluded ones filtered out
      */
-    public static List<SSTableReader> filterSuspectSSTables(Iterable<SSTableReader> originalCandidates)
+    public static List<SSTableReader> filterSuspectSSTables(Iterable<? extends SSTableReader> originalCandidates)
     {
         List<SSTableReader> filtered = new ArrayList<>();
         for (SSTableReader sstable : originalCandidates)

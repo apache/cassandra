@@ -328,7 +328,7 @@ public class CompactionController extends AbstractCompactionController
             reader.getMaxTimestamp() <= minTimestamp ||
             tombstoneOnly && !reader.mayHaveTombstones())
             return null;
-        return reader.simpleIterator(() -> openDataFiles.computeIfAbsent(reader, this::openDataFile), key, tombstoneOnly);
+        return reader.simpleIterator(openDataFiles.computeIfAbsent(reader, this::openDataFile), key, tombstoneOnly);
     }
 
     /**

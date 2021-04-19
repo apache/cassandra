@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -34,7 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 public class UnfilteredDeserializer
 {
     protected final TableMetadata metadata;
-    protected final DataInputPlus in;
+    protected final FileDataInput in;
     protected final DeserializationHelper helper;
 
     private final ClusteringPrefix.Deserializer clusteringDeserializer;
@@ -44,11 +45,12 @@ public class UnfilteredDeserializer
     private int nextExtendedFlags;
     private boolean isReady;
     private boolean isDone;
+    private long preparePos;
 
     private final Row.Builder builder;
 
     private UnfilteredDeserializer(TableMetadata metadata,
-                                   DataInputPlus in,
+                                   FileDataInput in,
                                    SerializationHeader header,
                                    DeserializationHelper helper)
     {
@@ -58,10 +60,11 @@ public class UnfilteredDeserializer
         this.header = header;
         this.clusteringDeserializer = new ClusteringPrefix.Deserializer(metadata.comparator, in, header);
         this.builder = BTreeRow.sortedBuilder();
+        this.preparePos = -1;
     }
 
     public static UnfilteredDeserializer create(TableMetadata metadata,
-                                                DataInputPlus in,
+                                                FileDataInput in,
                                                 SerializationHeader header,
                                                 DeserializationHelper helper)
     {
@@ -85,6 +88,7 @@ public class UnfilteredDeserializer
         if (isDone)
             return;
 
+        preparePos = in.getFilePointer();
         nextFlags = in.readUnsignedByte();
         if (UnfilteredSerializer.isEndOfPartition(nextFlags))
         {
@@ -170,4 +174,5 @@ public class UnfilteredDeserializer
             UnfilteredSerializer.serializer.skipRowBody(in);
         }
     }
+
 }

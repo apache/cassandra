@@ -25,40 +25,35 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.PartitionIndexIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
+// TODO STAR-247: Implement a unit test
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
     private final IPartitioner partitioner;
     private final PartitionIndexIterator it;
     private final ReadWriteLock fileAccessLock;
-    private final long indexLength;
+    private final long totalBytes;
 
-    private long keyPosition = -1;
+    private boolean initialized = false;
 
-    public KeyIterator(PartitionIndexIterator it, IPartitioner partitioner, ReadWriteLock fileAccessLock)
+    public KeyIterator(PartitionIndexIterator it, IPartitioner partitioner, long totalBytes, ReadWriteLock fileAccessLock)
     {
         this.it = it;
         this.partitioner = partitioner;
+        this.totalBytes = totalBytes;
         this.fileAccessLock = fileAccessLock;
-        this.indexLength = it.indexLength();
     }
 
-    public KeyIterator(PartitionIndexIterator it, IPartitioner partitioner)
+    public KeyIterator(PartitionIndexIterator it, IPartitioner partitioner, long totalBytes)
     {
-        this(it, partitioner, null);
+        this(it, partitioner, totalBytes, null);
     }
 
     public static KeyIterator forSSTable(SSTableReader ssTableReader) throws IOException
     {
-        return new KeyIterator(ssTableReader.allKeysIterator(), ssTableReader.getPartitioner(), new ReentrantReadWriteLock());
-    }
-
-    public static KeyIterator create(SSTableReader.Factory factory, Descriptor descriptor, TableMetadata metadata)
-    {
-        return new KeyIterator(factory.indexIterator(descriptor, metadata), metadata.partitioner, new ReentrantReadWriteLock());
+        return new KeyIterator(ssTableReader.allKeysIterator(), ssTableReader.getPartitioner(), ssTableReader.uncompressedLength(), new ReentrantReadWriteLock());
     }
 
     protected DecoratedKey computeNext()
@@ -67,16 +62,15 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             fileAccessLock.readLock().lock();
         try
         {
-            if (keyPosition < 0)
+            if (!initialized)
             {
-                keyPosition = 0;
+                initialized = true;
                 return it.isExhausted()
                        ? endOfData()
                        : partitioner.decorateKey(it.key());
             }
             else
             {
-                keyPosition = it.indexPosition();
                 return it.advance()
                        ? partitioner.decorateKey(it.key())
                        : endOfData();
@@ -114,7 +108,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             fileAccessLock.readLock().lock();
         try
         {
-            return it.indexPosition();
+            return it.isExhausted() ? totalBytes : it.dataPosition();
         }
         finally
         {
@@ -125,31 +119,6 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
 
     public long getTotalBytes()
     {
-        return indexLength;
-    }
-
-    public long getKeyPosition()
-    {
-        return keyPosition;
-    }
-
-    public void reset()
-    {
-        if (fileAccessLock != null)
-            fileAccessLock.readLock().lock();
-        try
-        {
-            it.reset();
-            keyPosition = -1;
-        }
-        catch (IOException ex)
-        {
-            throw new RuntimeException(ex);
-        }
-        finally
-        {
-            if (fileAccessLock != null)
-                fileAccessLock.readLock().unlock();
-        }
+        return totalBytes;
     }
 }

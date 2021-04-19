@@ -30,6 +30,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -137,9 +138,9 @@ public class CassandraStreamManager implements TableStreamManager
             for (SSTableReader sstable : refs)
             {
                 List<Range<Token>> ranges = sstable.isRepaired() ? normalizedFullRanges : normalizedAllRanges;
-                List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
+                List<BigTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(ranges);
 
-                Ref<SSTableReader> ref = refs.get(sstable);
+                Ref<? extends SSTableReader> ref = refs.get(sstable);
                 if (sections.isEmpty())
                 {
                     ref.release();

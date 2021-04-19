@@ -128,6 +128,10 @@ public final class JVMStabilityInspector
         if (isUnstable)
             killer.killCurrentJVM(t);
 
+        if (t.getSuppressed() != null)
+            for (Throwable suppressed : t.getSuppressed())
+                inspectThrowable(suppressed, fn);
+
         if (t.getCause() != null)
             inspectThrowable(t.getCause(), fn);
     }

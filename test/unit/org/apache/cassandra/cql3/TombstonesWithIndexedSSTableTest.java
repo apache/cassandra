@@ -19,18 +19,29 @@ package org.apache.cassandra.cql3;
 
 import java.util.Random;
 
+import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.hamcrest.Matchers.is;
 
 public class TombstonesWithIndexedSSTableTest extends CQLTester
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BIG));
+    }
+
     @Test
     public void testTombstoneBoundariesInIndexCached() throws Throwable
     {
@@ -80,9 +91,8 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
                 BigTableRowIndexEntry indexEntry = (BigTableRowIndexEntry) sstable.getPosition(dk, SSTableReader.Operator.EQ);
                 if (indexEntry != null && indexEntry.isIndexed())
                 {
-                    try (FileDataInput reader = sstable.openIndexReader())
+                    try (BigTableRowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(sstable.getIndexFile()))
                     {
-                        BigTableRowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(sstable.getIndexFile());
                         ClusteringPrefix<?> firstName = infoRetriever.columnsIndex(1).firstName;
                         if (firstName.kind().isBoundary())
                             break deletionLoop;

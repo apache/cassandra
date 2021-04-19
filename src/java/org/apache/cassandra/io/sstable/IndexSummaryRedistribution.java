@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -84,7 +85,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         List<SSTableReader> redistribute = new ArrayList<>();
         for (LifecycleTransaction txn : transactions.values())
         {
-            redistribute.addAll(txn.originals());
+            redistribute.addAll(SSTableReader.selectOnlyBigTableReaders(txn.originals(), Collectors.toList()));
         }
 
         long total = nonRedistributingOffHeapSize;
@@ -119,7 +120,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         logger.trace("Index summaries for compacting SSTables are using {} MB of space",
                      (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
         List<SSTableReader> newSSTables;
-        try (Refs<SSTableReader> refs = Refs.ref(sstablesByHotness))
+        try (Refs<? extends SSTableReader> refs = Refs.ref(sstablesByHotness))
         {
             newSSTables = adjustSamplingLevels(sstablesByHotness, transactions, totalReadsPerSec, remainingBytes);
 

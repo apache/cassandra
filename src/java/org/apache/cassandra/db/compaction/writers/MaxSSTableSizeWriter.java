@@ -21,7 +21,7 @@ import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -81,7 +81,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 
     protected boolean realAppend(UnfilteredRowIterator partition)
     {
-        BigTableRowIndexEntry rie = sstableWriter.append(partition);
+        RowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > maxSSTableSize)
         {
             switchCompactionLocation(sstableDirectory);

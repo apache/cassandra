@@ -76,6 +76,7 @@ public class RingTest extends CQLTester
     private void validateRingOutput(String hostForm, String... args)
     {
         ToolRunner.ToolResult nodetool = ToolRunner.invokeNodetool(args);
+        logger.info(nodetool.getStdout());
         nodetool.assertOnCleanExit();
         /*
          Datacenter: datacenter1

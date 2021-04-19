@@ -168,11 +168,6 @@ public abstract class SSTable
         return descriptor.filenameFor(Component.DATA);
     }
 
-    public String getIndexFilename()
-    {
-        return descriptor.filenameFor(Component.PRIMARY_INDEX);
-    }
-
     public String getColumnFamilyName()
     {
         return descriptor.cfname;

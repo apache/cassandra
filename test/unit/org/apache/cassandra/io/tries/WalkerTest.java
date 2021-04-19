@@ -169,9 +169,8 @@ public class WalkerTest extends AbstractTrieTestBase
         long rootPos = builder.complete();
         Rebufferer source = new ByteBufRebufferer(buf.asNewBuffer());
         Rebufferer partialSource = new TailOverridingRebufferer(new ByteBufRebufferer(buf.asNewBuffer()), ptail.cutoff(), ptail.tail());
-
-        InternalIterator it = new InternalIterator(source, rootPos, source("151"), source("515"), true);
-        InternalIterator tailIt = new InternalIterator(partialSource, ptail.root(), source("151"), source("515"), true);
+        InternalIterator it = new InternalIterator(new ByteBufRebufferer(buf.asNewBuffer()), rootPos, source("151"), source("515"), true);
+        InternalIterator tailIt = new InternalIterator(new TailOverridingRebufferer(new ByteBufRebufferer(buf.asNewBuffer()), ptail.cutoff(), ptail.tail()), ptail.root(), source("151"), source("515"), true);
 
         while (true)
         {
@@ -186,6 +185,9 @@ public class WalkerTest extends AbstractTrieTestBase
             int f1 = TrieNode.at(bh1.buffer(), (int) (i1 - bh1.offset())).payloadFlags(bh1.buffer(), (int) (i1 - bh1.offset()));
             int f2 = TrieNode.at(bh2.buffer(), (int) (i2 - bh2.offset())).payloadFlags(bh2.buffer(), (int) (i2 - bh2.offset()));
             assertEquals(f1, f2);
+
+            bh2.release();
+            bh1.release();
         }
     }
 

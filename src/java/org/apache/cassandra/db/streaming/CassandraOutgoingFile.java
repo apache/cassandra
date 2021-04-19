@@ -43,7 +43,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
  */
 public class CassandraOutgoingFile implements OutgoingStream
 {
-    private final Ref<SSTableReader> ref;
+    private final Ref<? extends SSTableReader> ref;
     private final long estimatedKeys;
     private final List<SSTableReader.PartitionPositionBounds> sections;
     private final String filename;
@@ -51,7 +51,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final StreamOperation operation;
     private final CassandraStreamHeader header;
 
-    public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
+    public CassandraOutgoingFile(StreamOperation operation, Ref<? extends SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
                                  long estimatedKeys)
     {
@@ -106,7 +106,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @VisibleForTesting
-    public Ref<SSTableReader> getRef()
+    public Ref<? extends SSTableReader> getRef()
     {
         return ref;
     }

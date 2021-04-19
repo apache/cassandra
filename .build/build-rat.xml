@@ -57,6 +57,7 @@
                  <exclude name="**/cassandra-murmur.yaml"/>
                  <exclude name="**/cassandra-seeds.yaml"/>
                  <exclude NAME="**/doc/antora.yml"/>
+                 <exclude name="**/test/conf/bigtable.yaml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
                  <exclude name="**/test/conf/cassandra_deprecated_parameters_names.yaml"/>
                  <exclude name="**/test/conf/cassandra_encryption.yaml"/>

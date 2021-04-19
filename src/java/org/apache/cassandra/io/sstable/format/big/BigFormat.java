@@ -22,6 +22,9 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -35,6 +38,8 @@ import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.net.MessagingService;
 
+import static org.apache.cassandra.io.sstable.format.SSTableReaderBuilder.defaultIndexHandleBuilder;
+
 /**
  * Legacy bigtable format
  */
@@ -44,6 +49,29 @@ public class BigFormat implements SSTableFormat
     public static final Version latestVersion = new BigVersion(BigVersion.current_version);
     private static final SSTableReader.Factory readerFactory = new ReaderFactory();
     private static final SSTableWriter.Factory writerFactory = new WriterFactory();
+
+    private final static Set<Component> REQUIRED_COMPONENTS = ImmutableSet.of(Component.DATA,
+                                                                              Component.PRIMARY_INDEX,
+                                                                              Component.STATS);
+
+    private final static Set<Component> SUPPORTED_COMPONENTS = ImmutableSet.of(Component.DATA,
+                                                                               Component.PRIMARY_INDEX,
+                                                                               Component.FILTER,
+                                                                               Component.COMPRESSION_INFO,
+                                                                               Component.STATS,
+                                                                               Component.DIGEST,
+                                                                               Component.CRC,
+                                                                               Component.SUMMARY,
+                                                                               Component.TOC);
+
+    private final static Set<Component> STREAMING_COMPONENTS = ImmutableSet.of(Component.DATA,
+                                                                               Component.PRIMARY_INDEX,
+                                                                               Component.SUMMARY,
+                                                                               Component.STATS,
+                                                                               Component.COMPRESSION_INFO,
+                                                                               Component.FILTER,
+                                                                               Component.DIGEST,
+                                                                               Component.CRC);
 
     private BigFormat()
     {
@@ -80,6 +108,24 @@ public class BigFormat implements SSTableFormat
         return readerFactory;
     }
 
+    @Override
+    public Set<Component> requiredComponents()
+    {
+        return REQUIRED_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> supportedComponents()
+    {
+        return SUPPORTED_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> streamingComponents()
+    {
+        return STREAMING_COMPONENTS;
+    }
+
     static class WriterFactory extends SSTableWriter.Factory
     {
         @Override
@@ -109,18 +155,12 @@ public class BigFormat implements SSTableFormat
         }
     }
 
-    static class ReaderFactory implements SSTableReader.Factory
+    static class ReaderFactory extends SSTableReader.AbstractBigTableReaderFactory
     {
-        @Override
-        public SSTableReader open(SSTableReaderBuilder builder)
-        {
-            return new BigTableReader(builder);
-        }
-
         @Override
         public PartitionIndexIterator indexIterator(Descriptor descriptor, TableMetadata metadata)
         {
-            try (FileHandle iFile = SSTableReaderBuilder.defaultIndexHandleBuilder(descriptor).complete()) {
+            try (FileHandle iFile = defaultIndexHandleBuilder(descriptor, Component.PRIMARY_INDEX).complete()) {
                 SerializationHeader.Component headerComponent = (SerializationHeader.Component)
                                                                 descriptor.getMetadataSerializer()
                                                                           .deserialize(descriptor, MetadataType.HEADER);
@@ -215,6 +255,7 @@ public class BigFormat implements SSTableFormat
             return hasCommitLogIntervals;
         }
 
+        @Override
         public boolean hasPendingRepair()
         {
             return hasPendingRepair;
@@ -256,6 +297,7 @@ public class BigFormat implements SSTableFormat
             return hasPartitionLevelDeletionPresenceMarker;
         }
 
+        @Override
         public boolean isCompatible()
         {
             return version.compareTo(earliest_supported_version) >= 0 && version.charAt(0) <= current_version.charAt(0);
@@ -282,6 +324,25 @@ public class BigFormat implements SSTableFormat
         public boolean hasOldBfFormat()
         {
             return hasOldBfFormat;
+        }
+
+        @Override
+        public boolean hasZeroCopyMetadata()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasIncrementalNodeSyncMetadata()
+        {
+            return false;
+        }
+
+        // TODO TBD
+        @Override
+        public boolean hasMaxColumnValueLengths()
+        {
+            return false;
         }
     }
 }

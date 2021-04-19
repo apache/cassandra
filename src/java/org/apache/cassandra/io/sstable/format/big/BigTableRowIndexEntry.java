@@ -127,7 +127,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  * </p>
  *
  */
-public class BigTableRowIndexEntry extends RowIndexEntry<IndexInfo> implements IMeasurableMemory
+public class BigTableRowIndexEntry extends RowIndexEntry implements IMeasurableMemory
 {
     public static final long EMPTY_SIZE = ObjectSizes.measure(new BigTableRowIndexEntry(0));
 

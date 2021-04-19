@@ -1,0 +1,43 @@
+--- a/build.xml
++++ b/build.xml
+@@ -1647,8 +1647,7 @@
+     <testhelper testdelegate="testlist-cdc" />
+   </target>
+ 
+-<<<<<<<
+-  <target name="test-bigtable" depends="build-test" description="Execute unit tests with using legacy sstable format and sequential sstable identifiers">
++  <target name="test-bigtable" depends="maybe-build-test" description="Execute unit tests with using legacy sstable format and sequential sstable identifiers">
+       <path id="all-test-classes-path">
+           <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+       </path>
+@@ -1656,10 +1655,7 @@
+       <testhelper testdelegate="testlist-bigtable" />
+   </target>
+ 
+-    <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
+-=======
+   <target name="test-system-keyspace-directory" depends="maybe-build-test" description="Execute unit tests with a system keyspaces directory configured">
+->>>>>>>
+     <path id="all-test-classes-path">
+       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+     </path>
+@@ -1913,18 +1909,14 @@
+       <property name="all-test-classes" refid="all-test-classes-path"/>
+       <testhelper testdelegate="testlist-cdc"/>
+   </target>
+-<<<<<<<
+-  <target name="testclasslist-bigtable" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
++  <target name="testclasslist-bigtable" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+     <path id="all-test-classes-path">
+       <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+     </path>
+     <property name="all-test-classes" refid="all-test-classes-path"/>
+     <testhelper testdelegate="testlist-bigtable"/>
+   </target>
+-  <target name="testclasslist-system-keyspace-directory" depends="build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+-=======
+   <target name="testclasslist-system-keyspace-directory" depends="maybe-build-test" description="Run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+->>>>>>>
+       <path id="all-test-classes-path">
+           <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+       </path>

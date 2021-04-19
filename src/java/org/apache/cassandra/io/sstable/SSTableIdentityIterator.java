@@ -70,13 +70,16 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     }
 
     @SuppressWarnings("resource")
-    public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, RowIndexEntry<?> indexEntry, DecoratedKey key, boolean tombstoneOnly)
+    public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, RowIndexEntry indexEntry, DecoratedKey key, boolean tombstoneOnly)
     {
         try
         {
             dfile.seek(indexEntry.position);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
+            if (!partitionLevelDeletion.validate())
+                UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
+
             DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
                     ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)

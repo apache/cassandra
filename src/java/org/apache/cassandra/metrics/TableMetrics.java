@@ -44,9 +44,9 @@ import com.codahale.metrics.RatioGauge;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -57,6 +57,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.io.sstable.format.SSTableReader.selectOnlyBigTableReaders;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 /**
@@ -787,7 +788,7 @@ public class TableMetrics
             public Long getValue()
             {
                 long total = 0;
-                for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
+                for (SSTableReader sst : selectOnlyBigTableReaders(cfs.getSSTables(SSTableSet.LIVE)))
                     total += sst.getIndexSummaryOffHeapSize();
                 return total;
             }
@@ -821,7 +822,7 @@ public class TableMetrics
             protected double getNumerator()
             {
                 long hits = 0L;
-                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
+                for (SSTableReader sstable : selectOnlyBigTableReaders(cfs.getSSTables(SSTableSet.LIVE)))
                     hits += sstable.getKeyCacheHit();
                 return hits;
             }
@@ -829,7 +830,7 @@ public class TableMetrics
             protected double getDenominator()
             {
                 long requests = 0L;
-                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
+                for (SSTableReader sstable : selectOnlyBigTableReaders(cfs.getSSTables(SSTableSet.LIVE)))
                     requests += sstable.getKeyCacheRequest();
                 return Math.max(requests, 1); // to avoid NaN.
             }

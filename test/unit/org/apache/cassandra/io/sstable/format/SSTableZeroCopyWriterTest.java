@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.io.sstable.format.big;
+package org.apache.cassandra.io.sstable.format;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -30,6 +30,9 @@ import java.util.function.Function;
 import com.google.common.collect.ImmutableSet;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -46,8 +49,8 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
@@ -63,8 +66,10 @@ import static org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
-public class BigTableZeroCopyWriterTest
+public class SSTableZeroCopyWriterTest
 {
+    private final static Logger logger = LoggerFactory.getLogger(SSTableZeroCopyWriterTest.class);
+
     public static final String KEYSPACE1 = "BigTableBlockWriterTest";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
@@ -135,7 +140,9 @@ public class BigTableZeroCopyWriterTest
         {
             writeDataTestCycle(buffer ->
             {
-                input.append(Unpooled.wrappedBuffer(buffer));
+                if (buffer.limit() > 0) { // skip empty files that would cause premature EOF
+                    input.append(Unpooled.wrappedBuffer(buffer));
+                }
                 return input;
             });
 
@@ -151,17 +158,15 @@ public class BigTableZeroCopyWriterTest
         TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
 
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
-        Set<Component> componentsToWrite = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX,
-                                                           Component.STATS);
+        Set<Component> componentsToWrite = desc.getFormat().requiredComponents();
 
-        BigTableZeroCopyWriter btzcw = new BigTableZeroCopyWriter(desc, metadata, txn, componentsToWrite);
+        SSTableZeroCopyWriter btzcw = new SSTableZeroCopyWriter(desc, metadata, txn, componentsToWrite);
 
         for (Component component : componentsToWrite)
         {
-            if (Files.exists(Paths.get(desc.filenameFor(component))))
+            if (desc.fileFor(component).exists())
             {
                 Pair<DataInputPlus, Long> pair = getSSTableComponentData(sstable, component, bufferMapper);
-
                 btzcw.writeComponent(component.type, pair.left, pair.right);
             }
         }

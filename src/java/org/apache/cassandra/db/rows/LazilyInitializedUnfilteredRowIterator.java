@@ -35,6 +35,8 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
 
     private UnfilteredRowIterator iterator;
 
+    private boolean closed = false;
+
     public LazilyInitializedUnfilteredRowIterator(DecoratedKey partitionKey)
     {
         this.partitionKey = partitionKey;
@@ -104,5 +106,11 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
     {
         if (iterator != null)
             iterator.close();
+        closed = true;
+    }
+
+    public boolean isClosed()
+    {
+        return closed;
     }
 }

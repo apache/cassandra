@@ -97,9 +97,8 @@ public abstract class Rows
      *
      * @param row the row for which to collect stats.
      * @param collector the stats collector.
-     * @return the total number of cells in {@code row}.
      */
-    public static int collectStats(Row row, PartitionStatisticsCollector collector)
+    public static void collectStats(Row row, PartitionStatisticsCollector collector)
     {
         assert !row.isEmpty();
 
@@ -109,7 +108,6 @@ public abstract class Rows
         long result = row.accumulate(StatsAccumulation::accumulateOnColumnData, collector, 0);
 
         collector.updateColumnSetPerRow(StatsAccumulation.unpackColumnCount(result));
-        return StatsAccumulation.unpackCellCount(result);
     }
 
     /**

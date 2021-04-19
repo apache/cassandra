@@ -29,4 +29,6 @@ package org.apache.cassandra.io.util;
 public interface RebuffererFactory extends ReaderFileProxy
 {
     Rebufferer instantiateRebufferer();
+
+    default void invalidateIfCached(long position) {}
 }

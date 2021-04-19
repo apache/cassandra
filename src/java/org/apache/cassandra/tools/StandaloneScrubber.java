@@ -201,7 +201,7 @@ public class StandaloneScrubber
 
                 try
                 {
-                    SSTableReader sstable = SSTableReader.openNoValidation(descriptor, components, cfs);
+                    SSTableReader sstable = descriptor.getFormat().getReaderFactory().openNoValidation(descriptor, components, cfs);
                     sstables.add(sstable);
                 }
                 catch (Exception e)

@@ -141,12 +141,12 @@ public class StreamTransferTaskTest
 
         // create streaming task that streams those two sstables
         StreamTransferTask task = new StreamTransferTask(session, cfs.metadata.id);
-        List<Ref<SSTableReader>> refs = new ArrayList<>(cfs.getLiveSSTables().size());
+        List<Ref<? extends SSTableReader>> refs = new ArrayList<>(cfs.getLiveSSTables().size());
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             List<Range<Token>> ranges = new ArrayList<>();
             ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
-            Ref<SSTableReader> ref = sstable.selfRef();
+            Ref<? extends SSTableReader> ref = sstable.selfRef();
             refs.add(ref);
             task.addTransferStream(new CassandraOutgoingFile(StreamOperation.BOOTSTRAP, ref, sstable.getPositionsForRanges(ranges), ranges, 1));
         }
@@ -168,7 +168,7 @@ public class StreamTransferTaskTest
         session.onError(new Exception("Fake exception")).get(5, TimeUnit.SECONDS);
 
         //make sure reference was not released
-        for (Ref<SSTableReader> ref : refs)
+        for (Ref<? extends SSTableReader> ref : refs)
         {
             assertEquals(1, ref.globalCount());
         }
@@ -190,7 +190,7 @@ public class StreamTransferTaskTest
         }
 
         //now reference should be released
-        for (Ref<SSTableReader> ref : refs)
+        for (Ref<? extends SSTableReader> ref : refs)
         {
             assertEquals(0, ref.globalCount());
         }
