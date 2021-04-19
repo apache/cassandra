@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.index.Index;
@@ -83,6 +84,11 @@ public class KeyCacheCqlTest extends CQLTester
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789";
+
+    private int cacheInteractionsIfSupported(int cacheInteractionsAssumingCacheIsSupported)
+    {
+        return SSTableFormat.Type.current() == SSTableFormat.Type.BIG ? cacheInteractionsAssumingCacheIsSupported : 0;
+    }
 
     /**
      * Prevent system tables from populating the key cache to ensure that
@@ -261,8 +267,8 @@ public class KeyCacheCqlTest extends CQLTester
 
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
-        assertEquals(0, hits);
-        assertEquals(210, requests);
+        assertEquals(cacheInteractionsIfSupported(0), hits);
+        assertEquals(cacheInteractionsIfSupported(210), requests);
 
         for (int i = 0; i < 10; i++)
         {
@@ -276,8 +282,8 @@ public class KeyCacheCqlTest extends CQLTester
         metrics = CacheService.instance.keyCache.getMetrics();
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
-        assertEquals(200, hits);
-        assertEquals(420, requests);
+        assertEquals(cacheInteractionsIfSupported(200), hits);
+        assertEquals(cacheInteractionsIfSupported(420), requests);
 
         CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
 
@@ -346,8 +352,8 @@ public class KeyCacheCqlTest extends CQLTester
 
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
-        assertEquals(0, hits);
-        assertEquals(210, requests);
+        assertEquals(cacheInteractionsIfSupported(0), hits);
+        assertEquals(cacheInteractionsIfSupported(210), requests);
 
         //
 
@@ -363,8 +369,8 @@ public class KeyCacheCqlTest extends CQLTester
         metrics = CacheService.instance.keyCache.getMetrics();
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
-        assertEquals(200, hits);
-        assertEquals(420, requests);
+        assertEquals(cacheInteractionsIfSupported(200), hits);
+        assertEquals(cacheInteractionsIfSupported(420), requests);
 
         dropTable("DROP TABLE %s");
 
@@ -418,8 +424,8 @@ public class KeyCacheCqlTest extends CQLTester
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
-        assertEquals(0, hits);
-        assertEquals(10, requests);
+        assertEquals(cacheInteractionsIfSupported(0), hits);
+        assertEquals(cacheInteractionsIfSupported(10), requests);
 
         for (int i = 0; i < 100; i++)
         {
@@ -429,8 +435,8 @@ public class KeyCacheCqlTest extends CQLTester
 
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
-        assertEquals(10, hits);
-        assertEquals(120, requests);
+        assertEquals(cacheInteractionsIfSupported(10), hits);
+        assertEquals(cacheInteractionsIfSupported(120), requests);
     }
 
     @Test
@@ -466,8 +472,8 @@ public class KeyCacheCqlTest extends CQLTester
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
-        assertEquals(0, hits);
-        assertEquals(10, requests);
+        assertEquals(cacheInteractionsIfSupported(0), hits);
+        assertEquals(cacheInteractionsIfSupported(10), requests);
 
         // 10 queries, each 50 result rows
         for (int i = 0; i < 10; i++)
@@ -478,8 +484,8 @@ public class KeyCacheCqlTest extends CQLTester
         metrics = CacheService.instance.keyCache.getMetrics();
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
-        assertEquals(10, hits);
-        assertEquals(10 + 10, requests);
+        assertEquals(cacheInteractionsIfSupported(10), hits);
+        assertEquals(cacheInteractionsIfSupported(10 + 10), requests);
 
         // 100 queries - must get a hit in key-cache
         for (int i = 0; i < 10; i++)
@@ -494,8 +500,8 @@ public class KeyCacheCqlTest extends CQLTester
         metrics = CacheService.instance.keyCache.getMetrics();
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
-        assertEquals(10 + 100, hits);
-        assertEquals(20 + 100, requests);
+        assertEquals(cacheInteractionsIfSupported(10 + 100), hits);
+        assertEquals(cacheInteractionsIfSupported(20 + 100), requests);
 
         // 5000 queries - first 10 partitions already in key cache
         for (int i = 0; i < 100; i++)
@@ -509,8 +515,8 @@ public class KeyCacheCqlTest extends CQLTester
 
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
-        assertEquals(110 + 4910, hits);
-        assertEquals(120 + 5500, requests);
+        assertEquals(cacheInteractionsIfSupported(110 + 4910), hits);
+        assertEquals(cacheInteractionsIfSupported(120 + 5500), requests);
     }
 
     // Inserts 100 partitions split over 10 sstables (flush after 10 partitions).

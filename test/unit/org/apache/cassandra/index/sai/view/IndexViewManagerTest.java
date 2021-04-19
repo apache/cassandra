@@ -152,7 +152,7 @@ public class IndexViewManagerTest extends SAITester
 
         List<SSTableReader> sstables = IntStream.rangeClosed(1, 4)
                                                 .mapToObj(i -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, i))
-                                                .map(SSTableReader::open)
+                                                .map(desc -> desc.getFormat().getReaderFactory().open(desc))
                                                 .collect(Collectors.toList());
 
         List<SSTableReader> none = Collections.emptyList();

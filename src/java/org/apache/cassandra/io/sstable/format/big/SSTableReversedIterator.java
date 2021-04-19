@@ -24,6 +24,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
@@ -34,7 +35,7 @@ import org.apache.cassandra.utils.btree.BTree;
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
  */
-public class SSTableReversedIterator extends AbstractBigTableIterator
+public class SSTableReversedIterator extends AbstractSSTableIterator<BigTableRowIndexEntry>
 {
     /**
      * The index of the slice being processed.

@@ -59,6 +59,7 @@ public class TailOverridingRebuffererTest
         {
             Rebufferer.BufferHolder bh = tor.rebuffer(i);
             assertEquals(head, bh.buffer());
+            bh.release();
         }
 
         assertEquals(10, tor.fileLength());
@@ -76,6 +77,7 @@ public class TailOverridingRebuffererTest
         {
             Rebufferer.BufferHolder bh = tor.rebuffer(i);
             assertEquals(head.limit(6), bh.buffer());
+            bh.release();
         }
 
         assertEquals(10, tor.fileLength());
@@ -93,6 +95,7 @@ public class TailOverridingRebuffererTest
         {
             Rebufferer.BufferHolder bh = tor.rebuffer(i);
             assertEquals(tail, bh.buffer());
+            bh.release();
         }
 
         assertEquals(10, tor.fileLength());

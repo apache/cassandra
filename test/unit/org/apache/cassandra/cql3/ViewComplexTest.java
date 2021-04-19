@@ -49,7 +49,8 @@ import org.junit.Test;
 
 import com.google.common.base.Objects;
 
-public class ViewComplexTest extends CQLTester
+public class
+ViewComplexTest extends CQLTester
 {
     ProtocolVersion protocolVersion = ProtocolVersion.V4;
     private final List<String> views = new ArrayList<>();

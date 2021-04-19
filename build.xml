@@ -1497,6 +1497,23 @@
     </sequential>
   </macrodef>
 
+  <macrodef name="testlist-bigtable">
+    <attribute name="test.file.list"/>
+    <attribute name="testlist.offset"/>
+    <sequential>
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" poffset="@{testlist.offset}"
+                       exclude="**/*.java" timeout="${test.timeout}" testtag="bigtable">
+        <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
+        <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
+        <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
+        <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
+        <jvmarg value="-Dcassandra.config.loader=org.apache.cassandra.OffsetAwareConfigurationLoader"/>
+        <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dcassandra.sstable.format.default=big" />
+      </testmacrohelper>
+    </sequential>
+  </macrodef>
+
   <macrodef name="testlist-system-keyspace-directory">
     <attribute name="test.file.list" />
     <attribute name="testlist.offset" />
@@ -1586,7 +1603,15 @@
     <testparallel testdelegate="testlist-cdc" />
   </target>
 
-  <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
+  <target name="test-bigtable" depends="build-test" description="Execute unit tests with default sstable format set to Big Table (otherwise the tests are executed with the default format set to Trie Index)">
+      <path id="all-test-classes-path">
+          <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+      </path>
+      <property name="all-test-classes" refid="all-test-classes-path"/>
+      <testparallel testdelegate="testlist-bigtable" />
+  </target>
+
+    <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
@@ -1965,6 +1990,13 @@
       </path>
       <property name="all-test-classes" refid="all-test-classes-path"/>
       <testparallel testdelegate="testlist-cdc"/>
+  </target>
+  <target name="testclasslist-bigtable" depends="build-test,get-cores,get-mem" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.dir}/${test.classlistprefix}" includesfile="${test.classlistfile}"/>
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testparallel testdelegate="testlist-bigtable"/>
   </target>
   <target name="testclasslist-system-keyspace-directory" depends="build-test,get-cores,get-mem" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
       <path id="all-test-classes-path">

@@ -264,12 +264,11 @@ public class ColumnFamilyStoreTest
         new RowUpdateBuilder(cfs.metadata(), 0, ByteBufferUtil.bytes("key2")).clustering("Column1").add("val", "asdf").build().applyUnsafe();
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
-        for (int version = 1; version <= 2; ++version)
+        for (SSTableReader liveSSTable : cfs.getLiveSSTables())
         {
-            Descriptor existing = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(), KEYSPACE2, CF_STANDARD1, version,
-                                                 SSTableFormat.Type.BIG);
-            Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing), KEYSPACE2, CF_STANDARD1, version, SSTableFormat.Type.BIG);
-            for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.STATS })
+            Descriptor existing = liveSSTable.descriptor;
+            Descriptor desc = new Descriptor(Directories.getBackupsDirectory(existing), KEYSPACE2, CF_STANDARD1, liveSSTable.descriptor.generation, liveSSTable.descriptor.formatType);
+            for (Component c : liveSSTable.components)
                 assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
     }

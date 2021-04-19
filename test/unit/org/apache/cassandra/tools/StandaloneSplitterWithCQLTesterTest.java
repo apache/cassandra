@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -119,7 +121,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     {
         restoreOrigSstables();
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", "--no-snapshot", sstableFileName);
-        assertTrue(origSstables.size() < Arrays.asList(sstablesDir.listFiles()).size());
+        assertThat(origSstables.size()).isLessThan(sstablesDir.listFiles().length);
         assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
@@ -167,15 +169,15 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
 
     private void restoreOrigSstables()
     {
-        Arrays.asList(sstablesDir.listFiles()).stream().forEach(f -> {
+        Arrays.stream(Objects.requireNonNull(sstablesDir.listFiles())).forEach(f -> {
             if (f.isFile())
                 f.delete();
         });
-        Arrays.asList(sstablesBackupDir.listFiles()).stream().forEach(f -> {
+        Arrays.stream(Objects.requireNonNull(sstablesBackupDir.listFiles())).forEach(f -> {
             if (f.isFile())
                 try
                 {
-                    Files.copy(f, new File(sstablesDir.getAbsolutePath() + "/" + f.getName()));
+                    Files.copy(f, new File(sstablesDir.getAbsolutePath() + '/' + f.getName()));
                 }
                 catch(IOException e)
                 {

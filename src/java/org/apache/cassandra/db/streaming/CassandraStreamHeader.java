@@ -201,8 +201,9 @@ public class CassandraStreamHeader
         @VisibleForTesting
         public CassandraStreamHeader deserialize(DataInputPlus in, int version, Function<TableId, IPartitioner> partitionerMapper) throws IOException
         {
-            Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
+            String sstableVersionString = in.readUTF();
             SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
+            Version sstableVersion = format.info.getVersion(sstableVersionString);
 
             long estimatedKeys = in.readLong();
             int count = in.readInt();
