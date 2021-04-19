@@ -33,6 +33,7 @@ import java.util.Objects;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
@@ -329,16 +330,22 @@ public class SSTableFlushObserverTest
         {
             for (FlushObserver.HeaderEntry e : observer.headers)
             {
-                assertEquals(e.key, reader.keyAt(e.keyPosition));
-                assertEquals(e.deletionTime, reader.partitionLevelDeletionAt(e.deletionTimePosition));
-                assertEquals(e.staticRow, reader.staticRowAt(e.staticRowPosition, columnFilter));
+                try (RandomAccessReader in = reader.openKeyComponentReader())
+                {
+                    assertEquals(e.key, reader.keyAt(in, e.keyPosition));
+                    assertEquals(e.deletionTime, reader.partitionLevelDeletionAt(e.deletionTimePosition));
+                    assertEquals(e.staticRow, reader.staticRowAt(e.staticRowPosition, columnFilter));
+                }
             }
 
             for (FlushObserver.UnfilteredEntry e : observer.unfiltereds)
             {
-                assertEquals(e.key, reader.keyAt(e.keyPosition));
-                assertEquals(e.unfiltered.clustering(), reader.clusteringAt(e.unfilteredPosition));
-                assertEquals(e.unfiltered, reader.unfilteredAt(e.unfilteredPosition, columnFilter));
+                try (RandomAccessReader in = reader.openKeyComponentReader())
+                {
+                    assertEquals(e.key, reader.keyAt(in, e.keyPosition));
+                    assertEquals(e.unfiltered.clustering(), reader.clusteringAt(e.unfilteredPosition));
+                    assertEquals(e.unfiltered, reader.unfilteredAt(e.unfilteredPosition, columnFilter));
+                }
             }
         }
         catch (IOException ex)

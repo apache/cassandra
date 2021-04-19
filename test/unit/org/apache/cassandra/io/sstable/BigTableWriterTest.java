@@ -21,6 +21,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.IOException;
 
+import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import org.junit.Assert;
@@ -31,8 +32,10 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
+import org.hamcrest.Matchers;
 
 public class BigTableWriterTest extends AbstractTransactionalTest
 {
@@ -44,6 +47,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        Assume.assumeThat(SSTableFormat.Type.current(), Matchers.is(SSTableFormat.Type.BIG));
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),

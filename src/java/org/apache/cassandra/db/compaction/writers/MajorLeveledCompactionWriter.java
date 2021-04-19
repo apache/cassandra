@@ -21,12 +21,12 @@ import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
@@ -70,7 +70,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     @SuppressWarnings("resource")
     public boolean realAppend(UnfilteredRowIterator partition)
     {
-        BigTableRowIndexEntry rie = sstableWriter.append(partition);
+        RowIndexEntry rie = sstableWriter.append(partition);
         partitionsWritten++;
         long totalWrittenInCurrentWriter = sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten();
         if (totalWrittenInCurrentWriter > maxSSTableSize)
