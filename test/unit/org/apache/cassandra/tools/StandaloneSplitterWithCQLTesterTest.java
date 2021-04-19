@@ -22,6 +22,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,7 @@ import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -103,7 +105,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     public void testNoSnapshotOption() throws Throwable
     {
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", "--no-snapshot", sstableFileName);
-        assertTrue(origSstables.size() < Arrays.asList(sstablesDir.listFiles()).size());
+        assertThat(origSstables.size()).isLessThan(sstablesDir.listFiles().length);
         assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());

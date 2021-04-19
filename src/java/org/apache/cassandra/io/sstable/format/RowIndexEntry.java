@@ -20,9 +20,18 @@ package org.apache.cassandra.io.sstable.format;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.utils.ObjectSizes;
 
-public abstract class RowIndexEntry<T> implements IMeasurableMemory
+/**
+ * The base RowIndexEntry is not stored on disk, only specifies a position in the data file
+ */
+public class RowIndexEntry implements IMeasurableMemory
 {
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
+
+    /**
+     * Row position in a data file
+     */
     public final long position;
 
     public RowIndexEntry(long position)
@@ -31,7 +40,7 @@ public abstract class RowIndexEntry<T> implements IMeasurableMemory
     }
 
     /**
-     * @return true if this index entry contains the row-level tombstone and column summary.  Otherwise,
+     * @return true if this index entry contains the row-level tombstone and column summary. Otherwise,
      * caller should fetch these from the row header.
      */
     public boolean isIndexed()
@@ -39,10 +48,19 @@ public abstract class RowIndexEntry<T> implements IMeasurableMemory
         return columnsIndexCount() > 1;
     }
 
-    public abstract DeletionTime deletionTime();
+    public DeletionTime deletionTime()
+    {
+        throw new UnsupportedOperationException();
+    }
 
     public int columnsIndexCount()
     {
         return 0;
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        return EMPTY_SIZE;
     }
 }

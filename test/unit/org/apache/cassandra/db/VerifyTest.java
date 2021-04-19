@@ -28,7 +28,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
@@ -43,6 +42,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.cache.ChunkCache;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.marshal.UUIDType;
@@ -55,6 +55,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -63,12 +64,16 @@ import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.UUIDGen;
+
+import org.junit.Assume;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -76,7 +81,7 @@ import static org.junit.Assert.fail;
 
 /**
  * Test for {@link Verifier}.
- * 
+ *
  * Note: the complete coverage is composed of:
  * - {@link org.apache.cassandra.tools.StandaloneVerifierOnSSTablesTest}
  * - {@link org.apache.cassandra.tools.StandaloneVerifierTest}
@@ -95,6 +100,7 @@ public class VerifyTest
     public static final String COUNTER_CF4 = "Counter4";
     public static final String CORRUPT_CF = "Corrupt1";
     public static final String CORRUPT_CF2 = "Corrupt2";
+    public static final String CORRUPT_CF3 = "Corrupt3";
     public static final String CORRUPTCOUNTER_CF = "CounterCorrupt1";
     public static final String CORRUPTCOUNTER_CF2 = "CounterCorrupt2";
 
@@ -105,6 +111,8 @@ public class VerifyTest
     public static void defineSchema() throws ConfigurationException
     {
         CompressionParams compressionParameters = CompressionParams.snappy(32768);
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setColumnIndexSize(0);
 
         loadSchema();
         createKeyspace(KEYSPACE,
@@ -115,6 +123,7 @@ public class VerifyTest
                        standardCFMD(KEYSPACE, CF4),
                        standardCFMD(KEYSPACE, CORRUPT_CF),
                        standardCFMD(KEYSPACE, CORRUPT_CF2),
+                       standardCFMD(KEYSPACE, CORRUPT_CF3),
                        counterCFMD(KEYSPACE, COUNTER_CF).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF2).compression(compressionParameters),
                        counterCFMD(KEYSPACE, COUNTER_CF3),
@@ -496,7 +505,7 @@ public class VerifyTest
     {
         CompactionManager.instance.disableAutoCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF2);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CORRUPT_CF3);
 
         fillCF(cfs, 2);
 
@@ -525,10 +534,26 @@ public class VerifyTest
     }
 
     @Test
-    public void testVerifyIndex() throws IOException
+    public void testVerifyPrimaryIndex() throws IOException
     {
+        Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BIG));
         testBrokenComponentHelper(Component.PRIMARY_INDEX);
     }
+
+    @Test
+    public void testVerifyPartitionIndex() throws IOException
+    {
+        Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BTI));
+        testBrokenComponentHelper(Component.PARTITION_INDEX);
+    }
+
+    @Test
+    public void testVerifyRowIndex() throws IOException
+    {
+        Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BTI));
+        testBrokenComponentHelper(Component.ROW_INDEX);
+    }
+
     @Test
     public void testVerifyBf() throws IOException
     {
@@ -538,6 +563,7 @@ public class VerifyTest
     @Test
     public void testVerifyIndexSummary() throws IOException
     {
+        Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BIG));
         testBrokenComponentHelper(Component.SUMMARY);
     }
 
@@ -700,7 +726,7 @@ public class VerifyTest
         tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
         tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
         // write some bogus to a localpartitioner table
-        Batch bogus = Batch.createLocal(UUID.randomUUID(), 0, Collections.emptyList());
+        Batch bogus = Batch.createLocal(UUIDGen.getTimeUUID(), 0, Collections.emptyList());
         BatchlogManager.store(bogus);
         ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("batches");
         cfs.forceBlockingFlush(UNIT_TESTS);

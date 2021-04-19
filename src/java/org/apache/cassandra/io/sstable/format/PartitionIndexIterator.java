@@ -24,8 +24,9 @@ import java.nio.ByteBuffer;
 /**
  * Iterator over the partitions of an sstable.
  * <p>
- * The index iterator starts with a key/position ready. advance() should be used to move to the next key; iteration
- * completes when key() == null.
+ * The index iterator starts with a key/position ready. {@link #advance()} should be used to move to the next key;
+ * iteration completes when {@link #advance()} returns {@code false}. For testing the state of iterator any time
+ * {@link #isExhausted()} can be used.
  */
 public interface PartitionIndexIterator extends Closeable
 {
@@ -33,6 +34,11 @@ public interface PartitionIndexIterator extends Closeable
      * Current key
      */
     public ByteBuffer key();
+
+    /**
+     * Position in the component preferred for reading keys. This is specific to SSTable implementation
+     */
+    long keyPosition();
 
     /**
      * Position in the data file where the associated content resides
@@ -55,8 +61,7 @@ public interface PartitionIndexIterator extends Closeable
     boolean isExhausted();
 
     /**
-     * Returns the current position in index file (which along with {@link #indexLength()}
-     * can be used to track iteration progress
+     * Returns the current position in index file
      */
     long indexPosition();
 

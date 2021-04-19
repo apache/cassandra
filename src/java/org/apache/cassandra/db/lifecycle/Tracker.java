@@ -99,7 +99,7 @@ public class Tracker
     /**
      * @return a Transaction over the provided sstables if we are able to mark the given @param sstables as compacted, before anyone else
      */
-    public LifecycleTransaction tryModify(Iterable<SSTableReader> sstables, OperationType operationType)
+    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType)
     {
         if (Iterables.isEmpty(sstables))
             return new LifecycleTransaction(this, operationType, sstables);
@@ -407,7 +407,7 @@ public class Tracker
         return view.get().select(SSTableSet.NONCOMPACTING);
     }
 
-    public Iterable<SSTableReader> getUncompacting(Iterable<SSTableReader> candidates)
+    public Iterable<? extends SSTableReader> getUncompacting(Iterable<? extends SSTableReader> candidates)
     {
         return view.get().getUncompacting(candidates);
     }

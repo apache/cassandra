@@ -51,12 +51,12 @@ public final class CompactionInfo
     private final UUID compactionId;
     private final ImmutableSet<SSTableReader> sstables;
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId, Collection<SSTableReader> sstables)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, UUID compactionId, Collection<? extends SSTableReader> sstables)
     {
         this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, sstables);
     }
 
-    private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, Collection<SSTableReader> sstables)
+    private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, UUID compactionId, Collection<? extends SSTableReader> sstables)
     {
         this.tasktype = tasktype;
         this.completed = completed;

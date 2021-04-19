@@ -18,35 +18,42 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
-import java.util.Deque;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 
-public class WrappingRebufferer implements Rebufferer
+/**
+ * Instantiated once per RandomAccessReader, thread-unsafe.
+ * The instances reuse themselves as the BufferHolder to avoid having to return a new object for each rebuffer call.
+ * Only one buffer holder can be active at a time. Calling {@link #rebuffer(long)} before the previously obtained
+ * buffer holder is released will throw {@link AssertionError}. We will get that exception also in case we try to close
+ * the rebufferer without closing the recently obtained buffer holder.
+ *
+ * Calling methods of {@link BufferHolder} will also produce {@link AssertionError} if buffer holder is not acquired.
+ *
+ * The overriding classes must conform to the aforementioned rules.
+ */
+@NotThreadSafe
+public abstract class WrappingRebufferer implements Rebufferer, Rebufferer.BufferHolder
 {
     protected final Rebufferer source;
-    private final Deque<WrappingBufferHolder> buffers;
+
+    protected BufferHolder bufferHolder;
+    protected ByteBuffer buffer;
+    protected long offset;
 
     public WrappingRebufferer(Rebufferer source)
     {
         this.source = source;
-        this.buffers = new ConcurrentLinkedDeque<>();
     }
 
     @Override
     public BufferHolder rebuffer(long position)
     {
-        BufferHolder bufferHolder = source.rebuffer(position);
-        return newBufferHolder().initialize(bufferHolder, bufferHolder.buffer(), bufferHolder.offset());
-    }
+        assert buffer == null;
+        bufferHolder = source.rebuffer(position);
+        buffer = bufferHolder.buffer();
+        offset = bufferHolder.offset();
 
-    protected WrappingBufferHolder newBufferHolder()
-    {
-        WrappingBufferHolder ret = buffers.pollFirst();
-        if (ret == null)
-            ret = new WrappingBufferHolder();
-
-        return ret;
+        return this;
     }
 
     @Override
@@ -70,6 +77,7 @@ public class WrappingRebufferer implements Rebufferer
     @Override
     public void close()
     {
+        assert buffer == null : "Rebufferer is attempted to be closed but the buffer holder has not been released";
         source.close();
     }
 
@@ -79,70 +87,36 @@ public class WrappingRebufferer implements Rebufferer
         source.closeReader();
     }
 
-
     @Override
     public String toString()
     {
         return String.format("%s[]:%s", getClass().getSimpleName(), source.toString());
     }
 
-    protected final class WrappingBufferHolder implements BufferHolder
+    @Override
+    public ByteBuffer buffer()
     {
-        @Nullable
-        private BufferHolder bufferHolder;
-
-        private ByteBuffer buffer;
-        private long offset;
-
-        protected WrappingBufferHolder initialize(@Nullable BufferHolder bufferHolder, ByteBuffer buffer, long offset)
-        {
-            assert this.bufferHolder == null && this.buffer == null && this.offset == 0L : "initialized before release";
-
-            this.bufferHolder = bufferHolder;
-            this.buffer = buffer;
-            this.offset = offset;
-
-            return this;
-        }
-
-        @Override
-        public ByteBuffer buffer()
-        {
-            return buffer;
-        }
-
-        @Override
-        public long offset()
-        {
-            return offset;
-        }
-
-
-        public int limit()
-        {
-            return buffer.limit();
-        }
-
-        public void limit(int limit)
-        {
-            this.buffer.limit(limit);
-        }
-
-        @Override
-        public void release()
-        {
-            assert buffer != null : "released twice";
-
-            if (bufferHolder != null)
-            {
-                bufferHolder.release();
-                bufferHolder = null;
-            }
-
-            buffer = null;
-            offset = 0L;
-
-            buffers.offerFirst(this);
-        }
+        assert buffer != null : "Buffer holder has not been acquired";
+        return buffer;
     }
+
+    @Override
+    public long offset()
+    {
+        assert buffer != null : "Buffer holder has not been acquired";
+        return offset;
+    }
+
+    @Override
+    public void release()
+    {
+        assert buffer != null;
+        if (bufferHolder != null)
+        {
+            bufferHolder.release();
+            bufferHolder = null;
+        }
+        buffer = null;
+    }
+
 }

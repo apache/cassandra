@@ -42,6 +42,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.AfterClass;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -79,6 +80,7 @@ import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
 import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
@@ -86,7 +88,11 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.tools.StandaloneScrubber;
+import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -94,6 +100,7 @@ import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -187,7 +194,9 @@ public class ScrubTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         //make sure to override at most 1 chunk when compression is enabled
-        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+        //use 0x00 instead of the usual 0x7A because if by any chance it's able to iterate over the corrupt
+        //section, then we get many out-of-order errors, which we don't want
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"), (byte)0x00);
 
         // with skipCorrupted == false, the scrub is expected to fail
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Collections.singletonList(sstable), OperationType.SCRUB);
@@ -347,12 +356,14 @@ public class ScrubTest
         assertOrderedAll(cfs, 4);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-        overrideWithGarbage(sstable, 0, 2);
+        overrideWithGarbage(sstable, 0, 2, (byte)0x7A);
 
         CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         // check data is still there
-        assertOrderedAll(cfs, 4);
+        // For Trie format we won't be able to recover the damaged partition key (partion index doesn't store the
+        // whole key)
+        assertOrderedAll(cfs, SSTableFormat.Type.current() == SSTableFormat.Type.BTI ? 3 : 4);
     }
 
     @Test
@@ -397,7 +408,19 @@ public class ScrubTest
         assertOrderedAll(cfs, 10);
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
-            assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete());
+        {
+            switch (sstable.descriptor.getFormat().getType()) {
+                case BIG:
+                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete());
+                    break;
+                case BTI:
+                    assertTrue(new File(sstable.descriptor.filenameFor(Component.PARTITION_INDEX)).delete());
+                    new File(sstable.descriptor.filenameFor(Component.ROW_INDEX)).delete(); // row index is optional
+                    break;
+                default:
+                    fail("Unknonw SSTable format");
+            }
+        }
 
         CompactionManager.instance.performScrub(cfs, false, true, 2);
 
@@ -408,6 +431,11 @@ public class ScrubTest
     @Test
     public void testScrubOutOfOrder() throws IOException
     {
+        // Run only for Big Table format because Big Table Format does not complain if partitions are given in invalid
+        // order. Legacy SSTables with out-of-order partitions exist in production systems and must be corrected
+        // by scrubbing. The trie index format does not permit such partitions.
+        Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BIG));
+
         // This test assumes ByteOrderPartitioner to create out-of-order SSTable
         IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
         DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
@@ -441,7 +469,7 @@ public class ScrubTest
 
             try
             {
-                SSTableReader.open(desc, cfs.metadata);
+                desc.getFormat().getReaderFactory().open(desc, cfs.metadata);
                 fail("SSTR validation should have caught the out-of-order rows");
             }
             catch (CorruptSSTableException ise)
@@ -458,7 +486,7 @@ public class ScrubTest
             components.add(Component.SUMMARY);
             components.add(Component.TOC);
 
-            SSTableReader sstable = SSTableReader.openNoValidation(desc, components, cfs);
+            SSTableReader sstable = desc.getFormat().getReaderFactory().openNoValidation(desc, components, cfs);
             if (sstable.last.compareTo(sstable.first) < 0)
                 sstable.last = sstable.first;
 
@@ -529,7 +557,7 @@ public class ScrubTest
         try (RandomAccessFile file = new RandomAccessFile(path, "rw"))
         {
             file.seek(startPosition);
-            int length = (int) (endPosition - startPosition);
+            int length = (int)(endPosition - startPosition);
             byte[] buff = new byte[length];
             Arrays.fill(buff, junk);
             file.write(buff, 0, length);
@@ -737,7 +765,7 @@ public class ScrubTest
                 boolean failure = !scrubs[i];
                 if (failure)
                 { //make sure the next scrub fails
-                    overrideWithGarbage(indexCfs.getLiveSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L));
+                    overrideWithGarbage(indexCfs.getLiveSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L), (byte)0x7A);
                 }
                 CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, false, true, false, 0);
                 assertEquals(failure ?

@@ -176,7 +176,7 @@ public class MetadataSerializerTest
         File statsFileLb = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(newV));
         File statsFileLa = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(oldV));
         // Reading both as earlier version should yield identical results.
-        SSTableFormat.Type stype = SSTableFormat.Type.current();
+        SSTableFormat.Type stype = SSTableFormat.Type.BIG;
         Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.getParentFile(), "", "", new SequenceBasedSSTableId(0), stype);
         try (RandomAccessReader inLb = RandomAccessReader.open(statsFileLb);
              RandomAccessReader inLa = RandomAccessReader.open(statsFileLa))
