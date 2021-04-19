@@ -8,6 +8,7 @@ logs/
 data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
+doc/build/
 
 # C* debs
 build-stamp
@@ -76,3 +77,10 @@ lib/jsr223/scala/*.jar
 
 # Generated files from the documentation
 doc/source/configuration/cassandra_config_file.rst
+
+# Python virtual environment
+venv/
+
+# build-scripts will put cassandra-builds and cassandra-dtest into the directory
+cassandra-builds/
+cassandra-dtest/
