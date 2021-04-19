@@ -8,6 +8,7 @@ logs/
 data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
+doc/build/
 lib/
 !lib/cassandra-driver-internal-only-*.zip
 
@@ -72,3 +73,7 @@ doc/source/tools/nodetool
 
 # Python virtual environment
 venv/
+
+# build-scripts will put cassandra-builds into the directory
+cassandra-builds/
+cassandra-dtest/
