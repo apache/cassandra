@@ -1,4 +1,5 @@
 4.0-rc1
+ * Allow for setting buffer max capacity to increase it dynamically as needed (CASSANDRA-16524)
  * Harden internode message resource limit accounting against serialization failures (CASSANDRA-16616)
  * Add back the source release of python driver in tree to avoid fetching from GitHub APIs (CASSANDRA-16599)
  * Fix false unavailable for queries due to cluster topology changes (CASSANDRA-16545)
