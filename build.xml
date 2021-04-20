@@ -627,6 +627,7 @@
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2">
             <exclusion groupId="it.unimi.dsi" artifactId="fastutil" />
           </dependency>
+          <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api" version="2.2.4"/>
           <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.11.0" classifier="shaded">
             <exclusion groupId="io.netty" artifactId="netty-buffer"/>
             <exclusion groupId="io.netty" artifactId="netty-codec"/>
@@ -851,6 +852,7 @@
         <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
+        <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>
 
         <!-- sasi deps -->
         <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" />
