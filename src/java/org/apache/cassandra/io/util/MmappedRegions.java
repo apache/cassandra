@@ -37,7 +37,7 @@ import static org.apache.cassandra.utils.Throwables.perform;
 public class MmappedRegions extends SharedCloseableImpl
 {
     /** In a perfect world, MAX_SEGMENT_SIZE would be final, but we need to test with a smaller size */
-    public static int MAX_SEGMENT_SIZE = Integer.MAX_VALUE;
+    public static int MAX_SEGMENT_SIZE = Integer.getInteger("cassandra.mmapped_max_segment_size", Integer.MAX_VALUE);
 
     /** When we need to grow the arrays, we add this number of region slots */
     static final int REGION_ALLOC_SIZE = 15;
