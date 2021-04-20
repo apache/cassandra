@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,6 +108,10 @@ public final class JVMStabilityInspector
             // We let the JVM handle the error. The startup checks should have warned the user if it did not configure
             // the JVM behavior in case of OOM (CASSANDRA-13006).
             throw (OutOfMemoryError) t;
+        }
+        else if (t instanceof UnrecoverableIllegalStateException)
+        {
+            isUnstable = true;
         }
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)

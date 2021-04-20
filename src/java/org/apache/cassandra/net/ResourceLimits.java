@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.net;
 
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
+
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 public abstract class ResourceLimits
@@ -155,7 +157,17 @@ public abstract class ResourceLimits
         {
             assert amount >= 0;
             long using = usingUpdater.addAndGet(this, -amount);
-            assert using >= 0;
+            if (using < 0L)
+            {
+                // Should never be able to release more than was allocated.  While recovery is
+                // possible it would require synchronizing the closing of all outbound connections
+                // and reinitializing the Concurrent limit before reopening.  For such an unlikely path
+                // (previously this was an assert), it is safer to terminate the JVM and have something external
+                // restart and get back to a known good state rather than intermittendly crashing on any of
+                // the connections sharing this limit.
+                throw new UnrecoverableIllegalStateException(
+                    "Internode messaging byte limits that are shared between connections is invalid (using="+using+")");
+            }
             return using >= limit ? Outcome.ABOVE_LIMIT : Outcome.BELOW_LIMIT;
         }
     }
