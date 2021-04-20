@@ -107,10 +107,10 @@ public class ShadowRoundTest
         }
 
         // we expect one SYN for each seed during shadow round + additional SYNs after gossiper has been enabled
-        assertTrue(spySyn.messagesIntercepted > noOfSeeds);
+        assertTrue(spySyn.messagesIntercepted() > noOfSeeds);
 
         // we don't expect to emit any GOSSIP_DIGEST_ACK2 or MIGRATION_REQUEST messages
-        assertEquals(0, spyAck2.messagesIntercepted);
-        assertEquals(0, spyMigrationReq.messagesIntercepted);
+        assertEquals(0, spyAck2.messagesIntercepted());
+        assertEquals(0, spyMigrationReq.messagesIntercepted());
     }
 }
