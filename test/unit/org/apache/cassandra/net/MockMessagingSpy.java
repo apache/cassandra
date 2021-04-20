@@ -24,6 +24,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
@@ -40,8 +41,8 @@ public class MockMessagingSpy
 {
     private static final Logger logger = LoggerFactory.getLogger(MockMessagingSpy.class);
 
-    public int messagesIntercepted = 0;
-    public int mockedMessageResponses = 0;
+    private final AtomicInteger messagesIntercepted = new AtomicInteger();
+    private final AtomicInteger mockedMessageResponses = new AtomicInteger();
 
     private final BlockingQueue<MessageOut<?>> interceptedMessages = new LinkedBlockingQueue<>();
     private final BlockingQueue<MessageIn<?>> deliveredResponses = new LinkedBlockingQueue<>();
@@ -130,20 +131,29 @@ public class MockMessagingSpy
         return ret;
     }
 
+    public int messagesIntercepted()
+    {
+        return messagesIntercepted.get();
+    }
+
+    public int mockedMessageResponses()
+    {
+        return mockedMessageResponses.get();
+    }
+
     void matchingMessage(MessageOut<?> message)
     {
-        messagesIntercepted++;
+        messagesIntercepted.incrementAndGet();
         logger.trace("Received matching message: {}", message);
         interceptedMessages.add(message);
     }
 
     void matchingResponse(MessageIn<?> response)
     {
-        mockedMessageResponses++;
+        mockedMessageResponses.incrementAndGet();
         logger.trace("Responding to intercepted message: {}", response);
         deliveredResponses.add(response);
     }
-
 
     private static class CapturedResultsFuture<T> extends AbstractFuture<List<T>> implements Runnable
     {
