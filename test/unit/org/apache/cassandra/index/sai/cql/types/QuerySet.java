@@ -97,6 +97,35 @@ public abstract class QuerySet extends CQLTester
         }
     }
 
+    public static class BooleanQuerySet extends QuerySet
+    {
+        BooleanQuerySet(DataSet<?> dataSet)
+        {
+            super(dataSet);
+        }
+
+        @Override
+        public void runQueries(SAITester tester, Object[][] allRows) throws Throwable
+        {
+            // Query each value for EQ operator
+            for (int index = 0; index < allRows.length; index++)
+            {
+                Object value = allRows[index][2];
+                assertRowsIgnoringOrder(tester.execute("SELECT * FROM %s WHERE value = ?", value), getExpectedRows(value, allRows));
+            }
+        }
+        protected Object[][] getExpectedRows(Object value, Object[][] allRows)
+        {
+            List<Object[]> expected = new ArrayList<>();
+            for (Object[] row : allRows)
+            {
+                if (row[2].equals(value))
+                    expected.add(row);
+            }
+            return expected.toArray(new Object[][]{});
+        }
+    }
+
     public static class LiteralQuerySet extends QuerySet
     {
         LiteralQuerySet(DataSet<?> dataSet)
@@ -194,6 +223,14 @@ public abstract class QuerySet extends CQLTester
                     expected.add(row);
             }
             return expected.toArray(new Object[][]{});
+        }
+    }
+
+    public static class FrozenTuple extends FrozenCollectionQuerySet
+    {
+        public FrozenTuple(DataSet<?> dataset)
+        {
+            super(dataset);
         }
     }
 

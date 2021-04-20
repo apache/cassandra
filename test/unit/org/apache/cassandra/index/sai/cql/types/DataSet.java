@@ -44,6 +44,11 @@ public abstract class DataSet<T> extends CQLTester
 {
     public T[] values;
 
+    public void init()
+    {
+        // used to create UDT
+    }
+
     public abstract QuerySet querySet();
 
     public Collection<String> decorateIndexColumn(String column)
@@ -423,6 +428,29 @@ public abstract class DataSet<T> extends CQLTester
         public String toString()
         {
             return "ascii";
+        }
+    }
+
+    public static class BooleanDataSet extends DataSet<Boolean>
+    {
+        public BooleanDataSet()
+        {
+            values = new Boolean[NUMBER_OF_VALUES];
+            for (int index = 0; index < values.length; index++)
+            {
+                values[index] = getRandom().nextBoolean();
+            }
+        }
+
+        @Override
+        public QuerySet querySet()
+        {
+            return new QuerySet.BooleanQuerySet(this);
+        }
+
+        public String toString()
+        {
+            return "boolean";
         }
     }
 

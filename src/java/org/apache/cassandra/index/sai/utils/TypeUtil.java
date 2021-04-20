@@ -38,6 +38,7 @@ import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -268,7 +269,7 @@ public class TypeUtil
             return compareInet(b1, b2);
         // BigInteger values, frozen types and composite types (map entries) use compareUnsigned to maintain
         // a consistent order between the in-memory index and the on-disk index.
-        else if (isBigInteger(type) || isBigDecimal(type) || isCompositeOrFrozenCollection(type))
+        else if (isBigInteger(type) || isBigDecimal(type) || isCompositeOrFrozen(type))
             return FastByteOperations.compareUnsigned(b1, b2);
 
         return type.compare(b1, b2 );
@@ -286,7 +287,7 @@ public class TypeUtil
         if (isInetAddress(type))
             return compareInet(requestedValue.encoded, columnValue.encoded);
         // Override comparisons for frozen collections and composite types (map entries)
-        else if (isCompositeOrFrozenCollection(type))
+        else if (isCompositeOrFrozen(type))
             return FastByteOperations.compareUnsigned(requestedValue.raw, columnValue.raw);
 
         return type.compare(requestedValue.raw, columnValue.raw);
@@ -312,7 +313,7 @@ public class TypeUtil
     public static Comparator<ByteBuffer> comparator(AbstractType<?> type)
     {
         // Override the comparator for BigInteger, frozen collections and composite types
-        if (isBigInteger(type) || isBigDecimal(type) || isCompositeOrFrozenCollection(type))
+        if (isBigInteger(type) || isBigDecimal(type) || isCompositeOrFrozen(type))
             return FastByteOperations::compareUnsigned;
 
         return type;
@@ -432,7 +433,7 @@ public class TypeUtil
      */
     public static boolean isLiteral(AbstractType<?> type)
     {
-        return isUTF8OrAscii(type) || isCompositeOrFrozenCollection(type);
+        return isUTF8OrAscii(type) || isCompositeOrFrozen(type) || baseType(type) instanceof BooleanType;
     }
 
     /**
@@ -445,16 +446,25 @@ public class TypeUtil
     }
 
     /**
-     * Returns <code>true</code> if given {@link AbstractType} is Composite(map entry) or frozen-collection.
+     * Returns <code>true</code> if given {@link AbstractType} is a Composite(map entry) or frozen.
      */
-    public static boolean isCompositeOrFrozenCollection(AbstractType<?> type)
+    public static boolean isCompositeOrFrozen(AbstractType<?> type)
     {
         type = baseType(type);
-        return type instanceof CompositeType || (type.isCollection() && !type.isMultiCell());
+        return type instanceof CompositeType || isFrozen(type);
     }
 
     /**
-     * Returns <code>true</code> if given {@link AbstractType} is frozen-collection.
+     * Returns <code>true</code> if given {@link AbstractType} is frozen.
+     */
+    public static boolean isFrozen(AbstractType<?> type)
+    {
+        type = baseType(type);
+        return !type.subTypes().isEmpty() && !type.isMultiCell();
+    }
+
+    /**
+     * Returns <code>true</code> if given {@link AbstractType} is a frozen collection.
      */
     public static boolean isFrozenCollection(AbstractType<?> type)
     {
@@ -463,7 +473,7 @@ public class TypeUtil
     }
 
     /**
-     * Returns <code>true</code> if given {@link AbstractType} is non-frozen-collection.
+     * Returns <code>true</code> if given {@link AbstractType} is a non-frozen collection.
      */
     public static boolean isNonFrozenCollection(AbstractType<?> type)
     {
