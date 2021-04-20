@@ -55,7 +55,7 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
     private static final int ALLOCATED_SIZE_THRESHOLD;
     static
     {
-        String propertyName = "dse.trie_size_limit_mb";
+        String propertyName = "cassandra.trie_size_limit_mb";
         // Default threshold + 10% == 1 GB. Adjusted slightly up to avoid a tiny final allocation for the 2G max.
         int limitInMB = Integer.parseInt(System.getProperty(propertyName,
                                                             Integer.toString(1024 * 10 / 11 + 1)));
