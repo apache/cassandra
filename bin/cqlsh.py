@@ -116,7 +116,7 @@ if cql_zip:
     ver = os.path.splitext(os.path.basename(cql_zip))[0][len(CQL_LIB_PREFIX):]
     sys.path.insert(0, os.path.join(cql_zip, 'cassandra-driver-' + ver))
 
-third_parties = ('futures-', 'six-')
+third_parties = ('futures-', 'six-', 'geomet-')
 
 for lib in third_parties:
     lib_zip = find_zip(lib)
@@ -157,7 +157,7 @@ if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
 from cqlshlib import cql3handling, cqlhandling, pylexotron, sslhandling, cqlshhandling
-from cqlshlib.copyutil import ExportTask, ImportTask
+from cqlshlib.copyutil import ExportTask, ImportTask, ImportConversion
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
                                  RED, WHITE, FormattedValue, colorme)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
@@ -165,6 +165,12 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  format_by_type, formatter_for)
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
+
+from cqlshlib.geotypes import patch_geotypes_import_conversion  # nopep8
+from cqlshlib.daterangetype import patch_daterange_import_conversion  # nopep
+
+patch_geotypes_import_conversion(ImportConversion)
+patch_daterange_import_conversion(ImportConversion)
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
