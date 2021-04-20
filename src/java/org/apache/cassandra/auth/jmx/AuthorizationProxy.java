@@ -182,7 +182,7 @@ public class AuthorizationProxy implements InvocationHandler
      *             as an invocation of a method on the MBeanServer.
      */
     @VisibleForTesting
-    boolean authorize(Subject subject, String methodName, Object[] args)
+    public boolean authorize(Subject subject, String methodName, Object[] args)
     {
         logger.trace("Authorizing JMX method invocation {} for {}",
                      methodName,
