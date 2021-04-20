@@ -23,6 +23,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.KillerForTests;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.net.ResourceLimits.*;
@@ -148,5 +154,31 @@ public class ResourceLimitsTest
 
         assertEquals(0,          limit.using());
         assertEquals(numPermits, limit.remaining());
+    }
+
+    @Test
+    public void negativeConcurrentUsingValueKillsJVMTest()
+    {
+        DatabaseDescriptor.daemonInitialization(); // Prevent NPE for DatabaseDescriptor.getDiskFailurePolicy
+        KillerForTests killerForTests = new KillerForTests();
+        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+        try
+        {
+            Concurrent concurrent = new Concurrent(1);
+            try
+            {
+                concurrent.release(2);
+            }
+            catch (Throwable tr)
+            {
+                JVMStabilityInspector.inspectThrowable(tr);
+            }
+            Assert.assertTrue(killerForTests.wasKilled());
+            Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
+        }
+        finally
+        {
+            JVMStabilityInspector.replaceKiller(originalKiller);
+        }
     }
 }

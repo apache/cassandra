@@ -1,4 +1,5 @@
 4.0-rc1
+ * Harden internode message resource limit accounting against serialization failures (CASSANDRA-16616)
  * Add back the source release of python driver in tree to avoid fetching from GitHub APIs (CASSANDRA-16599)
  * Fix false unavailable for queries due to cluster topology changes (CASSANDRA-16545)
  * Fixed a race condition issue in nodetool repair where we poll for the error before seeing the error notification, leading to a less meaningful message (CASSANDRA-16585)
