@@ -2096,6 +2096,21 @@ public abstract class CQLTester
         {
             return "TupleValue" + toCQLString();
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TupleValue that = (TupleValue) o;
+            return Arrays.equals(values, that.values);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(values);
+        }
     }
 
     private static class UserTypeValue extends TupleValue

@@ -27,6 +27,7 @@ import java.util.function.BiFunction;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
@@ -36,12 +37,15 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.utils.NdiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -55,10 +59,11 @@ public class TypeUtilTest extends NdiRandomizedTest
             AbstractType<?> type = cql3Type.getType();
             AbstractType<?> reversedType = ReversedType.getInstance(type);
 
-            boolean isLiteral = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT || cql3Type == CQL3Type.Native.VARCHAR;
+            boolean isUTF8OrAscii = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT || cql3Type == CQL3Type.Native.VARCHAR;
+            boolean isLiteral = cql3Type == CQL3Type.Native.ASCII || cql3Type == CQL3Type.Native.TEXT || cql3Type == CQL3Type.Native.VARCHAR || cql3Type == CQL3Type.Native.BOOLEAN;
             assertEquals(isLiteral, TypeUtil.isLiteral(type));
             assertEquals(TypeUtil.isLiteral(type), TypeUtil.isLiteral(reversedType));
-            assertEquals(isLiteral, TypeUtil.isUTF8OrAscii(type));
+            assertEquals(isUTF8OrAscii, TypeUtil.isUTF8OrAscii(type));
             assertEquals(TypeUtil.isUTF8OrAscii(type), TypeUtil.isUTF8OrAscii(reversedType));
             assertEquals(TypeUtil.isIn(type, AbstractAnalyzer.ANALYZABLE_TYPES),
                          TypeUtil.isIn(reversedType, AbstractAnalyzer.ANALYZABLE_TYPES));
@@ -93,6 +98,47 @@ public class TypeUtilTest extends NdiRandomizedTest
     public void testListType()
     {
         testCollectionType(ListType::getInstance, (a, b) -> {});
+    }
+
+    @Test
+    public void testTuple()
+    {
+        for(CQL3Type elementType : StorageAttachedIndex.SUPPORTED_TYPES)
+        {
+            TupleType type = new TupleType(Arrays.asList(elementType.getType(), elementType.getType()), true);
+            assertFalse(TypeUtil.isFrozenCollection(type));
+            assertTrue(TypeUtil.isFrozen(type));
+            assertTrue(TypeUtil.isLiteral(type));
+
+            type = new TupleType(Arrays.asList(elementType.getType(), elementType.getType()), false);
+            assertFalse(TypeUtil.isFrozenCollection(type));
+            assertTrue(TypeUtil.isFrozen(type));
+            assertTrue(TypeUtil.isLiteral(type));
+        }
+    }
+
+    @Test
+    public void testUDT()
+    {
+        for(CQL3Type elementType : StorageAttachedIndex.SUPPORTED_TYPES)
+        {
+            UserType type = new UserType("ks", ByteBufferUtil.bytes("myType"),
+                                         Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
+                                         Arrays.asList(elementType.getType(), elementType.getType()),
+                                         true);
+
+            assertFalse(TypeUtil.isFrozenCollection(type));
+            assertFalse(TypeUtil.isFrozen(type));
+            assertFalse(TypeUtil.isLiteral(type));
+
+            type = new UserType("ks", ByteBufferUtil.bytes("myType"),
+                                Arrays.asList(FieldIdentifier.forQuoted("f1"), FieldIdentifier.forQuoted("f2")),
+                                Arrays.asList(elementType.getType(), elementType.getType()),
+                                false);
+            assertFalse(TypeUtil.isFrozenCollection(type));
+            assertTrue(TypeUtil.isFrozen(type));
+            assertTrue(TypeUtil.isLiteral(type));
+        }
     }
 
     private static void testCollectionType(BiFunction<AbstractType<?>, Boolean, AbstractType<?>> init,

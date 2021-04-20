@@ -64,7 +64,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         this(types, true);
     }
 
-    protected TupleType(List<AbstractType<?>> types, boolean freezeInner)
+    public TupleType(List<AbstractType<?>> types, boolean freezeInner)
     {
         super(ComparisonType.CUSTOM);
 

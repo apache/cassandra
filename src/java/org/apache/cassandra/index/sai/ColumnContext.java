@@ -304,9 +304,9 @@ public class ColumnContext
         return TypeUtil.isNonFrozenCollection(target.left.type);
     }
 
-    public boolean isFrozenCollection()
+    public boolean isFrozen()
     {
-        return TypeUtil.isFrozenCollection(target.left.type);
+        return TypeUtil.isFrozen(target.left.type);
     }
 
     public String getColumnName()

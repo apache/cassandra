@@ -208,7 +208,7 @@ public class StorageAttachedIndex implements Index
                                                                         CQL3Type.Native.SMALLINT, CQL3Type.Native.TEXT, CQL3Type.Native.TIME,
                                                                         CQL3Type.Native.TIMESTAMP, CQL3Type.Native.TIMEUUID, CQL3Type.Native.TINYINT,
                                                                         CQL3Type.Native.UUID, CQL3Type.Native.VARCHAR, CQL3Type.Native.INET,
-                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL);
+                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN);
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
@@ -294,11 +294,11 @@ public class StorageAttachedIndex implements Index
         {
             for (AbstractType<?> subType : type.subTypes())
             {
-                if (!SUPPORTED_TYPES.contains(subType.asCQL3Type()) && !TypeUtil.isFrozenCollection(subType))
+                if (!SUPPORTED_TYPES.contains(subType.asCQL3Type()) && !TypeUtil.isFrozen(subType))
                     throw new InvalidRequestException("Unsupported type: " + subType.asCQL3Type());
             }
         }
-        else if (!SUPPORTED_TYPES.contains(type.asCQL3Type()) && !TypeUtil.isFrozenCollection(type))
+        else if (!SUPPORTED_TYPES.contains(type.asCQL3Type()) && !TypeUtil.isFrozen(type))
         {
             throw new InvalidRequestException("Unsupported type: " + type.asCQL3Type());
         }
