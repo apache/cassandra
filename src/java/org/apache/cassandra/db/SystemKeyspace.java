@@ -540,7 +540,8 @@ public final class SystemKeyspace
                             DatabaseDescriptor.getStoragePort());
     }
 
-    public static void updateCompactionHistory(String ksname,
+    public static void updateCompactionHistory(UUID id,
+                                               String ksname,
                                                String cfname,
                                                long compactedAt,
                                                long bytesIn,
@@ -552,7 +553,7 @@ public final class SystemKeyspace
             return;
         String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) VALUES (?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
-                        UUIDGen.getTimeUUID(),
+                        id,
                         ksname,
                         cfname,
                         ByteBufferUtil.bytes(compactedAt),
