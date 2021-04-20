@@ -41,7 +41,7 @@ public class MockMessagingSpy
 {
     private static final Logger logger = LoggerFactory.getLogger(MockMessagingSpy.class);
 
-    private int messagesIntercepted = 0;
+    private final AtomicInteger messagesIntercepted = new AtomicInteger();
     private final AtomicInteger mockedMessageResponses = new AtomicInteger();
 
     private final BlockingQueue<MessageOut<?>> interceptedMessages = new LinkedBlockingQueue<>();
@@ -133,7 +133,7 @@ public class MockMessagingSpy
 
     public int messagesIntercepted()
     {
-        return messagesIntercepted;
+        return messagesIntercepted.get();
     }
 
     public int mockedMessageResponses()
@@ -143,7 +143,7 @@ public class MockMessagingSpy
 
     void matchingMessage(MessageOut<?> message)
     {
-        messagesIntercepted++;
+        messagesIntercepted.incrementAndGet();
         logger.trace("Received matching message: {}", message);
         interceptedMessages.add(message);
     }
