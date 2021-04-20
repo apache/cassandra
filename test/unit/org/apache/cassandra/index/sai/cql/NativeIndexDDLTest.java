@@ -38,12 +38,14 @@ import com.datastax.driver.core.exceptions.InvalidConfigurationInQueryException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -65,6 +67,7 @@ import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Throwables;
 import org.mockito.Mockito;
 
@@ -215,22 +218,27 @@ public class NativeIndexDDLTest extends SAITester
     }
 
     @Test
-    public void shouldFailCreateWithTupleType()
+    public void shouldFailCreateWithUserType()
     {
-        createTable("CREATE TABLE %s (id text PRIMARY KEY, val tuple<text, int, double>)");
+        String typeName = createType("CREATE TYPE %s (a text, b int, c double)");
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val " + typeName + ")");
 
         assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
                                             "USING 'StorageAttachedIndex'")).isInstanceOf(InvalidQueryException.class);
     }
 
     @Test
-    public void shouldFailCreateWithUserType()
+    public void shouldNotFailCreateWithTupleType() throws Throwable
     {
-        String typeName = createType("CREATE TYPE %s (a text, b int, c double)");
-        createTable("CREATE TABLE %s (id text PRIMARY KEY, val frozen<" + typeName + ">)");
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val tuple<text, int, double>)");
 
-        assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
-                                            "USING 'StorageAttachedIndex'")).isInstanceOf(InvalidQueryException.class);
+        executeNet("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        TableMetadata metadata = currentTableMetadata();
+        AbstractType<?> tuple = metadata.getColumn(ColumnIdentifier.getInterned("val", false)).type;
+        assertFalse(tuple.isMultiCell());
+        assertFalse(tuple.isCollection());
+        assertTrue(tuple.isTuple());
     }
 
     @Test
