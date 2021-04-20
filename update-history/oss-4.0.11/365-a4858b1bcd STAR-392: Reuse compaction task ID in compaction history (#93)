@@ -1,0 +1,65 @@
+--- a/src/java/org/apache/cassandra/db/SystemKeyspace.java
++++ b/src/java/org/apache/cassandra/db/SystemKeyspace.java
+@@ -557,11 +557,7 @@
+             SystemKeyspace.getOrInitializeLocalHostId(nodeIdSupplier);
+     }
+ 
+-<<<<<<<
+-    public static void updateCompactionHistory(UUID id,
+-=======
+     public static void updateCompactionHistory(UUID taskId,
+->>>>>>>
+                                                String ksname,
+                                                String cfname,
+                                                long compactedAt,
+@@ -574,11 +570,7 @@
+             return;
+         String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) VALUES (?, ?, ?, ?, ?, ?, ?)";
+         executeInternal(format(req, COMPACTION_HISTORY),
+-<<<<<<<
+-                        id,
+-=======
+                         taskId,
+->>>>>>>
+                         ksname,
+                         cfname,
+                         ByteBufferUtil.bytes(compactedAt),
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+@@ -242,12 +242,8 @@
+             for (int i = 0; i < mergedRowCounts.length; i++)
+                 totalSourceRows += mergedRowCounts[i] * (i + 1);
+ 
+-<<<<<<<
+-            String mergeSummary = updateCompactionHistory(taskId, cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
+-=======
+             UUID taskTimeUUID = UUIDGen.getTimeUUID();
+             String mergeSummary = updateCompactionHistory(taskTimeUUID, cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
+->>>>>>>
+ 
+             logger.info(String.format("Compacted (task id: %s, compaction history id: %s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+                                        taskId,
+@@ -286,11 +282,7 @@
+         return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
+     }
+ 
+-<<<<<<<
+-    public static String updateCompactionHistory(UUID id, String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
+-=======
+     public static String updateCompactionHistory(UUID taskId, String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
+->>>>>>>
+     {
+         StringBuilder mergeSummary = new StringBuilder(mergedRowCounts.length * 10);
+         Map<Integer, Long> mergedRows = new HashMap<>();
+@@ -304,11 +296,7 @@
+             mergeSummary.append(String.format("%d:%d, ", rows, count));
+             mergedRows.put(rows, count);
+         }
+-<<<<<<<
+-        SystemKeyspace.updateCompactionHistory(id, keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
+-=======
+         SystemKeyspace.updateCompactionHistory(taskId, keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
+->>>>>>>
+         return mergeSummary.toString();
+     }
+ 
