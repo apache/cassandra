@@ -1,4 +1,5 @@
 3.0.25:
+ * Prevent loss of commit log data when moving sstables between nodes (CASSANDRA-16619)
  * Fix materialized view builders inserting truncated data (CASSANDRA-16567)
  * Don't wait for schema migrations from removed nodes (CASSANDRA-16577)
  * Scheduled (delayed) schema pull tasks should not run after MIGRATION stage shutdown during decommission (CASSANDRA-16495)
