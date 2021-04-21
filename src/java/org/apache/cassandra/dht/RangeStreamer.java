@@ -361,7 +361,7 @@ public class RangeStreamer
     private boolean useStrictSourcesForRanges(AbstractReplicationStrategy strat)
     {
         boolean res = useStrictConsistency && tokens != null;
-        
+
         if (res)
         {
             int nodes = 0;
@@ -376,10 +376,10 @@ public class RangeStreamer
             }
             else
                 nodes = metadata.getSizeOfAllEndpoints();
-    
+
             res = nodes > strat.getReplicationFactor().allReplicas;
         }
-        
+
         return res;
     }
 
@@ -460,13 +460,15 @@ public class RangeStreamer
                  final EndpointsForRange oldEndpoints = sorted.apply(rangeAddresses.get(range));
 
                  //Ultimately we populate this with whatever is going to be fetched from to satisfy toFetch
-                 //It could be multiple endpoints and we must fetch from all of them if they are there
+                 //It could be multiple endpoints, and we must fetch from all of them if they are there
                  //With transient replication and strict consistency this is to get the full data from a full replica and
                  //transient data from the transient replica losing data
                  EndpointsForRange sources;
+
                  //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
                  //So we need to be careful to only be strict when endpoints == RF
                  boolean isStrictConsistencyApplicable = useStrictConsistency && (oldEndpoints.size() == strat.getReplicationFactor().allReplicas);
+
                  if (isStrictConsistencyApplicable)
                  {
                      EndpointsForRange strictEndpoints;

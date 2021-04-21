@@ -266,6 +266,14 @@ public abstract class AbstractReplicationStrategy
         return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap(), endpoint);
     }
 
+    /**
+     * Returns the number of token-owning nodes.
+     */
+    protected int getSizeOfRingMemebers()
+    {
+        return tokenMetadata.getAllRingMembers().size();
+    }
+
     public RangesAtEndpoint getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
     {
         return getPendingAddressRanges(metadata, Collections.singleton(pendingToken), pendingAddress);
@@ -339,6 +347,14 @@ public abstract class AbstractReplicationStrategy
 
         strategy.validateOptions();
         return strategy;
+    }
+
+    /**
+     * Whether this strategy partitions data across the ring
+     */
+    public boolean isPartitioned()
+    {
+        return true;
     }
 
     /**
