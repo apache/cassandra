@@ -467,12 +467,14 @@ public class RangeStreamer
                  if (useStrictConsistency)
                  {
                      EndpointsForRange strictEndpoints;
+
+                     //Start with two sets of who replicates the range before and who replicates it after
+                     EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
+
                      //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
                      //So we need to be careful to only be strict when endpoints == RF
-                     if (oldEndpoints.size() == strat.getReplicationFactor().allReplicas)
+                     if (!oldEndpoints.stream().allMatch(newEndpoints::contains))
                      {
-                         //Start with two sets of who replicates the range before and who replicates it after
-                         EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
                          logger.debug("Old endpoints {}", oldEndpoints);
                          logger.debug("New endpoints {}", newEndpoints);
 

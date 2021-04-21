@@ -317,6 +317,17 @@ public final class Schema implements SchemaProvider
     }
 
     /**
+     * @return a collection of keyspaces that partition data across the ring
+     */
+    public List<String> getPartitionedKeyspaces()
+    {
+        return keyspaces.stream()
+                        .filter(keyspace -> Keyspace.open(keyspace.name).getReplicationStrategy().isPartitioned())
+                        .map(keyspace -> keyspace.name)
+                        .collect(Collectors.toList());
+    }
+
+    /**
      * @return collection of the user defined keyspaces
      */
     public List<String> getUserKeyspaces()
