@@ -347,6 +347,14 @@ public class Schema implements SchemaProvider
     }
 
     /**
+     * @return a collection of keyspaces that partition data across the ring
+     */
+    public Keyspaces getPartitionedKeyspaces()
+    {
+        return distributedKeyspaces.filter(keyspace -> Keyspace.open(keyspace.name).getReplicationStrategy().isPartitioned());
+    }
+
+    /**
      * Returns user keyspaces, that is all but {@link SchemaConstants#LOCAL_SYSTEM_KEYSPACE_NAMES},
      * {@link SchemaConstants#REPLICATED_SYSTEM_KEYSPACE_NAMES} or virtual keyspaces.
      */
