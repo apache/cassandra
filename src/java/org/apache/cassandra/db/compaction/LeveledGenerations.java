@@ -49,11 +49,8 @@ class LeveledGenerations
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledGenerations.class);
     private final boolean strictLCSChecksTest = Boolean.getBoolean(Config.PROPERTY_PREFIX + "test.strict_lcs_checks");
-    // Allocate enough generations to handle about 95 TB of data, with a 1-MB sstable size and default fanout size
-    // (10). (Note that if maxSSTableSize is updated, we will still have sstables of the older, potentially smaller
-    // size. So don't make this dependent on maxSSTableSize). Max level count actually includes L0 and finally, we
-    // support [L0 - L8] levels with the current implementation.
-    static final int MAX_LEVEL_COUNT = (int) Math.log10(1000 * 1000 * 1000);
+    // It includes L0, i.e. we support [L0 - L8] levels
+    static final int MAX_LEVEL_COUNT = 9;
 
     private final Set<SSTableReader> l0 = new HashSet<>();
     private static long lastOverlapCheck = System.nanoTime();

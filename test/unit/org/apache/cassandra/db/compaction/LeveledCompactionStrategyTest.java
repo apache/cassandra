@@ -67,6 +67,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.Collections.singleton;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -824,7 +825,7 @@ public class LeveledCompactionStrategyTest
         assertEquals(new HashSet<>(l1), new HashSet<>(l2));
     }
 
-    @Test(expected = RuntimeException.class)
+    @Test
     public void testErrorWhenMoreDataThanSupportedExistOnHighestLevel()
     {
         int fanoutSize = 2; // to generate less sstables
@@ -838,6 +839,8 @@ public class LeveledCompactionStrategyTest
         List<SSTableReader> sstables = Collections.singletonList(MockSchema.sstableWithLevel( 1, sstablesSizeForHighestLevel, highestLevel, cfs));
         lm.addSSTables(sstables);
 
-        lm.getCompactionCandidates();
+        assertThatThrownBy(lm::getCompactionCandidates)
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("L8 (maximum supported level) should not exceed its maximum size (268435456), but it has 268703892 bytes");
     }
 }

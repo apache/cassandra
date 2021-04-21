@@ -251,7 +251,8 @@ public class LeveledManifest
             {
                 // the highest level should not ever exceed its maximum size
                 if (i == generations.levelCount() - 1)
-                    throw new RuntimeException("L" + i + " should not exceed its maximum size (" + maxBytesForLevel + "), but it has " + remainingBytesForLevel + " bytes");
+                    throw new RuntimeException("L" + i + " (maximum supported level) should not exceed its maximum "
+                            + "size (" + maxBytesForLevel + "), but it has " + remainingBytesForLevel + " bytes");
 
                 // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
                 if (l0Compaction != null)
