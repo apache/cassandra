@@ -1072,8 +1072,7 @@ public final class SystemKeyspace
     }
 
     /**
-     * Read the host ID from the system keyspace, creating (and storing) one if
-     * none exists.
+     * Read the host ID from the system keyspace.
      */
     public static UUID getLocalHostId()
     {
@@ -1081,11 +1080,24 @@ public final class SystemKeyspace
         UntypedResultSet result = executeInternal(String.format(req, LOCAL, LOCAL));
 
         // Look up the Host UUID (return it if found)
-        if (!result.isEmpty() && result.one().has("host_id"))
+        if (result != null && !result.isEmpty() && result.one().has("host_id"))
             return result.one().getUUID("host_id");
 
+        return null;
+    }
+
+    /**
+     * Read the host ID from the system keyspace, creating (and storing) one if
+     * none exists.
+     */
+    public static synchronized UUID getOrInitializeLocalHostId()
+    {
+        UUID hostId = getLocalHostId();
+        if (hostId != null)
+            return hostId;
+
         // ID not found, generate a new one, persist, and then return it.
-        UUID hostId = UUID.randomUUID();
+        hostId = UUID.randomUUID();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
     }
@@ -1093,7 +1105,7 @@ public final class SystemKeyspace
     /**
      * Sets the local host ID explicitly.  Should only be called outside of SystemTable when replacing a node.
      */
-    public static UUID setLocalHostId(UUID hostId)
+    public static synchronized UUID setLocalHostId(UUID hostId)
     {
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(String.format(req, LOCAL, LOCAL), hostId);

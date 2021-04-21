@@ -58,7 +58,9 @@ import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -106,6 +108,7 @@ public class CommitLogTest
         KeyspaceParams.DEFAULT_LOCAL_DURABLE_WRITES = false;
 
         SchemaLoader.prepareServer();
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddress());
 
         CFMetaData custom = CFMetaData.compile(String.format("CREATE TABLE \"%s\" (" +
                                                              "k int," +

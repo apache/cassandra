@@ -55,6 +55,7 @@ import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -98,7 +99,7 @@ public class CommitLogReplayer
         this.archiver = commitLog.archiver;
     }
 
-    public static CommitLogReplayer construct(CommitLog commitLog)
+    public static CommitLogReplayer construct(CommitLog commitLog, UUID localHostId)
     {
         // compute per-CF and global replay intervals
         Map<UUID, IntervalSet<ReplayPosition>> cfPersisted = new HashMap<>();
@@ -127,7 +128,7 @@ public class CommitLogReplayer
                 }
             }
 
-            IntervalSet<ReplayPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt);
+            IntervalSet<ReplayPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt, localHostId);
             cfPersisted.put(cfs.metadata.cfId, filter);
         }
         ReplayPosition globalPosition = firstNotCovered(cfPersisted.values());
@@ -194,11 +195,25 @@ public class CommitLogReplayer
      * A set of known safe-to-discard commit log replay positions, based on
      * the range covered by on disk sstables and those prior to the most recent truncation record
      */
-    public static IntervalSet<ReplayPosition> persistedIntervals(Iterable<SSTableReader> onDisk, ReplayPosition truncatedAt)
+    public static IntervalSet<ReplayPosition> persistedIntervals(Iterable<SSTableReader> onDisk,
+                                                                    ReplayPosition truncatedAt,
+                                                                    UUID localhostId)
     {
         IntervalSet.Builder<ReplayPosition> builder = new IntervalSet.Builder<>();
+        List<String> skippedSSTables = new ArrayList<>();
         for (SSTableReader reader : onDisk)
-            builder.addAll(reader.getSSTableMetadata().commitLogIntervals);
+        {
+            UUID originatingHostId = reader.getSSTableMetadata().originatingHostId;
+            if (originatingHostId != null && originatingHostId.equals(localhostId))
+                builder.addAll(reader.getSSTableMetadata().commitLogIntervals);
+            else
+                skippedSSTables.add(reader.getFilename());
+        }
+
+        if (!skippedSSTables.isEmpty()) {
+            logger.warn("Origin of {} sstables is unknown or doesn't match the local node; commitLogIntervals for them were ignored", skippedSSTables.size());
+            logger.debug("Ignored commitLogIntervals from the following sstables: {}", skippedSSTables);
+        }
 
         if (truncatedAt != null)
             builder.add(ReplayPosition.NONE, truncatedAt);
@@ -220,9 +235,9 @@ public class CommitLogReplayer
     public static ReplayPosition firstNotCovered(Collection<IntervalSet<ReplayPosition>> ranges)
     {
         return ranges.stream()
-                .map(intervals -> Iterables.getFirst(intervals.ends(), ReplayPosition.NONE)) 
+                .map(intervals -> Iterables.getFirst(intervals.ends(), ReplayPosition.NONE))
                 .min(Ordering.natural())
-                .get(); // iteration is per known-CF, there must be at least one. 
+                .get(); // iteration is per known-CF, there must be at least one.
     }
 
     public int blockForWrites()
@@ -533,8 +548,8 @@ public class CommitLogReplayer
             {
                 // We rely on reading serialized size == 0 (LEGACY_END_OF_SEGMENT_MARKER) to identify the end
                 // of a segment, which happens naturally due to the 0 padding of the empty segment on creation.
-                // However, it's possible with 2.1 era commitlogs that the last mutation ended less than 4 bytes 
-                // from the end of the file, which means that we'll be unable to read an a full int and instead 
+                // However, it's possible with 2.1 era commitlogs that the last mutation ended less than 4 bytes
+                // from the end of the file, which means that we'll be unable to read an a full int and instead
                 // read an EOF here
                 if(end - reader.getFilePointer() < 4)
                 {

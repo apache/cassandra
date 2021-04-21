@@ -19,10 +19,10 @@ package org.apache.cassandra.io.sstable.metadata;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
@@ -31,13 +31,13 @@ import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.IntervalSet;
-import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
@@ -83,7 +83,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
-                                 -1);
+                                 -1,
+                                 null);
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
@@ -111,22 +112,32 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
     private final ClusteringComparator comparator;
 
+    private final UUID originatingHostId;
+
     public MetadataCollector(ClusteringComparator comparator)
     {
-        this.comparator = comparator;
+        this(comparator, StorageService.instance.getLocalHostUUID());
+    }
 
+    public MetadataCollector(ClusteringComparator comparator, UUID originatingHostId)
+    {
+        this.comparator = comparator;
+        this.originatingHostId = originatingHostId;
     }
 
     public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
     {
         this(comparator);
 
-        IntervalSet.Builder intervals = new IntervalSet.Builder();
-        for (SSTableReader sstable : sstables)
+        IntervalSet.Builder<ReplayPosition> intervals = new IntervalSet.Builder<>();
+        if (originatingHostId != null)
         {
-            intervals.addAll(sstable.getSSTableMetadata().commitLogIntervals);
+            for (SSTableReader sstable : sstables)
+            {
+                if (originatingHostId.equals(sstable.getSSTableMetadata().originatingHostId))
+                    intervals.addAll(sstable.getSSTableMetadata().commitLogIntervals);
+            }
         }
-
         commitLogIntervals(intervals.build());
         sstableLevel(level);
     }
@@ -264,7 +275,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,
-                                                             totalRows));
+                                                             totalRows,
+                                                             originatingHostId));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;

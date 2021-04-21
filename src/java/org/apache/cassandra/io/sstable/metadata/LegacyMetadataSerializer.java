@@ -35,6 +35,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.io.sstable.metadata.StatsMetadata.replayPositionSetSerializer;
 
@@ -78,6 +79,18 @@ public class LegacyMetadataSerializer extends MetadataSerializer
             ReplayPosition.serializer.serialize(stats.commitLogIntervals.lowerBound().orElse(ReplayPosition.NONE), out);
         if (version.hasCommitLogIntervals())
             replayPositionSetSerializer.serialize(stats.commitLogIntervals, out);
+        if (version.hasOriginatingHostId())
+        {
+            if (stats.originatingHostId != null)
+            {
+                out.writeByte(1);
+                UUIDSerializer.serializer.serialize(stats.originatingHostId, out, 0);
+            }
+            else
+            {
+                out.writeByte(0);
+            }
+        }
     }
 
     /**
@@ -132,6 +145,10 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                 else
                     commitLogIntervals = new IntervalSet<>(commitLogLowerBound, commitLogUpperBound);
 
+                UUID hostId = null;
+                if (descriptor.version.hasOriginatingHostId() && in.readByte() != 0)
+                    hostId = UUIDSerializer.serializer.deserialize(in, descriptor.version.correspondingMessagingVersion());
+
                 if (types.contains(MetadataType.VALIDATION))
                     components.put(MetadataType.VALIDATION,
                                    new ValidationMetadata(partitioner, bloomFilterFPChance));
@@ -154,7 +171,8 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      true,
                                                      ActiveRepairService.UNREPAIRED_SSTABLE,
                                                      -1,
-                                                     -1));
+                                                     -1,
+                                                     hostId));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,
                                    new CompactionMetadata(null));
