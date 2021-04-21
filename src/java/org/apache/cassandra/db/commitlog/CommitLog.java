@@ -166,9 +166,14 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File... clogs) throws IOException
     {
-        CommitLogReplayer recovery = CommitLogReplayer.construct(this);
+        CommitLogReplayer recovery = CommitLogReplayer.construct(this, getLocalHostId());
         recovery.recover(clogs);
         return recovery.blockForWrites();
+    }
+
+    private static UUID getLocalHostId()
+    {
+        return Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId);
     }
 
     /**
@@ -176,7 +181,7 @@ public class CommitLog implements CommitLogMBean
      */
     public void recover(String path) throws IOException
     {
-        CommitLogReplayer recovery = CommitLogReplayer.construct(this);
+        CommitLogReplayer recovery = CommitLogReplayer.construct(this, getLocalHostId());
         recovery.recover(new File(path), false);
         recovery.blockForWrites();
     }
