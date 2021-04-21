@@ -28,6 +28,7 @@ import java.util.UUID;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -48,6 +49,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
@@ -181,6 +183,15 @@ public class SimpleStrategyTest
                 assertEquals(new HashSet<>(correctEndpoints), replicas.endpoints());
             }
         }
+    }
+
+    @Test
+    public void testSimpleStrategyKeyspacesArePartitioned()
+    {
+        //local strategy keyspaces should not be returned here since they are not partitioned
+        Keyspaces partitionedKeyspaces = Schema.instance.getPartitionedKeyspaces();
+        assertEquals(2, partitionedKeyspaces.size());
+        assertEquals(Sets.newHashSet(KEYSPACE1, MULTIDC), Sets.newHashSet(partitionedKeyspaces.names()));
     }
 
     @Test

@@ -4613,7 +4613,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
             {
                 int rf, numNodes;
-                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+                for (String keyspaceName : Schema.instance.getPartitionedKeyspaces().names())
                 {
                     if (!force)
                     {

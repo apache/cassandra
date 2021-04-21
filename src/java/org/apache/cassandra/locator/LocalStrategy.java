@@ -80,4 +80,10 @@ public class LocalStrategy extends AbstractReplicationStrategy
         // LocalStrategy doesn't expect any options.
         return Collections.emptySet();
     }
+
+    @Override
+    public boolean isPartitioned()
+    {
+        return false;
+    }
 }

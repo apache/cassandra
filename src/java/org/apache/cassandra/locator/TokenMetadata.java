@@ -1141,6 +1141,19 @@ public class TokenMetadata
         }
     }
 
+    public Set<InetAddressAndPort> getAllRingMembers()
+    {
+        lock.readLock().lock();
+        try
+        {
+            return ImmutableSet.copyOf(tokenToEndpointMap.valueSet());
+        }
+        finally
+        {
+            lock.readLock().unlock();
+        }
+    }
+
     public static int firstTokenIndex(final ArrayList<Token> ring, Token start, boolean insertMin)
     {
         assert ring.size() > 0;
