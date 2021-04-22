@@ -22,15 +22,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-
-import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,8 +45,6 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
@@ -61,6 +55,7 @@ public class ViewBuilder extends CompactionInfo.Holder
     private final ColumnFamilyStore baseCfs;
     private final View view;
     private final UUID compactionId;
+    private final CountDownLatch completed = new CountDownLatch(1);
     private volatile Token prevToken = null;
 
     private static final Logger logger = LoggerFactory.getLogger(ViewBuilder.class);
@@ -109,6 +104,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         if (SystemKeyspace.isViewBuilt(ksname, viewName))
         {
             logger.debug("View already marked built for {}.{}", baseCfs.metadata.ksName, view.name);
+            completed.countDown();
             return;
         }
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalRanges(baseCfs.metadata.ksName);
@@ -184,6 +180,7 @@ public class ViewBuilder extends CompactionInfo.Holder
                                                          TimeUnit.MINUTES);
             logger.warn("Materialized View failed to complete, sleeping 5 minutes before restarting", e);
         }
+        completed.countDown();
     }
 
     public CompactionInfo getCompactionInfo()
@@ -208,5 +205,17 @@ public class ViewBuilder extends CompactionInfo.Holder
     public boolean isGlobal()
     {
         return false;
+    }
+
+    public void waitForCompletion()
+    {
+        try
+        {
+            completed.await();
+        }
+        catch (InterruptedException ie)
+        {
+            throw new AssertionError(ie);
+        }
     }
 }

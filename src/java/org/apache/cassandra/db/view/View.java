@@ -206,15 +206,20 @@ public class View
 
     public synchronized void build()
     {
-        if (this.builder != null)
-        {
-            logger.debug("Stopping current view builder due to schema change");
-            this.builder.stop();
-            this.builder = null;
-        }
-
-        this.builder = new ViewBuilder(baseCfs, this);
+        stopBuild();
+        builder = new ViewBuilder(baseCfs, this);
         CompactionManager.instance.submitViewBuilder(builder);
+    }
+
+    synchronized void stopBuild()
+    {
+        if (builder != null)
+        {
+            logger.debug("Stopping current view builder due to schema change or truncate");
+            builder.stop();
+            builder.waitForCompletion();
+            builder = null;
+        }
     }
 
     @Nullable
