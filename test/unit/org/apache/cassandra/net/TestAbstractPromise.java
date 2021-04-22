@@ -46,7 +46,7 @@ abstract class TestAbstractPromise
             {
                 try
                 {
-                    waitingOn.get(i).accept(100L, TimeUnit.MILLISECONDS);
+                    waitingOn.get(i).accept(1L, TimeUnit.SECONDS);
                 }
                 catch (Throwable t)
                 {
