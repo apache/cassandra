@@ -43,6 +43,13 @@ public final class TableAttributes extends PropertyDefinitions
     private static final Set<String> validKeywords;
     private static final Set<String> obsoleteKeywords;
 
+    private static final Set<String> UNSUPPORTED_DSE_COMPACTION_STRATEGIES = ImmutableSet.of(
+        "org.apache.cassandra.db.compaction.TieredCompactionStrategy",
+        "TieredCompactionStrategy",
+        "org.apache.cassandra.db.compaction.MemoryOnlyStrategy",
+        "MemoryOnlyStrategy"
+    );
+
     static
     {
         ImmutableSet.Builder<String> validBuilder = ImmutableSet.builder();
@@ -84,6 +91,24 @@ public final class TableAttributes extends PropertyDefinitions
         }
     }
 
+    /**
+     * Returs `true` if this attributes instance has a COMPACTION option with a recognized unsupported compaction
+     * strategy class (coming from DSE). `false` otherwise.
+     */
+    boolean hasUnsupportedDseCompaction()
+    {
+        if (hasOption(Option.COMPACTION))
+        {
+            Map<String, String> compactionOptions = getMap(Option.COMPACTION);
+            String strategy = compactionOptions.get(CompactionParams.Option.CLASS.toString());
+            return UNSUPPORTED_DSE_COMPACTION_STRATEGIES.contains(strategy);
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     private TableParams build(TableParams.Builder builder)
     {
         if (hasOption(Option.BLOOM_FILTER_FP_CHANCE))
@@ -96,7 +121,12 @@ public final class TableAttributes extends PropertyDefinitions
             builder.comment(getString(Option.COMMENT));
 
         if (hasOption(Option.COMPACTION))
-            builder.compaction(CompactionParams.fromMap(getMap(Option.COMPACTION)));
+        {
+            if (hasUnsupportedDseCompaction())
+                builder.compaction(CompactionParams.DEFAULT);
+            else
+                builder.compaction(CompactionParams.fromMap(getMap(Option.COMPACTION)));
+        }
 
         if (hasOption(Option.COMPRESSION))
         {
