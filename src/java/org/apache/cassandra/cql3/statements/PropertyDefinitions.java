@@ -69,7 +69,7 @@ public class PropertyDefinitions
         return (String)val;
     }
 
-    protected Map<String, String> getMap(String name) throws SyntaxException
+    public Map<String, String> getMap(String name) throws SyntaxException
     {
         Object val = properties.get(name);
         if (val == null)
