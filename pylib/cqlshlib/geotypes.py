@@ -84,6 +84,7 @@ def _patch_get_converters(klass):
     when using prepared statements to batch load
     """
     original_method = klass._get_converter
+
     def new_method(self, cql_type):
         if cql_type.typename == 'PointType':
             return _convert_point
@@ -102,12 +103,13 @@ def _patch_init(klass):
     when making queries with string literal values
     """
     original_method = klass.__init__
+
     def new_method(self, *args, **kwargs):
         original_method(self, *args, **kwargs)
         ptypes = zip(self.protectors, self.coltypes)
-        clean = lambda t: re.sub("[\W]", "", t.split('.')[-1])  # discard java package names and ' characters
+        clean = lambda t: re.sub("[\\W]", "", t.split('.')[-1])  # discard java package names and ' characters
         gtypes = {'PointType', 'LineStringType', 'PolygonType'}
-        self.protectors = [protect_value if clean(t) in gtypes else p for p,t in ptypes]
+        self.protectors = [protect_value if clean(t) in gtypes else p for p, t in ptypes]
     klass.__init__ = new_method
 
 
