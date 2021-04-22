@@ -1,6 +1,8 @@
 4.0-rc2
+ * Test org.apache.cassandra.net.AsyncPromiseTest FAILED (CASSANDRA-16596)
 Merged from 3.11:
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
+
 4.0-rc1
  * Allow for setting buffer max capacity to increase it dynamically as needed (CASSANDRA-16524)
  * Harden internode message resource limit accounting against serialization failures (CASSANDRA-16616)
