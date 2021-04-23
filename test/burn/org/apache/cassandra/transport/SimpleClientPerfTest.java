@@ -20,20 +20,20 @@ package org.apache.cassandra.transport;
 
 import java.net.InetAddress;
 import java.net.ServerSocket;
-import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import org.apache.commons.math.stat.descriptive.DescriptiveStatistics;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AllowAllAuthenticator;
@@ -51,10 +51,19 @@ import static org.apache.cassandra.transport.BurnTestUtil.SizeCaps;
 import static org.apache.cassandra.transport.BurnTestUtil.generateQueryMessage;
 import static org.apache.cassandra.transport.BurnTestUtil.generateRows;
 
+@RunWith(Parameterized.class)
 public class SimpleClientPerfTest
 {
+    @Parameterized.Parameter
+    public ProtocolVersion version;
 
-    private static final Logger logger = LoggerFactory.getLogger(CQLConnectionTest.class);
+    @Parameterized.Parameters()
+    public static Collection<Object[]> versions()
+    {
+        return ProtocolVersion.SUPPORTED.stream()
+                                        .map(v -> new Object[]{v})
+                                        .collect(Collectors.toList());
+    }
 
     private InetAddress address;
     private int port;
@@ -82,102 +91,61 @@ public class SimpleClientPerfTest
     }
 
     @Test
-    public void measureSmallV5() throws Throwable
+    public void measureSmall() throws Throwable
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
                  () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V5, true,
+                                        port, version, true,
                                         new EncryptionOptions())
-                       .connect(false));
+                       .connect(false),
+                 version);
     }
 
-
     @Test
-    public void measureSmallV4() throws Throwable
+    public void measureSmallWithCompression() throws Throwable
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
                  () -> new SimpleClient(address.getHostAddress(),
-                                  port, ProtocolVersion.V4, false,
-                                  new EncryptionOptions())
-                 .connect(false));
-    }
-
-    @Test
-    public void measureSmallV5WithCompression() throws Throwable
-    {
-        perfTest(new SizeCaps(10, 20, 5, 10),
-                 new SizeCaps(10, 20, 5, 10),
-                 () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V5, true,
+                                        port, version, true,
                                         new EncryptionOptions())
-                       .connect(true));
+                       .connect(true),
+                 version);
     }
 
     @Test
-    public void measureSmallV4WithCompression() throws Throwable
-    {
-        perfTest(new SizeCaps(10, 20, 5, 10),
-                 new SizeCaps(10, 20, 5, 10),
-                 () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V4, false,
-                                        new EncryptionOptions())
-                       .connect(true));
-    }
-
-    @Test
-    public void measureLargeV5() throws Throwable
+    public void measureLarge() throws Throwable
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
                  () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V5, true,
+                                        port, version, true,
                                         new EncryptionOptions())
-                       .connect(false));
+                       .connect(false),
+                 version);
     }
 
     @Test
-    public void measureLargeV4() throws Throwable
+    public void measureLargeWithCompression() throws Throwable
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
                  () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V4, false,
+                                        port, version, true,
                                         new EncryptionOptions())
-                       .connect(false));
+                       .connect(true),
+                 version);
     }
 
-    @Test
-    public void measureLargeV5WithCompression() throws Throwable
-    {
-        perfTest(new SizeCaps(1000, 2000, 5, 150),
-                 new SizeCaps(1000, 2000, 5, 150),
-                 () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V5, true,
-                                        new EncryptionOptions())
-                       .connect(true));
-    }
-
-    @Test
-    public void measureLargeV4WithCompression() throws Throwable
-    {
-        perfTest(new SizeCaps(1000, 2000, 5, 150),
-                 new SizeCaps(1000, 2000, 5, 150),
-                 () -> new SimpleClient(address.getHostAddress(),
-                                        port, ProtocolVersion.V4, false,
-                                        new EncryptionOptions())
-                       .connect(true));
-    }
-
-    public void perfTest(SizeCaps requestCaps, SizeCaps responseCaps, AssertUtil.ThrowingSupplier<SimpleClient> clientSupplier) throws Throwable
+    public void perfTest(SizeCaps requestCaps, SizeCaps responseCaps, AssertUtil.ThrowingSupplier<SimpleClient> clientSupplier, ProtocolVersion version) throws Throwable
     {
         ResultMessage.Rows response = generateRows(0, responseCaps);
-        QueryMessage requestMessage = generateQueryMessage(0, requestCaps);
-        Envelope message = requestMessage.encode(ProtocolVersion.V4);
+        QueryMessage requestMessage = generateQueryMessage(0, requestCaps, version);
+        Envelope message = requestMessage.encode(version);
         int requestSize = message.body.readableBytes();
         message.release();
-        message = response.encode(ProtocolVersion.V4);
+        message = response.encode(version);
         int responseSize = message.body.readableBytes();
         message.release();
 
