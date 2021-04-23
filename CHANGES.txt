@@ -2,6 +2,8 @@
  * Test org.apache.cassandra.net.AsyncPromiseTest FAILED (CASSANDRA-16596)
 Merged from 3.11:
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
+Merged from 3.0:
+ * Fix materialized view builders inserting truncated data (CASSANDRA-16567)
 
 4.0-rc1
  * Allow for setting buffer max capacity to increase it dynamically as needed (CASSANDRA-16524)
