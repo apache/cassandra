@@ -10,6 +10,7 @@ conf/hotspot_compiler
 doc/cql3/CQL.html
 doc/build/
 lib/
+pylib/src/
 !lib/cassandra-driver-internal-only-*.zip
 
 # C* debs
@@ -29,7 +30,7 @@ debian/files
 # IntelliJ
 .idea/
 *.eml
-*.iml
+**/*.iml
 *.ipr
 *.iws
 

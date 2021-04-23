@@ -62,7 +62,10 @@
                      <exclude NAME="**/LICENSE.md"/>
             </fileset>
         </rat:report>
-        <fail message="Some files have missing or incorrect license information. Check RAT report in ${build.dir}/rat.txt for more details!">
+        <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
+            <arg line="-A5 'Unapproved licenses' ${build.dir}/rat.txt"/>
+        </exec>
+        <fail message="Some files have missing or incorrect license information. Check RAT report in ${build.dir}/rat.txt for more details! \n ${rat.failed.files}">
             <condition>
                 <and>
                     <not>
