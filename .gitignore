@@ -9,6 +9,7 @@ data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
 doc/build/
+pylib/src/
 
 # C* debs
 build-stamp
@@ -27,7 +28,7 @@ debian/files
 # IntelliJ
 .idea/
 *.eml
-*.iml
+**/*.iml
 *.ipr
 *.iws
 
