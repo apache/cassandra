@@ -90,6 +90,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
@@ -227,7 +228,7 @@ public class ScrubTest
         }
         catch (IOError err)
         {
-            assertTrue(err.getCause() instanceof CorruptSSTableException);
+            assertTrue(Throwables.isCausedBy(err, CorruptSSTableException.class));
         }
 
         // with skipCorrupted == true, the corrupt rows will be skipped
