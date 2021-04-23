@@ -88,7 +88,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  -1,
                                  null,
                                  null,
-                                 false);
+                                 false,
+                                 Collections.emptyMap());
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
@@ -351,7 +352,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              totalRows,
                                                              originatingHostId,
                                                              pendingRepair,
-                                                             isTransient));
+                                                             isTransient,
+                                                             Collections.emptyMap()));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;
