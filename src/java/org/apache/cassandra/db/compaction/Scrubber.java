@@ -193,12 +193,14 @@ public class Scrubber implements Closeable
                 outputHandler.debug("Reading row at " + dataStart);
 
                 DecoratedKey key = null;
+                Throwable keyReadError = null;
                 try
                 {
                     key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
                 }
                 catch (Throwable th)
                 {
+                    keyReadError = th;
                     throwIfFatal(th);
                     // check for null key below
                 }
@@ -242,7 +244,7 @@ public class Scrubber implements Closeable
                 try
                 {
                     if (key == null)
-                        throw new IOError(new IOException("Unable to read partition key from data file"));
+                        throw new IOError(new IOException("Unable to read partition key from data file", keyReadError));
 
                     if (currentIndexKey != null && !key.getKey().equals(currentIndexKey))
                     {
@@ -425,6 +427,7 @@ public class Scrubber implements Closeable
             {
                 throwIfFatal(th);
                 outputHandler.warn(String.format("Failed to seek to next row position %d", nextRowPositionFromIndex), th);
+                badPartitions++;
             }
 
             try
