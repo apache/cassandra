@@ -287,7 +287,7 @@ public class TrieIndexFormat implements SSTableFormat
         //               improved min/max clustering representation
         //               presence marker for partition level deletions
         // bb (DSE 6.8.5): added hostId of the node from which the sstable originated (DB-4629)
-        // ca (DSE-DB aka Stargazer based on OSS 4.0): all bb fields  + all OSS fields
+        // ca (DSE-DB aka Stargazer based on OSS 4.0): bb fields without maxColumnValueLengths + all OSS fields
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
@@ -311,7 +311,7 @@ public class TrieIndexFormat implements SSTableFormat
             hasOldBfFormat = version.compareTo("b") < 0;
             hasAccurateLegacyMinMax = version.compareTo("ac") >= 0;
             hasOriginatingHostId = version.matches("(a[d-z])|(b[b-z])") || version.compareTo("ca") >= 0;
-            hasMaxColumnValueLengths = version.matches("b[a-z]"); // TODO TBD
+            hasMaxColumnValueLengths = version.matches("b[a-z]"); // DSE only field
             correspondingMessagingVersion = version.compareTo("ca") >= 0 ? MessagingService.VERSION_40 : MessagingService.VERSION_3014;
         }
 
@@ -387,7 +387,6 @@ public class TrieIndexFormat implements SSTableFormat
             return version.compareTo("ba") >= 0;
         }
 
-        // TODO TBD
         @Override
         public boolean hasMaxColumnValueLengths()
         {
