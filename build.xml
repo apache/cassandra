@@ -64,7 +64,7 @@
     <property name="test.memory.src" value="${test.dir}/memory"/>
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="test.distributed.src" value="${test.dir}/distributed"/>
-    <property name="test.compression_algo" value="LZ4"/>
+    <property name="test.compression.algo" value="LZ4"/>
     <property name="test.driver.connection_timeout_ms" value="5000"/>
     <property name="test.driver.read_timeout_ms" value="12000"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
@@ -1433,13 +1433,14 @@
       <property name="compressed_yaml" value="${build.test.dir}/cassandra.compressed.yaml"/>
       <concat destfile="${compressed_yaml}">
           <fileset file="${test.conf}/cassandra.yaml"/>
-          <fileset file="${test.conf}/commitlog_compression.yaml"/>
+          <fileset file="${test.conf}/commitlog_compression_${test.compression.algo}.yaml"/>
       </concat>
       <testmacrohelper inputdir="${test.unit.src}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="compression">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
         <jvmarg value="-Dcassandra.test.compression=true"/>
+        <jvmarg value="-Dcassandra.test.compression.algo=${test.compression.algo}"/>
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${compressed_yaml}"/>
