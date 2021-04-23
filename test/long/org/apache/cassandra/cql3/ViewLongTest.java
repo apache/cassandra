@@ -20,15 +20,19 @@ package org.apache.cassandra.cql3;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CyclicBarrier;
+import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
@@ -43,9 +47,20 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+@RunWith(Parameterized.class)
 public class ViewLongTest extends CQLTester
 {
-    ProtocolVersion protocolVersion = ProtocolVersion.V4;
+    @Parameterized.Parameter
+    public ProtocolVersion version;
+
+    @Parameterized.Parameters()
+    public static Collection<Object[]> versions()
+    {
+        return ProtocolVersion.SUPPORTED.stream()
+                                        .map(v -> new Object[]{v})
+                                        .collect(Collectors.toList());
+    }
+
     private final List<String> views = new ArrayList<>();
 
     @BeforeClass
@@ -63,14 +78,14 @@ public class ViewLongTest extends CQLTester
     public void end() throws Throwable
     {
         for (String viewName : views)
-            executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + viewName);
+            executeNet(version, "DROP MATERIALIZED VIEW " + viewName);
     }
 
     private void createView(String name, String query) throws Throwable
     {
         try
         {
-            executeNet(protocolVersion, String.format(query, name));
+            executeNet(version, String.format(query, name));
             // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
             // the desired behavior
             views.add(name);
@@ -96,7 +111,7 @@ public class ViewLongTest extends CQLTester
                     "c int," +
                     "PRIMARY KEY (a, b))");
 
-        executeNet(protocolVersion, "USE " + keyspace());
+        executeNet(version, "USE " + keyspace());
 
         createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE c IS NOT NULL AND a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (c, a, b)");
 
@@ -118,7 +133,7 @@ public class ViewLongTest extends CQLTester
                         {
                             try
                             {
-                                executeNet(protocolVersion, "INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP 1",
+                                executeNet(version, "INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP 1",
                                            1,
                                            1,
                                            i + writerOffset);
@@ -144,7 +159,7 @@ public class ViewLongTest extends CQLTester
 
         for (int i = 0; i < writers * insertsPerWriter; i++)
         {
-            if (executeNet(protocolVersion, "SELECT COUNT(*) FROM system.batches").one().getLong(0) == 0)
+            if (executeNet(version, "SELECT COUNT(*) FROM system.batches").one().getLong(0) == 0)
                 break;
             try
             {
@@ -158,9 +173,9 @@ public class ViewLongTest extends CQLTester
             }
         }
 
-        int value = executeNet(protocolVersion, "SELECT c FROM %s WHERE a = 1 AND b = 1").one().getInt("c");
+        int value = executeNet(version, "SELECT c FROM %s WHERE a = 1 AND b = 1").one().getInt("c");
 
-        List<Row> rows = executeNet(protocolVersion, "SELECT c FROM " + keyspace() + ".mv").all();
+        List<Row> rows = executeNet(version, "SELECT c FROM " + keyspace() + ".mv").all();
 
         boolean containsC = false;
         StringBuilder others = new StringBuilder();
@@ -217,7 +232,7 @@ public class ViewLongTest extends CQLTester
         createTable("CREATE TABLE %s (field1 int,field2 int,date int,PRIMARY KEY ((field1), field2)) WITH default_time_to_live = 5;");
 
         execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
+        executeNet(version, "USE " + keyspace());
 
         createView("mv",
                    "CREATE MATERIALIZED VIEW mv AS SELECT * FROM %%s WHERE field1 IS NOT NULL AND field2 IS NOT NULL AND date IS NOT NULL PRIMARY KEY ((field1), date, field2) WITH CLUSTERING ORDER BY (date desc, field2 asc);");
@@ -334,7 +349,7 @@ public class ViewLongTest extends CQLTester
         createTable("CREATE TABLE %s (k int,c int,a int, b int, PRIMARY KEY ((k), c)) WITH default_time_to_live = 1000;");
 
         execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
+        executeNet(version, "USE " + keyspace());
 
         createView("mv",
                    "CREATE MATERIALIZED VIEW mv AS SELECT k,c,a FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL "
@@ -415,7 +430,7 @@ public class ViewLongTest extends CQLTester
 
     private void updateViewWithFlush(String query, boolean flush, Object... params) throws Throwable
     {
-        executeNet(protocolVersion, query, params);
+        executeNet(version, query, params);
         while (!(((SEPExecutor) Stage.VIEW_MUTATION.executor()).getPendingTaskCount() == 0
                 && ((SEPExecutor) Stage.VIEW_MUTATION.executor()).getActiveTaskCount() == 0))
         {

@@ -107,7 +107,7 @@ public class Coordinator implements ICoordinator
                                                                  Integer.MAX_VALUE,
                                                                  null,
                                                                  null,
-                                                                 ProtocolVersion.V4,
+                                                                 ProtocolVersion.CURRENT,
                                                                  null),
                                              System.nanoTime());
 

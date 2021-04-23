@@ -65,7 +65,7 @@ public class BurnTestUtil
         return new SimpleStatement(Integer.toString(idx), (Object[]) values);
     }
 
-    public static QueryMessage generateQueryMessage(int idx, SizeCaps sizeCaps)
+    public static QueryMessage generateQueryMessage(int idx, SizeCaps sizeCaps, ProtocolVersion version)
     {
         Random rnd = new Random(idx);
         List<ByteBuffer> values = new ArrayList<>();
@@ -78,7 +78,7 @@ public class BurnTestUtil
                                                         10,
                                                         null,
                                                         null,
-                                                        ProtocolVersion.V4,
+                                                        version,
                                                         "KEYSPACE");
 
         return new QueryMessage(Integer.toString(idx), queryOptions);
