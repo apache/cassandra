@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
@@ -28,12 +27,10 @@ import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -41,7 +38,6 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -248,7 +244,7 @@ public class SchemaLoader
             MigrationManager.announceNewKeyspace(ksm, false);
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            useCompression(schema);
+            useCompression(schema, compressionParams(CompressionParams.DEFAULT_CHUNK_LENGTH));
     }
 
     public static void createKeyspace(String name, KeyspaceParams params)
@@ -329,11 +325,11 @@ public class SchemaLoader
         return builder.build();
     }
 
-    private static void useCompression(List<KeyspaceMetadata> schema)
+    private static void useCompression(List<KeyspaceMetadata> schema, CompressionParams compressionParams)
     {
         for (KeyspaceMetadata ksm : schema)
             for (TableMetadata cfm : ksm.tablesAndViews())
-                MigrationManager.announceTableUpdate(cfm.unbuild().compression(CompressionParams.snappy()).build(), true);
+                MigrationManager.announceTableUpdate(cfm.unbuild().compression(compressionParams.copy()).build(), true);
     }
 
     public static TableMetadata.Builder counterCFMD(String ksName, String cfName)
@@ -721,7 +717,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
     public static CompressionParams getCompressionParameters(Integer chunkSize)
     {
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            return chunkSize != null ? CompressionParams.snappy(chunkSize) : CompressionParams.snappy();
+            return chunkSize != null ? compressionParams(chunkSize) : compressionParams(CompressionParams.DEFAULT_CHUNK_LENGTH);
 
         return CompressionParams.noCompression();
     }
@@ -750,5 +746,27 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
     public static void cleanupSavedCaches()
     {
         ServerTestUtils.cleanupSavedCaches();
+    }
+
+    private static CompressionParams compressionParams(int chunkLength)
+    {
+        String algo = System.getProperty("cassandra.test.compression.algo", "lz4").toLowerCase();
+        switch (algo)
+        {
+            case "deflate":
+                return CompressionParams.deflate(chunkLength);
+            case "lz4":
+                return CompressionParams.lz4(chunkLength);
+            case "snappy":
+                return CompressionParams.snappy(chunkLength);
+            case "noop":
+                return CompressionParams.noop();
+            case "zstd":
+                return CompressionParams.zstd(chunkLength);
+            case "none":
+                return CompressionParams.noCompression();
+            default:
+                throw new IllegalArgumentException("Invalid compression algorithm has been provided in cassandra.test.compression system property: " + algo);
+        }
     }
 }
