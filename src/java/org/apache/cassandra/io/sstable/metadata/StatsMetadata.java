@@ -20,9 +20,12 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
@@ -94,6 +97,8 @@ public class StatsMetadata extends MetadataComponent
     // Used to serialize min/max clustering. Can be null if the metadata was deserialized from a legacy version
     private final List<AbstractType<?>> clusteringTypes;
 
+    private final ImmutableMap<ByteBuffer, Integer> maxColumnValueLengths;
+
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
                          EstimatedHistogram estimatedCellPerPartitionCount,
                          IntervalSet<CommitLogPosition> commitLogIntervals,
@@ -115,7 +120,8 @@ public class StatsMetadata extends MetadataComponent
                          long totalRows,
                          UUID originatingHostId,
                          UUID pendingRepair,
-                         boolean isTransient)
+                         boolean isTransient,
+                         Map<ByteBuffer, Integer> maxColumnValueLengths)
     {
         this.estimatedPartitionSize = estimatedPartitionSize;
         this.estimatedCellPerPartitionCount = estimatedCellPerPartitionCount;
@@ -140,6 +146,7 @@ public class StatsMetadata extends MetadataComponent
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
         this.encodingStats = new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
+        this.maxColumnValueLengths = ImmutableMap.copyOf(maxColumnValueLengths);
     }
 
     public MetadataType getType()
@@ -194,7 +201,8 @@ public class StatsMetadata extends MetadataComponent
                                  totalRows,
                                  originatingHostId,
                                  pendingRepair,
-                                 isTransient);
+                                 isTransient,
+                                 maxColumnValueLengths);
     }
 
     public StatsMetadata mutateRepairedMetadata(long newRepairedAt, UUID newPendingRepair, boolean newIsTransient)
@@ -220,7 +228,8 @@ public class StatsMetadata extends MetadataComponent
                                  totalRows,
                                  originatingHostId,
                                  newPendingRepair,
-                                 newIsTransient);
+                                 newIsTransient,
+                                 maxColumnValueLengths);
     }
 
     @Override
@@ -251,6 +260,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(totalRows, that.totalRows)
                        .append(originatingHostId, that.originatingHostId)
                        .append(pendingRepair, that.pendingRepair)
+                       .append(maxColumnValueLengths, that.maxColumnValueLengths)
                        .build();
     }
 
@@ -278,6 +288,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(totalRows)
                        .append(originatingHostId)
                        .append(pendingRepair)
+                       .append(maxColumnValueLengths)
                        .build();
     }
 
@@ -342,10 +353,11 @@ public class StatsMetadata extends MetadataComponent
                 size += Long.BYTES;
             }
 
-            // TODO TBD
             if (version.hasMaxColumnValueLengths())
             {
                 size += 4; // num columns
+                for (Map.Entry<ByteBuffer, Integer> entry : component.maxColumnValueLengths.entrySet())
+                    size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getKey()) + 4; // column name, max value length
             }
 
             if (version.hasIsTransient())
@@ -438,10 +450,15 @@ public class StatsMetadata extends MetadataComponent
                 out.writeLong(Long.MAX_VALUE);
             }
 
-            // TODO TBD
+            // left for being able to import DSE sstables, not used
             if (version.hasMaxColumnValueLengths())
             {
-                out.writeInt(0);
+                out.writeInt(component.maxColumnValueLengths.size());
+                for (Map.Entry<ByteBuffer, Integer> entry : component.maxColumnValueLengths.entrySet())
+                {
+                    ByteBufferUtil.writeWithVIntLength(entry.getKey(), out);
+                    out.writeInt(entry.getValue());
+                }
             }
 
             if (version.hasIsTransient())
@@ -541,7 +558,7 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasCommitLogIntervals())
                 commitLogIntervals = commitLogPositionSetSerializer.deserialize(in);
             else
-                commitLogIntervals = new IntervalSet<CommitLogPosition>(commitLogLowerBound, commitLogUpperBound);
+                commitLogIntervals = new IntervalSet<>(commitLogLowerBound, commitLogUpperBound);
 
             UUID pendingRepair = null;
             if (version.hasPendingRepair() && in.readByte() != 0)
@@ -564,15 +581,20 @@ public class StatsMetadata extends MetadataComponent
                 in.readLong();
             }
 
-            // TODO TBD
+            // left for being able to import DSE sstables, not used
+            final Map<ByteBuffer, Integer> maxColumnValueLengths;
             if (version.hasMaxColumnValueLengths())
             {
                 int colCount = in.readInt();
+                ImmutableMap.Builder<ByteBuffer, Integer> builder = ImmutableMap.builderWithExpectedSize(colCount);
+
                 for (int i = 0; i < colCount; i++)
-                {
-                    ByteBufferUtil.readWithVIntLength(in);
-                    in.readInt();
-                }
+                    builder.put(ByteBufferUtil.readWithVIntLength(in), in.readInt());
+                maxColumnValueLengths = builder.build();
+            }
+            else
+            {
+                maxColumnValueLengths = Collections.emptyMap();
             }
 
             boolean isTransient = version.hasIsTransient() && in.readBoolean();
@@ -608,7 +630,8 @@ public class StatsMetadata extends MetadataComponent
                                      totalRows,
                                      originatingHostId,
                                      pendingRepair,
-                                     isTransient);
+                                     isTransient,
+                                     maxColumnValueLengths);
         }
     }
 }

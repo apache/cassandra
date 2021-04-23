@@ -60,7 +60,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -92,7 +92,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"nb", "na", "me", "md", "mc", "mb", "ma", "aa", "ac", "ad", "ba", "bb"};
+    public static final String[] legacyVersions = {"nb", "na", "me", "md", "mc", "mb", "ma", "aa", "ac", "ad", "ba", "bb", "ca"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -604,6 +604,7 @@ public class LegacySSTableTest
     @Test
     public void testGenerateSstables() throws Throwable
     {
+        Version version = TrieIndexFormat.latestVersion;
         Random rand = new Random();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 128; i++)
@@ -616,31 +617,31 @@ public class LegacySSTableTest
         {
             String valPk = Integer.toString(pk);
             QueryProcessor.executeInternal(String.format("INSERT INTO legacy_tables.legacy_%s_simple (pk, val) VALUES ('%s', '%s')",
-                                                         BigFormat.latestVersion, valPk, "foo bar baz"));
+                                                         version, valPk, "foo bar baz"));
 
             QueryProcessor.executeInternal(String.format("UPDATE legacy_tables.legacy_%s_simple_counter SET val = val + 1 WHERE pk = '%s'",
-                                                         BigFormat.latestVersion, valPk));
+                                                         version, valPk));
 
             for (int ck = 0; ck < 50; ck++)
             {
                 String valCk = Integer.toString(ck);
 
                 QueryProcessor.executeInternal(String.format("INSERT INTO legacy_tables.legacy_%s_clust (pk, ck, val) VALUES ('%s', '%s', '%s')",
-                                                             BigFormat.latestVersion, valPk, valCk + longString, randomString));
+                                                             version, valPk, valCk + longString, randomString));
 
                 QueryProcessor.executeInternal(String.format("UPDATE legacy_tables.legacy_%s_clust_counter SET val = val + 1 WHERE pk = '%s' AND ck='%s'",
-                                                             BigFormat.latestVersion, valPk, valCk + longString));
+                                                             version, valPk, valCk + longString));
             }
         }
 
         StorageService.instance.forceKeyspaceFlush("legacy_tables");
 
-        File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", BigFormat.latestVersion));
+        File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", version));
         ksDir.mkdirs();
-        copySstablesFromTestData(String.format("legacy_%s_simple", BigFormat.latestVersion), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_simple_counter", BigFormat.latestVersion), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_clust", BigFormat.latestVersion), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_clust_counter", BigFormat.latestVersion), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_simple", version), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_simple_counter", version), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_clust", version), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_clust_counter", version), ksDir);
     }
 
     public static void copySstablesFromTestData(String table, File ksDir) throws IOException
