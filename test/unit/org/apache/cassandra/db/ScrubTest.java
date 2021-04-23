@@ -92,6 +92,7 @@ import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
@@ -207,7 +208,7 @@ public class ScrubTest
         }
         catch (IOError err)
         {
-            assertTrue(err.getCause() instanceof CorruptSSTableException);
+            assertTrue(Throwables.isCausedBy(err, CorruptSSTableException.class));
         }
 
         // with skipCorrupted == true, the corrupt rows will be skipped
