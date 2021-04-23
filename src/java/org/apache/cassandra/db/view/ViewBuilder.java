@@ -230,7 +230,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         return false;
     }
 
-    public void waitForCompletion()
+    void waitForCompletion()
     {
         try
         {
