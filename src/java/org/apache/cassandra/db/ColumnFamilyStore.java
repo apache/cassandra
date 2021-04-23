@@ -2235,6 +2235,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.info("Truncating {}.{}", keyspace.getName(), name);
 
+        viewManager.stopBuild();
+
         final long truncatedAt;
         final CommitLogPosition replayAfter;
 
@@ -2282,6 +2284,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         };
 
         runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true);
+
+        viewManager.build();
+
         logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
     }
 
