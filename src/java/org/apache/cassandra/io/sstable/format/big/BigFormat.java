@@ -228,8 +228,8 @@ public class BigFormat implements SSTableFormat
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
             hasOriginatingHostId = version.matches("(m[e-z])|(n[b-z])");
-            hasImprovedMinMax = version.compareTo("nb") >= 0;
-            hasPartitionLevelDeletionPresenceMarker = version.compareTo("nb") >= 0;
+            hasImprovedMinMax = false;
+            hasPartitionLevelDeletionPresenceMarker = false;
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
@@ -338,7 +338,6 @@ public class BigFormat implements SSTableFormat
             return false;
         }
 
-        // TODO TBD
         @Override
         public boolean hasMaxColumnValueLengths()
         {
