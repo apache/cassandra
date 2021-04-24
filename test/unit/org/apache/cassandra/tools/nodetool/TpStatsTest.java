@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.nodetool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,8 +26,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.tuple.Pair;
-
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -38,41 +36,33 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 import org.yaml.snakeyaml.Yaml;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class NodeToolTPStatsTest extends CQLTester
+public class TpStatsTest extends CQLTester
 {
-    private static NodeProbe probe;
 
     @BeforeClass
     public static void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
-        probe = new NodeProbe(jmxHost, jmxPort);
-    }
-
-    @AfterClass
-    public static void teardown() throws IOException
-    {
-        probe.close();
     }
 
     @Test
+    @SuppressWarnings("SingleCharacterStringConcatenation")
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        ToolResult tool = ToolRunner.invokeNodetool("help", "tpstats");
-        String help =   "NAME\n" + 
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "tpstats");
+        tool.assertOnCleanExit();
+
+        String help =   "NAME\n" +
                         "        nodetool tpstats - Print usage statistics of thread pools\n" + 
                         "\n" + 
                         "SYNOPSIS\n" + 
@@ -105,66 +95,64 @@ public class NodeToolTPStatsTest extends CQLTester
                         "            Remote jmx agent username\n" +  
                         "\n" + 
                         "\n";
-        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
-    public void testTPStats() throws Throwable
+    public void testTpStats() throws Throwable
     {
-        ToolResult tool = ToolRunner.invokeNodetool("tpstats");
-        Assertions.assertThat(tool.getStdout()).containsPattern("Pool Name \\s* Active Pending Completed Blocked All time blocked");
-        Assertions.assertThat(tool.getStdout()).containsIgnoringCase("Latencies waiting in queue (micros) per dropped message types");
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats");
+        tool.assertOnCleanExit();
+        String stdout = tool.getStdout();
+        assertThat(stdout).containsPattern("Pool Name \\s+ Active Pending Completed Blocked All time blocked");
+        assertThat(stdout).contains("Latencies waiting in queue (micros) per dropped message types");
 
         // Does inserting data alter tpstats?
         String nonZeroedThreadsRegExp = "((?m)\\D.*[1-9].*)";
-        ArrayList<String> origStats = getAllGroupMatches(nonZeroedThreadsRegExp, tool.getStdout());
+        ArrayList<String> origStats = getAllGroupMatches(nonZeroedThreadsRegExp, stdout);
         Collections.sort(origStats);
 
         createTable("CREATE TABLE %s (pk int, c int, PRIMARY KEY(pk))");
         execute("INSERT INTO %s (pk, c) VALUES (?, ?)", 1, 1);
         tool = ToolRunner.invokeNodetool("tpstats");
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
-        ArrayList<String> newStats = getAllGroupMatches(nonZeroedThreadsRegExp, tool.getStdout());
+        tool.assertOnCleanExit();
+        stdout = tool.getStdout();
+        ArrayList<String> newStats = getAllGroupMatches(nonZeroedThreadsRegExp, stdout);
         Collections.sort(newStats);
 
-        assertNotEquals(origStats, newStats);
+        assertThat(origStats).isNotEqualTo(newStats);
 
         // Does sending a message alter Gossip & ECHO stats?
-        String origGossip = getAllGroupMatches("((?m)GossipStage.*)", tool.getStdout()).get(0);
-        Assertions.assertThat(tool.getStdout()).doesNotContainPattern("ECHO_REQ\\D.*[1-9].*");
-        Assertions.assertThat(tool.getStdout()).doesNotContainPattern("ECHO_RSP\\D.*[1-9].*");
+        String origGossip = getAllGroupMatches("((?m)GossipStage.*)", stdout).get(0);
+        assertThat(stdout).doesNotContainPattern("ECHO_REQ\\D.*[1-9].*");
+        assertThat(stdout).doesNotContainPattern("ECHO_RSP\\D.*[1-9].*");
 
         Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
         MessagingService.instance().send(echoMessageOut, FBUtilities.getBroadcastAddressAndPort());
 
         tool = ToolRunner.invokeNodetool("tpstats");
-        assertTrue(tool.getCleanedStderr().isEmpty());
-        assertEquals(0, tool.getExitCode());
-        String newGossip = getAllGroupMatches("((?m)GossipStage.*)", tool.getStdout()).get(0);
+        tool.assertOnCleanExit();
+        stdout = tool.getStdout();
+        String newGossip = getAllGroupMatches("((?m)GossipStage.*)", stdout).get(0);
 
-        assertNotEquals(origGossip, newGossip);
-        Assertions.assertThat(tool.getStdout()).containsPattern("ECHO_REQ\\D.*[1-9].*");
-        Assertions.assertThat(tool.getStdout()).containsPattern("ECHO_RSP\\D.*[1-9].*");
+        assertThat(origGossip).isNotEqualTo(newGossip);
+        assertThat(stdout).containsPattern("ECHO_REQ\\D.*[1-9].*");
+        assertThat(stdout).containsPattern("ECHO_RSP\\D.*[1-9].*");
     }
 
     @Test
-    public void testFromatArg() throws Throwable
+    public void testFromatArg()
     {
         Arrays.asList(Pair.of("-F", "json"), Pair.of("--format", "json")).forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
-            assertTrue(isJSONString(tool.getStdout()));
-            assertTrue(tool.getCleanedStderr().isEmpty());
-            assertEquals(0, tool.getExitCode());
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
+            tool.assertOnCleanExit();
+            assertThat(isJSONString(tool.getStdout())).isTrue();
         });
 
         Arrays.asList( Pair.of("-F", "yaml"), Pair.of("--format", "yaml")).forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
-            assertTrue(isYAMLString(tool.getStdout()));
-            assertTrue(tool.getCleanedStderr().isEmpty());
-            assertEquals(0, tool.getExitCode());
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tpstats", arg.getLeft(), arg.getRight());
+            tool.assertOnCleanExit();
+            assertThat(isYAMLString(tool.getStdout())).isTrue();
         });
     }
 

@@ -16,26 +16,25 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.nodetool;
 
 import java.io.IOException;
 import java.util.Map;
-
 import javax.management.openmbean.TabularData;
 
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.hamcrest.CoreMatchers;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.ToolRunner;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class ClearSnapshotTest extends CQLTester
 {
     private static NodeProbe probe;
@@ -56,9 +55,9 @@ public class ClearSnapshotTest extends CQLTester
     @Test
     public void testClearSnapshot_NoArgs()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot");
-        assertEquals(2, tool.getExitCode());
-        assertTrue("Tool stderr: " +  tool.getCleanedStderr(), tool.getCleanedStderr().contains("Specify snapshot name or --all"));
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot");
+        assertThat(tool.getExitCode()).isEqualTo(2);
+        assertThat(tool.getCleanedStderr()).contains("Specify snapshot name or --all");
         
         tool = ToolRunner.invokeNodetool("clearsnapshot", "--all");
         tool.assertOnCleanExit();
@@ -67,49 +66,49 @@ public class ClearSnapshotTest extends CQLTester
     @Test
     public void testClearSnapshot_AllAndName()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot", "-t", "some-name", "--all");
-        assertEquals(2, tool.getExitCode());
-        assertThat(tool.getCleanedStderr(), CoreMatchers.containsStringIgnoringCase("Specify only one of snapshot name or --all"));
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("clearsnapshot", "-t", "some-name", "--all");
+        assertThat(tool.getExitCode()).isEqualTo(2);
+        assertThat(tool.getCleanedStderr()).contains("Specify only one of snapshot name or --all");
     }
 
     @Test
     public void testClearSnapshot_RemoveByName()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
         tool.assertOnCleanExit();
-        assertTrue(!tool.getStdout().isEmpty());
+        assertThat(tool.getStdout()).isNotEmpty();
         
         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
-        Assert.assertTrue(snapshots_before.containsKey("some-name"));
-        
+        assertThat(snapshots_before).containsKey("some-name");
+
         tool = ToolRunner.invokeNodetool("clearsnapshot","-t","some-name");
         tool.assertOnCleanExit();
-        assertTrue(!tool.getStdout().isEmpty());
+        assertThat(tool.getStdout()).isNotEmpty();
         
         Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
-        Assert.assertFalse(snapshots_after.containsKey("some-name"));
+        assertThat(snapshots_after).doesNotContainKey("some-name");
     }
 
     @Test
     public void testClearSnapshot_RemoveMultiple()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("snapshot","-t","some-name");
         tool.assertOnCleanExit();
-        assertTrue(!tool.getStdout().isEmpty());
+        assertThat(tool.getStdout()).isNotEmpty();
 
         tool = ToolRunner.invokeNodetool("snapshot","-t","some-other-name");
         tool.assertOnCleanExit();
-            assertTrue(!tool.getStdout().isEmpty());
+        assertThat(tool.getStdout()).isNotEmpty();
 
         Map<String, TabularData> snapshots_before = probe.getSnapshotDetails();
-        Assert.assertTrue(snapshots_before.size() == 2);
+        assertThat(snapshots_before).hasSize(2);
 
         tool = ToolRunner.invokeNodetool("clearsnapshot","--all");
         tool.assertOnCleanExit();
-        assertTrue(!tool.getStdout().isEmpty());
+        assertThat(tool.getStdout()).isNotEmpty();
         
         Map<String, TabularData> snapshots_after = probe.getSnapshotDetails();
-        Assert.assertTrue(snapshots_after.size() == 0);
+        assertThat(snapshots_after).isEmpty();
     }
     
 }

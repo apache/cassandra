@@ -30,13 +30,8 @@ import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.Matchers.matchesPattern;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class RingTest extends CQLTester
@@ -46,9 +41,9 @@ public class RingTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        StorageService.instance.initServer();
-        token = StorageService.instance.getTokens().get(0);
+        requireNetwork();
         startJMXServer();
+        token = StorageService.instance.getTokens().get(0);
     }
 
     /**
@@ -59,27 +54,21 @@ public class RingTest extends CQLTester
     {
         final HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
                                                            false, null);
-        validateRingOutput(host.ipOrDns(false),
-                            "ring");
-        Arrays.asList("-pp", "--print-port").forEach(arg -> {
-            validateRingOutput(host.ipOrDns(true),
-                               "-pp", "ring");
-        });
+        validateRingOutput(host.ipOrDns(false), "ring");
+        Arrays.asList("-pp", "--print-port").forEach(arg -> validateRingOutput(host.ipOrDns(true), "-pp", "ring"));
 
         final HostStatWithPort hostResolved = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(),
                                                                    true, null);
-        Arrays.asList("-r", "--resolve-ip").forEach(arg -> {
-            validateRingOutput(hostResolved.ipOrDns(false),
-                               "ring", "-r");
-        });
-        validateRingOutput(hostResolved.ipOrDns(true),
-                            "-pp", "ring", "-r");
+        Arrays.asList("-r", "--resolve-ip").forEach(arg ->
+                validateRingOutput(hostResolved.ipOrDns(false), "ring", "-r"));
+        validateRingOutput(hostResolved.ipOrDns(true), "-pp", "ring", "-r");
     }
 
+    @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
     private void validateRingOutput(String hostForm, String... args)
     {
-        ToolRunner.ToolResult nodetool = ToolRunner.invokeNodetool(args);
-        nodetool.assertOnCleanExit();
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
+        tool.assertOnCleanExit();
         /*
          Datacenter: datacenter1
          ==========
@@ -88,35 +77,37 @@ public class RingTest extends CQLTester
          127.0.0.1       rack1       Up     Normal  45.71 KiB       100.00%             4652409154190094022
 
          */
-        String[] lines = nodetool.getStdout().split("\\R");
-        assertThat(lines[1].trim(), endsWith(SimpleSnitch.DATA_CENTER_NAME));
-        assertThat(lines[3], matchesPattern("Address *Rack *Status *State *Load *Owns *Token *"));
+        String[] lines = tool.getStdout().split("\\R");
+        assertThat(lines[1].trim()).endsWith(SimpleSnitch.DATA_CENTER_NAME);
+        assertThat(lines[3]).containsPattern("Address *Rack *Status *State *Load *Owns *Token *");
         String hostRing = lines[lines.length-4].trim(); // this command has a couple extra newlines and an empty error message at the end. Not messing with it.
-        assertThat(hostRing, startsWith(hostForm));
-        assertThat(hostRing, containsString(SimpleSnitch.RACK_NAME));
-        assertThat(hostRing, containsString("Up"));
-        assertThat(hostRing, containsString("Normal"));
-        assertThat(hostRing, matchesPattern(".*\\d+\\.\\d+ KiB.*"));
-        assertThat(hostRing, matchesPattern(".*\\d+\\.\\d+%.*"));
-        assertThat(hostRing, endsWith(token));
-        assertThat(hostRing, not(containsString("?")));
+        assertThat(hostRing).startsWith(hostForm);
+        assertThat(hostRing).contains(SimpleSnitch.RACK_NAME);
+        assertThat(hostRing).contains("Up");
+        assertThat(hostRing).contains("Normal");
+        assertThat(hostRing).containsPattern("\\d+\\.\\d+ KiB");
+        assertThat(hostRing).containsPattern("\\d+\\.\\d+%");
+        assertThat(hostRing).endsWith(token);
+        assertThat(hostRing).doesNotContain("?");
     }
 
     @Test
     public void testWrongArgFailsAndPrintsHelp()
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("--wrongarg", "ring");
-        Assertions.assertThat(tool.getStdout()).containsIgnoringCase("nodetool help");
-        assertEquals(1, tool.getExitCode());
-        assertTrue(tool.getCleanedStderr().isEmpty());
+        tool.assertCleanStdErr();
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("nodetool help");
     }
 
     @Test
+    @SuppressWarnings("SingleCharacterStringConcatenation")
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
 
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "ring");
+        tool.assertOnCleanExit();
 
         String help = "NAME\n" + "        nodetool ring - Print information about the token ring\n"
                       + "\n"
@@ -159,7 +150,7 @@ public class RingTest extends CQLTester
                       + "            awareness)\n"
                       + "\n"
                       + "\n";
-        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -167,14 +158,12 @@ public class RingTest extends CQLTester
     {
         // Bad KS
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("ring", "mockks");
-        Assertions.assertThat(tool.getStdout()).contains("The keyspace mockks, does not exist");
-        assertEquals(0, tool.getExitCode());
-        assertTrue(tool.getCleanedStderr().isEmpty());
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("The keyspace mockks, does not exist");
 
         // Good KS
         tool = ToolRunner.invokeNodetool("ring", "system_schema");
-        Assertions.assertThat(tool.getStdout()).contains("Datacenter: datacenter1");
-        assertEquals(0, tool.getExitCode());
-        assertTrue(tool.getCleanedStderr().isEmpty());
+        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Datacenter: datacenter1");
     }
 }

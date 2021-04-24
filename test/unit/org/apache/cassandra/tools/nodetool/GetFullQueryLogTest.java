@@ -16,28 +16,25 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
-
-import java.io.IOException;
+package org.apache.cassandra.tools.nodetool;
 
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.junit.runner.RunWith;
 
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.apache.cassandra.tools.ToolRunner;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class GetFullQueryLogTest extends CQLTester
 {
-    private static NodeProbe probe;
-
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -45,13 +42,6 @@ public class GetFullQueryLogTest extends CQLTester
     public static void setup() throws Exception
     {
         startJMXServer();
-        probe = new NodeProbe(jmxHost, jmxPort);
-    }
-
-    @AfterClass
-    public static void teardown() throws IOException
-    {
-        probe.close();
     }
 
     @After
@@ -87,7 +77,7 @@ public class GetFullQueryLogTest extends CQLTester
 
     private String getFullQueryLog()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("getfullquerylog");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("getfullquerylog");
         tool.assertOnCleanExit();
         return tool.getStdout();
     }
@@ -122,30 +112,32 @@ public class GetFullQueryLogTest extends CQLTester
                   .assertOnCleanExit();
     }
 
+    @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
     private void testChangedOutput(final String getFullQueryLogOutput)
     {
         final String output = getFullQueryLogOutput.replaceAll("( )+", " ").trim();
-        assertTrue(output.contains("enabled true"));
-        assertTrue(output.contains("log_dir " + temporaryFolder.getRoot().toString()));
-        assertTrue(output.contains("archive_command /path/to/script.sh %path"));
-        assertTrue(output.contains("roll_cycle DAILY"));
-        assertTrue(output.contains("max_log_size 100000"));
-        assertTrue(output.contains("max_queue_weight 10000"));
-        assertTrue(output.contains("max_archive_retries 5"));
-        assertTrue(output.contains("block false"));
+        assertThat(output).contains("enabled true");
+        assertThat(output).contains("log_dir " + temporaryFolder.getRoot().toString());
+        assertThat(output).contains("archive_command /path/to/script.sh %path");
+        assertThat(output).contains("roll_cycle DAILY");
+        assertThat(output).contains("max_log_size 100000");
+        assertThat(output).contains("max_queue_weight 10000");
+        assertThat(output).contains("max_archive_retries 5");
+        assertThat(output).contains("block false");
     }
 
+    @SuppressWarnings("DynamicRegexReplaceableByCompiledPattern")
     private void testDefaultOutput(final String getFullQueryLogOutput)
     {
         final FullQueryLoggerOptions options = new FullQueryLoggerOptions();
         final String output = getFullQueryLogOutput.replaceAll("( )+", " ").trim();
-        assertTrue(output.contains("enabled false"));
-        assertFalse(output.contains("log_dir " + temporaryFolder.getRoot().toString()));
-        assertFalse(output.contains("archive_command /path/to/script.sh %path"));
-        assertTrue(output.contains("roll_cycle " + options.roll_cycle));
-        assertTrue(output.contains("max_log_size " + options.max_log_size));
-        assertTrue(output.contains("max_queue_weight " + options.max_queue_weight));
-        assertTrue(output.contains("max_archive_retries " + options.max_archive_retries));
-        assertTrue(output.contains("block " + options.block));
+        assertThat(output).contains("enabled false");
+        assertThat(output).doesNotContain("log_dir " + temporaryFolder.getRoot().toString());
+        assertThat(output).doesNotContain("archive_command /path/to/script.sh %path");
+        assertThat(output).contains("roll_cycle " + options.roll_cycle);
+        assertThat(output).contains("max_log_size " + options.max_log_size);
+        assertThat(output).contains("max_queue_weight " + options.max_queue_weight);
+        assertThat(output).contains("max_archive_retries " + options.max_archive_retries);
+        assertThat(output).contains("block " + options.block);
     }
 }
