@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools;
+package org.apache.cassandra.tools.nodetool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -25,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,44 +36,34 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamSession.State;
 import org.apache.cassandra.streaming.StreamSummary;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.apache.cassandra.tools.nodetool.NetStats;
+import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.CoreMatchers;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class NodetoolNetStatsTest extends CQLTester
+public class NetStatsTest extends CQLTester
 {
-    private static NodeProbe probe;
-
     @BeforeClass
     public static void setup() throws Exception
     {
-        StorageService.instance.initServer();
+        requireNetwork();
         startJMXServer();
-        probe = new NodeProbe(jmxHost, jmxPort);
-    }
-
-    @AfterClass
-    public static void teardown() throws IOException
-    {
-        probe.close();
     }
 
     @Test
+    @SuppressWarnings("SingleCharacterStringConcatenation")
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        ToolResult tool = ToolRunner.invokeNodetool("help", "netstats");
-        String help =   "NAME\n" + 
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "netstats");
+        tool.assertOnCleanExit();
+
+        String help =   "NAME\n" +
                         "        nodetool netstats - Print network information on provided host\n" + 
                         "        (connecting node by default)\n" + 
                         "\n" + 
@@ -108,8 +97,7 @@ public class NodetoolNetStatsTest extends CQLTester
                         "            Remote jmx agent username\n" + 
                         "\n" + 
                         "\n";
-        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
-        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -117,10 +105,10 @@ public class NodetoolNetStatsTest extends CQLTester
     {
         Message<NoPayload> echoMessageOut = Message.out(ECHO_REQ, NoPayload.noPayload);
         MessagingService.instance().send(echoMessageOut, FBUtilities.getBroadcastAddressAndPort());
-        
-        ToolResult tool = ToolRunner.invokeNodetool("netstats");
-        assertThat(tool.getStdout(), CoreMatchers.containsString("Gossip messages                 n/a         0              2         0"));
+
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("netstats");
         tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Gossip messages                 n/a         0              2         0");
     }
 
     @Test
@@ -140,22 +128,22 @@ public class NodetoolNetStatsTest extends CQLTester
 
             nstats.printReceivingSummaries(out, info, false);
             String stdout = getSummariesStdout(baos, out);
-            Assertions.assertThat(stdout).doesNotContain("Kib");
+            assertThat(stdout).doesNotContain("Kib");
 
             baos.reset();
             nstats.printSendingSummaries(out, info, false);
             stdout = getSummariesStdout(baos, out);
-            Assertions.assertThat(stdout).doesNotContain("KiB");
+            assertThat(stdout).doesNotContain("Kib");
 
             baos.reset();
             nstats.printReceivingSummaries(out, info, true);
             stdout = getSummariesStdout(baos, out);
-            Assertions.assertThat(stdout).contains("KiB");
+            assertThat(stdout).contains("KiB");
 
             baos.reset();
             nstats.printSendingSummaries(out, info, true);
             stdout = getSummariesStdout(baos, out);
-            Assertions.assertThat(stdout).contains("KiB");            
+            assertThat(stdout).contains("KiB");
         }
     }
 
