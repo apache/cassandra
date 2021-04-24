@@ -26,7 +26,7 @@ public class SjkTest
     @Test
     public void sjkHelpReturnsRc0()
     {
-        ToolRunner.ToolResult result = ToolRunner.invokeNodetool("sjk", "--help");
-        result.assertOnExitCode();
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("sjk", "--help");
+        tool.assertOnExitCode();
     }
 }
