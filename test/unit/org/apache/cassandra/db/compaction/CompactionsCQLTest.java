@@ -421,7 +421,7 @@ public class CompactionsCQLTest extends CQLTester
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
         // we should be compacting all 50 sstables:
         assertEquals(50, act.transaction.originals().size());
-        act.execute(ActiveCompactionsTracker.NOOP);
+        act.execute();
     }
 
     @Test
@@ -458,7 +458,7 @@ public class CompactionsCQLTest extends CQLTester
         assertEquals(0, ((LeveledCompactionTask)act).getLevel());
         assertTrue(act.transaction.originals().stream().allMatch(s -> s.getSSTableLevel() == 0));
         txn.abort(); // unmark the l1 sstable compacting
-        act.execute(ActiveCompactionsTracker.NOOP);
+        act.execute();
     }
 
     @Test
@@ -522,7 +522,7 @@ public class CompactionsCQLTest extends CQLTester
         // sstables have been removed.
         try
         {
-            AbstractCompactionTask task = new NotifyingCompactionTask((LeveledCompactionTask) lcs.getNextBackgroundTask(0));
+            AbstractCompactionTask task = new NotifyingCompactionTask(lcs, (LeveledCompactionTask) lcs.getNextBackgroundTask(0));
             task.execute(CompactionManager.instance.active);
             fail("task should throw exception");
         }
@@ -545,9 +545,9 @@ public class CompactionsCQLTest extends CQLTester
 
     private static class NotifyingCompactionTask extends LeveledCompactionTask
     {
-        public NotifyingCompactionTask(LeveledCompactionTask task)
+        public NotifyingCompactionTask(LeveledCompactionStrategy lcs, LeveledCompactionTask task)
         {
-            super(task.cfs, task.transaction, task.getLevel(), task.gcBefore, task.getLevel(), false);
+            super(lcs, task.transaction, task.getLevel(), task.gcBefore, task.getLevel(), false);
         }
 
         @Override

@@ -170,7 +170,8 @@ public class View
         }
     }
 
-    public Iterable<? extends SSTableReader> getUncompacting(Iterable<? extends SSTableReader> candidates)
+
+    public Iterable<? extends SSTableReader> getNoncompacting(Iterable<? extends SSTableReader> candidates)
     {
         return filter(candidates, (Predicate<SSTableReader>) sstable -> !compacting.contains(sstable));
     }
@@ -252,7 +253,8 @@ public class View
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:
 
     // return a function to un/mark the provided readers compacting in a view
-    static Function<View, View> updateCompacting(final Set<? extends SSTableReader> unmark, final Iterable<? extends SSTableReader> mark)
+    @VisibleForTesting
+    public static Function<View, View> updateCompacting(final Set<? extends SSTableReader> unmark, final Iterable<? extends SSTableReader> mark)
     {
         if (unmark.isEmpty() && Iterables.isEmpty(mark))
             return Functions.identity();

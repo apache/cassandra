@@ -34,13 +34,14 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
  */
 public interface ISSTableScanner extends UnfilteredPartitionIterator
 {
-    public long getLengthInBytes();
-    public long getCompressedLengthInBytes();
-    public long getCurrentPosition();
-    public long getBytesScanned();
-    public Set<SSTableReader> getBackingSSTables();
+    long getLengthInBytes();
+    long getCompressedLengthInBytes();
+    long getCurrentPosition();
+    long getBytesScanned();
+    Set<SSTableReader> getBackingSSTables();
+    int level();
 
-    public static void closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
+    static void closeAllAndPropagate(Collection<ISSTableScanner> scanners, Throwable throwable)
     {
         for (ISSTableScanner scanner: scanners)
         {
@@ -66,6 +67,5 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
         {
             Throwables.propagate(throwable);
         }
-
     }
 }

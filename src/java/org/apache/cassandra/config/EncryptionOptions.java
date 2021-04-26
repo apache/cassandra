@@ -18,10 +18,13 @@
 package org.apache.cassandra.config;
 
 import java.io.File;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 
 import org.slf4j.Logger;
@@ -239,7 +242,7 @@ public class EncryptionOptions
     /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
      * by extracting it from the default "TLS" SSL Context instance
      */
-    static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
+    private static final Supplier<List<String>> TLS_PROTOCOL_SUBSTITUTION = Suppliers.memoize(SSLFactory::tlsInstanceProtocolSubstitution);
 
     /**
      * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
@@ -259,7 +262,7 @@ public class EncryptionOptions
             // so substitute if the user hasn't provided an accepted protocol configuration
             else if (protocol.equalsIgnoreCase("TLS"))
             {
-                return TLS_PROTOCOL_SUBSTITUTION;
+                return TLS_PROTOCOL_SUBSTITUTION.get();
             }
             else // the user was trying to limit to a single specific protocol, so try that
             {

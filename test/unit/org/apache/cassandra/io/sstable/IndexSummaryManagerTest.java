@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -51,10 +52,11 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.AbstractTableOperation;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.TableOperation;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -129,9 +131,9 @@ public class IndexSummaryManagerTest
     @After
     public void afterTest()
     {
-        for (CompactionInfo.Holder holder : CompactionManager.instance.active.getCompactions())
+        for (TableOperation operation : CompactionManager.instance.active.getTableOperations())
         {
-            holder.stop();
+            operation.stop();
         }
 
         String ksname = KEYSPACE1;
@@ -655,11 +657,11 @@ public class IndexSummaryManagerTest
         final AtomicReference<CompactionInterruptedException> exception = new AtomicReference<>();
         // barrier to control when redistribution runs
         final CountDownLatch barrier = new CountDownLatch(1);
-        CompactionInfo.Holder ongoingCompaction = new CompactionInfo.Holder()
+        AbstractTableOperation ongoingCompaction = new AbstractTableOperation()
         {
-            public CompactionInfo getCompactionInfo()
+            public OperationProgress getProgress()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.UNKNOWN, 0, 0, UUID.randomUUID(), compacting);
+                return new OperationProgress(cfs.metadata(), OperationType.UNKNOWN, 0, 0, UUID.randomUUID(), compacting);
             }
 
             public boolean isGlobal()
@@ -667,10 +669,9 @@ public class IndexSummaryManagerTest
                 return false;
             }
         };
-        try (LifecycleTransaction ignored = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN))
+        try (LifecycleTransaction ignored = cfs.getTracker().tryModify(compacting, OperationType.UNKNOWN);
+             Closeable c = CompactionManager.instance.active.onOperationStart(ongoingCompaction))
         {
-            CompactionManager.instance.active.beginCompaction(ongoingCompaction);
-
             Thread t = NamedThreadFactory.createThread(new Runnable()
             {
                 public void run()
@@ -707,13 +708,9 @@ public class IndexSummaryManagerTest
             barrier.countDown();
             t.join();
         }
-        finally
-        {
-            CompactionManager.instance.active.finishCompaction(ongoingCompaction);
-        }
 
         assertNotNull("Expected compaction interrupted exception", exception.get());
-        assertTrue("Expected no active compactions", CompactionManager.instance.active.getCompactions().isEmpty());
+        assertTrue("Expected no active compactions", CompactionManager.instance.active.getTableOperations().isEmpty());
 
         Set<SSTableReader> beforeRedistributionSSTables = new HashSet<>(allSSTables);
         Set<SSTableReader> afterCancelSSTables = selectOnlyBigTableReaders(cfs.getLiveSSTables(), Collectors.toSet());

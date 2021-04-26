@@ -51,7 +51,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
             if (txn != null)
             {
                 SingleSSTableLCSTask task = new SingleSSTableLCSTask(cfs, txn, 2);
-                task.executeInternal(null);
+                task.executeInternal();
             }
         }
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -101,16 +101,20 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         // now we have a bunch of data in L0, first compaction will be a normal one, containing all sstables:
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
         AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
-        act.execute(ActiveCompactionsTracker.NOOP);
+        act.execute();
 
         // now all sstables are laid out non-overlapping in L1, this means that the rest of the compactions
         // will be single sstable ones, make sure that we use SingleSSTableLCSTask if singleSSTUplevel is true:
-        while (lcs.getEstimatedRemainingTasks() > 0)
+        while ((act = lcs.getNextBackgroundTask(0)) != null)
         {
-            act = lcs.getNextBackgroundTask(0);
+            assertTrue(lcs.getTotalCompactions() > 0);
             assertEquals(singleSSTUplevel, act instanceof SingleSSTableLCSTask);
-            act.execute(ActiveCompactionsTracker.NOOP);
+            act.execute();
         }
+
+        assertEquals(0, lcs.getTotalCompactions());
+        assertEquals(0, lcs.getEstimatedRemainingTasks());
+
         assertEquals(0, lcs.getLevelSize(0));
         int l1size = lcs.getLevelSize(1);
         // this should be 10, but it might vary a bit depending on partition sizes etc
@@ -138,7 +142,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
             if (txn != null)
             {
                 SingleSSTableLCSTask task = new SingleSSTableLCSTask(cfs, txn, 2);
-                task.executeInternal(null);
+                task.executeInternal();
             }
         }
         catch (Throwable t)
