@@ -1,4 +1,5 @@
 3.11.11
+ * Nodetool garbagecollect should retain SSTableLevel for LCS (CASSANDRA-16634)
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
  * Add autocomplete and error messages for provide_overlapping_tombstones (CASSANDRA-16350)
  * Add StorageServiceMBean.getKeyspaceReplicationInfo(keyspaceName) (CASSANDRA-16447)
