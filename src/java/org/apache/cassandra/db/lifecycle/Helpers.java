@@ -126,14 +126,18 @@ class Helpers
         return accumulate;
     }
 
-    static Throwable prepareForObsoletion(Iterable<SSTableReader> readers, LogTransaction txnLogs, List<LogTransaction.Obsoletion> obsoletions, Throwable accumulate)
+    static Throwable prepareForObsoletion(Iterable<SSTableReader> readers,
+                                          LogTransaction txnLogs,
+                                          List<LogTransaction.Obsoletion> obsoletions,
+                                          Tracker tracker,
+                                          Throwable accumulate)
     {
         Map<SSTable, LogRecord> logRecords = txnLogs.makeRemoveRecords(readers);
         for (SSTableReader reader : readers)
         {
             try
             {
-                obsoletions.add(new LogTransaction.Obsoletion(reader, txnLogs.obsoleted(reader, logRecords.get(reader))));
+                obsoletions.add(new LogTransaction.Obsoletion(reader, txnLogs.obsoleted(reader, logRecords.get(reader), tracker)));
             }
             catch (Throwable t)
             {

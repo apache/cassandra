@@ -42,7 +42,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -67,7 +66,7 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Ref;
 
-import static org.apache.cassandra.db.compaction.CompactionInfo.StopTrigger.TRUNCATE;
+import static org.apache.cassandra.db.compaction.TableOperation.StopTrigger.TRUNCATE;
 
 /**
  * Multiple storage-attached indexes can start building concurrently. We need to make sure:
@@ -168,7 +167,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                 {
                     if (isStopRequested())
                     {
-                        throw new CompactionInterruptedException(getCompactionInfo());
+                        throw new CompactionInterruptedException(getProgress());
                     }
 
                     final DecoratedKey key = sstable.decorateKey(keys.key());
@@ -263,14 +262,14 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     }
 
     @Override
-    public CompactionInfo getCompactionInfo()
+    public OperationProgress getProgress()
     {
-        return new CompactionInfo(metadata,
-                                  OperationType.INDEX_BUILD,
-                                  bytesProcessed,
-                                  totalSizeInBytes,
-                                  compactionId,
-                                  sstables.keySet());
+        return new OperationProgress(metadata,
+                                     OperationType.INDEX_BUILD,
+                                     bytesProcessed,
+                                     totalSizeInBytes,
+                                     compactionId,
+                                     sstables.keySet());
     }
 
     /**

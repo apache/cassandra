@@ -18,9 +18,13 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.util.function.Function;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
@@ -45,6 +49,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * Pluggable compaction strategy determines how SSTables get merged.
@@ -95,11 +100,17 @@ public abstract class AbstractCompactionStrategy
      */
     protected boolean isActive = false;
 
+    /**
+     * This class groups all the compaction tasks that are pending, submitted, in progress and completed.
+     */
+    protected final BackgroundCompactions backgroundCompactions;
+
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
         assert cfs != null;
         this.cfs = cfs;
         this.options = ImmutableMap.copyOf(options);
+        this.backgroundCompactions = new BackgroundCompactions(this, cfs);
 
         /* checks must be repeated here, as user supplied strategies might not call validateOptions directly */
 
@@ -124,6 +135,11 @@ public abstract class AbstractCompactionStrategy
         }
 
         directories = cfs.getDirectories();
+    }
+
+    public BackgroundCompactions getBackgroundCompactions()
+    {
+        return backgroundCompactions;
     }
 
     public Directories getDirectories()
@@ -172,7 +188,124 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
+    public abstract AbstractCompactionTask getNextBackgroundTask(int gcBefore);
+
+    /**
+     * Helper base class for strategies that provide CompactionAggregates, implementing the typical
+     * getNextBackgroundTask logic based on a getNextBackgroundAggregate method.
+     */
+    protected static abstract class WithAggregates extends AbstractCompactionStrategy
+    {
+        protected WithAggregates(ColumnFamilyStore cfs, Map<String, String> options)
+        {
+            super(cfs, options);
+        }
+
+        @Override
+        @SuppressWarnings("resource")
+        public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+        {
+            CompactionPick previous = null;
+            while (true)
+            {
+                CompactionAggregate compaction = getNextBackgroundAggregate(gcBefore);
+                if (compaction == null || compaction.isEmpty())
+                    return null;
+
+                // Already tried acquiring references without success. It means there is a race with
+                // the tracker but candidate SSTables were not yet replaced in the compaction strategy manager
+                if (compaction.getSelected().equals(previous))
+                {
+                    logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
+                                "unless it happens frequently, in which case it must be reported. Will retry later.",
+                                compaction.getSelected());
+                    return null;
+                }
+
+                LifecycleTransaction transaction = cfs.getTracker().tryModify(compaction.getSelected().sstables, OperationType.COMPACTION);
+                if (transaction != null)
+                {
+                    backgroundCompactions.setSubmitted(transaction.opId(), compaction);
+                    return createCompactionTask(gcBefore, transaction, compaction);
+                }
+
+                // Getting references to the sstables failed. This may be because we tried to compact sstables that are
+                // no longer present (due to races in getting the notification), or because we still haven't
+                // received any replace notifications. Remove any non-live sstables we track and try again.
+                removeDeadSSTables();
+
+                previous = compaction.getSelected();
+            }
+        }
+
+        /**
+         * Select the next compaction to perform. This method is typically synchronized.
+         */
+        protected abstract CompactionAggregate getNextBackgroundAggregate(int gcBefore);
+
+        protected AbstractCompactionTask createCompactionTask(final int gcBefore, LifecycleTransaction txn, CompactionAggregate compaction)
+        {
+            return CompactionTask.forCompaction(this, txn, gcBefore);
+        }
+
+        @Override
+        public int getEstimatedRemainingTasks()
+        {
+            return backgroundCompactions.getEstimatedRemainingTasks();
+        }
+    }
+
+    /**
+     * Helper base class for (older, deprecated) strategies that provide a list of tables to compact, implementing the
+     * typical getNextBackgroundTask logic based on a getNextBackgroundSSTables method.
+     */
+    protected static abstract class WithSSTableList extends AbstractCompactionStrategy
+    {
+        protected WithSSTableList(ColumnFamilyStore cfs, Map<String, String> options)
+        {
+            super(cfs, options);
+        }
+
+        @Override
+        @SuppressWarnings("resource")
+        public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+        {
+            List<SSTableReader> previousCandidate = null;
+            while (true)
+            {
+                List<SSTableReader> latestBucket = getNextBackgroundSSTables(gcBefore);
+
+                if (latestBucket.isEmpty())
+                    return null;
+
+                // Already tried acquiring references without success. It means there is a race with
+                // the tracker but candidate SSTables were not yet replaced in the compaction strategy manager
+                if (latestBucket.equals(previousCandidate))
+                {
+                    logger.warn("Could not acquire references for compacting SSTables {} which is not a problem per se," +
+                                "unless it happens frequently, in which case it must be reported. Will retry later.",
+                                latestBucket);
+                    return null;
+                }
+
+                LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
+                if (modifier != null)
+                    return createCompactionTask(gcBefore, modifier, false, false);
+
+                // Getting references to the sstables failed. This may be because we tried to compact sstables that are
+                // no longer present (due to races in getting the notification), or because we still haven't
+                // received any replace notifications. Remove any non-live sstables we track and try again.
+                removeDeadSSTables();
+
+                previousCandidate = latestBucket;
+            }
+        }
+
+        /**
+         * Select the next tables to compact. This method is typically synchronized.
+         */
+        protected abstract List<SSTableReader> getNextBackgroundSSTables(final int gcBefore);
+    }
 
     /**
      * @param gcBefore throw away tombstones older than this
@@ -182,7 +315,19 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput);
+    @SuppressWarnings("resource")
+    public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
+    {
+        removeDeadSSTables();
+
+        Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(getSSTables());
+        if (Iterables.isEmpty(filteredSSTables))
+            return null;
+        LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
+        if (txn == null)
+            return null;
+        return Collections.singleton(createCompactionTask(gcBefore, txn, true, splitOutput));
+    }
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
@@ -193,17 +338,80 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
-
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
+    @SuppressWarnings("resource")
+    public synchronized AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
     {
-        return new CompactionTask(cfs, txn, gcBefore);
+        assert !sstables.isEmpty(); // checked for by CM.submitUserDefined
+
+        LifecycleTransaction modifier = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+        if (modifier == null)
+        {
+            logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+            return null;
+        }
+
+        return createCompactionTask(gcBefore, modifier, false, false).setUserDefined(true);
     }
 
     /**
-     * @return the number of background tasks estimated to still be needed for this columnfamilystore
+     * Create a compaction task for a maximal, user defined or background compaction without aggregates (legacy strategies).
+     * Background compactions for strategies that extend {@link WithAggregates} will use
+     * {@link WithAggregates#createCompactionTask(int, LifecycleTransaction, boolean, boolean)} instead.
+     *
+     * @param gcBefore tombstone threshold, older tombstones can be discarded
+     * @param txn the transaction containing the files to be compacted
+     * @param isMaximal set to true only when it's a maximal compaction
+     * @param splitOutput false except for maximal compactions and passed in by the user to indicate to SizeTieredCompactionStrategy to split the out,
+     *                    ignored otherwise
+     *
+     * @return a compaction task, see {@link AbstractCompactionTask} and sub-classes
+     */
+    protected AbstractCompactionTask createCompactionTask(final int gcBefore, LifecycleTransaction txn, boolean isMaximal, boolean splitOutput)
+    {
+        return CompactionTask.forCompaction(this, txn, gcBefore);
+    }
+
+    /**
+     * Create a compaction task for operations that are not driven by the strategies.
+     *
+     * @param txn the transaction containing the files to be compacted
+     * @param gcBefore tombstone threshold, older tombstones can be discarded
+     * @param maxSSTableBytes the maximum size in bytes for an output sstables
+     *
+     * @return a compaction task, see {@link AbstractCompactionTask} and sub-classes
+     */
+    public AbstractCompactionTask createCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
+    {
+        return CompactionTask.forCompaction(this, txn, gcBefore);
+    }
+
+    /**
+     * Get the estimated remaining compactions. Strategies that implement {@link WithAggregates} can delegate this
+     * to {@link BackgroundCompactions} because they set the pending aggregates as background compactions but legacy
+     * strategies that do not support aggregates must implement this method.
+     * <p/>
+     * @return the number of background tasks estimated to still be needed for this strategy
      */
     public abstract int getEstimatedRemainingTasks();
+
+    /**
+     * @return the total number of background compactions, pending or in progress
+     */
+    public int getTotalCompactions()
+    {
+        return getEstimatedRemainingTasks() + backgroundCompactions.getCompactionsInProgress();
+    }
+
+    /**
+     * Return the statistics. Only strategies that implement {@link WithAggregates} will provide non-empty statistics,
+     * the legacy strategies will always have empty statistics.
+     * <p/>
+     * @return statistics about this compaction picks.
+     */
+    public CompactionStrategyStatistics getStatistics()
+    {
+        return backgroundCompactions.getStatistics();
+    }
 
     /**
      * @return size in bytes of the largest sstables for this strategy
@@ -227,11 +435,16 @@ public abstract class AbstractCompactionStrategy
         return filtered;
     }
 
+    public static Iterable<SSTableReader> nonSuspectAndNotIn(Iterable<SSTableReader> tables, Set<SSTableReader> compacting)
+    {
+        return Iterables.filter(tables, t -> !t.isMarkedSuspect() && !compacting.contains(t));
+    }
 
     public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
         return range == null ? getScanners(sstables, (Collection<Range<Token>>)null) : getScanners(sstables, Collections.singleton(range));
     }
+
     /**
      * Returns a list of KeyScanners given sstables and a range on which to scan.
      * The default implementation simply grab one SSTableScanner per-sstable, but overriding this method
@@ -259,18 +472,18 @@ public abstract class AbstractCompactionStrategy
         return getClass().getSimpleName();
     }
 
+    public TableMetadata getMetadata()
+    {
+        return cfs.metadata();
+    }
+
     /**
      * Replaces sstables in the compaction strategy
      *
      * Note that implementations must be able to handle duplicate notifications here (that removed are already gone and
      * added have already been added)
      * */
-    public synchronized void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added)
-    {
-        for (SSTableReader remove : removed)
-            removeSSTable(remove);
-        addSSTables(added);
-    }
+    public abstract void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added);
 
     /**
      * Adds sstable, note that implementations must handle duplicate notifications here (added already being in the compaction strategy)
@@ -284,6 +497,37 @@ public abstract class AbstractCompactionStrategy
     {
         for (SSTableReader sstable : added)
             addSSTable(sstable);
+    }
+
+    /**
+     * Remove any tracked sstable that is no longer in the live set. Note that because we get notifications after the
+     * tracker is modified, anything we know of must be already in the live set -- if it is not, it has been removed
+     * from there, and we either haven't received the removal notification yet, or we did and we messed it up (i.e.
+     * we got it before the addition). The former is transient, but the latter can cause persistent problems, including
+     * fully stopping compaction. In any case, we should remove any such sstables.
+     * There are two special-case implementations of this in MemoryOnlyStrategy and LeveledManifest.
+     */
+    abstract void removeDeadSSTables();
+
+    void removeDeadSSTables(Iterable<SSTableReader> sstables)
+    {
+        synchronized (sstables)
+        {
+            int removed = 0;
+            Set<SSTableReader> liveSet = cfs.getLiveSSTables();
+            for (Iterator<SSTableReader> it = sstables.iterator(); it.hasNext(); )
+            {
+                SSTableReader sstable = it.next();
+                if (!liveSet.contains(sstable))
+                {
+                    it.remove();
+                    ++removed;
+                }
+            }
+
+            if (removed > 0)
+                logger.debug("Removed {} dead sstables from the compactions tracked list.", removed);
+        }
     }
 
     /**
@@ -373,6 +617,27 @@ public abstract class AbstractCompactionStrategy
     public ScannerList getScanners(Collection<SSTableReader> toCompact)
     {
         return getScanners(toCompact, (Collection<Range<Token>>)null);
+    }
+
+    /**
+     * Select a table for tombstone-removing compaction from the given set. Returns null if no table is suitable.
+     */
+    @Nullable
+    CompactionAggregate makeTombstoneCompaction(int gcBefore,
+                                                Iterable<SSTableReader> candidates,
+                                                Function<Collection<SSTableReader>, SSTableReader> selector)
+    {
+        List<SSTableReader> sstablesWithTombstones = new ArrayList<>();
+        for (SSTableReader sstable : candidates)
+        {
+            if (worthDroppingTombstones(sstable, gcBefore))
+                sstablesWithTombstones.add(sstable);
+        }
+        if (sstablesWithTombstones.isEmpty())
+            return null;
+
+        final SSTableReader sstable = selector.apply(sstablesWithTombstones);
+        return CompactionAggregate.createForTombstones(sstable);
     }
 
     /**
@@ -516,7 +781,7 @@ public abstract class AbstractCompactionStrategy
     {
         int groupSize = 2;
         List<SSTableReader> sortedSSTablesToGroup = new ArrayList<>(sstablesToGroup);
-        Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
+        Collections.sort(sortedSSTablesToGroup, SSTableReader.firstKeyComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
         Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);

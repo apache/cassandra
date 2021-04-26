@@ -171,6 +171,11 @@ public abstract class SSTable
         return descriptor.ksname;
     }
 
+    public int getGeneration()
+    {
+        return descriptor.generation;
+    }
+
     public List<String> getAllFilePaths()
     {
         List<String> ret = new ArrayList<>(components.size());
@@ -425,5 +430,15 @@ public abstract class SSTable
         Preconditions.checkArgument(!isTransient || (pendingRepair != NO_PENDING_REPAIR),
                                     "isTransient can only be true for sstables pending repair");
 
+    }
+
+    public DecoratedKey getFirst()
+    {
+        return first;
+    }
+
+    public DecoratedKey getLast()
+    {
+        return last;
     }
 }

@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.*;
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
@@ -29,29 +28,34 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
 public class SSTableSplitter 
 {
-    private final SplittingCompactionTask task;
+    private final AbstractCompactionTask task;
 
     public SSTableSplitter(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
     {
-        this.task = new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
+        this.task = SplittingCompactionTask.forSSTableSplitting(cfs, transaction, sstableSizeInMB);
     }
 
     public void split()
     {
-        task.execute(ActiveCompactionsTracker.NOOP);
+        task.execute();
     }
 
-    public static class SplittingCompactionTask extends CompactionTask
+    private static class SplittingCompactionTask extends CompactionTask
     {
         private final int sstableSizeInMB;
 
-        public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
+        private SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
         {
             super(cfs, transaction, CompactionManager.NO_GC, false);
             this.sstableSizeInMB = sstableSizeInMB;
 
             if (sstableSizeInMB <= 0)
                 throw new IllegalArgumentException("Invalid target size for SSTables, must be > 0 (got: " + sstableSizeInMB + ")");
+        }
+
+        static AbstractCompactionTask forSSTableSplitting(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
+        {
+            return new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
         }
 
         @Override
