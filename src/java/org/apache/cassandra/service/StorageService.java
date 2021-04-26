@@ -2728,7 +2728,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 tokensToUpdateInMetadata.add(token);
                 tokensToUpdateInSystemKeyspace.add(token);
             }
-            else if (Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
+            // Note: in test scenarios, there may not be any delta between the heartbeat generations of the old
+            // and new nodes, so we first check whether the new endpoint is marked as a replacement for the old.
+            else if (endpoint.equals(tokenMetadata.getReplacementNode(currentOwner).orElse(null)) || Gossiper.instance.compareEndpointStartup(endpoint, currentOwner) > 0)
             {
                 tokensToUpdateInMetadata.add(token);
                 tokensToUpdateInSystemKeyspace.add(token);
