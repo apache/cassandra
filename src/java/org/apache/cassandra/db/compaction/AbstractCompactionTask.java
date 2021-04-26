@@ -28,8 +28,12 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+
+import static com.google.common.base.Throwables.propagate;
+
 
 public abstract class AbstractCompactionTask extends WrappedRunnable
 {
@@ -37,6 +41,8 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     protected LifecycleTransaction transaction;
     protected boolean isUserDefined;
     protected OperationType compactionType;
+    protected TableOperationObserver opObserver;
+    protected CompactionObserver compObserver;
 
     /**
      * @param cfs
@@ -48,12 +54,22 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         this.transaction = transaction;
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
-        // enforce contract that caller should mark sstables compacting
-        Set<SSTableReader> compacting = transaction.tracker.getCompacting();
-        for (SSTableReader sstable : transaction.originals())
-            assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
+        this.opObserver = TableOperationObserver.NOOP;
+        this.compObserver = CompactionObserver.NO_OP;
 
-        validateSSTables(transaction.originals());
+        try
+        {
+            // enforce contract that caller should mark sstables compacting
+            Set<SSTableReader> compacting = transaction.getCompacting();
+            for (SSTableReader sstable : transaction.originals())
+                assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
+
+            validateSSTables(transaction.originals());
+        }
+        catch (Throwable err)
+        {
+            propagate(cleanup(err));
+        }
     }
 
     /**
@@ -91,13 +107,20 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     }
 
     /**
-     * executes the task and unmarks sstables compacting
+     * Executes the task after setting a new observer, normally the observer is the
+     * compaction manager metrics.
      */
-    public int execute(ActiveCompactionsTracker activeCompactions)
+    public int execute(TableOperationObserver observer)
+    {
+        return setOpObserver(observer).execute();
+    }
+
+    /** Executes the task */
+    public int execute()
     {
         try
         {
-            return executeInternal(activeCompactions);
+            return executeInternal();
         }
         catch(FSDiskFullWriteError e)
         {
@@ -107,12 +130,22 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         }
         finally
         {
-            transaction.close();
+            Throwables.maybeFail(cleanup(null));
         }
     }
+
+    private Throwable cleanup(Throwable err)
+    {
+        return Throwables.perform(err,
+                                  () -> compObserver.setCompleted(transaction.opId()),
+                                  () -> transaction.close());
+    }
+
     public abstract CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
 
-    protected abstract int executeInternal(ActiveCompactionsTracker activeCompactions);
+    protected abstract int executeInternal();
+
+    // TODO Eventually these three setters should be passed in to the constructor.
 
     public AbstractCompactionTask setUserDefined(boolean isUserDefined)
     {
@@ -123,6 +156,15 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     public AbstractCompactionTask setCompactionType(OperationType compactionType)
     {
         this.compactionType = compactionType;
+        return this;
+    }
+
+    /**
+     * Override the NO OP observer, this is normally overridden by the compaction metrics.
+     */
+    AbstractCompactionTask setOpObserver(TableOperationObserver opObserver)
+    {
+        this.opObserver = opObserver;
         return this;
     }
 

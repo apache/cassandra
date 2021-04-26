@@ -169,7 +169,7 @@ public class HelpersTest
         Iterable<SSTableReader> readersToKeep = Lists.newArrayList(MockSchema.sstable(3, cfs), MockSchema.sstable(4, cfs));
 
         List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();
-        Helpers.prepareForObsoletion(readers, txnLogs, obsoletions, null);
+        Helpers.prepareForObsoletion(readers, txnLogs, obsoletions, null, null);
         assertNotNull(obsoletions);
         assertEquals(2, obsoletions.size());
 
@@ -200,7 +200,7 @@ public class HelpersTest
         }
         long start = System.currentTimeMillis();
 
-        Helpers.prepareForObsoletion(readers.subList(0, 500), txnLogs, new ArrayList<>(),null );
+        Helpers.prepareForObsoletion(readers.subList(0, 500), txnLogs, new ArrayList<>(),null, null);
         txnLogs.finish();
         long time = System.currentTimeMillis() - start;
         assertTrue(time < 20000);

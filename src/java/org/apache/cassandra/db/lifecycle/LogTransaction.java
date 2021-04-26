@@ -28,12 +28,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Directories;
@@ -107,7 +110,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
     }
 
-    private final Tracker tracker;
     private final LogFile txnFile;
     // We need an explicit lock because the transaction tidier cannot store a reference to the transaction
     private final Object lock;
@@ -120,12 +122,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
     LogTransaction(OperationType opType)
     {
-        this(opType, null);
-    }
-
-    LogTransaction(OperationType opType, Tracker tracker)
-    {
-        this.tracker = tracker;
         this.txnFile = new LogFile(opType, UUIDGen.getTimeUUID());
         this.lock = new Object();
         this.selfRef = new Ref<>(this, new TransactionTidier(txnFile, lock));
@@ -165,13 +161,13 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     @VisibleForTesting
     SSTableTidier obsoleted(SSTableReader sstable)
     {
-        return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable));
+        return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable), null);
     }
 
     /**
      * Schedule a reader for deletion as soon as it is fully unreferenced.
      */
-    SSTableTidier obsoleted(SSTableReader reader, LogRecord logRecord)
+    SSTableTidier obsoleted(SSTableReader reader, LogRecord logRecord, @Nullable Tracker tracker)
     {
         synchronized (lock)
         {
@@ -183,7 +179,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 if (txnFile.contains(Type.REMOVE, reader, logRecord))
                     throw new IllegalArgumentException();
 
-                return new SSTableTidier(reader, true, this);
+                return new SSTableTidier(reader, true, this, tracker);
             }
 
             txnFile.addRecord(logRecord);
@@ -191,7 +187,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             if (tracker != null)
                 tracker.notifyDeleting(reader);
 
-            return new SSTableTidier(reader, false, this);
+            return new SSTableTidier(reader, false, this, tracker);
         }
     }
 
@@ -349,21 +345,23 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         // must not retain a reference to the SSTableReader, else leak detection cannot kick in
         private final Descriptor desc;
         private final long sizeOnDisk;
-        private final Tracker tracker;
         private final boolean wasNew;
         private final Object lock;
         private final Ref<LogTransaction> parentRef;
         private final UUID txnId;
+        private final boolean onlineTxn;
+        private final Counter totalDiskSpaceUsed;
 
-        public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent)
+        public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent, Tracker tracker)
         {
             this.desc = referent.descriptor;
             this.sizeOnDisk = referent.bytesOnDisk();
-            this.tracker = parent.tracker;
             this.wasNew = wasNew;
             this.lock = parent.lock;
             this.parentRef = parent.selfRef.tryRef();
             this.txnId = parent.id();
+            this.onlineTxn = tracker != null && !tracker.isDummy();
+            this.totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ? tracker.cfstore.metric.totalDiskSpaceUsed : null;
 
             if (this.parentRef == null)
                 throw new IllegalStateException("Transaction already completed");
@@ -371,7 +369,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         public void run()
         {
-            if (tracker != null && !tracker.isDummy())
+            if (onlineTxn)
                 SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
 
             synchronized (lock)
@@ -399,8 +397,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                     return;
                 }
 
-                if (tracker != null && tracker.cfstore != null && !wasNew)
-                    tracker.cfstore.metric.totalDiskSpaceUsed.dec(sizeOnDisk);
+                if (totalDiskSpaceUsed != null && !wasNew)
+                    totalDiskSpaceUsed.dec(sizeOnDisk);
 
                 // release the referent to the parent so that the all transaction files can be released
                 parentRef.release();

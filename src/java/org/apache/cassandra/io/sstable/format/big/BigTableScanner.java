@@ -246,6 +246,11 @@ public class BigTableScanner implements ISSTableScanner
         return ImmutableSet.of(sstable);
     }
 
+    public int level()
+    {
+        return sstable.getSSTableLevel();
+    }
+
 
     public TableMetadata metadata()
     {
@@ -423,6 +428,11 @@ public class BigTableScanner implements ISSTableScanner
         public Set<SSTableReader> getBackingSSTables()
         {
             return ImmutableSet.of(sstable);
+        }
+
+        public int level()
+        {
+            return 0;
         }
 
         public TableMetadata metadata()

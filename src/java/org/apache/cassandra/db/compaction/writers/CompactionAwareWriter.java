@@ -233,4 +233,9 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         this.sstableWriter.setRepairedAt(repairedAt);
         return this;
     }
+
+    public long bytesWritten()
+    {
+        return sstableWriter.bytesWritten();
+    }
 }

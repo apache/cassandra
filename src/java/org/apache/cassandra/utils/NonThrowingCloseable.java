@@ -16,19 +16,14 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db.compaction;
+package org.apache.cassandra.utils;
 
-public interface ActiveCompactionsTracker
+import java.io.Closeable;
+
+/**
+ * A closeable that will not throw.
+ */
+public interface NonThrowingCloseable extends Closeable
 {
-    public void beginCompaction(CompactionInfo.Holder ci);
-    public void finishCompaction(CompactionInfo.Holder ci);
-
-    public static final ActiveCompactionsTracker NOOP = new ActiveCompactionsTracker()
-    {
-        public void beginCompaction(CompactionInfo.Holder ci)
-        {}
-
-        public void finishCompaction(CompactionInfo.Holder ci)
-        {}
-    };
+    void close();
 }

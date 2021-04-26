@@ -96,7 +96,7 @@ public class SAITester extends CQLTester
 
     protected static final Injections.Counter INDEX_BUILD_COUNTER = Injections.newCounter("IndexBuildCounter")
                                                                               .add(newInvokePoint().onClass(CompactionManager.class)
-                                                                                                   .onMethod("submitIndexBuild", "SecondaryIndexBuilder", "ActiveCompactionsTracker"))
+                                                                                                   .onMethod("submitIndexBuild", "SecondaryIndexBuilder", "TableOperationObserver"))
                                                                               .build();
 
     protected static final Injections.Counter perSSTableValidationCounter = Injections.newCounter("PerSSTableValidationCounter")

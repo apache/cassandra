@@ -56,7 +56,6 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.UnbufferedDataOutputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -388,7 +387,7 @@ public class CompactionAllocationTest
         }
 
         ColumnFamilyStore cfs = workload.getCfs();
-        ActiveCompactions active = new ActiveCompactions();
+        ActiveOperations active = new ActiveOperations();
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
 
         CompactionTasks tasks = cfs.getCompactionStrategyManager()

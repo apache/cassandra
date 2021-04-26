@@ -23,12 +23,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 
 public final class SizeTieredCompactionStrategyOptions
 {
-    protected static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
-    protected static final double DEFAULT_BUCKET_LOW = 0.5;
-    protected static final double DEFAULT_BUCKET_HIGH = 1.5;
-    protected static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
-    protected static final String BUCKET_LOW_KEY = "bucket_low";
-    protected static final String BUCKET_HIGH_KEY = "bucket_high";
+    static final long DEFAULT_MIN_SSTABLE_SIZE = 50L * 1024L * 1024L;
+    static final double DEFAULT_BUCKET_LOW = 0.5;
+    static final double DEFAULT_BUCKET_HIGH = 1.5;
+    static final String MIN_SSTABLE_SIZE_KEY = "min_sstable_size";
+    static final String BUCKET_LOW_KEY = "bucket_low";
+    static final String BUCKET_HIGH_KEY = "bucket_high";
 
     protected long minSSTableSize;
     protected double bucketLow;
@@ -46,9 +46,14 @@ public final class SizeTieredCompactionStrategyOptions
 
     public SizeTieredCompactionStrategyOptions()
     {
-        minSSTableSize = DEFAULT_MIN_SSTABLE_SIZE;
-        bucketLow = DEFAULT_BUCKET_LOW;
-        bucketHigh = DEFAULT_BUCKET_HIGH;
+        this(DEFAULT_MIN_SSTABLE_SIZE, DEFAULT_BUCKET_LOW, DEFAULT_BUCKET_HIGH);
+    }
+
+    SizeTieredCompactionStrategyOptions(long minSSTableSize, double bucketLow, double bucketHigh)
+    {
+        this.minSSTableSize = minSSTableSize;
+        this.bucketLow = bucketLow;
+        this.bucketHigh = bucketHigh;
     }
 
     private static double parseDouble(Map<String, String> options, String key, double defaultValue) throws ConfigurationException
