@@ -32,11 +32,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getNetworkPermissionsReadCount;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InvalidateNetworkPermissionsCacheTest extends CQLTester
@@ -104,7 +100,7 @@ public class InvalidateNetworkPermissionsCacheTest extends CQLTester
                         "            List of roles to invalidate. By default, all roles\n" +
                         "\n" +
                         "\n";
-        assertThat(tool.getStdout(), equalTo(help));
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -117,17 +113,17 @@ public class InvalidateNetworkPermissionsCacheTest extends CQLTester
         long originalReadsCount = getNetworkPermissionsReadCount();
 
         // enure network permission is cached
-        assertTrue(role.hasLocalAccess());
-        assertThat(originalReadsCount, equalTo(getNetworkPermissionsReadCount()));
+        assertThat(role.hasLocalAccess()).isTrue();
+        assertThat(originalReadsCount).isEqualTo(getNetworkPermissionsReadCount());
 
         // invalidate network permission
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatenetworkpermissionscache", ROLE_A.getRoleName());
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure network permission is reloaded
-        assertTrue(role.hasLocalAccess());
-        assertThat(originalReadsCount, lessThan(getNetworkPermissionsReadCount()));
+        assertThat(role.hasLocalAccess()).isTrue();
+        assertThat(originalReadsCount).isLessThan(getNetworkPermissionsReadCount());
     }
 
     @Test
@@ -142,23 +138,23 @@ public class InvalidateNetworkPermissionsCacheTest extends CQLTester
         long originalReadsCount = getNetworkPermissionsReadCount();
 
         // enure network permissions are cached
-        assertTrue(roleA.hasLocalAccess());
-        assertTrue(roleB.hasLocalAccess());
-        assertThat(originalReadsCount, equalTo(getNetworkPermissionsReadCount()));
+        assertThat(roleA.hasLocalAccess()).isTrue();
+        assertThat(roleB.hasLocalAccess()).isTrue();
+        assertThat(originalReadsCount).isEqualTo(getNetworkPermissionsReadCount());
 
         // invalidate both network permissions
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatenetworkpermissionscache");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure network permission for roleA is reloaded
-        assertTrue(roleA.hasLocalAccess());
+        assertThat(roleA.hasLocalAccess()).isTrue();
         long readsCountAfterFirstReLoad = getNetworkPermissionsReadCount();
-        assertThat(originalReadsCount, lessThan(readsCountAfterFirstReLoad));
+        assertThat(originalReadsCount).isLessThan(readsCountAfterFirstReLoad);
 
         // ensure network permission for roleB is reloaded
-        assertTrue(roleB.hasLocalAccess());
+        assertThat(roleB.hasLocalAccess()).isTrue();
         long readsCountAfterSecondReLoad = getNetworkPermissionsReadCount();
-        assertThat(readsCountAfterFirstReLoad, lessThan(readsCountAfterSecondReLoad));
+        assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
     }
 }

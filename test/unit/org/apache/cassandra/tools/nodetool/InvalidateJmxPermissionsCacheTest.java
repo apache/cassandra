@@ -39,11 +39,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolePermissionsReadCount;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InvalidateJmxPermissionsCacheTest extends CQLTester
@@ -120,7 +116,7 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
                         "            List of roles to invalidate. By default, all roles\n" +
                         "\n" +
                         "\n";
-        assertThat(tool.getStdout(), equalTo(help));
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -133,17 +129,17 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
         long originalReadsCount = getRolePermissionsReadCount();
 
         // enure role permission is cached
-        assertTrue(authorizationProxy.authorize(userSubject, "queryNames", null));
-        assertThat(originalReadsCount, equalTo(getRolePermissionsReadCount()));
+        assertThat(authorizationProxy.authorize(userSubject, "queryNames", null)).isTrue();
+        assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate role permission
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatejmxpermissionscache", ROLE_A.getRoleName());
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure role permission is reloaded
-        assertTrue(authorizationProxy.authorize(userSubject, "queryNames", null));
-        assertThat(originalReadsCount, lessThan(getRolePermissionsReadCount()));
+        assertThat(authorizationProxy.authorize(userSubject, "queryNames", null)).isTrue();
+        assertThat(originalReadsCount).isLessThan(getRolePermissionsReadCount());
     }
 
     @Test
@@ -158,24 +154,24 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
         long originalReadsCount = getRolePermissionsReadCount();
 
         // enure role permissions are cached
-        assertTrue(authorizationProxy.authorize(roleASubject, "queryNames", null));
-        assertTrue(authorizationProxy.authorize(roleBSubject, "queryNames", null));
-        assertThat(originalReadsCount, equalTo(getRolePermissionsReadCount()));
+        assertThat(authorizationProxy.authorize(roleASubject, "queryNames", null)).isTrue();
+        assertThat(authorizationProxy.authorize(roleBSubject, "queryNames", null)).isTrue();
+        assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate both role permissions
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatejmxpermissionscache");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure role permission for roleA is reloaded
-        assertTrue(authorizationProxy.authorize(roleASubject, "queryNames", null));
+        assertThat(authorizationProxy.authorize(roleASubject, "queryNames", null)).isTrue();
         long readsCountAfterFirstReLoad = getRolePermissionsReadCount();
-        assertThat(originalReadsCount, lessThan(readsCountAfterFirstReLoad));
+        assertThat(originalReadsCount).isLessThan(readsCountAfterFirstReLoad);
 
         // ensure role permission for roleB is reloaded
-        assertTrue(authorizationProxy.authorize(roleBSubject, "queryNames", null));
+        assertThat(authorizationProxy.authorize(roleBSubject, "queryNames", null)).isTrue();
         long readsCountAfterSecondReLoad = getRolePermissionsReadCount();
-        assertThat(readsCountAfterFirstReLoad, lessThan(readsCountAfterSecondReLoad));
+        assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
     }
 
     private static Subject subject(String roleName)

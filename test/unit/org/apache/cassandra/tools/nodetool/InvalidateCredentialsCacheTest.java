@@ -36,10 +36,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InvalidateCredentialsCacheTest extends CQLTester
@@ -119,7 +116,7 @@ public class InvalidateCredentialsCacheTest extends CQLTester
                         "            List of roles to invalidate. By default, all roles\n" +
                         "\n" +
                         "\n";
-        assertThat(tool.getStdout(), equalTo(help));
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -130,17 +127,17 @@ public class InvalidateCredentialsCacheTest extends CQLTester
         long originalReadsCount = getRolesReadCount();
 
         // enure credential is cached
-        assertThat(roleANegotiator.getAuthenticatedUser(), equalTo(new AuthenticatedUser(ROLE_A.getRoleName())));
-        assertThat(originalReadsCount, equalTo(getRolesReadCount()));
+        assertThat(roleANegotiator.getAuthenticatedUser()).isEqualTo(new AuthenticatedUser(ROLE_A.getRoleName()));
+        assertThat(originalReadsCount).isEqualTo(getRolesReadCount());
 
         // invalidate credential
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatecredentialscache", ROLE_A.getRoleName());
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure credential is reloaded
-        assertThat(roleANegotiator.getAuthenticatedUser(), equalTo(new AuthenticatedUser(ROLE_A.getRoleName())));
-        assertThat(originalReadsCount, lessThan(getRolesReadCount()));
+        assertThat(roleANegotiator.getAuthenticatedUser()).isEqualTo(new AuthenticatedUser(ROLE_A.getRoleName()));
+        assertThat(originalReadsCount).isLessThan(getRolesReadCount());
     }
 
     @Test
@@ -152,23 +149,23 @@ public class InvalidateCredentialsCacheTest extends CQLTester
         long originalReadsCount = getRolesReadCount();
 
         // enure credentials are cached
-        assertThat(roleANegotiator.getAuthenticatedUser(), equalTo(new AuthenticatedUser(ROLE_A.getRoleName())));
-        assertThat(roleBNegotiator.getAuthenticatedUser(), equalTo(new AuthenticatedUser(ROLE_B.getRoleName())));
-        assertThat(originalReadsCount, equalTo(getRolesReadCount()));
+        assertThat(roleANegotiator.getAuthenticatedUser()).isEqualTo(new AuthenticatedUser(ROLE_A.getRoleName()));
+        assertThat(roleBNegotiator.getAuthenticatedUser()).isEqualTo(new AuthenticatedUser(ROLE_B.getRoleName()));
+        assertThat(originalReadsCount).isEqualTo(getRolesReadCount());
 
         // invalidate both credentials
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatecredentialscache");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure credential for roleA is reloaded
-        assertThat(roleANegotiator.getAuthenticatedUser(), equalTo(new AuthenticatedUser(ROLE_A.getRoleName())));
+        assertThat(roleANegotiator.getAuthenticatedUser()).isEqualTo(new AuthenticatedUser(ROLE_A.getRoleName()));
         long readsCountAfterFirstReLoad = getRolesReadCount();
-        assertThat(originalReadsCount, lessThan(readsCountAfterFirstReLoad));
+        assertThat(originalReadsCount).isLessThan(readsCountAfterFirstReLoad);
 
         // ensure credential for roleB is reloaded
-        assertThat(roleBNegotiator.getAuthenticatedUser(), equalTo(new AuthenticatedUser(ROLE_B.getRoleName())));
+        assertThat(roleBNegotiator.getAuthenticatedUser()).isEqualTo(new AuthenticatedUser(ROLE_B.getRoleName()));
         long readsCountAfterSecondReLoad = getRolesReadCount();
-        assertThat(readsCountAfterFirstReLoad, lessThan(readsCountAfterSecondReLoad));
+        assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
     }
 }

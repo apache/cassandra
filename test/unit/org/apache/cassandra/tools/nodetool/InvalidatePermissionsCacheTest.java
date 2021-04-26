@@ -36,10 +36,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolePermissionsReadCount;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InvalidatePermissionsCacheTest extends CQLTester
@@ -113,7 +110,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "            The user followed by one or many resources. By default, all users\n" +
                         "\n" +
                         "\n";
-        assertThat(tool.getStdout(), equalTo(help));
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -129,18 +126,18 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         long originalReadsCount = getRolePermissionsReadCount();
 
         // enure permission is cached
-        assertThat(role.getPermissions(rootDataResource), equalTo(dataPermissions));
-        assertThat(originalReadsCount, equalTo(getRolePermissionsReadCount()));
+        assertThat(role.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate permission
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatepermissionscache",
                 ROLE_A.getRoleName(), "data");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure permission is reloaded
-        assertThat(role.getPermissions(rootDataResource), equalTo(dataPermissions));
-        assertThat(originalReadsCount, lessThan(getRolePermissionsReadCount()));
+        assertThat(role.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(originalReadsCount).isLessThan(getRolePermissionsReadCount());
     }
 
     @Test
@@ -158,23 +155,23 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         long originalReadsCount = getRolePermissionsReadCount();
 
         // enure permissions are cached
-        assertThat(roleA.getPermissions(rootDataResource), equalTo(dataPermissions));
-        assertThat(roleB.getPermissions(rootDataResource), equalTo(dataPermissions));
-        assertThat(originalReadsCount, equalTo(getRolePermissionsReadCount()));
+        assertThat(roleA.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(roleB.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate both permissions
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatepermissionscache");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure permission for roleA is reloaded
-        assertThat(roleA.getPermissions(rootDataResource), equalTo(dataPermissions));
+        assertThat(roleA.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
         long readsCountAfterFirstReLoad = getRolePermissionsReadCount();
-        assertThat(originalReadsCount, lessThan(readsCountAfterFirstReLoad));
+        assertThat(originalReadsCount).isLessThan(readsCountAfterFirstReLoad);
 
         // ensure permission for roleB is reloaded
-        assertThat(roleB.getPermissions(rootDataResource), equalTo(dataPermissions));
+        assertThat(roleB.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
         long readsCountAfterSecondReLoad = getRolePermissionsReadCount();
-        assertThat(readsCountAfterFirstReLoad, lessThan(readsCountAfterSecondReLoad));
+        assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
     }
 }

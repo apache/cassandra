@@ -32,11 +32,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 import static org.apache.cassandra.auth.AuthTestUtils.getRolesReadCount;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class InvalidateRolesCacheTest extends CQLTester
@@ -103,7 +99,7 @@ public class InvalidateRolesCacheTest extends CQLTester
                         "            List of roles to invalidate. By default, all roles\n" +
                         "\n" +
                         "\n";
-        assertThat(tool.getStdout(), equalTo(help));
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
@@ -116,17 +112,17 @@ public class InvalidateRolesCacheTest extends CQLTester
         long originalReadsCount = getRolesReadCount();
 
         // enure role is cached
-        assertTrue(role.canLogin());
-        assertThat(originalReadsCount, equalTo(getRolesReadCount()));
+        assertThat(role.canLogin()).isTrue();
+        assertThat(originalReadsCount).isEqualTo(getRolesReadCount());
 
         // invalidate role
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidaterolescache", ROLE_A.getRoleName());
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure role is reloaded
-        assertTrue(role.canLogin());
-        assertThat(originalReadsCount, lessThan(getRolesReadCount()));
+        assertThat(role.canLogin()).isTrue();
+        assertThat(originalReadsCount).isLessThan(getRolesReadCount());
     }
 
     @Test
@@ -141,23 +137,23 @@ public class InvalidateRolesCacheTest extends CQLTester
         long originalReadsCount = getRolesReadCount();
 
         // enure roles are cached
-        assertTrue(roleA.canLogin());
-        assertTrue(roleB.canLogin());
-        assertThat(originalReadsCount, equalTo(getRolesReadCount()));
+        assertThat(roleA.canLogin()).isTrue();
+        assertThat(roleB.canLogin()).isTrue();
+        assertThat(originalReadsCount).isEqualTo(getRolesReadCount());
 
         // invalidate both roles
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidaterolescache");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout(), emptyString());
+        assertThat(tool.getStdout()).isEmpty();
 
         // ensure role for roleA is reloaded
-        assertTrue(roleA.canLogin());
+        assertThat(roleA.canLogin()).isTrue();
         long readsCountAfterFirstReLoad = getRolesReadCount();
-        assertThat(originalReadsCount, lessThan(readsCountAfterFirstReLoad));
+        assertThat(originalReadsCount).isLessThan(readsCountAfterFirstReLoad);
 
         // ensure role for roleB is reloaded
-        assertTrue(roleB.canLogin());
+        assertThat(roleB.canLogin()).isTrue();
         long readsCountAfterSecondReLoad = getRolesReadCount();
-        assertThat(readsCountAfterFirstReLoad, lessThan(readsCountAfterSecondReLoad));
+        assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
     }
 }
