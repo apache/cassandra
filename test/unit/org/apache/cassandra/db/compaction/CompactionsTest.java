@@ -23,9 +23,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -74,12 +79,17 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NonThrowingCloseable;
+import org.mockito.Mockito;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 public class CompactionsTest
 {
@@ -565,5 +575,72 @@ public class CompactionsTest
         assertEquals(3, CompactionManager.instance.getCoreCompactorThreads());
         CompactionManager.instance.setConcurrentCompactors(1);
         assertEquals(1, CompactionManager.instance.getCoreCompactorThreads());
+    }
+
+    @Test
+    public void testCompactionsCanBeInterrupted() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        store.clearUnsafe();
+
+        // disable compaction while flushing
+        store.disableAutoCompaction();
+
+        // Write a bit of data
+        for (int j = 0; j < 2; j++)
+        {
+            for (int i = 1; i < 100; i++)
+            {
+                new RowUpdateBuilder(store.metadata(), 0, ByteBufferUtil.bytes("key" + i))
+                .clustering("Column1")
+                .add("val", ByteBufferUtil.bytes("abcd"))
+                .build()
+                .apply();
+            }
+
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        }
+
+        assertTrue(store.getLiveSSTables().size() >= 2);
+
+        // Enable compaction but do not submit any background compactions
+        store.getCompactionStrategyManager().enable();
+
+        CountDownLatch compactionRegistered = new CountDownLatch(1);
+        CountDownLatch resumeCompaction = new CountDownLatch(1);
+        TableOperationObserver obs = Mockito.mock(TableOperationObserver.class);
+
+        when(obs.onOperationStart(any(TableOperation.class))).thenAnswer(invocation -> {
+            NonThrowingCloseable ret = CompactionManager.instance.active.onOperationStart(invocation.getArgument(0));
+            compactionRegistered.countDown(); // this makes sure we don't attempt to interrupt a compaction before it has registered
+            resumeCompaction.await(); // this will block the compaction just after it has registered so that we can interrupt it before it even starts
+            return ret;
+        });
+
+        List<Future<?>> compactions = CompactionManager.instance.submitMaximal(store, FBUtilities.nowInSeconds(), false, obs);
+        assertEquals("Expected one compaction to be submitted", 1, compactions.size());
+
+        // Wait for compaction to register with its operation observer (the metrics)
+        compactionRegistered.await(1, TimeUnit.MINUTES);
+
+        // Interrupt the compaction, this only works if CompactionManager.instance.active.onOperationStart() has already been called
+        boolean ret = CompactionManager.instance.interruptCompactionFor(ImmutableList.of(store.metadata()));
+        assertTrue("Compaction should have been interrupted", ret);
+
+        // Let the compaction continue running
+        resumeCompaction.countDown();
+
+        // Make sure the compactions was interrupted
+        try
+        {
+            compactions.get(0).get();
+            fail("Compaction should have been interrupted");
+        }
+        catch(Throwable t)
+        {
+            t = Throwables.getRootCause(t);
+            assertTrue(t.getMessage(), t instanceof CompactionInterruptedException);
+        }
     }
 }

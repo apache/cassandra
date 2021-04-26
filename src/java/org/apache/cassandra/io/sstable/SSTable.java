@@ -25,7 +25,6 @@ import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -43,10 +42,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.memory.HeapCloner;
 
@@ -176,6 +173,11 @@ public abstract class SSTable
     public String getKeyspaceName()
     {
         return descriptor.ksname;
+    }
+
+    public SSTableId getId()
+    {
+        return descriptor.id;
     }
 
     public List<String> getAllFilePaths()
@@ -435,5 +437,15 @@ public abstract class SSTable
         Preconditions.checkArgument(!isTransient || (pendingRepair != NO_PENDING_REPAIR),
                                     "isTransient can only be true for sstables pending repair");
 
+    }
+
+    public DecoratedKey getFirst()
+    {
+        return first;
+    }
+
+    public DecoratedKey getLast()
+    {
+        return last;
     }
 }

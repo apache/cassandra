@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.index;
 
-import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.AbstractTableOperation;
 
 /**
  * Manages building an entire index from column family data. Runs on to compaction manager.
  */
-public abstract class SecondaryIndexBuilder extends CompactionInfo.Holder
+public abstract class SecondaryIndexBuilder extends AbstractTableOperation
 {
     public abstract void build();
 

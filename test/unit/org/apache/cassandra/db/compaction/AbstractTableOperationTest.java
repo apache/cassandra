@@ -20,9 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -31,15 +29,15 @@ import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableId;
 import org.assertj.core.api.Assertions;
 
-public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
+public class AbstractTableOperationTest extends AbstractPendingAntiCompactionTest
 {
     @Test
-    public void testCompactionInfoToStringContainsTaskId()
+    public void testAbstractTableOperationToStringContainsTaskId()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         UUID expectedTaskId = UUID.randomUUID();
-        CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, expectedTaskId, new ArrayList<>());
-        Assertions.assertThat(compactionInfo.toString())
+        AbstractTableOperation.OperationProgress task = new AbstractTableOperation.OperationProgress(cfs.metadata(), OperationType.COMPACTION, 0, 1000, expectedTaskId, new ArrayList<>());
+        Assertions.assertThat(task.toString())
                   .contains(expectedTaskId.toString());
     }
 
@@ -49,8 +47,9 @@ public class CompactionInfoTest extends AbstractPendingAntiCompactionTest
         UUID tableId = UUID.randomUUID();
         UUID taskId = UUID.randomUUID();
         ColumnFamilyStore cfs = MockSchema.newCFS(builder -> builder.id(TableId.fromUUID(tableId)));
-        CompactionInfo compactionInfo = new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, 0, 1000, taskId, new ArrayList<>());
-        Assertions.assertThat(compactionInfo.toString())
-                  .isEqualTo("Compaction(%s, 0 / 1000 bytes)@%s(mockks, mockcf1)", taskId, tableId);
+        AbstractTableOperation.OperationProgress task = new AbstractTableOperation.OperationProgress(cfs.metadata(), OperationType.COMPACTION, 0, 1000, taskId, new ArrayList<>());
+        Assertions.assertThat(task.toString())
+                  .isEqualTo("Compaction(%s, 0 / 1000 bytes)@%s(%s, %s)",
+                             taskId, tableId, cfs.getKeyspaceName(), cfs.getTableName());
     }
 }

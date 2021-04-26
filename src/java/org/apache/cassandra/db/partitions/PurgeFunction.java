@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.partitions;
 
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;

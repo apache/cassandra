@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import com.google.common.util.concurrent.Futures;
@@ -44,8 +43,7 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.compaction.CompactionInfo;
-import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
+import org.apache.cassandra.db.compaction.AbstractTableOperation;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -63,7 +61,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Refs;
 
-public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<Long>
+public class ViewBuilderTask extends AbstractTableOperation implements Callable<Long>
 {
     private static final Logger logger = LoggerFactory.getLogger(ViewBuilderTask.class);
 
@@ -191,12 +189,12 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
             // If it's stopped due to a compaction interruption we should throw that exception.
             // Otherwise we assume that the task has been stopped due to a schema update and we can finish successfully.
             if (isCompactionInterrupted)
-                throw new StoppedException(ksName, view.name, getCompactionInfo());
+                throw new StoppedException(ksName, view.name, getProgress());
         }
     }
 
     @Override
-    public CompactionInfo getCompactionInfo()
+    public OperationProgress getProgress()
     {
         // we don't know the sstables at construction of ViewBuilderTask and we could change this to return once we know the
         // but since we basically only cancel view builds on truncation where we cancel all compactions anyway, this seems reasonable
@@ -205,13 +203,13 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
         if (range.left.getPartitioner().splitter().isPresent())
         {
             long progress = prevToken == null ? 0 : Math.round(prevToken.getPartitioner().splitter().get().positionInRange(prevToken, range) * 1000);
-            return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, Unit.RANGES, compactionId);
+            return OperationProgress.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, progress, 1000, Unit.RANGES, compactionId);
         }
 
         // When there is no splitter, estimate based on number of total keys but
         // take the max with keysBuilt + 1 to avoid having more completed than total
         long keysTotal = Math.max(keysBuilt + 1, baseCfs.estimatedKeysForRange(range));
-        return CompactionInfo.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, keysBuilt, keysTotal, Unit.KEYS, compactionId);
+        return OperationProgress.withoutSSTables(baseCfs.metadata(), OperationType.VIEW_BUILD, keysBuilt, keysTotal, Unit.KEYS, compactionId);
     }
 
     @Override
@@ -248,7 +246,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
     {
         private final String ksName, viewName;
 
-        private StoppedException(String ksName, String viewName, CompactionInfo info)
+        private StoppedException(String ksName, String viewName, OperationProgress info)
         {
             super(info);
             this.ksName = ksName;

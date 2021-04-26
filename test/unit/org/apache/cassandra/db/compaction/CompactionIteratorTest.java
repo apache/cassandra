@@ -334,12 +334,13 @@ public class CompactionIteratorTest extends CQLTester
                                                               Lists.transform(content, x -> new Scanner(x)),
                                                               controller, NOW, null))
         {
+            TableOperation op = iter.getOperation();
             assertTrue(iter.hasNext());
             UnfilteredRowIterator rows = iter.next();
             assertTrue(rows.hasNext());
             assertNotNull(rows.next());
 
-            iter.stop();
+            op.stop();
             try
             {
                 // Will call Transformation#applyToRow
@@ -367,7 +368,8 @@ public class CompactionIteratorTest extends CQLTester
                                                               Lists.transform(content, x -> new Scanner(x)),
                                                               controller, NOW, null))
         {
-            iter.stop();
+            TableOperation op = iter.getOperation();
+            op.stop();
             try
             {
                 // Will call Transformation#applyToPartition
@@ -454,6 +456,12 @@ public class CompactionIteratorTest extends CQLTester
         public Set<SSTableReader> getBackingSSTables()
         {
             return ImmutableSet.of();
+        }
+
+        @Override
+        public int level()
+        {
+            return 0;
         }
     }
 

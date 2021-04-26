@@ -47,7 +47,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -284,7 +283,7 @@ public class Util
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore))
         {
             for (AbstractCompactionTask task : tasks)
-                task.execute(ActiveCompactionsTracker.NOOP);
+                task.execute();
         }
     }
 

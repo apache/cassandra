@@ -19,6 +19,14 @@ package org.apache.cassandra.db.compaction;
 
 import com.google.common.base.Predicate;
 
+/**
+ * The types of operations that can be observed with {@link AbstractTableOperation} and tracked by
+ * {@link org.apache.cassandra.db.lifecycle.LifecycleTransaction}.
+ * <p/>
+ * Historically these operations have been broadly described as "compactions", even though they have
+ * nothing to do with actual compactions. Any operation that can report progress and that normally
+ * involves files, either for reading or writing, is a valid operation.
+ */
 public enum OperationType
 {
     /** Each modification here should be also applied to {@link org.apache.cassandra.tools.nodetool.Stop#compactionType} */
