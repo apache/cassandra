@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
-~ Licensed to the Apache Software Foundation (ASF) under one
-~ or more contributor license agreements.  See the NOTICE file
-~ distributed with this work for additional information
-~ regarding copyright ownership.  The ASF licenses this file
-~ to you under the Apache License, Version 2.0 (the
-~ "License"); you may not use this file except in compliance
-~ with the License.  You may obtain a copy of the License at
-~
-~    https://www.apache.org/licenses/LICENSE-2.0
-~
-~ Unless required by applicable law or agreed to in writing,
-~ software distributed under the License is distributed on an
-~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-~ KIND, either express or implied.  See the License for the
-~ specific language governing permissions and limitations
-~ under the License.
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 -->
 <project basedir="." name="apache-cassandra--rat-tasks"
          xmlns:artifact="antlib:org.apache.maven.artifact.ant"
@@ -24,9 +22,6 @@
     <!--
       License audit tool
     -->
-    <condition property="rat.enabled">
-        <available file=".gitignore" />
-    </condition>
 
     <target name="_rat_init" depends="maven-ant-tasks-init">
         <artifact:dependencies pathId="rat.classpath">
@@ -37,34 +32,46 @@
         <typedef uri="antlib:org.apache.rat.anttasks" classpathref="rat.classpath"/>
     </target>
 
-    <target name="rat-check" depends="_rat_init" if="${rat.enabled}" description="License checks on source" >
+    <target name="_build_ratinclude" depends="_rat_init">
+        <exec executable="git" failifexecutionfails="true" failonerror="true" output="build/.versioned_files">
+            <arg line="ls-tree -r HEAD --name-only"/>
+        </exec>
+        <copy file="build/.versioned_files" tofile="build/.ratinclude">
+            <filterchain>
+                <linecontainsregexp>
+                    <regexp pattern=".*\.(java|py|sh|xml|spec|md|iml|bat|btm|cql|css|g|html|jflex|jks|mod|name|pom|textile|yml|yaml|MIDRES|HIGHRES|LOWRES)$"/>
+                </linecontainsregexp>
+            </filterchain>
+        </copy>
+    </target>
+
+    <target name="rat-check" depends="_build_ratinclude" unless="${rat.skip}" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
-            <fileset dir="."
-                     includes="**/*.java,**/*.py,**/*.sh,**/.xml,**/*.spec,**/*.md,**/*.iml,**/*.bat,**/*.btm,**/*.cql,**/*.css,**/*.g,**/*.hmtl,**/*.jflex,**/*.jks,**/*.mod,**/*.name,**/*.pom,**/*.textile,**/*.yml,**/*.yaml,**/*.HIGHRES,**/*.LOWRES"
-                     excludesfile=".gitignore">
-                     <!-- Config files with not much creativity -->
-                     <exclude name="**/metrics-reporter-config-sample.yaml"/>
-                     <exclude name="**/cassandra.yaml"/>
-                     <exclude name="**/cassandra-murmur.yaml"/>
-                     <exclude name="**/cassandra-seeds.yaml"/>
-                     <exclude name="**/test/conf/cassandra.yaml"/>
-                     <exclude name="**/test/conf/cassandra_encryption.yaml"/>
-                     <exclude name="**/test/conf/cdc.yaml"/>
-                     <exclude name="**/test/conf/commitlog_compression_LZ4.yaml"/>
-                     <exclude name="**/test/conf/commitlog_compression_Zstd.yaml"/>
-                     <exclude name="**/test/conf/system_keyspaces_directory.yaml"/>
-                     <exclude name="**/test/conf/unit-test-conf/test-native-port.yaml"/>
-                     <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
-                     <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
-                     <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
-                     <exclude name="**/tools/cqlstress-counter-example.yaml"/>
-                     <exclude name="**/tools/cqlstress-example.yaml"/>
-                     <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
-                     <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
-                     <!-- NOTICE files -->
-                     <exclude NAME="**/NOTICE.md"/>
-                     <!-- LICENSE files -->
-                     <exclude NAME="**/LICENSE.md"/>
+            <fileset dir="." includesfile="build/.ratinclude" >
+				 <!-- Config files with not much creativity -->
+				 <exclude name="**/ide/**/*"/>
+				 <exclude name="**/metrics-reporter-config-sample.yaml"/>
+				 <exclude name="**/cassandra.yaml"/>
+				 <exclude name="**/cassandra-murmur.yaml"/>
+				 <exclude name="**/cassandra-seeds.yaml"/>
+				 <exclude name="**/test/conf/cassandra.yaml"/>
+				 <exclude name="**/test/conf/cassandra_encryption.yaml"/>
+				 <exclude name="**/test/conf/cdc.yaml"/>
+				 <exclude name="**/test/conf/commitlog_compression_LZ4.yaml"/>
+				 <exclude name="**/test/conf/commitlog_compression_Zstd.yaml"/>
+				 <exclude name="**/test/conf/system_keyspaces_directory.yaml"/>
+				 <exclude name="**/test/conf/unit-test-conf/test-native-port.yaml"/>
+				 <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
+				 <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
+				 <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
+				 <exclude name="**/tools/cqlstress-counter-example.yaml"/>
+				 <exclude name="**/tools/cqlstress-example.yaml"/>
+				 <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
+				 <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
+				 <!-- NOTICE files -->
+				 <exclude NAME="**/NOTICE.md"/>
+				 <!-- LICENSE files -->
+				 <exclude NAME="**/LICENSE.md"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
