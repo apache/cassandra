@@ -211,7 +211,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                 {
                     View view = cfStore.getTracker().getView();
                     allSSTables = ImmutableSet.copyOf(SSTableReader.selectOnlyBigTableReaders(view.select(SSTableSet.CANONICAL)));
-                    nonCompacting = ImmutableSet.copyOf(SSTableReader.selectOnlyBigTableReaders(view.getUncompacting(allSSTables)));
+                    nonCompacting = ImmutableSet.copyOf(SSTableReader.selectOnlyBigTableReaders(view.getNoncompacting(allSSTables)));
                 }
                 while (null == (txn = cfStore.getTracker().tryModify(nonCompacting, OperationType.INDEX_SUMMARY)));
 

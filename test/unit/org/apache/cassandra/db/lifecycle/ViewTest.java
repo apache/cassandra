@@ -103,8 +103,8 @@ public class ViewTest
         Assert.assertFalse(View.permitCompacting(readers.subList(0, 2)).apply(cur));
         Assert.assertFalse(View.permitCompacting(readers.subList(0, 1)).apply(cur));
         Assert.assertFalse(View.permitCompacting(readers.subList(1, 2)).apply(cur));
-        Assert.assertTrue(readers.subList(2, 5).containsAll(copyOf(cur.getUncompacting(readers))));
-        Assert.assertEquals(3, copyOf(cur.getUncompacting(readers)).size());
+        Assert.assertTrue(readers.subList(2, 5).containsAll(copyOf(cur.getNoncompacting(readers))));
+        Assert.assertEquals(3, copyOf(cur.getNoncompacting(readers)).size());
         Assert.assertTrue(ImmutableSet.copyOf(cur.select(SSTableSet.NONCOMPACTING)).containsAll(readers.subList(2, 5)));
         Assert.assertEquals(3, ImmutableSet.copyOf(cur.select(SSTableSet.NONCOMPACTING)).size());
 
@@ -132,8 +132,8 @@ public class ViewTest
         Assert.assertFalse(View.permitCompacting(readers.subList(1, 2)).apply(cur));
         testFailure(View.updateCompacting(emptySet(), readers.subList(1, 2)), cur);
         testFailure(View.updateCompacting(copyOf(readers.subList(0, 2)), emptySet()), cur);
-        Assert.assertTrue(copyOf(concat(readers.subList(0, 1), readers.subList(2, 5))).containsAll(copyOf(cur.getUncompacting(readers))));
-        Assert.assertEquals(4, copyOf(cur.getUncompacting(readers)).size());
+        Assert.assertTrue(copyOf(concat(readers.subList(0, 1), readers.subList(2, 5))).containsAll(copyOf(cur.getNoncompacting(readers))));
+        Assert.assertEquals(4, copyOf(cur.getNoncompacting(readers)).size());
         Set<SSTableReader> nonCompacting = ImmutableSet.copyOf(cur.select(SSTableSet.NONCOMPACTING));
         Assert.assertTrue(nonCompacting.containsAll(readers.subList(2, 5)));
         Assert.assertTrue(nonCompacting.containsAll(readers.subList(0, 1)));

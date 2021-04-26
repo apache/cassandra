@@ -73,7 +73,7 @@ class LeveledGenerations
     private final TreeSet<SSTableReader> [] levels = new TreeSet[MAX_LEVEL_COUNT - 1];
 
     private static final Comparator<SSTableReader> nonL0Comparator = (o1, o2) -> {
-        int cmp = SSTableReader.sstableComparator.compare(o1, o2);
+        int cmp = SSTableReader.firstKeyComparator.compare(o1, o2);
         if (cmp == 0)
             cmp = SSTableIdFactory.COMPARATOR.compare(o1.descriptor.id, o2.descriptor.id);
         return cmp;
@@ -152,8 +152,8 @@ class LeveledGenerations
             SSTableReader after = level.ceiling(sstable);
             SSTableReader before = level.floor(sstable);
 
-            if (before != null && before.last.compareTo(sstable.first) >= 0 ||
-                after != null && after.first.compareTo(sstable.last) <= 0)
+            if (before != null && before.getLast().compareTo(sstable.getFirst()) >= 0 ||
+                after != null && after.getFirst().compareTo(sstable.getLast()) <= 0)
             {
                 sendToL0(sstable);
             }
@@ -254,7 +254,7 @@ class LeveledGenerations
         while (tail.hasNext())
         {
             SSTableReader potentialPivot = tail.peek();
-            if (potentialPivot.first.compareTo(lastCompactedSSTable.last) > 0)
+            if (potentialPivot.getFirst().compareTo(lastCompactedSSTable.getLast()) > 0)
             {
                 pivot = potentialPivot;
                 break;
@@ -312,7 +312,7 @@ class LeveledGenerations
             for (SSTableReader sstable : get(i))
             {
                 // no overlap:
-                assert prev == null || prev.last.compareTo(sstable.first) < 0;
+                assert prev == null || prev.getLast().compareTo(sstable.getFirst()) < 0;
                 prev = sstable;
                 // make sure it does not exist in any other level:
                 for (int j = 0; j < levelCount(); j++)

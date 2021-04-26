@@ -29,12 +29,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import com.codahale.metrics.Counter;
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.TableMetadata;
@@ -109,7 +112,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
     }
 
-    private final Tracker tracker;
     private final LogFile txnFile;
     // We need an explicit lock because the transaction tidier cannot store a reference to the transaction
     private final Object lock;
@@ -122,12 +124,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
     LogTransaction(OperationType opType)
     {
-        this(opType, null);
-    }
-
-    LogTransaction(OperationType opType, Tracker tracker)
-    {
-        this.tracker = tracker;
         this.txnFile = new LogFile(opType, UUIDGen.getTimeUUID());
         this.lock = new Object();
         this.selfRef = new Ref<>(this, new TransactionTidier(txnFile, lock));
@@ -167,13 +163,13 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     @VisibleForTesting
     SSTableTidier obsoleted(SSTableReader sstable)
     {
-        return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable));
+        return obsoleted(sstable, LogRecord.make(Type.REMOVE, sstable), null);
     }
 
     /**
      * Schedule a reader for deletion as soon as it is fully unreferenced.
      */
-    SSTableTidier obsoleted(SSTableReader reader, LogRecord logRecord)
+    SSTableTidier obsoleted(SSTableReader reader, LogRecord logRecord, @Nullable Tracker tracker)
     {
         synchronized (lock)
         {
@@ -185,7 +181,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 if (txnFile.contains(Type.REMOVE, reader, logRecord))
                     throw new IllegalArgumentException();
 
-                return new SSTableTidier(reader, true, this);
+                return new SSTableTidier(reader, true, this, tracker);
             }
 
             txnFile.addRecord(logRecord);
@@ -193,7 +189,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             if (tracker != null)
                 tracker.notifyDeleting(reader);
 
-            return new SSTableTidier(reader, false, this);
+            return new SSTableTidier(reader, false, this, tracker);
         }
     }
 
@@ -354,15 +350,17 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         private final boolean wasNew;
         private final Object lock;
         private final Ref<LogTransaction> parentRef;
+        private final boolean onlineTxn;
         private final Counter totalDiskSpaceUsed;
 
-        public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent)
+        public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent, Tracker tracker)
         {
             this.desc = referent.descriptor;
             this.sizeOnDisk = referent.bytesOnDisk();
             this.wasNew = wasNew;
             this.lock = parent.lock;
             this.parentRef = parent.selfRef.tryRef();
+            this.onlineTxn = tracker != null && !tracker.isDummy();
 
             if (this.parentRef == null)
                 throw new IllegalStateException("Transaction already completed");
@@ -370,8 +368,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             // While the parent cfs may be dropped in the interim of us taking a reference to this and using it, at worst
             // we'll be updating a metric for a now dropped ColumnFamilyStore. We do not hold a reference to the tracker or
             // cfs as that would create a strong ref loop and violate our ability to do leak detection.
-            totalDiskSpaceUsed = parent.tracker != null && parent.tracker.cfstore != null ?
-                                 parent.tracker.cfstore.metric.totalDiskSpaceUsed :
+            totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ?
+                                 tracker.cfstore.metric.totalDiskSpaceUsed :
                                  null;
         }
 

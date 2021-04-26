@@ -176,7 +176,11 @@ public class CompactionStrategyManager implements INotificationConsumer
         this.partitionSSTablesByTokenRange = partitionSSTablesByTokenRange;
         params = cfs.metadata().params.compaction;
         enabled = params.isEnabled();
-        reload(cfs.metadata().params.compaction);
+    }
+
+    CompactionLogger compactionLogger()
+    {
+        return compactionLogger;
     }
 
     /**
@@ -253,7 +257,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             if (txn != null)
             {
                 logger.debug("Running automatic sstable upgrade for {}", sstable);
-                return getCompactionStrategyFor(sstable).getCompactionTask(txn, Integer.MIN_VALUE, Long.MAX_VALUE);
+                return getCompactionStrategyFor(sstable).createCompactionTask(txn, Integer.MIN_VALUE, Long.MAX_VALUE);
             }
         }
         return null;
@@ -470,6 +474,22 @@ public class CompactionStrategyManager implements INotificationConsumer
     }
 
     /**
+     * Version of the above forcing the strategy to always be reloaded. Used by tests that need to clear the state.
+     */
+    public void forceReload()
+    {
+        writeLock.lock();
+        try
+        {
+            reload(schemaCompactionParams);
+        }
+        finally
+        {
+            writeLock.unlock();
+        }
+    }
+
+    /**
      * Checks if the disk boundaries changed and reloads the compaction strategies
      * to reflect the most up-to-date disk boundaries.
      *
@@ -506,7 +526,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Called after changing configuration and at startup.
      * @param newCompactionParams
      */
-    private void reload(CompactionParams newCompactionParams)
+    public void reload(CompactionParams newCompactionParams)
     {
         boolean enabledWithJMX = enabled && !shouldBeEnabled();
         boolean disabledWithJMX = !enabled && shouldBeEnabled();
@@ -883,7 +903,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         try
         {
             validateForCompaction(txn.originals());
-            return compactionStrategyFor(txn.originals().iterator().next()).getCompactionTask(txn, gcBefore, maxSSTableBytes);
+            return compactionStrategyFor(txn.originals().iterator().next()).createCompactionTask(txn, gcBefore, maxSSTableBytes);
         }
         finally
         {
@@ -1001,7 +1021,14 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public List<List<AbstractCompactionStrategy>> getStrategies()
     {
-        maybeReloadDiskBoundaries();
+        return getStrategies(true);
+    }
+
+    private List<List<AbstractCompactionStrategy>> getStrategies(boolean checkBoundaries)
+    {
+        if (checkBoundaries)
+            maybeReloadDiskBoundaries();
+
         readLock.lock();
         try
         {
@@ -1013,6 +1040,18 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
+    }
+
+    /**
+     * @return the statistics for the compaction strategies that have compactions in progress or pending
+     */
+    public List<CompactionStrategyStatistics> getStrategyStatistics()
+    {
+        return getStrategies(false).stream()
+                                   .flatMap(list -> list.stream())
+                                   .filter(strategy -> strategy.getTotalCompactions() > 0)
+                                   .map(AbstractCompactionStrategy::getStatistics)
+                                   .collect(Collectors.toList());
     }
 
     public void setNewLocalCompactionStrategy(CompactionParams params)

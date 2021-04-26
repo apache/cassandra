@@ -30,7 +30,6 @@ import java.util.UUID;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -86,7 +85,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                     while (!keys.isExhausted())
                     {
                         if (isStopRequested())
-                            throw new CompactionInterruptedException(getCompactionInfo());
+                            throw new CompactionInterruptedException(getProgress());
 
                         final DecoratedKey key = sstable.decorateKey(keys.key());
                         final long keyPosition = keys.keyPosition();
@@ -123,14 +122,15 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
         }
     }
 
-    public CompactionInfo getCompactionInfo()
+    @Override
+    public OperationProgress getProgress()
     {
-        return new CompactionInfo(cfs.metadata(),
-                                  OperationType.INDEX_BUILD,
-                                  bytesProcessed,
-                                  totalSizeInBytes,
-                                  compactionId,
-                                  sstables.keySet());
+        return new OperationProgress(cfs.metadata(),
+                                     OperationType.INDEX_BUILD,
+                                     bytesProcessed,
+                                     totalSizeInBytes,
+                                     compactionId,
+                                     sstables.keySet());
     }
 
     private void completeSSTable(PerSSTableIndexWriter indexWriter, SSTableReader sstable, Collection<ColumnIndex> indexes)

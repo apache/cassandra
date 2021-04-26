@@ -238,4 +238,9 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         return cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
     }
+
+    public long bytesWritten()
+    {
+        return sstableWriter.bytesWritten();
+    }
 }

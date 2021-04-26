@@ -306,7 +306,7 @@ public class CompactionsPurgeTest
         cfs.forceBlockingFlush(UNIT_TESTS);
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
         {
-            Iterables.getOnlyElement(tasks).execute(ActiveCompactionsTracker.NOOP);
+            Iterables.getOnlyElement(tasks).execute();
         }
 
         // verify that minor compaction does GC when key is provably not
@@ -358,7 +358,7 @@ public class CompactionsPurgeTest
         // compact the sstables with the c1/c2 data and the c1 tombstone
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
         {
-            Iterables.getOnlyElement(tasks).execute(ActiveCompactionsTracker.NOOP);
+            Iterables.getOnlyElement(tasks).execute();
         }
 
         // We should have both the c1 and c2 tombstones still. Since the min timestamp in the c2 tombstone

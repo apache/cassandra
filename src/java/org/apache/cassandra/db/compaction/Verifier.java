@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.*;
@@ -252,7 +253,7 @@ public class Verifier implements Closeable
             {
 
                 if (verifyInfo.isStopRequested())
-                    throw new CompactionInterruptedException(verifyInfo.getCompactionInfo());
+                    throw new CompactionInterruptedException(verifyInfo.getProgress());
 
                 rowStart = dataFile.getFilePointer();
                 outputHandler.debug("Reading row at " + rowStart);
@@ -480,7 +481,7 @@ public class Verifier implements Closeable
             try
             {
                 sstable.mutateRepairedAndReload(ActiveRepairService.UNREPAIRED_SSTABLE, sstable.getPendingRepair(), sstable.isTransient());
-                cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
+                cfs.getTracker().notifySSTableRepairedStatusChanged(ImmutableList.of(sstable));
             }
             catch(IOException ioe)
             {
@@ -494,12 +495,12 @@ public class Verifier implements Closeable
             throw new RuntimeException(e);
     }
 
-    public CompactionInfo.Holder getVerifyInfo()
+    public AbstractTableOperation getVerifyInfo()
     {
         return verifyInfo;
     }
 
-    private static class VerifyInfo extends CompactionInfo.Holder
+    private static class VerifyInfo extends AbstractTableOperation
     {
         private final RandomAccessReader dataFile;
         private final SSTableReader sstable;
@@ -514,17 +515,17 @@ public class Verifier implements Closeable
             verificationCompactionId = UUIDGen.getTimeUUID();
         }
 
-        public CompactionInfo getCompactionInfo()
+        public OperationProgress getProgress()
         {
             fileReadLock.lock();
             try
             {
-                return new CompactionInfo(sstable.metadata(),
-                                          OperationType.VERIFY,
-                                          dataFile.getFilePointer(),
-                                          dataFile.length(),
-                                          verificationCompactionId,
-                                          ImmutableSet.of(sstable));
+                return new OperationProgress(sstable.metadata(),
+                                             OperationType.VERIFY,
+                                             dataFile.getFilePointer(),
+                                             dataFile.length(),
+                                             verificationCompactionId,
+                                             ImmutableSet.of(sstable));
             }
             catch (Exception e)
             {

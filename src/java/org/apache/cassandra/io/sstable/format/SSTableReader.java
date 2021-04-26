@@ -232,12 +232,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
     public static final class UniqueIdentifier {}
 
-    public static final Comparator<SSTableReader> sstableComparator = (o1, o2) -> o1.first.compareTo(o2.first);
+    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
 
     public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
     public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();
 
-    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
+    public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
 
     public static final Comparator<? super SSTableReader> sizeComparator = (o1, o2) -> Longs.compare(o1.onDiskLength(), o2.onDiskLength());
 
@@ -1096,6 +1096,21 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public RestorableMeter getReadMeter()
     {
         return readMeter;
+    }
+
+    /**
+     * Called by {@link org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy} and other compaction
+     * strategies to determine the read hotness of this sstables, this method returna a "read hotness" which is
+     * calculated by looking at the last two hours read rate and dividing this number by the estimated number of keys.
+     * <p/>
+     * Note that some system tables do not have read meters, in which case this method will return zero.
+     *
+     * @return the last two hours read rate per estimated key
+     */
+    public double hotness()
+    {
+        // system tables don't have read meters, just use 0.0 for the hotness
+        return readMeter == null ? 0.0 : readMeter.twoHourRate() / estimatedKeys();
     }
 
     public int getIndexSummarySamplingLevel()

@@ -1,0 +1,126 @@
+--- a/src/java/org/apache/cassandra/db/compaction/TimeWindowCompactionStrategy.java
++++ b/src/java/org/apache/cassandra/db/compaction/TimeWindowCompactionStrategy.java
+@@ -182,11 +182,7 @@
+     }
+ 
+     @Override
+-<<<<<<<
+-    protected synchronized Set<SSTableReader> getSSTables()
+-=======
+     void removeDeadSSTables()
+->>>>>>>
+     {
+         removeDeadSSTables(sstables);
+     }
+@@ -374,37 +370,7 @@
+                 ret.add(CompactionAggregate.createTimeTiered(bucket, selected, pending, key)); // add an empty aggregate anyway so we get a full view
+             }
+         }
+-<<<<<<<
+-        return new NewestBucket(sstables, estimatedRemainingTasks);
+-    }
+-
+-    /**
+-     * @param bucket set of sstables
+-     * @param maxThreshold maximum number of sstables in a single compaction task.
+-     * @return A bucket trimmed to the maxThreshold newest sstables.
+-     */
+-    @VisibleForTesting
+-    static List<SSTableReader> trimToThreshold(Set<SSTableReader> bucket, int maxThreshold)
+-    {
+-        List<SSTableReader> ssTableReaders = new ArrayList<>(bucket);
+-
+-        // Trim the largest sstables off the end to meet the maxThreshold
+-        Collections.sort(ssTableReaders, SSTableReader.sizeComparator);
+-
+-        return ImmutableList.copyOf(Iterables.limit(ssTableReaders, maxThreshold));
+-    }
+-
+-    @Override
+-    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
+-    public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
+-    {
+-        Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
+-        if (Iterables.isEmpty(filteredSSTables))
+-            return null;
+-        LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
+-        if (txn == null)
+-            return null;
+-        return Collections.singleton(new TimeWindowCompactionTask(cfs, txn, gcBefore, options.ignoreOverlaps));
++        return ret;
+     }
+ 
+     /**
+@@ -421,25 +387,6 @@
+         return groups;
+     }
+ 
+-    @Override
+-    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
+-    public synchronized AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+-    {
+-        assert !sstables.isEmpty(); // checked for by CM.submitUserDefined
+-
+-        LifecycleTransaction modifier = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+-        if (modifier == null)
+-        {
+-            logger.debug("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+-            return null;
+-        }
+-
+-        return new TimeWindowCompactionTask(cfs, modifier, gcBefore, options.ignoreOverlaps).setUserDefined(true);
+-=======
+-        return ret;
+->>>>>>>
+-    }
+-
+     boolean ignoreOverlaps()
+     {
+         return options.ignoreOverlaps;
+--- a/test/unit/org/apache/cassandra/db/compaction/TimeWindowCompactionStrategyTest.java
++++ b/test/unit/org/apache/cassandra/db/compaction/TimeWindowCompactionStrategyTest.java
+@@ -28,11 +28,7 @@
+ import java.util.concurrent.TimeUnit;
+ import java.util.stream.Collectors;
+ 
+-<<<<<<<
+-=======
+-import com.google.common.collect.HashMultimap;
+ import com.google.common.collect.ImmutableMap;
+->>>>>>>
+ import com.google.common.collect.Iterables;
+ import org.junit.BeforeClass;
+ import org.junit.Test;
+@@ -46,11 +42,7 @@
+ import org.apache.cassandra.exceptions.ConfigurationException;
+ import org.apache.cassandra.io.sstable.format.SSTableReader;
+ import org.apache.cassandra.schema.KeyspaceParams;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.schema.MockSchema;
+-import org.apache.cassandra.utils.Pair;
+->>>>>>>
+ 
+ import static java.util.concurrent.TimeUnit.HOURS;
+ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+@@ -382,7 +374,6 @@
+         t.transaction.abort();
+     }
+ 
+-<<<<<<<
+     @Test
+     public void testGroupForAntiCompaction()
+     {
+@@ -402,10 +393,10 @@
+         assertTrue(groups.size() > 0);
+         for (Collection<SSTableReader> group : groups)
+             assertEquals(1, group.size());
+-=======
++    }
++
+     private static Set<CompactionPick> toCompactions(List<CompactionAggregate> aggregates)
+     {
+         return aggregates.stream().flatMap(aggr -> aggr.getActive().stream()).collect(Collectors.toSet());
+->>>>>>>
+     }
+ }

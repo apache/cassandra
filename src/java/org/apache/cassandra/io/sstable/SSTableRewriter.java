@@ -64,6 +64,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
 
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
+    private long bytesWritten; // the bytes written by previous writers, or zero if the current writer is the first writer
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
@@ -116,6 +117,11 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     public SSTableWriter currentWriter()
     {
         return writer;
+    }
+
+    public long bytesWritten()
+    {
+        return bytesWritten + (writer == null ? 0 : writer.getFilePointer());
     }
 
     public RowIndexEntry append(UnfilteredRowIterator partition)
@@ -324,6 +330,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         }
 
         currentlyOpenedEarlyAt = 0;
+        bytesWritten += writer.getFilePointer();
         writer = newWriter;
     }
 
