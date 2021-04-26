@@ -617,6 +617,13 @@ public class Config
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
+    public enum PaxosVariant
+    {
+        v1_without_linearizable_reads, // with legacy semantics for read/read linearizability (i.e. not guaranteed)
+        v1
+    }
+    public volatile PaxosVariant paxos_variant = PaxosVariant.v1;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

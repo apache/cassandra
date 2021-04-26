@@ -80,6 +80,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.Config$FlushCompression",
     "org.apache.cassandra.config.Config$InternodeCompression",
     "org.apache.cassandra.config.Config$MemtableAllocationType",
+    "org.apache.cassandra.config.Config$PaxosVariant",
     "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
     "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",

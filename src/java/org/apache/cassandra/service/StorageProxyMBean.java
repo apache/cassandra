@@ -118,4 +118,7 @@ public interface StorageProxyMBean
     boolean getCheckForDuplicateRowsDuringCompaction();
     void enableCheckForDuplicateRowsDuringCompaction();
     void disableCheckForDuplicateRowsDuringCompaction();
+
+    void setPaxosVariant(String variant);
+    String getPaxosVariant();
 }

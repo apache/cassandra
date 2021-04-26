@@ -69,6 +69,7 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -825,6 +826,19 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("default_keyspace_rf (%d) cannot be less than minimum_keyspace_rf (%d)",
                                                            conf.default_keyspace_rf, conf.minimum_keyspace_rf));
         }
+
+        if (conf.paxos_variant == Config.PaxosVariant.v1_without_linearizable_reads)
+        {
+            logger.warn("This node was started with paxos_variant config option set to v1_norrl. " +
+                        "SERIAL (and LOCAL_SERIAL) reads coordinated by this node " +
+                        "will not offer linearizability (see CASSANDRA-12126 for details on what this mean) with " +
+                        "respect to other SERIAL operations. Please note that, with this option, SERIAL reads will be " +
+                        "slower than QUORUM reads, yet offer no more guarantee. This flag should only be used in " +
+                        "the restricted case of upgrading from a pre-CASSANDRA-12126 version, and only if you " +
+                        "understand the tradeoff.");
+        }
+
+        Paxos.setPaxosVariant(conf.paxos_variant);
     }
 
     @VisibleForTesting
@@ -2353,6 +2367,16 @@ public class DatabaseDescriptor
     public static long getNativeTransportMaxConcurrentRequestsInBytesPerIp()
     {
         return conf.native_transport_max_concurrent_requests_in_bytes_per_ip;
+    }
+
+    public static Config.PaxosVariant getPaxosVariant()
+    {
+        return conf.paxos_variant;
+    }
+
+    public static void setPaxosVariant(Config.PaxosVariant variant)
+    {
+        conf.paxos_variant = variant;
     }
 
     public static void setNativeTransportMaxConcurrentRequestsInBytesPerIp(long maxConcurrentRequestsInBytes)
