@@ -1587,12 +1587,33 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (!hasMajorVersion3Nodes())
             localState.removeMajorVersion3LegacyApplicationStates();
 
+        // need to run STATUS or STATUS_WITH_PORT first to handle BOOT_REPLACE correctly (else won't be a member, so TOKENS won't be processed)
         for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
         {
+            switch (updatedEntry.getKey())
+            {
+                default:
+                    continue;
+                case STATUS:
+                    if (localState.containsApplicationState(ApplicationState.STATUS_WITH_PORT))
+                        continue;
+                case STATUS_WITH_PORT:
+            }
+            doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
+        }
+
+        for (Entry<ApplicationState, VersionedValue> updatedEntry : updatedStates)
+        {
+            switch (updatedEntry.getKey())
+            {
+                // We should have alredy handled these two states above:
+                case STATUS_WITH_PORT:
+                case STATUS:
+                    continue;
+            }
             // filters out legacy change notifications
             // only if local state already indicates that the peer has the new fields
             if ((ApplicationState.INTERNAL_IP == updatedEntry.getKey() && localState.containsApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
-                ||(ApplicationState.STATUS == updatedEntry.getKey() && localState.containsApplicationState(ApplicationState.STATUS_WITH_PORT))
                 || (ApplicationState.RPC_ADDRESS == updatedEntry.getKey() && localState.containsApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT)))
                 continue;
             doOnChangeNotifications(addr, updatedEntry.getKey(), updatedEntry.getValue());
