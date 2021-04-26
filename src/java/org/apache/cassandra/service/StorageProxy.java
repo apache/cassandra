@@ -44,6 +44,11 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.service.paxos.*;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -118,10 +123,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.service.paxos.PaxosState;
-import org.apache.cassandra.service.paxos.PrepareCallback;
-import org.apache.cassandra.service.paxos.ProposeCallback;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.range.RangeCommands;
@@ -135,7 +136,6 @@ import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.collect.Iterables.concat;
@@ -185,10 +185,6 @@ public class StorageProxy implements StorageProxyMBean
 
     private static final DenylistMetrics denylistMetrics = new DenylistMetrics();
 
-    private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
-    private static final boolean disableSerialReadLinearizability =
-        Boolean.parseBoolean(System.getProperty(DISABLE_SERIAL_READ_LINEARIZABILITY_KEY, "false"));
-
     private static final PartitionDenylist partitionDenylist = new PartitionDenylist();
 
     private StorageProxy()
@@ -229,16 +225,6 @@ public class StorageProxy implements StorageProxyMBean
 
 
         ReadRepairMetrics.init();
-
-        if (disableSerialReadLinearizability)
-        {
-            logger.warn("This node was started with -D{}. SERIAL (and LOCAL_SERIAL) reads coordinated by this node " +
-                        "will not offer linearizability (see CASSANDRA-12126 for details on what this mean) with " +
-                        "respect to other SERIAL operations. Please note that, with this flag, SERIAL reads will be " +
-                        "slower than QUORUM reads, yet offer no more guarantee. This flag should only be used in " +
-                        "the restricted case of upgrading from a pre-CASSANDRA-12126 version, and only if you " +
-                        "understand the tradeoff.", DISABLE_SERIAL_READ_LINEARIZABILITY_KEY);
-        }
     }
 
     /**
@@ -1812,7 +1798,7 @@ public class StorageProxy implements StorageProxyMBean
                 // Commit an empty update to make sure all in-progress updates that should be finished first is, _and_
                 // that no other in-progress can get resurrected.
                 Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer =
-                    disableSerialReadLinearizability
+                    Paxos.getPaxosVariant() == Config.PaxosVariant.v1_without_linearizable_reads
                     ? () -> null
                     : () -> Pair.create(PartitionUpdate.emptyUpdate(metadata, key), null);
                 // When replaying, we commit at quorum/local quorum, as we want to be sure the following read (done at
@@ -2941,5 +2927,18 @@ public class StorageProxy implements StorageProxyMBean
 
         final ByteBuffer bytes = cfs.metadata.get().partitionKeyType.fromString(partitionKeyAsString);
         return !partitionDenylist.isKeyPermitted(keyspace, table, bytes);
+    }
+
+    @Override
+    public void setPaxosVariant(String variant)
+    {
+        Preconditions.checkNotNull(variant);
+        Paxos.setPaxosVariant(Config.PaxosVariant.valueOf(variant));
+    }
+
+    @Override
+    public String getPaxosVariant()
+    {
+        return Paxos.getPaxosVariant().toString();
     }
 }
