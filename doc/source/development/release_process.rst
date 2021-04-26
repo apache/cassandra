@@ -56,10 +56,10 @@ Include your public key in::
 
 Publish your GPG key in a PGP key server, such as `MIT Keyserver <http://pgp.mit.edu/>`_.
 
-Bintray account with access to Apache organisation
---------------------------------------------------
+Artifactory account with access to Apache organisation
+------------------------------------------------------
 
-Publishing a successfully voted upon release requires bintray access to the Apache organisation. Please verify that you have a bintray account and the Apache organisation is listed `here <https://bintray.com/profile/edit/organizations>`_.
+Publishing a successfully voted upon release requires Artifactory access using your Apache LDAP credentials. Please verify that you have logged into Artifactory `here <https://apache.jfrog.io/>`_.
 
 
 Create Release Artifacts
@@ -159,10 +159,6 @@ Promote Nexus Repository
 * Select the "Releases" repository and click "Promote".
 * Next click on "Repositories", select the "Releases" repository and validate that your artifacts exist as you expect them.
 
-Publish the Bintray Uploaded Distribution Packages
----------------------------------------
-
-Log into bintray and publish the uploaded artifacts.
 
 Update and Publish Website
 --------------------------
