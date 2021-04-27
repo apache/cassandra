@@ -23,16 +23,20 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.CQLFragmentParser;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.UTName;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -59,6 +63,14 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         this.fieldNames = fieldNames;
         this.rawFieldTypes = rawFieldTypes;
         this.ifNotExists = ifNotExists;
+    }
+
+    @Override
+    public void validate(QueryState state)
+    {
+        super.validate(state);
+
+        Guardrails.fieldsPerUDT.guard(fieldNames.size(), typeName, state);
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -120,6 +132,35 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         return String.format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, typeName);
     }
 
+    public static UserType parse(String cql, String keyspace)
+    {
+        return parse(cql, keyspace, Types.none());
+    }
+
+    public static UserType parse(String cql, String keyspace, Types userTypes)
+    {
+        return CQLFragmentParser.parseAny(CqlParser::createTypeStatement, cql, "CREATE TYPE")
+                                .keyspace(keyspace)
+                                .prepare(null) // works around a messy ClientState/QueryProcessor class init deadlock
+                                .createType(userTypes);
+    }
+
+    /**
+     * Build the {@link UserType} this statement creates.
+     *
+     * @param existingTypes the user-types existing in the keyspace in which the type is created (and thus on which
+     *                      the created type may depend on).
+     * @return the created type.
+     */
+    public UserType createType(Types existingTypes)
+    {
+        List<AbstractType<?>> fieldTypes = rawFieldTypes.stream()
+                                                        .map(t -> t.prepare(keyspaceName, existingTypes).getType())
+                                                        .collect(toList());
+        UserType type = new UserType(keyspaceName, bytes(typeName), fieldNames, fieldTypes, true);
+        return type;
+    }
+
     public static final class Raw extends CQLStatement.Raw
     {
         private final UTName name;
@@ -132,6 +173,12 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         {
             this.name = name;
             this.ifNotExists = ifNotExists;
+        }
+
+        public Raw keyspace(String keyspace)
+        {
+            name.setKeyspace(keyspace);
+            return this;
         }
 
         public CreateTypeStatement prepare(ClientState state)

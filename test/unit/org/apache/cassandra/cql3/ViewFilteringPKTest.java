@@ -84,9 +84,9 @@ public class ViewFilteringPKTest extends CQLTester
         ViewFilteringTest.createView(name, query, views, version, this);
     }
 
-    private void dropView(String name) throws Throwable
+    private void dropMaterializedView(String name) throws Throwable
     {
-        ViewFilteringTest.dropView(name, views, version, this);
+        ViewFilteringTest.dropMaterializedView(name, views, version, this);
     }
 
     @Test
@@ -650,7 +650,7 @@ public class ViewFilteringPKTest extends CQLTester
             execute("DELETE FROM %s WHERE a = ?", 1);
             assertEmpty(execute("SELECT a, b, c, d FROM mv_test" + i));
 
-            dropView("mv_test" + i);
+            dropMaterializedView("mv_test" + i);
             dropTable("DROP TABLE %s");
         }
     }

@@ -84,9 +84,9 @@ public class ViewFilteringClustering1Test extends CQLTester
         ViewFilteringTest.createView(name, query, views, version, this);
     }
 
-    private void dropView(String name) throws Throwable
+    private void dropMaterializedView(String name) throws Throwable
     {
-        ViewFilteringTest.dropView(name, views, version, this);
+        ViewFilteringTest.dropMaterializedView(name, views, version, this);
     }
 
     @Test
@@ -193,7 +193,7 @@ public class ViewFilteringClustering1Test extends CQLTester
                                     row(0, 1, 1, 0)
             );
 
-            dropView("mv_test" + i);
+            dropMaterializedView("mv_test" + i);
             dropTable("DROP TABLE %s");
         }
     }
@@ -301,7 +301,7 @@ public class ViewFilteringClustering1Test extends CQLTester
                                     row(0, 1, 1, 0)
             );
 
-            dropView("mv_test" + i);
+            dropMaterializedView("mv_test" + i);
             dropTable("DROP TABLE %s");
         }
     }
@@ -418,7 +418,7 @@ public class ViewFilteringClustering1Test extends CQLTester
                                     row(0, 1, 1, 0)
             );
 
-            dropView("mv_test" + i);
+            dropMaterializedView("mv_test" + i);
             dropTable("DROP TABLE %s");
         }
     }

@@ -207,7 +207,7 @@ public class QueryProcessor implements QueryHandler
         logger.trace("Process {} @CL.{}", statement, options.getConsistency());
         ClientState clientState = queryState.getClientState();
         statement.authorize(clientState);
-        statement.validate(clientState);
+        statement.validate(queryState);
 
         ResultMessage result;
         if (options.getConsistency() == ConsistencyLevel.NODE_LOCAL)
@@ -310,7 +310,7 @@ public class QueryProcessor implements QueryHandler
 
         // Note: if 2 threads prepare the same query, we'll live so don't bother synchronizing
         CQLStatement statement = parseStatement(query, internalQueryState().getClientState());
-        statement.validate(internalQueryState().getClientState());
+        statement.validate(internalQueryState());
 
         prepared = new Prepared(statement);
         internalStatements.put(query, prepared);
@@ -358,7 +358,7 @@ public class QueryProcessor implements QueryHandler
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        QueryPager pager = select.getQuery(makeInternalOptions(prepared.statement, values), FBUtilities.nowInSeconds()).getPager(null, ProtocolVersion.CURRENT);
+        QueryPager pager = select.getQuery(QueryState.forInternalCalls(), makeInternalOptions(prepared.statement, values), FBUtilities.nowInSeconds()).getPager(null, ProtocolVersion.CURRENT);
         return UntypedResultSet.create(select, pager, pageSize);
     }
 
@@ -385,7 +385,7 @@ public class QueryProcessor implements QueryHandler
     private static UntypedResultSet executeOnceInternal(QueryState queryState, String query, Object... values)
     {
         CQLStatement statement = parseStatement(query, queryState.getClientState());
-        statement.validate(queryState.getClientState());
+        statement.validate(queryState);
         ResultMessage result = statement.executeLocally(queryState, makeInternalOptions(statement, values));
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
@@ -536,7 +536,7 @@ public class QueryProcessor implements QueryHandler
         ClientState clientState = queryState.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace());
         batch.authorize(clientState);
         batch.validate();
-        batch.validate(clientState);
+        batch.validate(queryState);
         return batch.execute(queryState, options, queryStartNanoTime);
     }
 
