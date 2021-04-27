@@ -27,9 +27,14 @@
     </target>
 
     <target name="_build_ratinclude" depends="_rat_init">
-        <exec executable="git" failifexecutionfails="true" failonerror="true" output="build/.versioned_files">
+        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="build/.versioned_files">
             <arg line="ls-tree -r HEAD --name-only"/>
         </exec>
+        <condition property="rat.skip" value="true">
+            <not>
+                <equals arg1="${git.success}" arg2="0"/>
+            </not>
+        </condition>
         <copy file="build/.versioned_files" tofile="build/.ratinclude">
             <filterchain>
                 <linecontainsregexp>
@@ -81,4 +86,15 @@
             </condition>
         </fail>
     </target>
+
+    <target name="_assert_rat_output">
+        <fail message="The rat report at build/rat.txt was not generated. Please ensure that the rat-check task is able to run successfully. For dev builds only, touch build/rat.txt to skip this check">
+            <condition>
+                <not>
+                    <available file="build/rat.txt" />
+                </not>
+            </condition>
+        </fail>
+    </target>
+
 </project>
