@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!--
   Licensed to the Apache Software Foundation (ASF) under one or more
   contributor license agreements.  See the NOTICE file distributed with
@@ -1860,8 +1859,7 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
-
-  <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis">
+  <target name="eclipse-warnings" depends="build, _assert_rat_output" description="Run eclipse compiler code analysis">
         <property name="ecj.log.dir" value="${build.dir}/ecj" />
         <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
         <mkdir  dir="${ecj.log.dir}" />
