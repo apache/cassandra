@@ -30,6 +30,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -64,14 +65,15 @@ public class ListPermissionsStatement extends AuthorizationStatement
         this.grantee = grantee.hasName()? RoleResource.role(grantee.getName()) : null;
     }
 
-    public void validate(ClientState state) throws RequestValidationException
+    @Override
+    public void validate(QueryState state) throws RequestValidationException
     {
         // a check to ensure the existence of the user isn't being leaked by user existence check.
-        state.ensureNotAnonymous();
+        state.getClientState().ensureNotAnonymous();
 
         if (resource != null)
         {
-            resource = maybeCorrectResource(resource, state);
+            resource = maybeCorrectResource(resource, state.getClientState());
             if (!resource.exists())
                 throw new InvalidRequestException(String.format("%s doesn't exist", resource));
         }

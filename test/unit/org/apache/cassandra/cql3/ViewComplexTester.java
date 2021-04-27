@@ -32,7 +32,6 @@ import org.junit.runners.Parameterized;
 
 import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -111,7 +110,7 @@ public abstract class ViewComplexTester extends CQLTester
         return name;
     }
 
-    protected static String createViewName()
+    protected String createViewName()
     {
         return "mv" + seqNumber.getAndIncrement();
     }

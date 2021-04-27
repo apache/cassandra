@@ -143,4 +143,12 @@ public class PropertyDefinitions
             }
         }
     }
+
+    /**
+     * Returns the name of all the properties that are updated by this object.
+     */
+    public Set<String> updatedProperties()
+    {
+        return properties.keySet();
+    }
 }

@@ -130,7 +130,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     }
 
     @Override
-    public final void validate(ClientState state)
+    public final void validate(QueryState state)
     {
     }
 
