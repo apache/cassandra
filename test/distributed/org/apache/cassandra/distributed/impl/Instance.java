@@ -268,7 +268,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 QueryState queryState = new QueryState(state);
 
                 CQLStatement statement = QueryProcessor.parseStatement(query, queryState.getClientState());
-                statement.validate(state);
+                statement.validate(queryState);
 
                 QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
                 statement.executeLocally(queryState, options);

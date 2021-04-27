@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.guardrails.GuardrailsConfig;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
@@ -523,6 +524,9 @@ public class Config
      * a tombstone being compacted away
      */
     public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
+
+    public boolean apply_dbaas_defaults = false;
+    public GuardrailsConfig guardrails = new GuardrailsConfig();
 
     /**
      * The intial capacity for creating RangeTombstoneList.

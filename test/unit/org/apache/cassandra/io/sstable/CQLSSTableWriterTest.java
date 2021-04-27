@@ -25,12 +25,10 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Files;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -45,15 +43,16 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.serializers.SimpleDateSerializer;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
@@ -63,6 +62,18 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+/**
+ * Tests for {@link CQLSSTableWriter}.
+ *
+ * Please note: most tests here both create sstables and try to load them, so for the last part, we need to make sure
+ * we have properly "loaded" the table (which we do with {@link SchemaLoader#load(String, String, String...)}). But
+ * a small subtlety is that this <b>must</b> be called before we call {@link CQLSSTableWriter#builder} because
+ * otherwise the guardrail validation in {@link CreateTableStatement#validate(QueryState)} ends up breaking because
+ * the {@link ColumnFamilyStore} is not loaded yet. This would not be a problem in real usage of
+ * {@link CQLSSTableWriter} because the later only calls {@link DatabaseDescriptor#clientInitialization}, not
+ * {@link DatabaseDescriptor#daemonInitialization}, so said guardrail validation don't execute, but this test does
+ * manually call {@link DatabaseDescriptor#daemonInitialization} so...
+ */
 public class CQLSSTableWriterTest
 {
     private static final AtomicInteger idGen = new AtomicInteger(0);
@@ -109,6 +120,9 @@ public class CQLSSTableWriterTest
                           + "  v2 int"
                           + ")";
             String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
+
+            SchemaLoader.load(keyspace, schema);
+
             CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                       .inDirectory(dataDir)
                                                       .forTable(schema)
@@ -163,6 +177,7 @@ public class CQLSSTableWriterTest
         String insert = String.format("UPDATE " + qualifiedTable + " SET my_counter = my_counter - ? WHERE my_id = ?");
         try
         {
+            SchemaLoader.load(keyspace, schema);
             CQLSSTableWriter.builder().inDirectory(dataDir)
                             .forTable(schema)
                             .withPartitioner(Murmur3Partitioner.instance)
@@ -186,6 +201,7 @@ public class CQLSSTableWriterTest
                       + "  v blob"
                       + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+        SchemaLoader.load(keyspace, schema);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .using(insert)
@@ -220,6 +236,7 @@ public class CQLSSTableWriterTest
                         + "  PRIMARY KEY (k)"
                         + ")";
         String insert = "INSERT INTO " + qualifiedTable + " (k, c) VALUES (?, ?)";
+        SchemaLoader.load(keyspace, schema);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
@@ -260,6 +277,7 @@ public class CQLSSTableWriterTest
                     + "  PRIMARY KEY (k, v)"
                     + ")";
             String insert = "INSERT INTO " + qualifiedTable + " (k, v) VALUES (?, ?)";
+            SchemaLoader.load(keyspace, schema);
             CQLSSTableWriter writer = CQLSSTableWriter.builder()
                     .inDirectory(dataDir)
                     .forTable(schema)
@@ -318,10 +336,13 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
+        String type1 = "CREATE TYPE " + keyspace + ".tuple2 (a int, b int)";
+        String type2 = "CREATE TYPE " + keyspace + ".tuple3 (a int, b int, c int)";
+        SchemaLoader.load(keyspace, schema, type1, type2);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
-                                                  .withType("CREATE TYPE " + keyspace + ".tuple2 (a int, b int)")
-                                                  .withType("CREATE TYPE " + keyspace + ".tuple3 (a int, b int, c int)")
+                                                  .withType(type1)
+                                                  .withType(type2)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + keyspace + "." + table + " (k, v1, v2) " +
                                                          "VALUES (?, ?, ?)").build();
@@ -383,10 +404,13 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
+        String type1 = "CREATE TYPE " + keyspace + ".tuple2 (a int, b int)";
+        String type2 = "CREATE TYPE " + keyspace + ".nested_tuple (c int, tpl frozen<tuple2>)";
+        SchemaLoader.load(keyspace, schema, type1, type2);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
-                                                  .withType("CREATE TYPE " + keyspace + ".nested_tuple (c int, tpl frozen<tuple2>)")
-                                                  .withType("CREATE TYPE " + keyspace + ".tuple2 (a int, b int)")
+                                                  .withType(type2)
+                                                  .withType(type1)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + keyspace + "." + table + " (k, v1) " +
                                                          "VALUES (?, ?)")
@@ -441,6 +465,7 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
+        SchemaLoader.load(keyspace, schema);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
@@ -537,6 +562,7 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
+        SchemaLoader.load(keyspace, schema);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
@@ -579,6 +605,7 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k, c1, c2)"
                               + ")";
 
+        SchemaLoader.load(keyspace, schema);
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)

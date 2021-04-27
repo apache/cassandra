@@ -123,9 +123,11 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.exceptions.ConfigurationException",
     "org.apache.cassandra.exceptions.RequestValidationException",
     "org.apache.cassandra.exceptions.CassandraException",
+    "org.apache.cassandra.exceptions.SyntaxException",
     "org.apache.cassandra.exceptions.TransportException",
     "org.apache.cassandra.fql.FullQueryLogger",
     "org.apache.cassandra.fql.FullQueryLoggerOptions",
+    "org.apache.cassandra.guardrails.GuardrailsConfig",
     "org.apache.cassandra.locator.IEndpointSnitch",
     "org.apache.cassandra.io.FSWriteError",
     "org.apache.cassandra.io.FSError",
@@ -167,8 +169,11 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.ConsoleAppenderBeanInfo",
     "org.apache.cassandra.ConsoleAppenderCustomizer",
     "org.apache.cassandra.locator.InetAddressAndPort",
+    "org.apache.cassandra.cql3.statements.PropertyDefinitions",
     "org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement",
-    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement"
+    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement",
+    "org.apache.cassandra.cql3.statements.schema.TableAttributes",
+    "org.apache.cassandra.schema.TableParams$Option"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));

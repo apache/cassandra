@@ -136,6 +136,14 @@ public abstract class MultiCBuilder
     }
 
     /**
+     * Returns the current number of results when {@link #build()} is called
+     *
+     * @return the current number of build results
+     */
+    public abstract int buildSize();
+
+
+    /**
      * Checks if the clusterings contains null elements.
      *
      * @return <code>true</code> if the clusterings contains <code>null</code> elements, <code>false</code> otherwise.
@@ -263,6 +271,12 @@ public abstract class MultiCBuilder
 
             assert values.size() == 1;
             return addEachElementToAll(values.get(0));
+        }
+
+        @Override
+        public int buildSize()
+        {
+            return hasMissingElements ? 0 : 1;
         }
 
         public NavigableSet<Clustering<?>> build()
@@ -425,6 +439,11 @@ public abstract class MultiCBuilder
                 size += values.get(0).size();
             }
             return this;
+        }
+
+        public int buildSize()
+        {
+            return hasMissingElements ? 0 : elementsList.size();
         }
 
         public NavigableSet<Clustering<?>> build()

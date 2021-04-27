@@ -114,9 +114,16 @@ public abstract class ViewFilteringTester extends CQLTester
         }
     }
 
-    protected void dropView(String name) throws Throwable
+    public void dropView(String name)
     {
-        executeNet(version, "DROP MATERIALIZED VIEW " + name);
+        try
+        {
+            executeNet(version, "DROP MATERIALIZED VIEW " + name);
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
         views.remove(name);
     }
 

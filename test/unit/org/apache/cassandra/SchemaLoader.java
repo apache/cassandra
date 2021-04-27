@@ -37,6 +37,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -70,6 +71,8 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
+import org.apache.cassandra.schema.SchemaTransformation;
+import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
@@ -777,6 +780,37 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
     public static void cleanupSavedCaches()
     {
         ServerTestUtils.cleanupSavedCaches();
+    }
+
+    /**
+     * Simple method that allows creating a table given it's CQL definition.
+     *
+     * <p>The method also creates the keyspace of the table if needs be (using a simple strategy with 1 replica) and
+     * can also create a few UDT (also from their CQL definition) if needed for the created table.
+     *
+     * <p>This method does not complain if any of the created entity already exists.
+     */
+    public static void load(String keyspace, String schemaCQL, String... typesCQL)
+    {
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace,
+                                                       KeyspaceParams.simple(1),
+                                                       Tables.none(),
+                                                       Views.none(),
+                                                       Types.none(),
+                                                       Functions.none());
+        Schema.instance.transform(SchemaTransformations.addKeyspace(ksm, true));
+
+        for (String typeCQL : typesCQL)
+        {
+            Types types = Schema.instance.getKeyspaceMetadata(keyspace).types;
+            SchemaTransformation t = SchemaTransformations.addOrUpdateType(CreateTypeStatement.parse(typeCQL,
+                                                                                                     keyspace, types));
+            Schema.instance.transform(t);
+        }
+
+        Types types = Schema.instance.getKeyspaceMetadata(keyspace).types;
+        TableMetadata metadata = CreateTableStatement.parse(schemaCQL, keyspace, types).build();
+        Schema.instance.transform(SchemaTransformations.addTable(metadata, true));
     }
 
     private static CompressionParams compressionParams(int chunkLength)

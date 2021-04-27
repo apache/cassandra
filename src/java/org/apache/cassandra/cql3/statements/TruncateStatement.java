@@ -52,7 +52,8 @@ public class TruncateStatement extends QualifiedStatement implements CQLStatemen
         state.ensureTablePermission(keyspace(), name(), Permission.MODIFY);
     }
 
-    public void validate(ClientState state) throws InvalidRequestException
+    @Override
+    public void validate(QueryState state) throws InvalidRequestException
     {
         Schema.instance.validateTable(keyspace(), name());
     }

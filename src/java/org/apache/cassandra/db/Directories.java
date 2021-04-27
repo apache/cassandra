@@ -648,6 +648,16 @@ public class Directories
             return availableSpace > 0 ? availableSpace : 0;
         }
 
+        public long getTotalSpace()
+        {
+            return FileUtils.getTotalSpace(location);
+        }
+
+        public long getSpaceUsed()
+        {
+            return getTotalSpace() - getAvailableSpace();
+        }
+
         @Override
         public boolean equals(Object o)
         {

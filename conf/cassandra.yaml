@@ -1427,3 +1427,106 @@ enable_transient_replication: false
 # Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
 enable_drop_compact_storage: false
+
+# Apply database-as-a-service defaults.
+#
+# When enabled, some guardrails defaults are modified to values that are appropriate for cloud environments.
+# This includes (but is not limited to) stricter guardrails defaults.
+#
+# This can be used as an convenience to develop and test applications meant to run in a cloud environment.
+# apply_dbaas_defaults: false
+
+# Guardrails settings.
+# guardrails:
+  # When executing a scan, within or across a partition, we need to keep the
+  # tombstones seen in memory so we can return them to the coordinator, which
+  # will use them to make sure other replicas also know about the deleted rows.
+  # With workloads that generate a lot of tombstones, this can cause performance
+  # problems and even exhaust the server heap.
+  # (http://www.datastax.com/dev/blog/cassandra-anti-patterns-queues-and-queue-like-datasets)
+  # Adjust the thresholds here if you understand the dangers and want to
+  # scan more tombstones anyway.  These thresholds may also be adjusted at runtime
+  # using the StorageService mbean.
+  #
+  # Default: tombstone_warn_threshold is 1000, may differ if apply_dbaas_defaults is enabled
+  # Default: tombstone_failure_threshold is 100000, may differ if apply_dbaas_defaults is enabled
+  # tombstone_warn_threshold: 1000
+  # tombstone_failure_threshold: 100000
+
+  # Failure threshold to prevent writing large a column value into Cassandra.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # column_value_size_failure_threshold_in_kb: -1
+
+  # Failure threshold to prevent creating more columns per table than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # columns_per_table_failure_threshold: -1
+
+  # Failure threshold to prevent creating more secondary indexes per table than threshold
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # secondary_index_per_table_failure_threshold: -1
+
+  # Failure threshold to prevent creating more materialized views per table than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # materialized_view_per_table_failure_threshold: -1
+
+  # Warn threshold to warn creating more tables than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # tables_warn_threshold: -1
+
+  # Failure threshold to prevent creating more tables than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # tables_failure_threshold: -1
+
+  # Prevents creating tables with provided configurations.
+  # Default: all properties are allowed, may differ if apply_dbaas_defaults is enabled
+  # table_properties_disallowed:
+
+  # Whether to allow user-provided timestamps in write requests
+  # Default: true to allow user-provided timestamps, may differ if apply_dbaas_defaults is enabled
+  # user_timestamps_enabled: true
+
+  # Preventing a query with provided consistency levels
+  # Default: all consistency levels are allowed.
+  # write_consistency_levels_disallowed:
+
+  # Log a warning when compacting partitions larger than this value.
+  # Default: 100mb, may differ if apply_dbaas_defaults is enabled
+  # partition_size_warn_threshold_in_mb: 100
+
+  # Failure threshold to prevent IN query containing more partition keys than threshold
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # partition_keys_in_select_failure_threshold: -1
+
+  # Warning threshold to warn when local disk usage exceeding threshold. Valid values: (1, 100]
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # disk_usage_percentage_warn_threshold: -1
+
+  # Failure threshold to reject write requests if replica disk usage exceeding threshold. Valid values: (1, 100]
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # disk_usage_percentage_failure_threshold: -1
+
+  # Failure threshold to prevent IN query creating size of cartesian product exceeding threshold, eg.
+  # "a IN (1,2,...10) AND b IN (1,2...10)" results in cartesian product of 100.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # in_select_cartesian_product_failure_threshold: -1
+
+  # Whether to allow user-provided timestamps in write request (USING TIMESTAMP ...)
+  # Default: true to allow user-provided timestamp, may differ if apply_dbaas_defaults is enabled
+  # user_timestamps_enabled: true
+
+  # Whether read-before-write operation is allowed on lists, eg. setting list element by index, removing list element
+  # by index. Note: LWT is always allowed.
+  # Default: true to allow read before write operation on lists, may differ if apply_dbaas_defaults is enabled
+  # read_before_write_list_operations_enabled: true
+
+  # Failure threshold to prevent creating more fields in user-defined-type than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # fields_per_udt_failure_threshold: -1
+
+  # Warning threshold to warn when encountering larger size of collection data than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # collection_size_warn_threshold_in_kb: -1
+
+  # Warning threshold to warn when encountering more elements in collection than threshold.
+  # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
+  # items_per_collection_warn_threshold: -1

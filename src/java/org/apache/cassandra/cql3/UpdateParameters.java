@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -27,6 +28,7 @@ import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * Groups the parameters of an update query, and make building updates easier.
@@ -36,6 +38,7 @@ public class UpdateParameters
     public final TableMetadata metadata;
     public final RegularAndStaticColumns updatedColumns;
     public final QueryOptions options;
+    public final QueryState state;
 
     private final int nowInSec;
     private final long timestamp;
@@ -54,6 +57,7 @@ public class UpdateParameters
 
     public UpdateParameters(TableMetadata metadata,
                             RegularAndStaticColumns updatedColumns,
+                            QueryState state,
                             QueryOptions options,
                             long timestamp,
                             int nowInSec,
@@ -64,6 +68,7 @@ public class UpdateParameters
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
         this.options = options;
+        this.state = state;
 
         this.nowInSec = nowInSec;
         this.timestamp = timestamp;
@@ -138,20 +143,29 @@ public class UpdateParameters
 
     public void addTombstone(ColumnMetadata column, CellPath path) throws InvalidRequestException
     {
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), state);
+
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
 
-    public void addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
+    public Cell addCell(ColumnMetadata column, ByteBuffer value) throws InvalidRequestException
     {
-        addCell(column, null, value);
+        return addCell(column, null, value);
     }
 
-    public void addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
+    public Cell addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
+        Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), state);
+
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), state);
+
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
+        return cell;
     }
 
     public void addCounter(ColumnMetadata column, long increment) throws InvalidRequestException

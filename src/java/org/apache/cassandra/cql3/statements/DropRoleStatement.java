@@ -24,6 +24,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -51,15 +52,16 @@ public class DropRoleStatement extends AuthenticationStatement
             throw new UnauthorizedException("Only superusers can drop a role with superuser status");
     }
 
-    public void validate(ClientState state) throws RequestValidationException
+    @Override
+    public void validate(QueryState state) throws RequestValidationException
     {
         // validate login here before authorize to avoid leaking user existence to anonymous users.
-        state.ensureNotAnonymous();
+        state.getClientState().ensureNotAnonymous();
 
         if (!ifExists && !DatabaseDescriptor.getRoleManager().isExistingRole(role))
             throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
 
-        AuthenticatedUser user = state.getUser();
+        AuthenticatedUser user = state.getClientState().getUser();
         if (user != null && user.getName().equals(role.getRoleName()))
             throw new InvalidRequestException("Cannot DROP primary role for current login");
     }

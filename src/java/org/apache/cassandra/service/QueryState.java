@@ -19,7 +19,7 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 
-import org.apache.cassandra.transport.ClientStat;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -114,5 +114,16 @@ public class QueryState
     public InetAddress getClientAddress()
     {
         return clientState.getClientAddress();
+    }
+
+    /**
+     * Checks if this user is an ordinary user (not a super or system user).
+     *
+     * @return {@code true} if this user is an ordinary user, {@code false} otherwise.
+     */
+    public boolean isOrdinaryUser()
+    {
+        AuthenticatedUser user = this.getClientState().getUser();
+        return null != user && !user.isSystem() && !user.isSuper();
     }
 }
