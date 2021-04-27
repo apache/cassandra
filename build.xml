@@ -1920,8 +1920,7 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
-
-  <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis">        
+  <target name="eclipse-warnings" depends="build, _assert_rat_output" description="Run eclipse compiler code analysis">
         <property name="ecj.log.dir" value="${build.dir}/ecj" />
         <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
         <delete dir="${ecj.log.dir}" />
