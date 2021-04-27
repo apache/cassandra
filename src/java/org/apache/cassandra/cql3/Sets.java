@@ -24,6 +24,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
@@ -338,6 +339,7 @@ public abstract class Sets
             super(column, t);
         }
 
+        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen set";
@@ -348,26 +350,40 @@ public abstract class Sets
 
         static void doAdd(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
+            if (value == null)
+            {
+                // for frozen sets, we're overwriting the whole cell
+                if (!column.type.isMultiCell())
+                    params.addTombstone(column);
+
+                return;
+            }
+
+            Set<ByteBuffer> elements = ((Value) value).elements;
+
             if (column.type.isMultiCell())
             {
-                if (value == null)
-                    return;
+                // Guardrails about collection size are only checked for the added elements without considering
+                // already existent elements. This is done so to avoid read-before-write, having additional checks
+                // during SSTable write.
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.state);
 
-                for (ByteBuffer bb : ((Value) value).elements)
+                int dataSize = 0;
+                for (ByteBuffer bb : elements)
                 {
                     if (bb == ByteBufferUtil.UNSET_BYTE_BUFFER)
                         continue;
 
-                    params.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                    Cell cell = params.addCell(column, CellPath.create(bb), ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                    dataSize += cell.dataSize();
                 }
+                Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.state);
             }
             else
             {
-                // for frozen sets, we're overwriting the whole cell
-                if (value == null)
-                    params.addTombstone(column);
-                else
-                    params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.state);
+                Cell cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.state);
             }
         }
     }
@@ -380,6 +396,7 @@ public abstract class Sets
             super(column, t);
         }
 
+        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to remove items from a frozen set";
@@ -405,6 +422,7 @@ public abstract class Sets
             super(column, k);
         }
 
+        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete a single element in a frozen set";

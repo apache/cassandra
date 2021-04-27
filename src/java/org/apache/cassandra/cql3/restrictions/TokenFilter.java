@@ -165,9 +165,17 @@ abstract class TokenFilter implements PartitionKeyRestrictions
     }
 
     @Override
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+    public boolean isOnToken()
     {
-        return filter(restrictions.values(options), options);
+        // if all partition key columns have non-token restrictions and do not need filtering,
+        // we can simply use the token range to filter those restrictions and then ignore the token range
+        return needFiltering(tokenRestriction.metadata) || restrictions.size() < tokenRestriction.size();
+    }
+
+    @Override
+    public List<ByteBuffer> values(QueryOptions options, QueryState queryState) throws InvalidRequestException
+    {
+        return filter(restrictions.values(options, queryState), options, queryState);
     }
 
     @Override
@@ -184,13 +192,14 @@ abstract class TokenFilter implements PartitionKeyRestrictions
      *
      * @param values the values returned by the decorated restriction
      * @param options the query options
+     * @param queryState the query state
      * @return the values matching the token restriction
      * @throws InvalidRequestException if the request is invalid
      */
-    private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options) throws InvalidRequestException
+    private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options, QueryState queryState) throws InvalidRequestException
     {
         RangeSet<Token> rangeSet = tokenRestriction.hasSlice() ? toRangeSet(tokenRestriction, options)
-                                                               : toRangeSet(tokenRestriction.values(options));
+                                                               : toRangeSet(tokenRestriction.values(options, queryState));
 
         return filterWithRangeSet(rangeSet, values);
     }

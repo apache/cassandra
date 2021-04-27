@@ -934,6 +934,7 @@ public class ViewSchemaTest extends CQLTester
 
         Keyspace keyspace = Keyspace.open(keyspace());
         ColumnFamilyStore mv = keyspace.getColumnFamilyStore(view);
+
         assertTrue(SchemaCQLHelper.getTableMetadataAsCQL(mv.metadata(), true, true, true, keyspace.getMetadata())
                                   .startsWith(String.format(viewSnapshotSchema,
                                                             keyspace(),

@@ -36,6 +36,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
@@ -142,7 +143,7 @@ public class ListsTest extends CQLTester
         ByteBuffer keyBuf = ByteBufferUtil.bytes("key");
         DecoratedKey key = Murmur3Partitioner.instance.decorateKey(keyBuf);
         UpdateParameters parameters =
-            new UpdateParameters(metaData, null, QueryOptions.DEFAULT, System.currentTimeMillis(), FBUtilities.nowInSeconds(), 1000, Collections.emptyMap());
+            new UpdateParameters(metaData, null, QueryState.forInternalCalls(), QueryOptions.DEFAULT, System.currentTimeMillis(), FBUtilities.nowInSeconds(), 1000, Collections.emptyMap());
         Clustering<?> clustering = Clustering.make(ByteBufferUtil.bytes(1));
         parameters.newRow(clustering);
         prepender.execute(key, parameters);

@@ -63,7 +63,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.Views;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -249,20 +249,21 @@ public class CQLSSTableWriter implements Closeable
         if (values.size() != boundNames.size())
             throw new InvalidRequestException(String.format("Invalid number of arguments, expecting %d values but got %d", boundNames.size(), values.size()));
 
+        QueryState state = QueryState.forInternalCalls();
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
-        List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
-        SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
+        List<ByteBuffer> keys = insert.buildPartitionKeyNames(options, state);
+        SortedSet<Clustering<?>> clusterings = insert.createClustering(options, state);
 
         long now = System.currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(insert.metadata,
                                                        insert.updatedColumns(),
+                                                       QueryState.forInternalCalls(),
                                                        options,
                                                        insert.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
                                                        (int) TimeUnit.MILLISECONDS.toSeconds(now),
-                                                       insert.getTimeToLive(options),
-                                                       Collections.emptyMap());
+                                                       insert.getTimeToLive(options), Collections.emptyMap());
 
         try
         {
@@ -577,9 +578,9 @@ public class CQLSSTableWriter implements Closeable
          */
         private TableMetadata createTable(Types types)
         {
-            ClientState state = ClientState.forInternalCalls();
-            CreateTableStatement statement = schemaStatement.prepare(state);
-            statement.validate(ClientState.forInternalCalls());
+            QueryState state = QueryState.forInternalCalls();
+            CreateTableStatement statement = schemaStatement.prepare(state.getClientState());
+            statement.validate(state);
 
             TableMetadata.Builder builder = statement.builder(types);
             if (partitioner != null)
@@ -595,8 +596,8 @@ public class CQLSSTableWriter implements Closeable
          */
         private UpdateStatement prepareInsert()
         {
-            ClientState state = ClientState.forInternalCalls();
-            UpdateStatement insert = (UpdateStatement) insertStatement.prepare(state);
+            QueryState state = QueryState.forInternalCalls();
+            UpdateStatement insert = (UpdateStatement) insertStatement.prepare(state.getClientState());
             insert.validate(state);
 
             if (insert.hasConditions())

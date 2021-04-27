@@ -42,5 +42,5 @@ public interface CASRequest
      * The updates to perform of a CAS success. The values fetched using the readFilter()
      * are passed as argument.
      */
-    public PartitionUpdate makeUpdates(FilteredPartition current) throws InvalidRequestException;
+    public PartitionUpdate makeUpdates(FilteredPartition current, QueryState state) throws InvalidRequestException;
 }
