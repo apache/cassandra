@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * A set of restrictions on the partition key.
@@ -32,7 +33,7 @@ interface PartitionKeyRestrictions extends Restrictions
 {
     public PartitionKeyRestrictions mergeWith(Restriction restriction);
 
-    public List<ByteBuffer> values(QueryOptions options);
+    public List<ByteBuffer> values(QueryOptions options, QueryState queryState);
 
     public List<ByteBuffer> bounds(Bound b, QueryOptions options);
 

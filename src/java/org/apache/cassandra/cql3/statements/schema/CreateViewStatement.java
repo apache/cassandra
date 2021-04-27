@@ -18,6 +18,8 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -36,9 +38,11 @@ import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
@@ -64,6 +68,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
     private final TableAttributes attrs;
 
     private final boolean ifNotExists;
+    private QueryState state;
 
     public CreateViewStatement(String keyspaceName,
                                String tableName,
@@ -94,6 +99,15 @@ public final class CreateViewStatement extends AlterSchemaStatement
         this.attrs = attrs;
 
         this.ifNotExists = ifNotExists;
+    }
+
+    @Override
+    public void validate(QueryState state)
+    {
+        super.validate(state);
+
+        // save the query state to use it for guardrails validation in #apply
+        this.state = state;
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -136,6 +150,16 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
         if (table.isView())
             throw ire("Materialized views cannot be created against other materialized views");
+
+        // Guardrail on table properties
+        Guardrails.disallowedTableProperties.ensureAllowed(attrs.updatedProperties(), state);
+
+        // guardrails to limit number of mvs per table.
+        Set<ViewMetadata> baseTableViews = StreamSupport.stream(keyspace.views.forTable(table.id).spliterator(), false)
+                                                        .collect(Collectors.toCollection(HashSet::new));
+        Guardrails.materializedViewsPerTable.guard(baseTableViews.size() + 1,
+                                                   String.format("%s on table %s", viewName, table.name),
+                                                   state);
 
         if (table.params.gcGraceSeconds == 0)
         {

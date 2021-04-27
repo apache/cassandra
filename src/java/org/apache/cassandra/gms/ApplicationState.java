@@ -47,6 +47,7 @@ public enum ApplicationState
     INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
     NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
     STATUS_WITH_PORT, //Replacement for STATUS
+    DISK_USAGE,
     /**
      * The set of sstable versions on this node. This will usually be only the "current" sstable format (the one with
      * which new sstables are written), but may contain more on newly upgraded nodes before `upgradesstable` has been

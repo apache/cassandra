@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.Permission;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -53,6 +54,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.guardrails.Guardrails;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
@@ -60,11 +63,13 @@ import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static java.lang.String.format;
 import static java.lang.String.join;
@@ -97,6 +102,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 
         return schema.withAddedOrUpdated(apply(keyspace, table));
+    }
+
+    public ResultMessage execute(QueryState state, boolean locally)
+    {
+        return super.execute(state, locally);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -158,9 +168,20 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 this.type = type;
                 this.isStatic = isStatic;
             }
+
         }
 
         private final Collection<Column> newColumns;
+        private QueryState queryState;
+
+        @Override
+        public void validate(QueryState state)
+        {
+            super.validate(state);
+
+            // save the query state to use it for guardrails validation in #apply
+            this.queryState = state;
+        }
 
         private AddColumns(String keyspaceName, String tableName, Collection<Column> newColumns)
         {
@@ -173,6 +194,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, tableBuilder, viewsBuilder));
+
+            Guardrails.columnsPerTable.guard(tableBuilder.numColumns(), tableName, queryState);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(tableBuilder.build()))
                            .withSwapped(viewsBuilder.build());
@@ -382,6 +405,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             super(keyspaceName, tableName);
             this.attrs = attrs;
+        }
+
+        @Override
+        public void validate(QueryState state)
+        {
+            super.validate(state);
+
+            Guardrails.disallowedTableProperties.ensureAllowed(attrs.updatedProperties(), state);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
