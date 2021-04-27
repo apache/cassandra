@@ -229,6 +229,7 @@ public class GcCompactionBench extends CQLTester
         int startTombCount = countTombstoneMarkers(cfs);
         int startRowDeletions = countRowDeletions(cfs);
         int startTableCount = cfs.getLiveSSTables().size();
+        int startTableMaxLevel = cfs.getLiveSSTables().stream().mapToInt(SSTableReader::getSSTableLevel).max().orElseGet(() -> 0);
         long startSize = SSTableReader.getTotalBytes(cfs.getLiveSSTables());
         System.out.println();
 
@@ -242,6 +243,7 @@ public class GcCompactionBench extends CQLTester
         int endTombCount = countTombstoneMarkers(cfs);
         int endRowDeletions = countRowDeletions(cfs);
         int endTableCount = cfs.getLiveSSTables().size();
+        int endTableMaxLevel = cfs.getLiveSSTables().stream().mapToInt(SSTableReader::getSSTableLevel).max().orElseGet(() -> 0);
         long endSize = SSTableReader.getTotalBytes(cfs.getLiveSSTables());
 
         System.out.println(cfs.getCompactionParametersJson());
@@ -253,9 +255,11 @@ public class GcCompactionBench extends CQLTester
                 startTableCount, startSize, startRowCount, startRowDeletions, startTombCount));
         System.out.println(String.format("At end:   %12d tables %12d bytes %12d rows %12d deleted rows %12d tombstone markers",
                 endTableCount, endSize, endRowCount, endRowDeletions, endTombCount));
+        System.out.println(String.format("Max SSTable level before: %d and after %d", startTableMaxLevel, endTableMaxLevel));
 
         String hashesAfter = getHashes();
         Assert.assertEquals(hashesBefore, hashesAfter);
+        Assert.assertEquals(startTableMaxLevel, endTableMaxLevel);
     }
 
     private String getHashes() throws Throwable
