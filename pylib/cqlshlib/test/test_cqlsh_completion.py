@@ -805,23 +805,24 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'aggmax'],
                             other_choices_ok=True)
 
-    def test_complete_in_drop_columnfamily(self):
-        pass
-
-    def test_complete_in_truncate(self):
-        pass
-
-    def test_complete_in_alter_columnfamily(self):
-        pass
-
-    def test_complete_in_use(self):
-        pass
-
-    def test_complete_in_create_index(self):
-        pass
-
-    def test_complete_in_drop_index(self):
-        pass
+    # TODO: CASSANDRA-16640
+    # def test_complete_in_drop_columnfamily(self):
+    #     pass
+    #
+    # def test_complete_in_truncate(self):
+    #     pass
+    #
+    # def test_complete_in_alter_columnfamily(self):
+    #     pass
+    #
+    # def test_complete_in_use(self):
+    #     pass
+    #
+    # def test_complete_in_create_index(self):
+    #     pass
+    #
+    # def test_complete_in_drop_index(self):
+    #     pass
 
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')

@@ -18,6 +18,8 @@
 import contextlib
 import io
 import os.path
+import random
+import string
 import tempfile
 
 from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, rundir
@@ -39,9 +41,19 @@ TEST_KEYSPACES_CREATED = []
 def get_keyspace():
     return None if len(TEST_KEYSPACES_CREATED) == 0 else TEST_KEYSPACES_CREATED[-1]
 
+
+_used_ks_names = set()
+
+
 def make_ks_name():
-    # abuse mktemp to get a quick random-ish name
-    return os.path.basename(tempfile.mktemp(prefix='CqlshTests_'))
+    def random_ks():
+        return 'cqlshtests_' + ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
+
+    s = random_ks()
+    while s in _used_ks_names:
+        s = random_ks()
+    _used_ks_names.add(s)
+    return s
 
 def create_keyspace(cursor):
     ksname = make_ks_name().lower()
