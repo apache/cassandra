@@ -1746,7 +1746,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.removeEndpoint(DatabaseDescriptor.getReplaceAddress());
         }
         if (!Gossiper.instance.seenAnySeed())
-            throw new IllegalStateException("Unable to contact any seeds!");
+            throw new IllegalStateException("Unable to contact any seeds: " + Gossiper.instance.getSeeds());
 
         if (Boolean.getBoolean("cassandra.reset_bootstrap_progress"))
         {
