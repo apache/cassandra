@@ -249,10 +249,14 @@ public class LeveledManifest
 
             if (score > 1.001)
             {
-                // the highest level should not ever exceed its maximum size
+                // the highest level should not ever exceed its maximum size under normal curcumstaces,
+                // but if it happens we warn about it
                 if (i == generations.levelCount() - 1)
-                    throw new RuntimeException("L" + i + " (maximum supported level) should not exceed its maximum "
-                            + "size (" + maxBytesForLevel + "), but it has " + remainingBytesForLevel + " bytes");
+                {
+                    logger.warn("L" + i + " (maximum supported level) has " + remainingBytesForLevel + " bytes while "
+                            + "its maximum size is supposed to be " + maxBytesForLevel + " bytes");
+                    continue;
+                }
 
                 // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
                 if (l0Compaction != null)
