@@ -433,6 +433,16 @@ public final class CreateTableStatement extends AlterSchemaStatement
             warnings.add("The unsupported 'nodesync' table option was ignored.");
         }
 
+        if (attrs.hasProperty("dse_vertex_label_property"))
+        {
+            warnings.add("The unsupported graph table property was ignored (VERTEX LABEL).");
+        }
+
+        if (attrs.hasProperty("dse_edge_label_property"))
+        {
+            warnings.add("The unsupported graph table property was ignored (EDGE LABEL).");
+        }
+
         return warnings.build();
     }
 

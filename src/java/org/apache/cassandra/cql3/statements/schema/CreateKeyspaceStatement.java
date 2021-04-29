@@ -122,6 +122,11 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             clientWarnings.add(msg);
         }
 
+        if (attrs.hasProperty("graph_engine"))
+        {
+            clientWarnings.add("The unsupported graph property 'graph_engine' was ignored.");
+        }
+
         return clientWarnings;
     }
 
