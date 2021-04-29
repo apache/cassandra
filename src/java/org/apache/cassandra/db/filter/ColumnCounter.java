@@ -68,6 +68,13 @@ public class ColumnCounter
         return tombstones;
     }
 
+    /**
+     * @return true if this counter has counted at least {@code numLiveCellsDesired} live cells, accounting for groupings.
+     */
+    public boolean hasSeenAtLeast(int numLiveCellsDesired) {
+        return live() >= numLiveCellsDesired;
+    }
+
     public ColumnCounter countAll(ColumnFamily container)
     {
         if (container == null)
@@ -171,6 +178,12 @@ public class ColumnCounter
 
             return true;
         }
+
+        @Override
+        public boolean hasSeenAtLeast(int numLiveCellsDesired) {
+            // we can't know we've seen N full groups until we've seen the start of the N+1st group
+            return live() > numLiveCellsDesired;
+        }
     }
 
     /**
@@ -238,6 +251,12 @@ public class ColumnCounter
             }
 
             return true;
+        }
+
+        @Override
+        public boolean hasSeenAtLeast(int numLiveCellsDesired) {
+            // we can't know we've seen N full groups until we've seen the start of the N+1st group
+            return live() > numLiveCellsDesired;
         }
     }
 }
