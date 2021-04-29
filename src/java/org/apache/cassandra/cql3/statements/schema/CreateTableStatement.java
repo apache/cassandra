@@ -406,7 +406,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
     @Override
     public Set<String> clientWarnings(KeyspacesDiff diff)
     {
-        Set<String> warnings = new HashSet<>();
+        ImmutableSet.Builder<String> warnings = ImmutableSet.builder();
 
         int tableCount = Schema.instance.getNumberOfTables();
         if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
@@ -428,7 +428,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
                          "Inspect your schema and adjust other table properties if needed.");
         }
 
-        return warnings;
+        if (attrs.hasProperty("nodesync"))
+        {
+            warnings.add("The unsupported 'nodesync' table option was ignored.");
+        }
+
+        return warnings.build();
     }
 
     private static class DefaultNames
