@@ -797,6 +797,11 @@ tableProperty[CreateTableStatement.Raw stmt]
     : property[stmt.attrs]
     | K_COMPACT K_STORAGE { $stmt.setCompactStorage(); }
     | K_CLUSTERING K_ORDER K_BY '(' tableClusteringOrder[stmt] (',' tableClusteringOrder[stmt])* ')'
+    | K_VERTEX K_LABEL ( noncol_ident )? {stmt.attrs.addProperty("dse_vertex_label_property", "vertex");}
+    | K_EDGE K_LABEL ( noncol_ident ) ?
+             K_FROM noncol_ident '(' ident (',' ident)* ')'
+             K_TO noncol_ident '(' ident (',' ident)* ')'
+             {stmt.attrs.addProperty("dse_edge_label_property", "edge");}
     ;
 
 tableClusteringOrder[CreateTableStatement.Raw stmt]
@@ -1900,5 +1905,8 @@ basic_unreserved_keyword returns [String str]
         | K_MBEANS
         | K_REPLACE
         | K_UNSET
+        | K_EDGE
+        | K_VERTEX
+        | K_LABEL
         ) { $str = $k.text; }
     ;

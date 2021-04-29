@@ -38,7 +38,7 @@ public final class KeyspaceAttributes extends PropertyDefinitions
         for (Option option : Option.values())
             validBuilder.add(option.toString());
         validKeywords = validBuilder.build();
-        obsoleteKeywords = ImmutableSet.of();
+        obsoleteKeywords = ImmutableSet.of("graph_engine");
     }
 
     public void validate()
