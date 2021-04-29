@@ -29,29 +29,29 @@ import org.junit.runners.Parameterized;
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
-public class CreateTableStatementTest extends CQLTester
+public class CreateTableStatementNodeSyncTest extends CQLTester
 {
-    @Parameterized.Parameters(name = "compactionStrategy = {0}")
-    public static Set<String> strategies()
+    @Parameterized.Parameters(name = "tableOptions = {0}")
+    public static Set<String> tableOptions()
     {
         return ImmutableSet.of(
-            "{'class': 'org.apache.cassandra.db.compaction.MemoryOnlyStrategy', 'max_threshold': '32', 'min_threshold': '4'}",
-            "{'class': 'MemoryOnlyStrategy', 'max_threshold': '32', 'min_threshold': '4'}",
-            "{'class': 'org.apache.cassandra.db.compaction.TieredCompactionStrategy', 'tiering_strategy': 'TimeWindowStorageStrategy', 'config': 'strategy1', 'max_tier_ages': '3600,7200'}",
-            "{'class': 'TieredCompactionStrategy', 'tiering_strategy': 'TimeWindowStorageStrategy', 'config': 'strategy1', 'max_tier_ages': '3600,7200'}"
+            "WITH nodesync = { 'enabled' : 'true', 'incremental' : 'true' }",
+            "WITH nodesync = { 'enabled' : 'true' }",
+            "WITH nodesync = { 'enabled' : 'false' }",
+            "WITH nodesync = { 'enabled' : 'true', 'deadline_target_sec': 60 }"
         );
     }
 
     @Parameterized.Parameter()
-    public String compactionStrategy;
+    public String tableOptions;
 
     @BeforeClass
     public static void setup() throws Exception
@@ -60,27 +60,26 @@ public class CreateTableStatementTest extends CQLTester
     }
 
     @Test
-    public void dseCompactionStrategyShouldBeIgnoredWithWarning() throws Throwable
+    public void dseNodesyncShouldBeIgnoredWithWarning() throws Throwable
     {
         String tableName = createTableName();
 
         // should not throw
-        ResultSet rows = executeNet(String.format("CREATE TABLE ks.%s (k int PRIMARY KEY, v int) WITH " +
-                                                  "compaction = %s;", tableName, compactionStrategy));
+        ResultSet rows = executeNet(String.format("CREATE TABLE ks.%s (k int PRIMARY KEY, v int) %s", tableName, tableOptions));
 
         assertTrue(rows.wasApplied());
 
         String warning = rows.getAllExecutionInfo().get(0).getWarnings().get(0);
-        assertThat(warning, containsString("The compaction strategy parameter was overridden with the default"));
+        assertThat(warning, containsString("The unsupported 'nodesync' table option was ignored."));
 
-        assertDefaultCompactionStrategy(tableName);
+        assertNoNodesyncTableParamater(tableName);
     }
 
-    private void assertDefaultCompactionStrategy(String tableName) throws Throwable
+    private void assertNoNodesyncTableParamater(String tableName) throws Throwable
     {
         ResultSet result = executeNet("DESCRIBE TABLE ks." + tableName);
 
         String createStatement = result.one().getString("create_statement");
-        assertThat(createStatement, containsString(CompactionParams.DEFAULT.klass().getCanonicalName()));
+        assertThat(createStatement, not(containsString("nodesync")));
     }
 }
