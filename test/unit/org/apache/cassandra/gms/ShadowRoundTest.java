@@ -43,7 +43,6 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MockMessagingService;
 import org.apache.cassandra.net.MockMessagingSpy;
 import org.apache.cassandra.net.Verb;
@@ -51,6 +50,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.MockMessagingService.verb;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -117,7 +117,7 @@ public class ShadowRoundTest
         }
         catch (Exception e)
         {
-            assertEquals("Unable to contact any seeds!", e.getMessage());
+            assertThat(e.getMessage()).startsWith("Unable to contact any seeds");
         }
 
         // we expect one SYN for each seed during shadow round + additional SYNs after gossiper has been enabled

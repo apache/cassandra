@@ -577,6 +577,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             buildSeedsList();
             seeds.remove(endpoint);
             logger.info("removed {} from seeds, updated seeds list = {}", endpoint, seeds);
+            if (seeds.isEmpty())
+                logger.warn("Seeds list is now empty!");
         }
 
         liveEndpoints.remove(endpoint);
@@ -994,6 +996,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 {
                     logger.info("FatClient {} has been silent for {}ms, removing from gossip", endpoint, fatClientTimeout);
                     runInGossipStageBlocking(() -> {
+                        if (!isGossipOnlyMember(endpoint))
+                        {
+                            // updating gossip and token metadata are not atomic, but rely on the single threaded gossip stage
+                            // since status checks are done outside the gossip stage, need to confirm the state of the endpoint
+                            // to make sure that the previous read data was correct
+                            logger.info("Race condition marking {} as a FatClient; ignoring", endpoint);
+                            return;
+                        }                        
                         removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
                         evictFromMembership(endpoint); // can get rid of the state immediately
                     });
