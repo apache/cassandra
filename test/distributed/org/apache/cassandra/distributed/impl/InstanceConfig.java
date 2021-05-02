@@ -19,10 +19,8 @@
 package org.apache.cassandra.distributed.impl;
 
 import java.io.File;
-import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
@@ -30,15 +28,16 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 
-import org.apache.cassandra.config.YamlConfigurationLoader;
+import com.vdurmont.semver4j.Semver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.Shared;
-import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.distributed.upgrade.UpgradeTestBase;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
 
@@ -266,15 +265,11 @@ public class InstanceConfig implements IInstanceConfig
         return datadirs;
     }
 
-    public InstanceConfig forVersion(Versions.Major major)
+    public InstanceConfig forVersion(Semver version)
     {
-        switch (major)
-        {
-            case v4: return this;
-            default: return new InstanceConfig(this)
+        return new InstanceConfig(this)
                             .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                                                                          Collections.singletonMap("seeds", "127.0.0.1")));
-        }
     }
 
     public String toString()
