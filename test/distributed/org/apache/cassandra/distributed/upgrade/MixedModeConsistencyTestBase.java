@@ -39,7 +39,12 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 public class MixedModeConsistencyTestBase extends UpgradeTestBase
 {
-    protected static void testConsistency(Versions.Major initial, Versions.Major... upgrade) throws Throwable
+    protected static void testConsistency(Versions.Major initial) throws Throwable
+    {
+        testConsistency(initial, UpgradeTestBase.CURRENT);
+    }
+
+    protected static void testConsistency(Versions.Major initial, Versions.Major upgrade) throws Throwable
     {
         List<Tester> testers = new ArrayList<>();
         testers.addAll(Tester.create(1, ALL));
@@ -49,7 +54,7 @@ public class MixedModeConsistencyTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1)
-        .upgrade(initial, upgrade)
+        .upgrades(initial, upgrade)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(30))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(30)))
         .setup(cluster -> {

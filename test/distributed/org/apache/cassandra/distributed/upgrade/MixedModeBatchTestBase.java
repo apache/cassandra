@@ -42,6 +42,11 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
 {
     private static final int KEYS_PER_BATCH = 10;
 
+    protected void testSimpleStrategy(Versions.Major from, boolean isLogged) throws Throwable
+    {
+        testSimpleStrategy(from, UpgradeTestBase.CURRENT, isLogged);
+    }
+
     protected void testSimpleStrategy(Versions.Major from, Versions.Major to, boolean isLogged) throws Throwable
     {
         String insert = "INSERT INTO test_simple.names (key, name) VALUES (%d, '%s')";
@@ -50,7 +55,7 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1, 2)
-        .upgrade(from, to)
+        .upgrades(from, to)
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");

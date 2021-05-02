@@ -31,14 +31,8 @@ public class MixedModeFrom3LoggedBatchTest extends MixedModeBatchTestBase
     }
 
     @Test
-    public void testSimpleStrategy30to4() throws Throwable
+    public void testSimpleStrategy() throws Throwable
     {
-        testSimpleStrategy(Versions.Major.v30, Versions.Major.v4, true);
-    }
-
-    @Test
-    public void testSimpleStrategy3Xto4() throws Throwable
-    {
-        testSimpleStrategy(Versions.Major.v3X, Versions.Major.v4, true);
+        testSimpleStrategy(Versions.Major.v30, true);
     }
 }

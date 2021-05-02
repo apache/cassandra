@@ -19,14 +19,14 @@
 package org.apache.cassandra.distributed.upgrade;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -39,11 +39,13 @@ import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.distributed.shared.Versions.Major;
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
-import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
+
+
 
 public class UpgradeTestBase extends DistributedTestBase
 {
@@ -76,14 +78,23 @@ public class UpgradeTestBase extends DistributedTestBase
         public void run(UpgradeableCluster cluster, int node) throws Throwable;
     }
 
+    public static final List<Pair<Versions.Major,Versions.Major>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
+        Pair.create(Versions.Major.v22, Versions.Major.v30),
+        Pair.create(Versions.Major.v22, Versions.Major.v3X),
+        Pair.create(Versions.Major.v30, Versions.Major.v3X),
+        Pair.create(Versions.Major.v30, Versions.Major.v40),
+        Pair.create(Versions.Major.v3X, Versions.Major.v40),
+        Pair.create(Versions.Major.v40, Versions.Major.v4X));
+
+    public static final Versions.Major CURRENT = SUPPORTED_UPGRADE_PATHS.get(SUPPORTED_UPGRADE_PATHS.size() - 1).right;
+
     public static class TestVersions
     {
         final Version initial;
-        final Version[] upgrade;
+        final Version upgrade;
 
-        public TestVersions(Version initial, Version ... upgrade)
+        public TestVersions(Version initial, Version upgrade)
         {
-            Preconditions.checkArgument(isNotEmpty(upgrade), "TestVersions must be constructed with one or more target upgrade versions.");
             this.initial = initial;
             this.upgrade = upgrade;
         }
@@ -116,16 +127,24 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        public TestCase upgrade(Major initial, Major ... upgrade)
+        public TestCase upgradesFrom(Major from)
         {
-            this.upgrade.add(new TestVersions(versions.getLatest(initial),
-                                              Arrays.stream(upgrade)
-                                                    .map(versions::getLatest)
-                                                    .toArray(Version[]::new)));
+            return upgrades(from, CURRENT);
+        }
+
+        public TestCase upgrades(Major from, Major to)
+        {
+            SUPPORTED_UPGRADE_PATHS.stream()
+                .filter(upgradePath -> (upgradePath.left.compareTo(from) >= 0 && upgradePath.right.compareTo(to) <= 0))
+                .forEachOrdered(upgradePath ->
+                {
+                    this.upgrade.add(
+                            new TestVersions(versions.getLatest(upgradePath.left), versions.getLatest(upgradePath.right)));
+                });
             return this;
         }
 
-        public TestCase upgrade(Version initial, Version ... upgrade)
+        public TestCase upgrade(Version initial, Version upgrade)
         {
             this.upgrade.add(new TestVersions(initial, upgrade));
             return this;
@@ -177,18 +196,15 @@ public class UpgradeTestBase extends DistributedTestBase
                 {
                     setup.run(cluster);
 
-                    for (Version version : upgrade.upgrade)
+                    for (int n : nodesToUpgrade)
                     {
-                        for (int n : nodesToUpgrade)
-                        {
-                            cluster.get(n).shutdown().get();
-                            cluster.get(n).setVersion(version);
-                            cluster.get(n).startup();
-                            runAfterNodeUpgrade.run(cluster, n);
-                        }
-
-                        runAfterClusterUpgrade.run(cluster);
+                        cluster.get(n).shutdown().get();
+                        cluster.get(n).setVersion(upgrade.upgrade);
+                        cluster.get(n).startup();
+                        runAfterNodeUpgrade.run(cluster, n);
                     }
+
+                    runAfterClusterUpgrade.run(cluster);
                 }
             }
         }
@@ -216,11 +232,7 @@ public class UpgradeTestBase extends DistributedTestBase
     protected TestCase allUpgrades(int nodes, int... toUpgrade)
     {
         return new TestCase().nodes(nodes)
-                             .upgrade(Versions.Major.v22, Versions.Major.v30)
-                             .upgrade(Versions.Major.v22, Versions.Major.v3X)
-                             .upgrade(Versions.Major.v30, Versions.Major.v3X)
-                             .upgrade(Versions.Major.v30, Versions.Major.v4)
-                             .upgrade(Versions.Major.v3X, Versions.Major.v4)
+                             .upgradesFrom(Versions.Major.v22)
                              .nodesToUpgrade(toUpgrade);
     }
 

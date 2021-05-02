@@ -35,7 +35,7 @@ public class Pre40MessageFilterTest extends UpgradeTestBase
         .nodes(2)
         .withConfig(configConsumer)
         .nodesToUpgrade(1)
-        .upgrade(Versions.Major.v30, Versions.Major.v4)
+        .upgradesFrom(Versions.Major.v30)
         .setup((cluster) -> {
             cluster.filters().outbound().allVerbs().messagesMatching((f,t,m) -> false).drop();
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
