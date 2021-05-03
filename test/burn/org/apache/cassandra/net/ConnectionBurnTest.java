@@ -473,7 +473,7 @@ public class ConnectionBurnTest
                 }
 
                 executor.shutdownNow();
-                ExecutorUtils.awaitTermination(1L, TimeUnit.MINUTES, executor);
+                ExecutorUtils.awaitTermination(5L, TimeUnit.MINUTES, executor);
             }
             finally
             {
