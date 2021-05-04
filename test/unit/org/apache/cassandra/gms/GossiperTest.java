@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -61,6 +62,8 @@ public class GossiperTest
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
+
+    private static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
 
     static final IPartitioner partitioner = new RandomPartitioner();
     StorageService ss = StorageService.instance;
@@ -115,7 +118,7 @@ public class GossiperTest
 
         VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
         EndpointState es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("4.0-SNAPSHOT"));
+        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(CURRENT_VERSION.toString()));
         Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
         Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
 
