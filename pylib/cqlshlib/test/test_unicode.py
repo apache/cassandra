@@ -59,7 +59,7 @@ class TestCqlshUnicode(BaseTestCase):
     def test_unicode_multiline_input(self):  # CASSANDRA-16400
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             value = '値'
-            c.send("INSERT INTO t(k, v) VALUES (1, \n'%s');\n" % (value,))
+            c.send("INSERT INTO t(k, v) VALUES (1, '%s');" % (value,))
             c.read_to_next_prompt()
             output = c.cmd_and_response('SELECT v FROM t;')
             self.assertIn(value, output)
