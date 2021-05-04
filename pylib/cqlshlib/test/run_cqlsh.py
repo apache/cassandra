@@ -306,6 +306,7 @@ class CqlshRunner(ProcRunner):
         if coverage:
             args += ('--coverage',)
         self.keyspace = keyspace
+        env.setdefault('CQLSH_PYTHON', sys.executable)  # run with the same interpreter as the test
         ProcRunner.__init__(self, path, tty=tty, args=args, env=env, **kwargs)
         self.prompt = prompt
         if self.prompt is None:
