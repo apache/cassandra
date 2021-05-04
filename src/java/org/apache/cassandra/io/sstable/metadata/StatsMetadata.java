@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
@@ -313,11 +314,11 @@ public class StatsMetadata extends MetadataComponent
                 // min column names
                 size += 4;
                 ClusteringBound<?> minClusteringValues = component.coveredClustering.start();
-                size += minClusteringValues.size() * 2 /* short length */ + minClusteringValues.dataSize();
+                size += countUntilNull(minClusteringValues.getBufferArray()) * 2 /* short length */ + minClusteringValues.dataSize();
                 // max column names
                 size += 4;
                 ClusteringBound<?> maxClusteringValues = component.coveredClustering.end();
-                size += maxClusteringValues.size() * 2 /* short length */ + maxClusteringValues.dataSize();
+                size += countUntilNull(maxClusteringValues.getBufferArray()) * 2 /* short length */ + maxClusteringValues.dataSize();
             }
 
             size += TypeSizes.sizeof(component.hasLegacyCounterShards);
@@ -398,13 +399,21 @@ public class StatsMetadata extends MetadataComponent
             else
             {
                 ClusteringBound<?> minClusteringValues = component.coveredClustering.start();
-                out.writeInt(minClusteringValues.size());
+                out.writeInt(countUntilNull(minClusteringValues.getBufferArray()));
                 for (ByteBuffer value : minClusteringValues.getBufferArray())
+                {
+                    if (value == null)
+                        break;
                     ByteBufferUtil.writeWithShortLength(value, out);
+                }
                 ClusteringBound<?> maxClusteringValues = component.coveredClustering.end();
-                out.writeInt(maxClusteringValues.size());
+                out.writeInt(countUntilNull(maxClusteringValues.getBufferArray()));
                 for (ByteBuffer value : maxClusteringValues.getBufferArray())
+                {
+                    if (value == null)
+                        break;
                     ByteBufferUtil.writeWithShortLength(value, out);
+                }
             }
 
             out.writeBoolean(component.hasLegacyCounterShards);
@@ -619,5 +628,12 @@ public class StatsMetadata extends MetadataComponent
                                      isTransient,
                                      maxColumnValueLengths);
         }
+
+        private int countUntilNull(ByteBuffer[] bufferArray)
+        {
+            int i = ArrayUtils.indexOf(bufferArray, null);
+            return i < 0 ? bufferArray.length : i;
+        }
+
     }
 }

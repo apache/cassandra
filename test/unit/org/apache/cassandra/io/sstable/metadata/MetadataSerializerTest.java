@@ -20,14 +20,20 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -44,6 +50,8 @@ import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.serializers.UTF8Serializer;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -63,9 +71,9 @@ public class MetadataSerializerTest
         Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
 
         MetadataSerializer serializer = new MetadataSerializer();
-        File statsFile = serialize(originalMetadata, serializer, TrieIndexFormat.latestVersion);
+        File statsFile = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getLatestVersion());
 
-        Descriptor desc = new Descriptor(statsFile.getParentFile(), "", "", 0, TrieIndexFormat.instance.getType());
+        Descriptor desc = new Descriptor(statsFile.getParentFile(), "", "", 0, SSTableFormat.Type.current());
         try (RandomAccessReader in = RandomAccessReader.open(statsFile))
         {
             Map<MetadataType, MetadataComponent> deserialized = serializer.deserialize(desc, in, EnumSet.allOf(MetadataType.class));
@@ -98,14 +106,14 @@ public class MetadataSerializerTest
         {
             // Deserialie and verify that the two histograms have had their overflow buckets cleared:
             Map<MetadataType, MetadataComponent> deserialized = serializer.deserialize(desc, in, EnumSet.allOf(MetadataType.class));
-            StatsMetadata deserializedStats = (StatsMetadata)deserialized.get(MetadataType.STATS);
+            StatsMetadata deserializedStats = (StatsMetadata) deserialized.get(MetadataType.STATS);
             assertFalse(deserializedStats.estimatedCellPerPartitionCount.isOverflowed());
             assertFalse(deserializedStats.estimatedPartitionSize.isOverflowed());
         }
     }
 
     public File serialize(Map<MetadataType, MetadataComponent> metadata, MetadataSerializer serializer, Version version)
-            throws IOException
+    throws IOException
     {
         // Serialize to tmp file
         File statsFile = FileUtils.createTempFile(Component.STATS.name, null);
@@ -121,55 +129,73 @@ public class MetadataSerializerTest
         CommitLogPosition club = new CommitLogPosition(11L, 12);
         CommitLogPosition cllb = new CommitLogPosition(9L, 12);
 
-        TableMetadata cfm = SchemaLoader.standardCFMD("ks1", "cf1").build();
+        TableMetadata cfm = SchemaLoader.clusteringSASICFMD("ks1", "cf1").build();
         MetadataCollector collector = new MetadataCollector(cfm.comparator)
-                                          .commitLogIntervals(new IntervalSet<>(cllb, club));
+                                      .commitLogIntervals(new IntervalSet<>(cllb, club));
 
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
+        collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("abc"), Int32Type.instance.decompose(123)));
+        collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("cba"), null));
         return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()));
     }
 
-    @Test
-    public void testMaReadMa() throws IOException
+    private void testVersions(String... versions) throws Throwable
     {
-        testOldReadsNew("ma", "ma");
+        Throwable t = null;
+        for (int oldIdx = 0; oldIdx < versions.length; oldIdx++)
+        {
+            for (int newIdx = oldIdx; newIdx < versions.length; newIdx++)
+            {
+                try
+                {
+                    testOldReadsNew(versions[oldIdx], versions[newIdx]);
+                }
+                catch (Exception | AssertionError e)
+                {
+                    t = Throwables.merge(t, new AssertionError("Failed to test " + versions[oldIdx] + " -> " + versions[newIdx], e));
+                }
+            }
+        }
+        if (t != null)
+        {
+            throw t;
+        }
     }
 
     @Test
-    public void testMaReadMb() throws IOException
+    public void testMVersions() throws Throwable
     {
-        testOldReadsNew("ma", "mb");
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
+        testVersions("ma", "mb", "mc", "md");
     }
 
     @Test
-    public void testMaReadMc() throws IOException
+    public void testNVersions() throws Throwable
     {
-        testOldReadsNew("ma", "mc");
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
+        testVersions("na");
     }
 
     @Test
-    public void testMbReadMb() throws IOException
+    public void testAVersions() throws Throwable
     {
-        testOldReadsNew("mb", "mb");
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("aa", "ac", "ad");
     }
 
     @Test
-    public void testMbReadMc() throws IOException
+    public void testBVersions() throws Throwable
     {
-        testOldReadsNew("mb", "mc");
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("ba", "bb");
     }
 
     @Test
-    public void testMcReadMc() throws IOException
+    public void testCVersions() throws Throwable
     {
-        testOldReadsNew("mc", "mc");
-    }
-
-    @Test
-    public void testNaReadNa() throws IOException
-    {
-        testOldReadsNew("na", "na");
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("ca");
     }
 
     public void testOldReadsNew(String oldV, String newV) throws IOException
@@ -178,10 +204,10 @@ public class MetadataSerializerTest
 
         MetadataSerializer serializer = new MetadataSerializer();
         // Write metadata in two minor formats.
-        File statsFileLb = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(newV));
-        File statsFileLa = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(oldV));
+        File statsFileLb = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getVersion(newV));
+        File statsFileLa = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getVersion(oldV));
         // Reading both as earlier version should yield identical results.
-        SSTableFormat.Type stype = SSTableFormat.Type.BIG;
+        SSTableFormat.Type stype = SSTableFormat.Type.current();
         Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.getParentFile(), "", "", 0, stype);
         try (RandomAccessReader inLb = RandomAccessReader.open(statsFileLb);
              RandomAccessReader inLa = RandomAccessReader.open(statsFileLa))
