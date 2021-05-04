@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import six
 import unittest
 
 from .basecase import (BaseTestCase, TEST_HOST, TEST_PORT,
@@ -37,8 +38,6 @@ from .ansi_colors import (ColoredText, ansi_seq, lookup_colorcode,
 CONTROL_C = '\x03'
 CONTROL_D = '\x04'
 
-has_python27 = not subprocess.call(['python2.7', '--version'])
-has_python3 = not subprocess.call(['python3', '--version'])
 
 class TestCqlshOutput(BaseTestCase):
 
@@ -58,8 +57,6 @@ class TestCqlshOutput(BaseTestCase):
             env['LC_CTYPE'] = 'en_US.utf8'
         else:
             env['LC_CTYPE'] = os.environ.get('LC_CTYPE', 'en_US.utf8')
-        if ('PATH' in os.environ.keys()):
-            env['PATH'] = os.environ['PATH']
         self.default_env = env
 
     def tearDown(self):
@@ -784,21 +781,20 @@ class TestCqlshOutput(BaseTestCase):
             self.assertRegex(output, '^Connected to .* at %s:%d$'
                                              % (re.escape(TEST_HOST), TEST_PORT))
 
-    @unittest.skipIf(not has_python27, 'Python 2.7 not available to test warning')
+    @unittest.skipIf(six.PY3, 'Will not emit warning when running Python 3')
     def test_warn_py2(self):
-        env = self.default_env.copy()
-        env['USER_SPECIFIED_PYTHON'] = 'python2.7'
         # has the warning
-        with testrun_cqlsh(tty=True, env=env) as c:
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
             self.assertIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
 
         # can suppress
+        env = self.default_env.copy()
         env['CQLSH_NO_WARN_PY2'] = '1'
         with testrun_cqlsh(tty=True, env=env) as c:
             self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
 
-    @unittest.skipIf(not (has_python27 and has_python3), 'Python 3 and 2.7 not available to test preference')
-    def test_no_warn_both_py_present(self):
+    @unittest.skipIf(six.PY2, 'Warning will be emitted when running Python 2.7')
+    def test_no_warn_py3(self):
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             self.assertNotIn('Python 2.7 support is deprecated.', c.output_header, 'cqlsh did not output expected warning.')
 

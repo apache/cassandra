@@ -972,7 +972,7 @@ class Shell(cmd.Cmd):
         if readline is not None:
             nl_count = srcstr.count("\n")
 
-            new_hist = srcstr.replace("\n", " ").rstrip()
+            new_hist = ensure_str(srcstr.replace("\n", " ").rstrip())
 
             if nl_count > 1 and self.last_hist != new_hist:
                 readline.add_history(new_hist)
