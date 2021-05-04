@@ -696,10 +696,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE TA', immediate='BLE ')
         self.create_columnfamily_table_template('TABLE')
 
-    def test_complete_in_describe(self):
-        """
-        Tests for Cassandra-10733
-        """
+    def test_complete_in_describe(self):  # Cassandra-10733
         self.trycompletions('DES', immediate='C')
         # quoted_keyspace = '"' + self.cqlsh.keyspace + '"'
         self.trycompletions('DESCR', immediate='IBE ')
