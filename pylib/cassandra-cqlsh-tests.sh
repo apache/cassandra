@@ -143,4 +143,10 @@ mv nosetests.xml ${WORKSPACE}/cqlshlib.xml
 # /virtualenv
 deactivate
 
-exit ${RETURN}
+# circleci needs non-zero exit on failures, jenkins need zero exit to process the test failures
+if ! command -v circleci >/dev/null 2>&1
+then
+    exit 0
+else
+    exit ${RETURN}
+fi
