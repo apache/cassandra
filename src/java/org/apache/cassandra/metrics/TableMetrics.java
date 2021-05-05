@@ -379,10 +379,15 @@ public class TableMetrics
      *
      * @param cfs ColumnFamilyStore to measure metrics
      */
-    public TableMetrics(final ColumnFamilyStore cfs)
+    public TableMetrics(final ColumnFamilyStore cfs, ReleasableMetric memtableMetrics)
     {
         factory = new TableMetricNameFactory(cfs, "Table");
         aliasFactory = new TableMetricNameFactory(cfs, "ColumnFamily");
+
+        if (memtableMetrics != null)
+        {
+            all.add(memtableMetrics);
+        }
 
         samplers = new EnumMap<>(SamplerType.class);
         topReadPartitionFrequency = new FrequencySampler<ByteBuffer>()

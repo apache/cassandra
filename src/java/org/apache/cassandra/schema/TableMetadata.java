@@ -920,6 +920,13 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder memtable(MemtableParams val)
+        {
+            params.memtable(val);
+            return this;
+        }
+
+
         public Builder isCounter(boolean val)
         {
             return flag(Flag.COUNTER, val);
