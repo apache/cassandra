@@ -622,37 +622,37 @@ class Shell(cmd.Cmd):
         self.connection_versions = vers
 
     def get_keyspace_names(self):
-        return list(self.conn.metadata.keyspaces)
+        return list(map(str, list(self.conn.metadata.keyspaces.keys())))
 
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(self.get_keyspace_meta(ksname).tables)
+        return list(map(str, list(self.get_keyspace_meta(ksname).tables.keys())))
 
     def get_materialized_view_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(self.get_keyspace_meta(ksname).views)
+        return list(map(str, list(self.get_keyspace_meta(ksname).views.keys())))
 
     def get_index_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(self.get_keyspace_meta(ksname).indexes)
+        return list(map(str, list(self.get_keyspace_meta(ksname).indexes.keys())))
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
         layout = self.get_table_meta(ksname, cfname)
-        return list(layout.columns)
+        return [str(col) for col in layout.columns]
 
     def get_usertype_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(self.get_keyspace_meta(ksname).user_types)
+        return list(self.get_keyspace_meta(ksname).user_types.keys())
 
     def get_usertype_layout(self, ksname, typename):
         if ksname is None:
@@ -1404,7 +1404,9 @@ class Shell(cmd.Cmd):
         """
         Print the output for a DESCRIBE KEYSPACES query
         """
-        names = [ensure_str(r['name']) for r in rows]
+        names = list()
+        for row in rows:
+            names.append(str(row['name']))
 
         print('')
         cmd.Cmd.columnize(self, names)
@@ -1424,7 +1426,7 @@ class Shell(cmd.Cmd):
                 keyspace = row['keyspace_name']
                 names = list()
 
-            names.append(ensure_str(row['name']))
+            names.append(str(row['name']))
 
         if keyspace is not None:
             self.print_keyspace_element_names(keyspace, names)
