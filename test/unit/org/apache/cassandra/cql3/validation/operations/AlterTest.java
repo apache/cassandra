@@ -20,11 +20,13 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.util.List;
 import java.util.UUID;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.PreparedStatement;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -53,6 +55,15 @@ import static org.junit.Assert.fail;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class AlterTest extends CQLTester
 {
+    @BeforeClass
+    public static void setUpClass()
+    {
+        // AlterTest uses Murmur3 partitioner, but injects OrderPreservingPartitioner.StringToken
+        // into TokenMetadata; expect trouble
+        System.setProperty(TrieMemtable.SHARD_COUNT_PROPERTY, "1");
+        CQLTester.setUpClass();
+    }
+
     @Test
     public void testDropColumnAsPreparedStatement() throws Throwable
     {

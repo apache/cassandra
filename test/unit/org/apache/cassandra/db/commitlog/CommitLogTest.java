@@ -30,6 +30,7 @@ import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
 
@@ -40,10 +41,11 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -126,22 +128,25 @@ public abstract class CommitLogTest
 
         SchemaLoader.prepareServer();
 
+        MemtableParams skipListMemtable = MemtableParams.fromMap(ImmutableMap.of("class", "SkipListMemtable"));
+
         TableMetadata.Builder custom =
             TableMetadata.builder(KEYSPACE1, CUSTOM1)
                          .addPartitionKeyColumn("k", IntegerType.instance)
                          .addClusteringColumn("c1", MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false))
                          .addClusteringColumn("c2", SetType.getInstance(UTF8Type.instance, false))
-                         .addStaticColumn("s", IntegerType.instance);
+                         .addStaticColumn("s", IntegerType.instance)
+                         .memtable(skipListMemtable);
 
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
                                     custom);
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simpleTransient(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance).memtable(skipListMemtable));
         CompactionManager.instance.disableAutoCompaction();
 
         testKiller = new KillerForTests();
@@ -906,7 +911,7 @@ public abstract class CommitLogTest
 
             Memtable current = cfs.getTracker().getView().getCurrentMemtable();
             if (i == 2)
-                ((AbstractAllocatorMemtable) current).makeUnflushable();
+                ((SkipListMemtable) current).makeUnflushable();
 
             flushAction.accept(cfs, current);
         }
