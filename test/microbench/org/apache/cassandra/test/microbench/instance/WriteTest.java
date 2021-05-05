@@ -26,6 +26,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import com.google.common.base.Throwables;
 
@@ -74,8 +77,8 @@ public class WriteTest extends CQLTester
 
     String writeStatement;
 
-    @Param({"1"})
-    int threadCount = 1;
+    @Param({"32"})
+    int threadCount;
 
     ExecutorService executorService;
 
@@ -143,7 +146,7 @@ public class WriteTest extends CQLTester
         return new Object[] { i, i, i };
     }
 
-    public void performWrite(long ofs, long count) throws Throwable
+    public void performWrite(long ofs, int count) throws Throwable
     {
         if (useNet)
         {
@@ -161,16 +164,16 @@ public class WriteTest extends CQLTester
         }
     }
 
-    public void performWriteSerial(long ofs, long count) throws Throwable
+    public void performWriteSerial(long ofs, int count) throws Throwable
     {
         for (long i = ofs; i < ofs + count; ++i)
             execute(writeStatement, writeArguments(i));
     }
 
-    public void performWriteThreads(long ofs, long count) throws Throwable
+    public void performWriteThreads(long ofs, int count) throws Throwable
     {
         List<Future<Integer>> futures = new ArrayList<>();
-        for (long i = 0; i < count; ++i)
+        for (int i = 0; i < count; ++i)
         {
             long pos = ofs + i;
             futures.add(executorService.submit(() ->
@@ -186,19 +189,19 @@ public class WriteTest extends CQLTester
                 }
             }));
         }
-        long done = 0;
+        int done = 0;
         for (Future<Integer> f : futures)
             done += f.get();
         assert count == done;
     }
 
-    public void performWriteSerialNet(long ofs, long count) throws Throwable
+    public void performWriteSerialNet(long ofs, int count) throws Throwable
     {
         for (long i = ofs; i < ofs + count; ++i)
             sessionNet().execute(writeStatement, writeArguments(i));
     }
 
-    public void performWriteThreadsNet(long ofs, long count) throws Throwable
+    public void performWriteThreadsNet(long ofs, int count) throws Throwable
     {
         List<Future<Integer>> futures = new ArrayList<>();
         for (long i = 0; i < count; ++i)

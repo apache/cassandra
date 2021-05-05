@@ -183,20 +183,69 @@ public class MemtableReadTrie<T> extends Trie<T>
 
     volatile int root;
 
-    final UnsafeBuffer buffer;
+    /*
+     EXPANDABLE DATA STORAGE
 
-    volatile AtomicReferenceArray<T> contentArray;
+     The tries will need more and more space in buffers and content lists as they grow. Instead of using ArrayList-like
+     reallocation with copying, which may be prohibitively expensive for large buffers, we use a sequence of
+     buffers/content arrays that double in size on every expansion.
 
-    MemtableReadTrie(UnsafeBuffer buffer, AtomicReferenceArray<T> contentArray, int root)
+     For a given address x the index of the buffer can be found with the following calculation:
+        index_of_most_significant_set_bit(x / min_size + 1)
+     (relying on sum (2^i) for i in [0, n-1] == 2^n - 1) which can be performed quickly on modern hardware.
+
+     Finding the offset within the buffer is then
+        x + min - (min << buffer_index)
+
+     The allocated space starts 256 bytes for the buffer and 16 entries for the content list.
+
+     Note that a buffer is not allowed to split 32-byte blocks (code assumes same buffer can be used for all bytes
+     inside the block).
+
+     TODO: implement delay and retry on space hitting the 2GB barrier.
+     */
+
+    static final int BUF_START_SHIFT = 8;
+    static final int BUF_START_SIZE = 1 << BUF_START_SHIFT;
+
+    static final int CONTENTS_START_SHIFT = 4;
+    static final int CONTENTS_START_SIZE = 1 << CONTENTS_START_SHIFT;
+
+    final UnsafeBuffer[] buffers;
+    final AtomicReferenceArray<T>[] contentArrays;
+
+    MemtableReadTrie(UnsafeBuffer[] buffers, AtomicReferenceArray<T>[] contentArrays, int root)
     {
-        this.buffer = buffer;
-        this.contentArray = contentArray;
+        this.buffers = buffers;
+        this.contentArrays = contentArrays;
         this.root = root;
     }
 
     /*
      Buffer, content list and block management
      */
+    int getChunkIdx(int pos, int minChunkShift, int minChunkSize)
+    {
+        return 31 - minChunkShift - Integer.numberOfLeadingZeros(pos + minChunkSize);
+    }
+
+    int getChunkOffset(int pos, int chunkIndex, int minChunkSize)
+    {
+        return pos + minChunkSize - (minChunkSize << chunkIndex);
+    }
+
+    UnsafeBuffer getBuffer(int pos)
+    {
+        int leadBit = getChunkIdx(pos, BUF_START_SHIFT, BUF_START_SIZE);
+        return buffers[leadBit];
+    }
+
+    int getOffset(int pos)
+    {
+        int leadBit = getChunkIdx(pos, BUF_START_SHIFT, BUF_START_SIZE);
+        return getChunkOffset(pos, leadBit, BUF_START_SIZE);
+    }
+
 
     /** Pointer offset for a node pointer. */
     int offset(int pos)
@@ -206,19 +255,22 @@ public class MemtableReadTrie<T> extends Trie<T>
 
     final int getByte(int pos)
     {
-        return buffer.getByte(pos) & 0xFF;
+        return getBuffer(pos).getByte(getOffset(pos)) & 0xFF;
     }
 
     final int getShort(int pos)
     {
-        return buffer.getShort(pos) & 0xFFFF;
+        return getBuffer(pos).getShort(getOffset(pos)) & 0xFFFF;
     }
 
-    final int getInt(int pos) { return buffer.getInt(pos); }
+    final int getInt(int pos) { return getBuffer(pos).getInt(getOffset(pos)); }
 
     T getContent(int index)
     {
-        return contentArray.get(index);
+        int leadBit = getChunkIdx(index, CONTENTS_START_SHIFT, CONTENTS_START_SIZE);
+        int ofs = getChunkOffset(index, leadBit, CONTENTS_START_SIZE);
+        AtomicReferenceArray<T> array = contentArrays[leadBit];
+        return array.get(ofs);
     }
 
     /*
@@ -633,9 +685,9 @@ public class MemtableReadTrie<T> extends Trie<T>
             int child = node;
             do
             {
-                final int pointerPos =  chainBlockChildPointer(child);
+                final int pointerPos = chainBlockChildPointer(child);
                 if (receiver != null)
-                    receiver.add(buffer, child, pointerPos - child);
+                    receiver.add(getBuffer(child), getOffset(child), pointerPos - child);
                 // jump directly to the child at the end of the chain
                 child = getInt(pointerPos);
                 // and continue jumping as long as the resulting node is a chain
