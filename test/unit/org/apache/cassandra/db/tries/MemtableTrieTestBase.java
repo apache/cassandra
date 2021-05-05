@@ -284,7 +284,7 @@ public abstract class MemtableTrieTestBase
                             .mapToInt(src1 -> ByteComparable.length(src1, VERSION))
                             .sum();
         long ts = ObjectSizes.measureDeep(content);
-        long onh = ObjectSizes.measureDeep(trie.contentArray);
+        long onh = ObjectSizes.measureDeep(trie.contentArrays);
         System.out.format("Trie size on heap %,d off heap %,d measured %,d keys %,d treemap %,d\n",
                           trie.sizeOnHeap(), trie.sizeOffHeap(), onh, keysize, ts);
         System.out.format("per entry on heap %.2f off heap %.2f measured %.2f keys %.2f treemap %.2f\n",

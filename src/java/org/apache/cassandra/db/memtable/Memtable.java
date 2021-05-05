@@ -36,6 +36,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
@@ -135,6 +136,15 @@ public interface Memtable extends Comparable<Memtable>
         {
             return false;
         }
+
+        /**
+         * Memtable metrics lifecycle matches table lifecycle. It is the table
+         * that owns the metrics and decides when to release them;
+         */
+        default TableMetrics.ReleasableMetric createMemtableMetrics(TableMetadataRef metadataRef)
+        {
+            return null;
+        }
     }
 
     /**
@@ -153,8 +163,9 @@ public interface Memtable extends Comparable<Memtable>
          * freed by a flush.
          */
         Iterable<Memtable> getIndexMemtables();
-    }
 
+        ShardBoundaries localRangeSplits(int shardCount);
+    }
 
     // Main write and read operations
 

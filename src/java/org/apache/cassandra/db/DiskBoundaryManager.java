@@ -21,7 +21,6 @@ package org.apache.cassandra.db;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +67,19 @@ public class DiskBoundaryManager
            diskBoundaries.invalidate();
     }
 
-    private static DiskBoundaries getDiskBoundaryValue(ColumnFamilyStore cfs)
+    static class VersionedRangesAtEndpoint
+    {
+        public final RangesAtEndpoint rangesAtEndpoint;
+        public final long ringVersion;
+
+        VersionedRangesAtEndpoint(RangesAtEndpoint rangesAtEndpoint, long ringVersion)
+        {
+            this.rangesAtEndpoint = rangesAtEndpoint;
+            this.ringVersion = ringVersion;
+        }
+    }
+
+    public static VersionedRangesAtEndpoint getVersionedLocalRanges(ColumnFamilyStore cfs)
     {
         RangesAtEndpoint localRanges;
 
@@ -78,23 +89,20 @@ public class DiskBoundaryManager
         {
             tmd = StorageService.instance.getTokenMetadata();
             ringVersion = tmd.getRingVersion();
-            if (StorageService.instance.isBootstrapMode()
-                && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
-            {
-                PendingRangeCalculatorService.instance.blockUntilFinished();
-                localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddressAndPort());
-            }
-            else
-            {
-                // Reason we use use the future settled TMD is that if we decommission a node, we want to stream
-                // from that node to the correct location on disk, if we didn't, we would put new files in the wrong places.
-                // We do this to minimize the amount of data we need to move in rebalancedisks once everything settled
-                localRanges = cfs.keyspace.getReplicationStrategy().getAddressReplicas(tmd.cloneAfterAllSettled(), FBUtilities.getBroadcastAddressAndPort());
-            }
+            localRanges = getLocalRanges(cfs, tmd);
             logger.debug("Got local ranges {} (ringVersion = {})", localRanges, ringVersion);
         }
         while (ringVersion != tmd.getRingVersion()); // if ringVersion is different here it means that
-                                                     // it might have changed before we calculated localRanges - recalculate
+        // it might have changed before we calculated localRanges - recalculate
+
+        return new VersionedRangesAtEndpoint(localRanges, ringVersion);
+    }
+
+    private static DiskBoundaries getDiskBoundaryValue(ColumnFamilyStore cfs)
+    {
+        VersionedRangesAtEndpoint rangesAtEndpoint = getVersionedLocalRanges(cfs);
+        RangesAtEndpoint localRanges = rangesAtEndpoint.rangesAtEndpoint;
+        long ringVersion = rangesAtEndpoint.ringVersion;
 
         int directoriesVersion;
         Directories.DataDirectory[] dirs;
@@ -111,6 +119,25 @@ public class DiskBoundaryManager
         List<PartitionPosition> positions = getDiskBoundaries(localRanges, cfs.getPartitioner(), dirs);
 
         return new DiskBoundaries(cfs, dirs, positions, ringVersion, directoriesVersion);
+    }
+
+    private static RangesAtEndpoint getLocalRanges(ColumnFamilyStore cfs, TokenMetadata tmd)
+    {
+        RangesAtEndpoint localRanges;
+        if (StorageService.instance.isBootstrapMode()
+        && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
+        {
+            PendingRangeCalculatorService.instance.blockUntilFinished();
+            localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddressAndPort());
+        }
+        else
+        {
+            // Reason we use use the future settled TMD is that if we decommission a node, we want to stream
+            // from that node to the correct location on disk, if we didn't, we would put new files in the wrong places.
+            // We do this to minimize the amount of data we need to move in rebalancedisks once everything settled
+            localRanges = cfs.keyspace.getReplicationStrategy().getAddressReplicas(tmd.cloneAfterAllSettled(), FBUtilities.getBroadcastAddressAndPort());
+        }
+        return localRanges;
     }
 
     /**

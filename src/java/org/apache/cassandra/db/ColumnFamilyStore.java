@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -66,6 +67,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -102,6 +104,7 @@ import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -112,6 +115,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
@@ -314,6 +318,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     @VisibleForTesting
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
+    ShardBoundaries cachedShardBoundaries = null;
 
     private volatile boolean neverPurgeTombstones = false;
 
@@ -491,7 +496,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             indexManager.addIndex(info, true);
         }
 
-        metric = new TableMetrics(this);
+        metric = new TableMetrics(this, memtableFactory.createMemtableMetrics(metadata));
 
         if (data.loadsstables)
         {
@@ -1417,6 +1422,43 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return updateIndexes
                ? indexManager.newUpdateTransaction(update, context, FBUtilities.nowInSeconds(), memtable)
                : UpdateTransaction.NO_OP;
+    }
+
+    public ShardBoundaries localRangeSplits(int shardCount)
+    {
+        if (shardCount == 1 || !getPartitioner().splitter().isPresent() || SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
+            return ShardBoundaries.NONE;
+
+        ShardBoundaries shardBoundaries = cachedShardBoundaries;
+        if (shardBoundaries == null ||
+            shardBoundaries.shardCount() != shardCount ||
+            shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion())
+        {
+            DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
+            Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
+            List<Splitter.WeightedRange> weightedRanges;
+            if (localRanges.isEmpty())
+                weightedRanges = ImmutableList.of(new Splitter.WeightedRange(1.0, new Range<>(getPartitioner().getMinimumToken(), getPartitioner().getMaximumToken())));
+            else
+            {
+                weightedRanges = new ArrayList<>(localRanges.size());
+                for (Range<Token> r : localRanges)
+                {
+                    // WeightedRange supports only unwrapped ranges as it relies
+                    // on right - left == num tokens equality
+                    for (Range<Token> u: r.unwrap())
+                        weightedRanges.add(new Splitter.WeightedRange(1.0, u));
+                }
+                weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));
+            }
+
+            List<Token> boundaries = getPartitioner().splitter().get().splitOwnedRanges(shardCount, weightedRanges, false);
+            shardBoundaries = new ShardBoundaries(boundaries.subList(0, boundaries.size() - 1),
+                                                  versionedLocalRanges.ringVersion);
+            cachedShardBoundaries = shardBoundaries;
+            logger.info("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), boundaries);
+        }
+        return shardBoundaries;
     }
 
     /**
