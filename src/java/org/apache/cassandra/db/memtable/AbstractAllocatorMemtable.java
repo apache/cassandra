@@ -123,6 +123,8 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     public void metadataUpdated()
     {
+        // We decided not to swap out this memtable, but if the flush period has changed we must schedule it for the
+        // new expiration time.
         scheduleFlush();
     }
 
@@ -148,24 +150,16 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     public String toString()
     {
-        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %.0f%%/%.0f%% of on/off-heap limit)",
+        MemoryUsage usage = Memtable.getMemoryUsage(this);
+        return String.format("Memtable-%s@%s(%s serialized bytes, %s ops, %s)",
                              metadata.get().name,
                              hashCode(),
-                             FBUtilities.prettyPrintMemory(liveDataSize.get()),
-                             currentOperations,
-                             100 * allocator.onHeap().ownershipRatio(),
-                             100 * allocator.offHeap().ownershipRatio());
+                             FBUtilities.prettyPrintMemory(getLiveDataSize()),
+                             getOperations(),
+                             usage);
     }
 
-    /**
-     * For testing only. Give this memtable too big a size to make it always fail flushing.
-     */
-    @VisibleForTesting
-    public void makeUnflushable()
-    {
-        liveDataSize.addAndGet(1024L * 1024 * 1024 * 1024 * 1024);
-    }
-
+    @Override
     public void addMemoryUsageTo(MemoryUsage stats)
     {
         stats.ownershipRatioOnHeap += getAllocator().onHeap().ownershipRatio();

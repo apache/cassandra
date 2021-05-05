@@ -33,11 +33,9 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public abstract class AbstractMemtable implements Memtable
 {
-    protected final AtomicLong liveDataSize = new AtomicLong(0);
     protected final AtomicLong currentOperations = new AtomicLong(0);
     protected final ColumnsCollector columnsCollector;
     protected final StatsCollector statsCollector = new StatsCollector();
@@ -55,11 +53,6 @@ public abstract class AbstractMemtable implements Memtable
     public TableMetadata metadata()
     {
         return metadata.get();
-    }
-
-    public long getLiveDataSize()
-    {
-        return liveDataSize.get();
     }
 
     public long getOperations()
@@ -123,6 +116,15 @@ public abstract class AbstractMemtable implements Memtable
                 update(s);
             for (ColumnMetadata r : columns.regulars)
                 update(r);
+        }
+
+        public void update(ColumnsCollector other)
+        {
+            for (Map.Entry<ColumnMetadata, AtomicBoolean> v : other.predefined.entrySet())
+                if (v.getValue().get())
+                    update(v.getKey());
+
+            extra.addAll(other.extra);
         }
 
         private void update(ColumnMetadata definition)

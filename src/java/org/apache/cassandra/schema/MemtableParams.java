@@ -27,7 +27,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.memtable.DefaultMemtableFactory;
+import org.apache.cassandra.db.memtable.SkipListMemtableFactory;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -61,7 +61,7 @@ public final class MemtableParams
     private MemtableParams()
     {
         this.options = ImmutableMap.of();
-        this.factory = DefaultMemtableFactory.INSTANCE;
+        this.factory = SkipListMemtableFactory.INSTANCE;
     }
 
     public MemtableParams(Map<String, String> options)

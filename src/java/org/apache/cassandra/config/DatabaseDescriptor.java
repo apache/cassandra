@@ -3328,7 +3328,7 @@ public class DatabaseDescriptor
 
     public static Map<String, String> getMemtableOptions()
     {
-        return conf.memtable;
+        return conf != null ? conf.memtable : null;
     }
 
     public static int getIndexSummaryResizeIntervalInMinutes()

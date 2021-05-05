@@ -33,6 +33,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
@@ -131,6 +132,17 @@ public interface Memtable extends Comparable<Memtable>
         {
             return false;
         }
+
+        /**
+         * Override this method to include implementation-specific memtable metrics in the table metrics.
+         *
+         * Memtable metrics lifecycle matches table lifecycle. It is the table that owns the metrics and
+         * decides when to release them.
+         */
+        default TableMetrics.ReleasableMetric createMemtableMetrics(TableMetadataRef metadataRef)
+        {
+            return null;
+        }
     }
 
     /**
@@ -150,8 +162,16 @@ public interface Memtable extends Comparable<Memtable>
          * freed by a flush.
          */
         Iterable<Memtable> getIndexMemtables();
-    }
 
+        /**
+         * Construct a list of boundaries that split the locally-owned ranges into the given number of shards,
+         * splitting the owned space evenly. It is up to the memtable to use this information.
+         * The database will not notify the memtable of changes to the local ranges. If the memtable flushes normally,
+         * it is usually okay to pick these up the next time a new memtable is created. However, if the memtable
+         * does not flush often, it may be necessary to set up a regular check if this still returns the same object.
+         */
+        ShardBoundaries localRangeSplits(int shardCount);
+    }
 
     // Main write and read operations
 
@@ -398,6 +418,7 @@ public interface Memtable extends Comparable<Memtable>
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.
+     * This will not be called if shouldSwitch(SCHEMA_CHANGE) returns true, the memtable will be swapped out instead.
      */
     void metadataUpdated();
 

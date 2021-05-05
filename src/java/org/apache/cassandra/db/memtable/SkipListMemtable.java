@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -63,7 +64,7 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 {
     private static final Logger logger = LoggerFactory.getLogger(SkipListMemtable.class);
 
-    public static final Factory FACTORY = SkipListMemtable::new;
+    public static final Factory FACTORY = SkipListMemtableFactory.INSTANCE;
 
     private static final int ROW_OVERHEAD_HEAP_SIZE;
     static
@@ -79,6 +80,8 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     // to select key range using Token.KeyBound. However put() ensures that we
     // actually only store DecoratedKey.
     private final ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> partitions = new ConcurrentSkipListMap<>();
+
+    private final AtomicLong liveDataSize = new AtomicLong(0);
 
     SkipListMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
     {
@@ -108,12 +111,23 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
             {
                 return Collections.emptyList();
             }
+
+            public ShardBoundaries localRangeSplits(int shardCount)
+            {
+                return null; // not implemented
+            }
         });
     }
 
     protected Factory factory()
     {
         return FACTORY;
+    }
+
+    @Override
+    public void addMemoryUsageTo(MemoryUsage stats)
+    {
+        super.addMemoryUsageTo(stats);
     }
 
     public boolean isClean()
@@ -347,5 +361,19 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
 
             return filter.getUnfilteredRowIterator(columnFilter, entry.getValue());
         }
+    }
+
+    public long getLiveDataSize()
+    {
+        return liveDataSize.get();
+    }
+
+    /**
+     * For testing only. Give this memtable too big a size to make it always fail flushing.
+     */
+    @VisibleForTesting
+    public void makeUnflushable()
+    {
+        liveDataSize.addAndGet(1024L * 1024 * 1024 * 1024 * 1024);
     }
 }
