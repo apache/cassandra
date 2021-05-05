@@ -560,7 +560,7 @@ class ExportWriter(object):
 
         if self.header:
             writer = csv.writer(self.current_dest.output, **self.options.dialect)
-            writer.writerow([ensure_str(c) for c in self.columns])
+            writer.writerow(self.columns)
 
         return True
 
