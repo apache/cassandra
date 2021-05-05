@@ -1,4 +1,5 @@
 4.0-rc2
+ * Add back validation for AlterTableStatements (CASSANDRA-16643)
  * Fix cqlsh encoding error with unicode in multi-line statement (CASSANDRA-16539)
  * Fix race in fat client removal (CASSANDRA-16238)
  * Test org.apache.cassandra.net.AsyncPromiseTest FAILED (CASSANDRA-16596)

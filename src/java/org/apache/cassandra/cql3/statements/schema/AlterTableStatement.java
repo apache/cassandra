@@ -173,8 +173,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, tableBuilder, viewsBuilder));
+            TableMetadata tableMetadata = tableBuilder.build();
+            tableMetadata.validate();
 
-            return keyspace.withSwapped(keyspace.tables.withSwapped(tableBuilder.build()))
+            return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
                            .withSwapped(viewsBuilder.build());
         }
 
