@@ -250,7 +250,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
         }
 
         if (!skippedSSTables.isEmpty()) {
-            logger.warn("Origin of {} sstables is unknown or doesn't match the local node; commitLogIntervals for them were ignored", skippedSSTables.size());
+            logger.warn("Origin of {} sstables is unknown or doesn't match the local node; commitLogIntervals for them were ignored. " +
+                        "This is a normal behaviour when there are sstables in older version or they were copied/streamed from other nodes.",
+                        skippedSSTables.size());
             logger.debug("Ignored commitLogIntervals from the following sstables: {}", skippedSSTables);
         }
 
