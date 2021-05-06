@@ -126,7 +126,7 @@ public class MetadataSerializerTest
         return originalMetadata;
     }
 
-    private void testVersions(String... versions) throws Throwable
+    private void testOldReadsNewAll(String... versions) throws Throwable
     {
         Throwable t = null;
         for (int oldIdx = 0; oldIdx < versions.length; oldIdx++)
@@ -152,28 +152,28 @@ public class MetadataSerializerTest
     @Test
     public void testJVersions() throws Throwable
     {
-        testVersions("jb");
+        testOldReadsNewAll("jb");
     }
 
     @Test
     public void testKVersions() throws Throwable
     {
-        testVersions("ka");
+        testOldReadsNewAll("ka");
     }
 
     @Test
     public void testLVersions() throws Throwable
     {
-        testVersions("la", "lb");
+        testOldReadsNewAll("la", "lb");
     }
 
     @Test
     public void testMVersions() throws Throwable
     {
-        testVersions("ma", "mb", "mc", "md", "me");
+        testOldReadsNewAll("ma", "mb", "mc", "md", "me");
     }
 
-    public void testOldReadsNew(String oldV, String newV) throws IOException
+    private void testOldReadsNew(String oldV, String newV) throws IOException
     {
         Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
 
