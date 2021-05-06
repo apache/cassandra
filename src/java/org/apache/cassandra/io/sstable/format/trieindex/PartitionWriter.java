@@ -34,7 +34,6 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.trieindex.RowIndexReader.IndexInfo;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -113,7 +112,6 @@ class PartitionWriter implements AutoCloseable
         while (partition.hasNext())
         {
             Unfiltered unfiltered = partition.next();
-            SSTableWriter.guardCollectionSize(partition, unfiltered);
             addUnfiltered(unfiltered);
         }
 

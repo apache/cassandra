@@ -32,7 +32,6 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
-import org.apache.cassandra.service.QueryState;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -215,10 +214,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         @Override
         public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
         {
-            // QueryState is used by inSelectCartesianProduct guardrail to skip non-ordinary users.
-            // Passing null here to avoid polluting too many methods, because in case of EQ token restriction,
-            // it won't generate high cartesian product.
-            return values(options, null);
+            return values(options);
         }
 
         @Override
@@ -234,7 +230,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         }
 
         @Override
-        public List<ByteBuffer> values(QueryOptions options, QueryState queryState) throws InvalidRequestException
+        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
         {
             return Collections.singletonList(value.bindAndGet(options));
         }
@@ -267,7 +263,7 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
         }
 
         @Override
-        public List<ByteBuffer> values(QueryOptions options, QueryState queryState) throws InvalidRequestException
+        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
         {
             throw new UnsupportedOperationException();
         }

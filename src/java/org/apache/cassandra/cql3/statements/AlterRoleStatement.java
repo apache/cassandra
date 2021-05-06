@@ -25,7 +25,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -48,8 +47,7 @@ public class AlterRoleStatement extends AuthenticationStatement
         this.dcPermissions = dcPermissions;
     }
 
-    @Override
-    public void validate(QueryState state) throws RequestValidationException
+    public void validate(ClientState state) throws RequestValidationException
     {
         opts.validate();
 
@@ -62,7 +60,7 @@ public class AlterRoleStatement extends AuthenticationStatement
             throw new InvalidRequestException("ALTER [ROLE|USER] can't be empty");
 
         // validate login here before authorize to avoid leaking user existence to anonymous users.
-        state.getClientState().ensureNotAnonymous();
+        state.ensureNotAnonymous();
         if (!DatabaseDescriptor.getRoleManager().isExistingRole(role))
             throw new InvalidRequestException(String.format("%s doesn't exist", role.getRoleName()));
     }

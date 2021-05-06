@@ -34,7 +34,6 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.CASRequest;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -229,14 +228,13 @@ public class CQL3CasRequest implements CASRequest
         return builder.build();
     }
 
-    @Override
-    public PartitionUpdate makeUpdates(FilteredPartition current, QueryState state) throws InvalidRequestException
+    public PartitionUpdate makeUpdates(FilteredPartition current) throws InvalidRequestException
     {
         PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(metadata, key, updatedColumns(), conditions.size());
         for (RowUpdate upd : updates)
-            upd.applyUpdates(current, updateBuilder, state);
+            upd.applyUpdates(current, updateBuilder);
         for (RangeDeletion upd : rangeDeletions)
-            upd.applyUpdates(current, updateBuilder, state);
+            upd.applyUpdates(current, updateBuilder);
 
         PartitionUpdate partitionUpdate = updateBuilder.build();
         IndexRegistry.obtain(metadata).validate(partitionUpdate);
@@ -267,13 +265,12 @@ public class CQL3CasRequest implements CASRequest
             this.nowInSeconds = nowInSeconds;
         }
 
-        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder, QueryState state)
+        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder)
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             UpdateParameters params =
                 new UpdateParameters(metadata,
                                      updateBuilder.columns(),
-                                     state,
                                      options,
                                      timestamp,
                                      nowInSeconds,
@@ -300,14 +297,13 @@ public class CQL3CasRequest implements CASRequest
             this.nowInSeconds = nowInSeconds;
         }
 
-        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder, QueryState state)
+        void applyUpdates(FilteredPartition current, PartitionUpdate.Builder updateBuilder)
         {
             // No slice statements currently require a read, but this maintains consistency with RowUpdate, and future proofs us
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.singletonMap(key, current) : null;
             UpdateParameters params =
                 new UpdateParameters(metadata,
                                      updateBuilder.columns(),
-                                     state,
                                      options,
                                      timestamp,
                                      nowInSeconds,

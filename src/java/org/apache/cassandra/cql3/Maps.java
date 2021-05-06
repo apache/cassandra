@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
@@ -352,7 +351,6 @@ public abstract class Maps
             super(column, t);
         }
 
-        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             Term.Terminal value = t.bind(params.options);
@@ -383,7 +381,6 @@ public abstract class Maps
             k.collectMarkerSpecification(boundNames);
         }
 
-        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to set a value for a single key on a frozen map";
@@ -414,7 +411,6 @@ public abstract class Maps
             super(column, t);
         }
 
-        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to add items to a frozen map";
@@ -425,37 +421,22 @@ public abstract class Maps
 
         static void doPut(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
-            if (value == null)
-            {
-                // for frozen maps, we're overwriting the whole cell
-                if (!column.type.isMultiCell())
-                    params.addTombstone(column);
-
-                return;
-            }
-
-            Map<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
-
             if (column.type.isMultiCell())
             {
-                // Guardrails about collection size are only checked for the added elements without considering
-                // already existent elements. This is done so to avoid read-before-write, having additional checks
-                // during SSTable write.
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.state);
+                if (value == null)
+                    return;
 
-                int dataSize = 0;
+                Map<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
                 for (Map.Entry<ByteBuffer, ByteBuffer> entry : elements.entrySet())
-                {
-                    Cell cell = params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
-                    dataSize += cell.dataSize();
-                }
-                Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.state);
+                    params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.state);
-                Cell cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
-                Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.state);
+                // for frozen maps, we're overwriting the whole cell
+                if (value == null)
+                    params.addTombstone(column);
+                else
+                    params.addCell(column, value.get(ProtocolVersion.CURRENT));
             }
         }
     }
@@ -467,7 +448,6 @@ public abstract class Maps
             super(column, k);
         }
 
-        @Override
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
             assert column.type.isMultiCell() : "Attempted to delete a single key in a frozen map";

@@ -31,7 +31,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -751,36 +750,5 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
     public static void cleanupSavedCaches()
     {
         ServerTestUtils.cleanupSavedCaches();
-    }
-
-    /**
-     * Simple method that allows creating a table given it's CQL definition.
-     *
-     * <p>The method also creates the keyspace of the table if needs be (using a simple strategy with 1 replica) and
-     * can also create a few UDT (also from their CQL definition) if needed for the created table.
-     *
-     * <p>This method does not complain if any of the created entity already exists.
-     */
-    public static void load(String keyspace, String schemaCQL, String... typesCQL)
-    {
-        KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace,
-                                                       KeyspaceParams.simple(1),
-                                                       Tables.none(),
-                                                       Views.none(),
-                                                       Types.none(),
-                                                       Functions.none());
-        MigrationManager.announce(SchemaTransformations.addKeyspace(ksm, true), true);
-
-        for (String typeCQL : typesCQL)
-        {
-            Types types = Schema.instance.getKeyspaceMetadata(keyspace).types;
-            SchemaTransformation t = SchemaTransformations.addOrUpdateType(CreateTypeStatement.parse(typeCQL,
-                                                                                                     keyspace, types));
-            MigrationManager.announce(t, true);
-        }
-
-        Types types = Schema.instance.getKeyspaceMetadata(keyspace).types;
-        TableMetadata metadata = CreateTableStatement.parse(schemaCQL, keyspace, types).build();
-        MigrationManager.announce(SchemaTransformations.addTable(metadata, true), true);
     }
 }

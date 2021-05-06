@@ -54,7 +54,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -241,21 +241,20 @@ public class StressCQLSSTableWriter implements Closeable
         if (values.size() != boundNames.size())
             throw new InvalidRequestException(String.format("Invalid number of arguments, expecting %d values but got %d", boundNames.size(), values.size()));
 
-        QueryState state = QueryState.forInternalCalls();
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
-        List<ByteBuffer> keys = insert.buildPartitionKeyNames(options, state);
-        SortedSet<Clustering<?>> clusterings = insert.createClustering(options, state);
+        List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
+        SortedSet<Clustering<?>> clusterings = insert.createClustering(options);
 
         long now = System.currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(insert.metadata(),
                                                        insert.updatedColumns(),
-                                                       state,
                                                        options,
                                                        insert.getTimestamp(TimeUnit.MILLISECONDS.toMicros(now), options),
                                                        (int) TimeUnit.MILLISECONDS.toSeconds(now),
-                                                       insert.getTimeToLive(options), Collections.emptyMap());
+                                                       insert.getTimeToLive(options),
+                                                       Collections.emptyMap());
 
         try
         {
@@ -602,8 +601,8 @@ public class StressCQLSSTableWriter implements Closeable
             if (tableMetadata != null)
                 return Schema.instance.getColumnFamilyStoreInstance(tableMetadata.id);
 
-            QueryState state = QueryState.forInternalCalls();
-            CreateTableStatement statement = schemaStatement.prepare(state.getClientState());
+            ClientState state = ClientState.forInternalCalls();
+            CreateTableStatement statement = schemaStatement.prepare(state);
             statement.validate(state);
 
             //Build metadata with a portable tableId
@@ -635,8 +634,8 @@ public class StressCQLSSTableWriter implements Closeable
          */
         private UpdateStatement prepareInsert()
         {
-            QueryState state = QueryState.forInternalCalls();
-            CQLStatement cqlStatement = insertStatement.prepare(state.getClientState());
+            ClientState state = ClientState.forInternalCalls();
+            CQLStatement cqlStatement = insertStatement.prepare(state);
             UpdateStatement insert = (UpdateStatement) cqlStatement;
             insert.validate(state);
 

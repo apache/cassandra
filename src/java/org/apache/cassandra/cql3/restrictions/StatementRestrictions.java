@@ -741,12 +741,11 @@ public class StatementRestrictions
      * Returns the partition keys for which the data is requested.
      *
      * @param options the query options
-     * @param queryState the query state
      * @return the partition keys for which the data is requested.
      */
-    public List<ByteBuffer> getPartitionKeys(final QueryOptions options, QueryState queryState)
+    public List<ByteBuffer> getPartitionKeys(final QueryOptions options)
     {
-        return partitionKeyRestrictions.values(options, queryState);
+        return partitionKeyRestrictions.values(options);
     }
 
     /**
@@ -864,10 +863,9 @@ public class StatementRestrictions
      * Returns the requested clustering columns.
      *
      * @param options the query options
-     * @param queryState the query state
      * @return the requested clustering columns
      */
-    public NavigableSet<Clustering<?>> getClusteringColumns(QueryOptions options, QueryState queryState)
+    public NavigableSet<Clustering<?>> getClusteringColumns(QueryOptions options)
     {
         // If this is a names command and the table is a static compact one, then as far as CQL is concerned we have
         // only a single row which internally correspond to the static parts. In which case we want to return an empty
@@ -875,7 +873,7 @@ public class StatementRestrictions
         if (table.isStaticCompactTable())
             return BTreeSet.empty(table.comparator);
 
-        return clusteringColumnsRestrictions.valuesAsClustering(options, queryState);
+        return clusteringColumnsRestrictions.valuesAsClustering(options);
     }
 
     /**

@@ -124,7 +124,7 @@ public class BatchStatementBench
     @Benchmark
     public void bench()
     {
-        bs.getMutations(QueryState.forInternalCalls(), bqo, false, nowInSec, nowInSec, queryStartTime);
+        bs.getMutations(bqo, false, nowInSec, nowInSec, queryStartTime);
     }
 
 

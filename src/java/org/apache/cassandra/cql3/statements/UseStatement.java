@@ -48,8 +48,7 @@ public class UseStatement extends CQLStatement.Raw implements CQLStatement
         state.validateLogin();
     }
 
-    @Override
-    public void validate(QueryState state) throws InvalidRequestException
+    public void validate(ClientState state) throws InvalidRequestException
     {
     }
 

@@ -35,7 +35,6 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -68,10 +67,9 @@ public class ListRolesStatement extends AuthorizationStatement
         this.recursive = recursive;
     }
 
-    @Override
-    public void validate(QueryState state) throws UnauthorizedException, InvalidRequestException
+    public void validate(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        state.getClientState().ensureNotAnonymous();
+        state.ensureNotAnonymous();
 
         if ((grantee != null) && !DatabaseDescriptor.getRoleManager().isExistingRole(grantee))
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee));

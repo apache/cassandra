@@ -336,14 +336,6 @@ public final class Schema implements SchemaProvider
     }
 
     /**
-     * @return collection of the user defined keyspaces, excluding DSE internal keyspaces.
-     */
-    public List<String> getNonInternalKeyspaces()
-    {
-        return getUserKeyspaces().stream().filter(ks -> !SchemaConstants.isInternalKeyspace(ks)).collect(Collectors.toList());
-    }
-
-    /**
      * Get metadata about keyspace inner ColumnFamilies
      *
      * @param keyspaceName The name of the keyspace

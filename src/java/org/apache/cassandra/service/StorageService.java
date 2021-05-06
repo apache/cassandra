@@ -102,7 +102,6 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
@@ -977,7 +976,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // gossip Schema.emptyVersion forcing immediate check for schema updates (see MigrationManager#maybeScheduleSchemaPull)
             Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
             LoadBroadcaster.instance.startBroadcasting();
-            DiskUsageBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
         }

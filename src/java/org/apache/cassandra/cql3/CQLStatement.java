@@ -66,9 +66,9 @@ public interface CQLStatement
     /**
      * Perform additional validation required by the statment. To be overriden by subclasses if needed.
      *
-     * @param state the current query state
+     * @param state the current client state
      */
-    public void validate(QueryState state);
+    public void validate(ClientState state);
 
     /**
      * Execute the statement and return the resulting result or null if there is no result.

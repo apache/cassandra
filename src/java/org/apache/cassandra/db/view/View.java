@@ -35,7 +35,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -202,7 +201,7 @@ public class View
     ReadQuery getReadQuery()
     {
         if (query == null)
-            query = getSelectStatement().getQuery(QueryState.forInternalCalls(), QueryOptions.forInternalCalls(Collections.emptyList()), FBUtilities.nowInSeconds());
+            query = getSelectStatement().getQuery(QueryOptions.forInternalCalls(Collections.emptyList()), FBUtilities.nowInSeconds());
 
         return query;
     }
