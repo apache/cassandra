@@ -68,7 +68,7 @@ public class MetadataSerializerTest
     @Test
     public void testSerialization() throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(false);
 
         MetadataSerializer serializer = new MetadataSerializer();
         File statsFile = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getLatestVersion());
@@ -88,7 +88,7 @@ public class MetadataSerializerTest
     @Test
     public void testHistogramSterilization() throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(false);
 
         // Modify the histograms to overflow:
         StatsMetadata originalStats = (StatsMetadata) originalMetadata.get(MetadataType.STATS);
@@ -124,7 +124,7 @@ public class MetadataSerializerTest
         return statsFile;
     }
 
-    public Map<MetadataType, MetadataComponent> constructMetadata()
+    public Map<MetadataType, MetadataComponent> constructMetadata(boolean withNulls)
     {
         CommitLogPosition club = new CommitLogPosition(11L, 12);
         CommitLogPosition cllb = new CommitLogPosition(9L, 12);
@@ -136,7 +136,7 @@ public class MetadataSerializerTest
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
         collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("abc"), Int32Type.instance.decompose(123)));
-        collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("cba"), null));
+        collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("cba"), withNulls ? null : Int32Type.instance.decompose(234)));
         return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()));
     }
 
@@ -200,7 +200,7 @@ public class MetadataSerializerTest
 
     public void testOldReadsNew(String oldV, String newV) throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(true);
 
         MetadataSerializer serializer = new MetadataSerializer();
         // Write metadata in two minor formats.
