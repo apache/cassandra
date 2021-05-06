@@ -42,6 +42,7 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
 {
     public static final Serializer serializer = new Serializer();
 
+    /* this enum is used in serialization; preserve order for compatibility */
     private enum Kind { SLICE, ELEMENT }
 
     protected final ColumnDefinition column;
