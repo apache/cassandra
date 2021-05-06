@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.validation.entities;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class CountersTest extends CQLTester
@@ -35,6 +36,17 @@ public class CountersTest extends CQLTester
         assertInvalidThrowMessage("Cannot mix counter and non counter columns in the same table",
                                   InvalidRequestException.class,
                                   String.format("CREATE TABLE %s.%s (id bigint PRIMARY KEY, count counter, things set<text>)", KEYSPACE, createTableName()));
+    }
+
+    @Test
+    public void testCannotAlterWithNonCounterColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, c counter)");
+        assertInvalidThrowMessage("Cannot have a non counter column (\"t\") in a counter table",
+                ConfigurationException.class, formatQuery("ALTER TABLE %s ADD t text"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t text)");
+        assertInvalidThrowMessage("Cannot have a counter column (\"c\") in a non counter table",
+                                  ConfigurationException.class, formatQuery("ALTER TABLE %s ADD c counter"));
     }
 
     /**

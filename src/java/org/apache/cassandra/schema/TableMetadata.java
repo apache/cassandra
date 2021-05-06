@@ -437,7 +437,7 @@ public class TableMetadata implements SchemaElement
         {
             for (ColumnMetadata column : regularAndStaticColumns)
                 if (column.type.isCounter())
-                    except("Cannot have a counter column (\"%s\") in a non counter column table", column.name);
+                    except("Cannot have a counter column (\"%s\") in a non counter table", column.name);
         }
 
         // All tables should have a partition key
