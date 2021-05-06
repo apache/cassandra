@@ -51,6 +51,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -99,7 +100,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
         this.commitLogReader = new CommitLogReader();
     }
 
-    public static CommitLogReplayer construct(CommitLog commitLog)
+    public static CommitLogReplayer construct(CommitLog commitLog, UUID localHostId)
     {
         // compute per-CF and global replay intervals
         Map<TableId, IntervalSet<CommitLogPosition>> cfPersisted = new HashMap<>();
@@ -129,7 +130,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
             }
 
-            IntervalSet<CommitLogPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt);
+            IntervalSet<CommitLogPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt, localHostId);
             cfPersisted.put(cfs.metadata.id, filter);
         }
         CommitLogPosition globalPosition = firstNotCovered(cfPersisted.values());
@@ -285,11 +286,25 @@ public class CommitLogReplayer implements CommitLogReadHandler
      * A set of known safe-to-discard commit log replay positions, based on
      * the range covered by on disk sstables and those prior to the most recent truncation record
      */
-    public static IntervalSet<CommitLogPosition> persistedIntervals(Iterable<SSTableReader> onDisk, CommitLogPosition truncatedAt)
+    public static IntervalSet<CommitLogPosition> persistedIntervals(Iterable<SSTableReader> onDisk,
+                                                                    CommitLogPosition truncatedAt,
+                                                                    UUID localhostId)
     {
         IntervalSet.Builder<CommitLogPosition> builder = new IntervalSet.Builder<>();
+        List<String> skippedSSTables = new ArrayList<>();
         for (SSTableReader reader : onDisk)
-            builder.addAll(reader.getSSTableMetadata().commitLogIntervals);
+        {
+            UUID originatingHostId = reader.getSSTableMetadata().originatingHostId;
+            if (originatingHostId != null && originatingHostId.equals(localhostId))
+                builder.addAll(reader.getSSTableMetadata().commitLogIntervals);
+            else
+                skippedSSTables.add(reader.getFilename());
+        }
+
+        if (!skippedSSTables.isEmpty()) {
+            logger.warn("Origin of {} sstables is unknown or doesn't match the local node; commitLogIntervals for them were ignored", skippedSSTables.size());
+            logger.debug("Ignored commitLogIntervals from the following sstables: {}", skippedSSTables);
+        }
 
         if (truncatedAt != null)
             builder.add(CommitLogPosition.NONE, truncatedAt);
