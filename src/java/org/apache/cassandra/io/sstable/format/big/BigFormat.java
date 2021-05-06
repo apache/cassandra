@@ -154,7 +154,7 @@ public class BigFormat implements SSTableFormat
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
-            hasOriginatingHostId = version.matches("(m[e-z])|(n[b-z])");
+            hasOriginatingHostId = version.matches("m[e-z]") || version.compareTo("nb") >= 0;
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;

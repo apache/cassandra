@@ -131,7 +131,7 @@ public class MetadataSerializerTest
         return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()));
     }
 
-    private void testVersions(String... versions) throws Throwable
+    private void testOldReadsNewAll(String... versions) throws Throwable
     {
         Throwable t = null;
         for (int oldIdx = 0; oldIdx < versions.length; oldIdx++)
@@ -157,16 +157,16 @@ public class MetadataSerializerTest
     @Test
     public void testMVersions() throws Throwable
     {
-        testVersions("ma", "mb", "mc", "md", "me");
+        testOldReadsNewAll("ma", "mb", "mc", "md", "me");
     }
 
     @Test
     public void testNVersions() throws Throwable
     {
-        testVersions("na", "nb");
+        testOldReadsNewAll("na", "nb");
     }
 
-    public void testOldReadsNew(String oldV, String newV) throws IOException
+    private void testOldReadsNew(String oldV, String newV) throws IOException
     {
         Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
 
