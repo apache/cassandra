@@ -232,6 +232,16 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         return components;
     }
 
+    // This differs from getComponents in that it only returns index components that exist on disk.
+    // It avoids errors being logged by the SSTable.readTOC method when we have an empty index.
+    @VisibleForTesting
+    public static Set<Component> getLiveComponents(SSTableReader sstable, Collection<StorageAttachedIndex> indices)
+    {
+        return getComponents(indices).stream()
+                                     .filter(component -> sstable.descriptor.fileFor(component).exists())
+                                     .collect(Collectors.toSet());
+    }
+
     @Override
     public void handleNotification(INotification notification, Object sender)
     {
