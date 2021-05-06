@@ -605,7 +605,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException(e);
         }
 
-        UUID localHostId = SystemKeyspace.getLocalHostId();
+        UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
 
         if (isReplacingSameAddress())
         {
@@ -859,7 +859,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (!MessagingService.instance().isListening())
                 MessagingService.instance().listen();
 
-            UUID localHostId = SystemKeyspace.getLocalHostId();
+            UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
 
             if (replacing)
             {

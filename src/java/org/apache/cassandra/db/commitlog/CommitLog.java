@@ -163,16 +163,21 @@ public class CommitLog implements CommitLogMBean
      */
     public int recoverFiles(File... clogs) throws IOException
     {
-        CommitLogReplayer replayer = CommitLogReplayer.construct(this);
+        CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
         replayer.replayFiles(clogs);
         return replayer.blockForWrites();
     }
 
     public void recoverPath(String path) throws IOException
     {
-        CommitLogReplayer replayer = CommitLogReplayer.construct(this);
+        CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
         replayer.replayPath(new File(path), false);
         replayer.blockForWrites();
+    }
+
+    private static UUID getLocalHostId()
+    {
+        return Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId);
     }
 
     /**

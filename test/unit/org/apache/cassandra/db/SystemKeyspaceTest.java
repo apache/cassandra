@@ -98,8 +98,8 @@ public class SystemKeyspaceTest
     @Test
     public void testLocalHostID()
     {
-        UUID firstId = SystemKeyspace.getLocalHostId();
-        UUID secondId = SystemKeyspace.getLocalHostId();
+        UUID firstId = SystemKeyspace.getOrInitializeLocalHostId();
+        UUID secondId = SystemKeyspace.getOrInitializeLocalHostId();
         assert firstId.equals(secondId) : String.format("%s != %s%n", firstId.toString(), secondId.toString());
     }
 

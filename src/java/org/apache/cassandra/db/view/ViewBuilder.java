@@ -101,7 +101,7 @@ public class ViewBuilder extends CompactionInfo.Holder
     {
         logger.debug("Starting view builder for {}.{}", baseCfs.metadata.ksName, view.name);
         logger.trace("Running view builder for {}.{}", baseCfs.metadata.ksName, view.name);
-        UUID localHostId = SystemKeyspace.getLocalHostId();
+        UUID localHostId = SystemKeyspace.getOrInitializeLocalHostId();
         String ksname = baseCfs.metadata.ksName, viewName = view.name;
 
         if (SystemKeyspace.isViewBuilt(ksname, viewName))
