@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
@@ -28,8 +29,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -42,7 +41,10 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -97,14 +99,14 @@ public class MetadataSerializerTest
         {
             // Deserialie and verify that the two histograms have had their overflow buckets cleared:
             Map<MetadataType, MetadataComponent> deserialized = serializer.deserialize(desc, in, EnumSet.allOf(MetadataType.class));
-            StatsMetadata deserializedStats = (StatsMetadata)deserialized.get(MetadataType.STATS);
+            StatsMetadata deserializedStats = (StatsMetadata) deserialized.get(MetadataType.STATS);
             assertFalse(deserializedStats.estimatedCellPerPartitionCount.isOverflowed());
             assertFalse(deserializedStats.estimatedPartitionSize.isOverflowed());
         }
     }
 
     public File serialize(Map<MetadataType, MetadataComponent> metadata, MetadataSerializer serializer, Version version)
-            throws IOException
+    throws IOException
     {
         // Serialize to tmp file
         File statsFile = FileUtils.createTempFile(Component.STATS.name, null);
@@ -122,53 +124,46 @@ public class MetadataSerializerTest
 
         TableMetadata cfm = SchemaLoader.standardCFMD("ks1", "cf1").build();
         MetadataCollector collector = new MetadataCollector(cfm.comparator)
-                                          .commitLogIntervals(new IntervalSet<>(cllb, club));
+                                      .commitLogIntervals(new IntervalSet<>(cllb, club));
 
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
         return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()));
     }
 
-    @Test
-    public void testMaReadMa() throws IOException
+    private void testVersions(String... versions) throws Throwable
     {
-        testOldReadsNew("ma", "ma");
+        Throwable t = null;
+        for (int oldIdx = 0; oldIdx < versions.length; oldIdx++)
+        {
+            for (int newIdx = oldIdx; newIdx < versions.length; newIdx++)
+            {
+                try
+                {
+                    testOldReadsNew(versions[oldIdx], versions[newIdx]);
+                }
+                catch (Exception | AssertionError e)
+                {
+                    t = Throwables.merge(t, new AssertionError("Failed to test " + versions[oldIdx] + " -> " + versions[newIdx], e));
+                }
+            }
+        }
+        if (t != null)
+        {
+            throw t;
+        }
     }
 
     @Test
-    public void testMaReadMb() throws IOException
+    public void testMVersions() throws Throwable
     {
-        testOldReadsNew("ma", "mb");
+        testVersions("ma", "mb", "mc", "md", "me");
     }
 
     @Test
-    public void testMaReadMc() throws IOException
+    public void testNVersions() throws Throwable
     {
-        testOldReadsNew("ma", "mc");
-    }
-
-    @Test
-    public void testMbReadMb() throws IOException
-    {
-        testOldReadsNew("mb", "mb");
-    }
-
-    @Test
-    public void testMbReadMc() throws IOException
-    {
-        testOldReadsNew("mb", "mc");
-    }
-
-    @Test
-    public void testMcReadMc() throws IOException
-    {
-        testOldReadsNew("mc", "mc");
-    }
-
-    @Test
-    public void testNaReadNa() throws IOException
-    {
-        testOldReadsNew("na", "na");
+        testVersions("na", "nb");
     }
 
     public void testOldReadsNew(String oldV, String newV) throws IOException
@@ -201,9 +196,14 @@ public class MetadataSerializerTest
     @Test
     public void pendingRepairCompatibility()
     {
-        Version mc = BigFormat.instance.getVersion("mc");
-        assertFalse(mc.hasPendingRepair());
-        Version na = BigFormat.instance.getVersion("na");
-        assertTrue(na.hasPendingRepair());
+        Arrays.asList("ma", "mb", "mc", "md", "me").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasPendingRepair()));
+        Arrays.asList("na", "nb").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasPendingRepair()));
+    }
+
+    @Test
+    public void originatingHostCompatibility()
+    {
+        Arrays.asList("ma", "mb", "mc", "md", "na").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
+        Arrays.asList("me", "nb").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
     }
 }
