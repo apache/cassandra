@@ -51,6 +51,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
     public static final String TRACE_HEADER = "TraceSession";
     public static final String TRACE_TYPE = "TraceType";
 
+    /* this enum is used in serialization; preserve order for compatibility */
     public enum TraceType
     {
         NONE,
