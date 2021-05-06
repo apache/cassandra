@@ -324,7 +324,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
         }
 
         // register custom index components into existing sstables
-        sstable.registerComponents(group.getComponents(existing), tracker);
+        sstable.registerComponents(group.getLiveComponents(sstable, existing), tracker);
         Set<StorageAttachedIndex> incomplete = group.onSSTableChanged(Collections.emptyList(), Collections.singleton(sstable), existing, false, false);
 
         if (!incomplete.isEmpty())
