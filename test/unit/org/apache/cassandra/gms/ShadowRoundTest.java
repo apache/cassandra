@@ -174,7 +174,7 @@ public class ShadowRoundTest
         System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
         try
         {
-            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         }
         catch (Exception e)
         {
@@ -210,7 +210,7 @@ public class ShadowRoundTest
 
 
         System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
-        StorageService.instance.checkForEndpointCollision(SystemKeyspace.getLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+        StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         System.clearProperty(Config.PROPERTY_PREFIX + "auto_bootstrap");
     }
 
