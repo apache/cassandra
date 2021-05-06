@@ -20,15 +20,19 @@ package org.apache.cassandra.distributed.test.metrics;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.junit.Test;
 
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StreamingMetrics;
 
+import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -140,15 +144,20 @@ public class StreamingMetricsTest extends TestBaseImpl
         testMetricsWithStreamingToTwoNodes(true);
     }
 
+    private int getNumberOfSSTables(Cluster cluster, int node) {
+        return cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().size());
+    }
+
     public void testMetricsWithStreamingToTwoNodes(boolean useRepair) throws Exception
     {
         try(Cluster cluster = init(Cluster.build(3)
                                           .withDataDirCount(1)
-                                          .withConfig(config -> config.with(NETWORK)
+                                          .withConfig(config -> config.with(NETWORK, GOSSIP)
                                                                       .set("stream_entire_sstables", false)
                                                                       .set("hinted_handoff_enabled", false))
                                           .start(), 2))
         {
+            Stream.of(1,2,3).map(cluster::get).forEach(i -> i.runOnInstance(() -> SystemKeyspace.forceBlockingFlush(SystemKeyspace.LOCAL)));
             cluster.schemaChange(String.format("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': '%s', 'enabled': 'false'}", KEYSPACE, "LeveledCompactionStrategy"));
 
             final int rowsPerFile = 500;
@@ -208,6 +217,8 @@ public class StreamingMetricsTest extends TestBaseImpl
             int sstablesFrom3To2;
             int sstablesFrom2To3;
 
+            assertThat(sstablesInitiallyOnNode2).isEqualTo(getNumberOfSSTables(cluster, 2));
+            assertThat(sstablesInitiallyOnNode3).isEqualTo(getNumberOfSSTables(cluster, 3));
             if (useRepair)
             {
                 cluster.get(3).nodetool("repair", "--full");
