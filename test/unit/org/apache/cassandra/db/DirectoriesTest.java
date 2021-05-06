@@ -29,7 +29,9 @@ import java.util.concurrent.Future;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -65,18 +67,23 @@ public class DirectoriesTest
 {
     private static File tempDataDir;
     private static final String KS = "ks";
-    private static final String[] TABLES = new String[] { "cf1", "ks" };
-
-    private static final Set<TableMetadata> CFM = new HashSet<>(TABLES.length);
-
-    private static final Map<String, List<File>> files = new HashMap<>();
+    private static String[] TABLES;
+    private static Set<TableMetadata> CFM;
+    private static Map<String, List<File>> files;
 
     @BeforeClass
-    public static void beforeClass() throws IOException
+    public static void beforeClass()
     {
         DatabaseDescriptor.daemonInitialization();
-
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+    }
+
+    @Before
+    public void beforeTest() throws IOException
+    {
+        TABLES = new String[] { "cf1", "ks" };
+        CFM = new HashSet<>(TABLES.length);
+        files = new HashMap<>();
 
         for (String table : TABLES)
         {
@@ -100,7 +107,7 @@ public class DirectoriesTest
         FileUtils.deleteRecursive(tempDataDir);
     }
 
-    private static DataDirectory[] toDataDirectories(File location) throws IOException
+    private static DataDirectory[] toDataDirectories(File location)
     {
         return new DataDirectory[] { new DataDirectory(location) };
     }
@@ -174,7 +181,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testSecondaryIndexDirectories() throws IOException
+    public void testSecondaryIndexDirectories()
     {
         TableMetadata.Builder builder =
             TableMetadata.builder(KS, "cf")
@@ -208,13 +215,8 @@ public class DirectoriesTest
         assertEquals(parentSnapshotDirectory, indexSnapshotDirectory.getParentFile());
 
         // check if snapshot directory exists
-        parentSnapshotDirectory.mkdirs();
         assertTrue(parentDirectories.snapshotExists("test"));
         assertTrue(indexDirectories.snapshotExists("test"));
-
-        // check their creation time
-        assertEquals(parentDirectories.snapshotCreationTime("test"),
-                     indexDirectories.snapshotCreationTime("test"));
 
         // check true snapshot size
         Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, 0, SSTableFormat.Type.BIG);
@@ -253,7 +255,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testSSTableLister() throws IOException
+    public void testSSTableLister()
     {
         for (TableMetadata cfm : CFM)
         {
@@ -622,7 +624,7 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testIsStoredInLocalSystemKeyspacesDataLocation() throws IOException
+    public void testIsStoredInLocalSystemKeyspacesDataLocation()
     {
         for (String table : SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS)
         {
