@@ -72,6 +72,8 @@ import static java.lang.String.join;
 import static com.google.common.collect.Iterables.isEmpty;
 import static com.google.common.collect.Iterables.transform;
 
+import static org.apache.cassandra.schema.TableMetadata.Flag;
+
 public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     protected final String tableName;
@@ -434,7 +436,11 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
             validateCanDropCompactStorage();
 
-            return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(ImmutableSet.of(TableMetadata.Flag.COMPOUND))));
+            Set<Flag> flags = table.isCounter()
+                            ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
+                            : ImmutableSet.of(Flag.COMPOUND);
+
+            return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(flags)));
         }
 
         /**
