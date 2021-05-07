@@ -112,9 +112,10 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
         return commitLogLowerBound.get();
     }
 
-    public CommitLogPosition getCommitLogUpperBound()
+    public LastCommitLogPosition getCommitLogUpperBound()
     {
-        return commitLogUpperBound.get();
+        assert commitLogUpperBound.get() instanceof LastCommitLogPosition : "Commit log upper bound has not been sealed yet? " + commitLogUpperBound.get();
+        return (LastCommitLogPosition) commitLogUpperBound.get();
     }
 
     public boolean mayContainDataBefore(CommitLogPosition position)
