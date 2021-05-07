@@ -21,4 +21,6 @@ package org.apache.cassandra.db.memtable;
 public interface TrieMemtableConfigMXBean
 {
     public void setShardCount(String numShards);
+
+    public String getShardCount();
 }
