@@ -1198,7 +1198,7 @@
       </jar>
   </target>
 
-  <target name="build-test" depends="build" description="Compile test classes">
+  <target name="build-test" depends="build" description="Compile test classes" unless="no-build-test">
     <javac
      compiler="modern"
      debug="true"
