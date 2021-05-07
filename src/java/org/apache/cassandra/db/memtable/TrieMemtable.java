@@ -143,10 +143,11 @@ public class TrieMemtable extends AbstractAllocatorMemtable
     TrieMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)
     {
         super(commitLogLowerBound, metadataRef, owner);
-        this.boundaries = owner.localRangeSplits(getShardCount());
-        this.metrics = new TrieMemtableMetricsView(metadataRef.keyspace, metadataRef.name);
+        this.boundaries = owner.localRangeSplits(SHARD_COUNT);
+        this.metrics = TrieMemtableMetricsView.getOrCreate(metadataRef.keyspace, metadataRef.name);
         this.shards = generatePartitionShards(boundaries.shardCount(), metadataRef, metrics);
         this.mergedTrie = makeMergedTrie(shards);
+        logger.debug("Created memtable with {} shards", this.shards.length);
     }
 
     private static MemtableShard[] generatePartitionShards(int splits,
@@ -701,12 +702,13 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         @Override
         public TableMetrics.ReleasableMetric createMemtableMetrics(TableMetadataRef metadataRef)
         {
-            TrieMemtableMetricsView metrics = new TrieMemtableMetricsView(metadataRef.keyspace, metadataRef.name);
+            TrieMemtableMetricsView metrics = TrieMemtableMetricsView.getOrCreate(metadataRef.keyspace, metadataRef.name);
             return metrics::release;
         }
     }
 
-    private static class TrieMemtableConfig implements TrieMemtableConfigMXBean
+    @VisibleForTesting
+    public static class TrieMemtableConfig implements TrieMemtableConfigMXBean
     {
         @Override
         public void setShardCount(String shardCount)
@@ -729,11 +731,11 @@ public class TrieMemtable extends AbstractAllocatorMemtable
             }
             logger.info("Requested setting shard count to {}; set to: {}", shardCount, SHARD_COUNT);
         }
-    }
 
-    @VisibleForTesting
-    public static int getShardCount()
-    {
-        return SHARD_COUNT;
+        @Override
+        public String getShardCount()
+        {
+            return "" + SHARD_COUNT;
+        }
     }
 }

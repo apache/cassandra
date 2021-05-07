@@ -39,9 +39,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
@@ -134,11 +131,13 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
         writeAndFlush(10);
         assertEquals(10, metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount());
+        Long maxShardSize = metrics.lastFlushShardDataSizes.maxGauge.getValue();
 
         // verify that metrics survive flush / memtable switching
-        writeAndFlush(10);
-        assertEquals(20, metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount());
+        writeAndFlush(100);
+        assertEquals(110, metrics.contendedPuts.getCount() + metrics.uncontendedPuts.getCount());
         assertEquals(metrics.lastFlushShardDataSizes.toString(), NUM_SHARDS, (int) metrics.lastFlushShardDataSizes.numSamplesGauge.getValue());
+        assertThat(metrics.lastFlushShardDataSizes.maxGauge.getValue(), greaterThan(maxShardSize));
     }
 
     @Test
@@ -185,7 +184,7 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
     private TrieMemtableMetricsView getMemtableMetrics(ColumnFamilyStore cfs)
     {
-        return new TrieMemtableMetricsView(cfs.keyspace.getName(), cfs.name);
+        return TrieMemtableMetricsView.getOrCreate(cfs.keyspace.getName(), cfs.name);
     }
 
     private void writeAndFlush(int rows) throws IOException, ExecutionException, InterruptedException
