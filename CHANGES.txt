@@ -1,6 +1,7 @@
 4.1
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Fix DROP COMPACT STORAGE for counters (CASSANDRA-16653)
  * Add back validation for AlterTableStatements (CASSANDRA-16643)
  * Fix cqlsh encoding error with unicode in multi-line statement (CASSANDRA-16539)
  * Fix race in fat client removal (CASSANDRA-16238)
