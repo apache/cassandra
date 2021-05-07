@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.codahale.metrics.Counter;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
@@ -28,6 +31,8 @@ public class TrieMemtableMetricsView
     private static final String CONTENDED_PUTS = "Contended memtable puts";
     private static final String CONTENTION_TIME = "Contention time";
     private static final String LAST_FLUSH_SHARD_SIZES = "Shard sizes during last flush";
+
+    private static final Map<String, TrieMemtableMetricsView> perTableMetrics = new ConcurrentHashMap<>();
 
     // the number of memtable puts that did not need to wait on write lock
     public final Counter uncontendedPuts;
@@ -42,9 +47,18 @@ public class TrieMemtableMetricsView
     public final MinMaxAvgMetric lastFlushShardDataSizes;
 
     private final TrieMemtableMetricNameFactory factory;
+    private final String keyspace;
+    private final String table;
 
-    public TrieMemtableMetricsView(String keyspace, String table)
+    public static TrieMemtableMetricsView getOrCreate(String keyspace, String table)
     {
+        return perTableMetrics.computeIfAbsent(getKey(keyspace, table), k -> new TrieMemtableMetricsView(keyspace, table));
+    }
+
+    private TrieMemtableMetricsView(String keyspace, String table)
+    {
+        this.keyspace = keyspace;
+        this.table = table;
         factory = new TrieMemtableMetricNameFactory(keyspace, table);
         
         uncontendedPuts = Metrics.counter(factory.createMetricName(UNCONTENDED_PUTS));
@@ -55,6 +69,8 @@ public class TrieMemtableMetricsView
 
     public void release()
     {
+        perTableMetrics.remove(getKey(keyspace, table));
+
         Metrics.remove(factory.createMetricName(UNCONTENDED_PUTS));
         Metrics.remove(factory.createMetricName(CONTENDED_PUTS));
         contentionTime.release();
@@ -86,5 +102,10 @@ public class TrieMemtableMetricsView
 
             return new CassandraMetricsRegistry.MetricName(groupName, type, metricName, keyspace + "." + table, mbeanName.toString());
         }
+    }
+
+    private static String getKey(String keyspace, String table)
+    {
+        return keyspace + "." + table;
     }
 }
