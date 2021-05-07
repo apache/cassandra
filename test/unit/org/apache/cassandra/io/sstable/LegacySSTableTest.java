@@ -612,7 +612,7 @@ public class LegacySSTableTest
      * during development. I.e. remove the {@code @Ignore} annotation temporarily.
      * </p>
      */
-//    @Ignore
+    @Ignore
     @Test
     public void testGenerateSstables() throws Throwable
     {
