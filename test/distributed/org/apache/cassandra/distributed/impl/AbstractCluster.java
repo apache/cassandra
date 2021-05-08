@@ -254,6 +254,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 instanceMap.put(newAddress, (I) this); // if the broadcast address changes, update
                 instanceMap.remove(previous);
                 broadcastAddress = newAddress;
+                // remove delegate to make sure static state is reset
+                delegate = null;
             }
             try
             {
