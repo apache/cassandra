@@ -167,7 +167,7 @@ public class SimpleClientBurnTest
                         {
                             int descriptor = counter + j * 100 + threadId * 10000;
                             SizeCaps caps = descriptor % largeMessageFrequency == 0 ? largeMessageCap : smallMessageCap;
-                            QueryMessage query = generateQueryMessage(descriptor, caps);
+                            QueryMessage query = generateQueryMessage(descriptor, caps, client.connection.getVersion());
                             messages.add(query);
                         }
 
