@@ -20,14 +20,13 @@ package org.apache.cassandra.distributed.test.hostreplacement;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Assert;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
@@ -50,10 +49,8 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 
 public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends TestBaseImpl
 {
-    private static final Logger logger = LoggerFactory.getLogger(NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest.class);
-
     @Test
-    public void test() throws IOException
+    public void test() throws IOException, InterruptedException
     {
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = init(Cluster.build(2)
@@ -79,8 +76,7 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
             catch (Exception e)
             {
                 // the instance is expected to fail, but it may not have finished shutdown yet, so wait for it to shutdown
-                while (!SharedState.shutdownComplete)
-                    Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
+                SharedState.shutdownComplete.await(1, TimeUnit.MINUTES);
             }
 
             IInvokableInstance inst = ClusterUtils.addInstance(cluster, toReplace.config(), c -> c.set("auto_bootstrap", true));
@@ -116,7 +112,7 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
         public static volatile Cluster cluster;
         // Instance.shutdown can only be called once so only the caller knows when its done (isShutdown looks at a field set BEFORE shutting down..)
         // since the test needs to know when shutdown completes, add this static state so the caller (bytebuddy rewrite) can update it
-        public static volatile boolean shutdownComplete = false;
+        public static final CountDownLatch shutdownComplete = new CountDownLatch(1);
     }
 
     public static class ShutdownBeforeNormal
@@ -129,7 +125,7 @@ public class NodeCannotJoinAsHibernatingNodeWithoutReplaceAddressTest extends Te
             // can't stop here as the stop method and start method share a lock; and block gets called in start...
             ForkJoinPool.commonPool().execute(() -> {
                 ClusterUtils.stopAbrupt(cluster, cluster.get(id));
-                SharedState.shutdownComplete = true;
+                SharedState.shutdownComplete.countDown();
             });
             JVMStabilityInspector.killCurrentJVM(new RuntimeException("Attempting to stop the instance"), false);
         }
