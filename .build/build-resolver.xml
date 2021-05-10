@@ -49,7 +49,7 @@
         </and>
     </condition>
 
-    <target name="_delete_maven-wrapper_jar" if="${maven-wrapper_jar.empty}">
+    <target name="_delete_maven_wrapper_jar" if="${maven-wrapper_jar.empty}">
         <delete file=".build/.mvn/wrapper/maven-wrapper.jar"/>
     </target>
 
@@ -61,7 +61,7 @@
              dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
     </target>
 
-    <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
+    <target name="resolver-init" depends="init,_resolver_download,_delete_maven_wrapper_jar" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
 
         <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
         <resolver:remoterepos id="all">
