@@ -60,6 +60,8 @@ public class CommitLogDescriptor
     // We don't support anything pre-3.0
     public static final int VERSION_30 = 6;
     public static final int VERSION_40 = 7;
+    // For compatibility with CNDB
+    public static final int VERSION_DSE_68 = 680;
 
     /**
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
@@ -208,6 +210,7 @@ public class CommitLogDescriptor
             case VERSION_30:
                 return MessagingService.VERSION_30;
             case VERSION_40:
+            case VERSION_DSE_68:
                 return MessagingService.VERSION_40;
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
