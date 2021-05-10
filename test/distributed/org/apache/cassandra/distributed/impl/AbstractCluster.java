@@ -109,6 +109,7 @@ import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAnd
  * handlers for internode to have more control over it. Messaging is wired by passing verbs manually.
  * coordinator-handling code and hooks to the callbacks can be found in {@link Coordinator}.
  */
+@Shared
 public abstract class AbstractCluster<I extends IInstance> implements ICluster<I>, AutoCloseable
 {
     public static Versions.Version CURRENT_VERSION = new Versions.Version(FBUtilities.getReleaseVersionString(), Versions.getClassPath());
