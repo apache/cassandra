@@ -110,6 +110,7 @@ public final class SchemaKeyspace
               + "keyspace_name text,"
               + "durable_writes boolean,"
               + "replication frozen<map<text, text>>,"
+              + "graph_engine text,"
               + "PRIMARY KEY ((keyspace_name)))");
 
     private static final TableMetadata Tables =
@@ -134,6 +135,7 @@ public final class SchemaKeyspace
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
               + "min_index_interval int,"
+              + "nodesync frozen<map<text, text>>,"
               + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
               + "additional_write_policy text,"
@@ -153,6 +155,7 @@ public final class SchemaKeyspace
               + "kind text,"
               + "position int,"
               + "type text,"
+              + "required_for_liveness boolean,"
               + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final TableMetadata DroppedColumns =
@@ -202,10 +205,12 @@ public final class SchemaKeyspace
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
               + "min_index_interval int,"
+              + "nodesync frozen<map<text, text>>,"
               + "read_repair_chance double," // no longer used, left for drivers' sake
               + "speculative_retry text,"
               + "additional_write_policy text,"
               + "cdc boolean,"
+              + "version int,"
               + "read_repair text,"
               + "PRIMARY KEY ((keyspace_name), view_name))");
 
@@ -242,6 +247,9 @@ public final class SchemaKeyspace
               + "language text,"
               + "return_type text,"
               + "called_on_null_input boolean,"
+              + "deterministic boolean,"
+              + "monotonic boolean,"
+              + "monotonic_on frozen<list<text>>,"
               + "PRIMARY KEY ((keyspace_name), function_name, argument_types))");
 
     private static final TableMetadata Aggregates =
@@ -256,6 +264,7 @@ public final class SchemaKeyspace
               + "return_type text,"
               + "state_func text,"
               + "state_type text,"
+              + "deterministic boolean,"
               + "PRIMARY KEY ((keyspace_name), aggregate_name, argument_types))");
 
     private static final List<TableMetadata> ALL_TABLE_METADATA =
