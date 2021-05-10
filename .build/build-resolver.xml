@@ -42,6 +42,17 @@
        Fetch Resolver Ant Tasks and Cassandra's dependencies.
     -->
 
+    <condition property="maven-wrapper_jar.empty">
+        <and>
+            <available file=".build/.mvn/wrapper/maven-wrapper.jar"/>
+            <length file=".build/.mvn/wrapper/maven-wrapper.jar" length="0"/>
+        </and>
+    </condition>
+
+    <target name="_delete_maven-wrapper_jar" if="${maven-wrapper_jar.empty}">
+        <delete file=".build/.mvn/wrapper/maven-wrapper.jar"/>
+    </target>
+
     <target name="_resolver_download" unless="resolver-ant-tasks.jar.exists" description="Fetch Resolver ANT Tasks from Maven Central Repository">
         <echo>Downloading Resolver ANT Tasks...</echo>
         <mkdir dir="${user.home}/.m2/repository/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
@@ -131,8 +142,8 @@
             <attribute name="classifier" default=""/>
             <attribute name="packaging" default="jar"/>
             <sequential>
-                <exec dir="." executable="sh">
-                    <arg line="-c 'mvn org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
+                <exec dir=".build" executable="sh">
+                    <arg line="-c './mvnw org.apache.maven.plugins:maven-install-plugin:2.3.1:install-file -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
                 </exec>
             </sequential>
         </macrodef>
@@ -143,8 +154,8 @@
             <attribute name="classifier" default=""/>
             <attribute name="packaging" default="jar"/>
             <sequential>
-                <exec dir="." executable="sh">
-                    <arg line="-c 'mvn org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
+                <exec dir=".build" executable="sh">
+                    <arg line="-c './mvnw org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -DretryFailedDeploymentCount=5 -Durl=${maven-repository-url} -DrepositoryId=${maven-repository-id} -DpomFile=@{pomFile} -Dfile=@{file} -Dclassifier=@{classifier} -Dpackaging=@{packaging}'" />
                 </exec>
             </sequential>
         </macrodef>
@@ -153,9 +164,9 @@
             <attribute name="file"/>
             <sequential>
                 <echo message="gpg signing @{file}" />
-                <exec dir="." executable="sh">
+                <exec dir=".build" executable="sh">
                     <!-- dummy out the deploy parameters, only the signing is required here -->
-                    <arg line="-c 'mvn -q org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -Dfile=@{file} -DgroupId=org.apache.cassandra -DartifactId=cassandra-parent -Dversion=${version} -Durl=file:///tmp/ -DrepositoryId=tmp'" />
+                    <arg line="-c './mvnw -q org.apache.maven.plugins:maven-gpg-plugin:1.6:sign-and-deploy-file -Dfile=@{file} -DgroupId=org.apache.cassandra -DartifactId=cassandra-parent -Dversion=${version} -Durl=file:///tmp/ -DrepositoryId=tmp'" />
                 </exec>
             </sequential>
         </macrodef>

@@ -2091,7 +2091,7 @@
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
-          depends="maven-declare-dependencies,jar,sources-jar,javadoc-jar"
+          depends="_delete_maven-wrapper_jar,maven-declare-dependencies,jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
 
     <!-- the parent -->
