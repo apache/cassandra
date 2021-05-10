@@ -60,7 +60,7 @@ except ImportError:
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
-CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/cql3/CQL-3.2.html'
+CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cql/index.html'
 
 # default location of local CQL.html
 if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
@@ -78,15 +78,11 @@ else:
 # opened from _within_ a desktop environment. I.e. 'xdg-open' will fail,
 # if the session's been opened via ssh to a remote box.
 #
-# Use 'python' to get some information about the detected browsers.
-# >>> import webbrowser
-# >>> webbrowser._tryorder
-# >>> webbrowser._browser
-#
-# webbrowser._tryorder is None in python3.7+
-if webbrowser._tryorder is None or len(webbrowser._tryorder) == 0:
-    CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
-elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
+try:
+    webbrowser.register_standard_browsers()  # registration is otherwise lazy in Python3
+except AttributeError:
+    pass
+if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
     # only on Linux (some OS with xdg-open)
     webbrowser._tryorder.remove('xdg-open')
     webbrowser._tryorder.append('xdg-open')
@@ -1923,12 +1919,12 @@ class Shell(cmd.Cmd):
                 urlpart = cqldocs.get_help_topic(t)
                 if urlpart is not None:
                     url = "%s#%s" % (CASSANDRA_CQL_HTML, urlpart)
-                    if len(webbrowser._tryorder) == 0:
-                        self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
-                    elif self.browser is not None:
-                        webbrowser.get(self.browser).open_new_tab(url)
+                    if self.browser is not None:
+                        opened = webbrowser.get(self.browser).open_new_tab(url)
                     else:
-                        webbrowser.open_new_tab(url)
+                        opened = webbrowser.open_new_tab(url)
+                    if not opened:
+                        self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
             else:
                 self.printerr("*** No help on %s" % (t,))
 
