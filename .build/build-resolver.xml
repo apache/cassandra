@@ -42,7 +42,7 @@
        Fetch Resolver Ant Tasks and Cassandra's dependencies.
     -->
 
-    <condition property="maven-wrapper_jar.empty">
+    <condition property="maven-wrapper.jar.empty">
         <and>
             <available file=".build/.mvn/wrapper/maven-wrapper.jar"/>
             <length file=".build/.mvn/wrapper/maven-wrapper.jar" length="0"/>
