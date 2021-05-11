@@ -180,10 +180,10 @@ extends SkipListMemtable        // to test framework
         return CommitLogPosition.NONE;
     }
 
-    public CommitLogPosition getCommitLogUpperBound()
+    public LastCommitLogPosition getFinalCommitLogUpperBound()
     {
         // We don't maintain commit log positions
-        return CommitLogPosition.NONE;
+        return new LastCommitLogPosition(CommitLogPosition.NONE);
     }
 
     public boolean isClean()
