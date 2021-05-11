@@ -204,9 +204,9 @@ public abstract class AbstractMemtable implements Memtable
             return AbstractMemtable.this.getCommitLogLowerBound();
         }
 
-        public CommitLogPosition commitLogUpperBound()
+        public LastCommitLogPosition commitLogUpperBound()
         {
-            return AbstractMemtable.this.getCommitLogUpperBound();
+            return AbstractMemtable.this.getFinalCommitLogUpperBound();
         }
 
         public EncodingStats encodingStats()
