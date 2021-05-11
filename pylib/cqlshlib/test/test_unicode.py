@@ -56,10 +56,20 @@ class TestCqlshUnicode(BaseTestCase):
             output = c.cmd_and_response('SELECT * FROM t;')
             self.assertIn(col_name, output)
 
-    def test_multiline_input(self):  # CASSANDRA-16539
+    def test_unicode_multiline_input(self):  # CASSANDRA-16400
         with testrun_cqlsh(tty=True, env=self.default_env) as c:
             value = '値'
             c.send("INSERT INTO t(k, v) VALUES (1, \n'%s');\n" % (value,))
             c.read_to_next_prompt()
             output = c.cmd_and_response('SELECT v FROM t;')
             self.assertIn(value, output)
+
+    def test_unicode_desc(self):  # CASSANDRA-16539
+        with testrun_cqlsh(tty=True, env=self.default_env) as c:
+            v1 = 'ࠑ'
+            v2 = 'Ξ'
+            output = c.cmd_and_response('CREATE TYPE "%s" ( "%s" int );' % (v1, v2))
+            output = c.cmd_and_response('DESC TYPES;')
+            self.assertIn(v1, output)
+            output = c.cmd_and_response('DESC TYPE "%s";' %(v1,))
+            self.assertIn(v2, output)
