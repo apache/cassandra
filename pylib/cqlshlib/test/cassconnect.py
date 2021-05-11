@@ -20,13 +20,12 @@ import io
 import os.path
 import random
 import string
-import tempfile
 from nose.tools import nottest
 
-from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, rundir
+from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, test_dir
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
-test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
+test_keyspace_init = os.path.join(test_dir, 'test_keyspace_init.cql')
 
 
 def get_cassandra_connection(cql_version=None):
