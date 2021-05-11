@@ -657,7 +657,7 @@ public class ColumnFamilyStoreTest
             }
 
             @Override
-            public CommitLogPosition getCommitLogUpperBound()
+            public LastCommitLogPosition getFinalCommitLogUpperBound()
             {
                 return null;
             }
