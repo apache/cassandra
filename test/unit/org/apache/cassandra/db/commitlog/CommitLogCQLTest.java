@@ -18,12 +18,21 @@
 
 package org.apache.cassandra.db.commitlog;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 
 public class CommitLogCQLTest extends CQLTester
@@ -55,5 +64,67 @@ public class CommitLogCQLTest extends CQLTester
         // If one of the previous segments remains, it wasn't clean.
         active.retainAll(CommitLog.instance.segmentManager.getActiveSegments());
         assert active.isEmpty();
+    }
+    
+    @Test
+    public void testSwitchMemtable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (idx INT, data TEXT, PRIMARY KEY(idx));");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        
+        AtomicBoolean shouldStop = new AtomicBoolean(false);
+        ConcurrentLinkedQueue<Throwable> errors = new ConcurrentLinkedQueue<>();
+        List<Thread> threads = new ArrayList<>();
+        
+        final String stmt = String.format("INSERT INTO %s.%s (idx, data) VALUES(?, ?)", KEYSPACE, currentTable());
+        for (int i = 0; i < 10; ++i)
+        {
+            threads.add(new Thread("" + i)
+            {
+                public void run()
+                {
+                    try
+                    {
+                        while (!shouldStop.get())
+                        {
+                            for (int i = 0; i < 50; i++)
+                            {
+                                QueryProcessor.executeInternal(stmt, i, Integer.toString(i));
+                            }
+                            cfs.dumpMemtable(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+                        }
+                    }
+                    catch (Throwable t)
+                    {
+                        errors.add(t);
+                        shouldStop.set(true);
+                    }
+                }
+            });
+        }
+
+        for (Thread t : threads)
+            t.start();
+
+        Thread.sleep(15_000);
+        shouldStop.set(true);
+        
+        for (Thread t : threads)
+            t.join();
+
+        if (!errors.isEmpty())
+        {
+            StringBuilder sb = new StringBuilder();
+            for(Throwable error: errors)
+            {
+                sb.append("Got error during memtable switching:\n");
+                sb.append(error.getMessage() + "\n");
+                ByteArrayOutputStream os = new ByteArrayOutputStream();
+                PrintStream ps = new PrintStream(os);
+                error.printStackTrace(ps);
+                sb.append(os.toString("UTF-8"));
+            }
+            Assert.fail(sb.toString());
+        }
     }
 }

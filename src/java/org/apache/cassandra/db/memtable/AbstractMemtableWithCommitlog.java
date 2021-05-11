@@ -57,8 +57,8 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
         // This can prepare the memtable data for deletion; it will still be used while the flush is proceeding.
         // A setDiscarded call will follow.
         assert this.writeBarrier == null;
-        this.writeBarrier = writeBarrier;
         this.commitLogUpperBound = commitLogUpperBound;
+        this.writeBarrier = writeBarrier;
     }
 
     public void discard()
@@ -112,9 +112,11 @@ public abstract class AbstractMemtableWithCommitlog extends AbstractMemtable
         return commitLogLowerBound.get();
     }
 
-    public CommitLogPosition getCommitLogUpperBound()
+    public LastCommitLogPosition getFinalCommitLogUpperBound()
     {
-        return commitLogUpperBound.get();
+        assert commitLogUpperBound != null : "Commit log upper bound should be set before flushing";
+        assert commitLogUpperBound.get() instanceof LastCommitLogPosition : "Commit log upper bound has not been sealed yet? " + commitLogUpperBound.get();
+        return (LastCommitLogPosition) commitLogUpperBound.get();
     }
 
     public boolean mayContainDataBefore(CommitLogPosition position)

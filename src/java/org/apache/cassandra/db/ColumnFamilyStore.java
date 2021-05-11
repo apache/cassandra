@@ -994,7 +994,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
             if (flushFailure == null && mainMemtable != null)
             {
-                commitLogUpperBound = mainMemtable.getCommitLogUpperBound();
+                commitLogUpperBound = mainMemtable.getFinalCommitLogUpperBound();
                 CommitLog.instance.discardCompletedSegments(metadata.id, mainMemtable.getCommitLogLowerBound(), commitLogUpperBound);
             }
 
