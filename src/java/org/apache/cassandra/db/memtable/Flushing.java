@@ -226,7 +226,7 @@ public class Flushing
                             logger.info("Completed flushing {} ({}) for commitlog position {}",
                                         writer.getFilename(),
                                         FBUtilities.prettyPrintMemory(bytesFlushed),
-                                        toFlush.memtable().getCommitLogUpperBound());
+                                        toFlush.memtable().getFinalCommitLogUpperBound());
                             // Update the metrics
                             metrics.bytesFlushed.inc(bytesFlushed);
                         }
