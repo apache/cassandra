@@ -35,6 +35,37 @@ default_env_vars: &default_env_vars
     DTEST_BRANCH: trunk
     CCM_MAX_HEAP_SIZE: 1024M
     CCM_HEAP_NEWSIZE: 256M
+    # The Ant test target to run, for example:
+    # REPEATED_UTEST_TARGET: testsome
+    # REPEATED_UTEST_TARGET: test-jvm-dtest-some
+    # REPEATED_UTEST_TARGET: test-cdc
+    # REPEATED_UTEST_TARGET: test-compression
+    # REPEATED_UTEST_TARGET: test-system-keyspace-directory
+    REPEATED_UTEST_TARGET: testsome
+    # The name of JUnit class to be run multiple times, for example:
+    # REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.ViewTest
+    # REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.PagingTest
+    REPEATED_UTEST_CLASS:
+    # The optional specific methods within REPEATED_UTEST_CLASS to be run, for example:
+    # REPEATED_UTEST_METHODS: testCompoundPartitionKey
+    # REPEATED_UTEST_METHODS: testCompoundPartitionKey,testStaticTable
+    # Please note that some Ant targets will ignore the -Dtest.methods argument produced by this.
+    REPEATED_UTEST_METHODS:
+    # The number of times that the repeated JUnit test should be run
+    REPEATED_UTEST_COUNT: 100
+    # Whether the test iteration should stop on the first failure
+    REPEATED_UTEST_STOP_ON_FAILURE: false
+    # A Python dtest to be run multiple times, for example:
+    # REPEATED_DTEST_NAME: cqlsh_tests/test_cqlsh.py
+    # REPEATED_DTEST_NAME: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke
+    # REPEATED_DTEST_NAME: cqlsh_tests/test_cqlsh.py::TestCqlshSmoke::test_create_index
+    REPEATED_DTEST_NAME:
+    # Whether the repeated Python dtest should use vnodes
+    REPEATED_DTEST_VNODES: false
+    # The number of times that the repeated Python dtest should be run
+    REPEATED_DTEST_COUNT: 100
+    # Whether the test iteration should stop on the first failure
+    REPEATED_DTEST_STOP_ON_FAILURE: false
 
 j8_par_executor: &j8_par_executor
   executor:
@@ -229,16 +260,41 @@ j8_with_dtests_jobs: &j8_with_dtests_jobs
         requires:
           - start_j11_cqlsh_tests-no-vnodes
           - j8_build
+    # Java 8 repeated utest (on request)
+    - start_j8_repeated-utest:
+        type: approval
+    - j8_repeated-utest:
+        requires:
+          - start_j8_repeated-utest
+          - j8_build
+    # Java 11 repeated utest (on request)
+    - start_j11_repeated-utest:
+        type: approval
+    - j11_repeated-utest:
+        requires:
+          - start_j11_repeated-utest
+          - j8_build
+    # Java 8 repeated dtest (on request)
+    - start_j8_repeated-dtest:
+        type: approval
+    - j8_repeated-dtest:
+        requires:
+          - start_j8_repeated-dtest
+          - j8_build
+    # Java 11 repeated dtest (on request)
+    - start_j11_repeated-dtest:
+        type: approval
+    - j11_repeated-dtest:
+        requires:
+          - start_j11_repeated-dtest
+          - j8_build
 
 j11_with_dtests_jobs: &j11_with_dtests_jobs
   jobs:
     - j11_build
-    # Java 11 unit tests (on request, currently not working)
-    - start_j11_unit_tests:
-        type: approval
+    # Java 11 unit tests
     - j11_unit_tests:
         requires:
-          - start_j11_unit_tests
           - j11_build
     - j11_jvm_dtests:
         requires:
@@ -285,26 +341,40 @@ j11_with_dtests_jobs: &j11_with_dtests_jobs
         requires:
           - start_j11_cqlsh_tests-no-vnodes
           - j11_build
+    # Java 11 repeated utest (on request)
+    - start_j11_repeated-utest:
+        type: approval
+    - j11_repeated-utest:
+        requires:
+          - start_j11_repeated-utest
+          - j11_build
+    # Java 11 repeated dtest (on request)
+    - start_j11_repeated-dtest:
+        type: approval
+    - j11_repeated-dtest:
+        requires:
+          - start_j11_repeated-dtest
+          - j11_build
 
 j8_with_dtest_jobs_only: &j8_with_dtest_jobs_only
-        jobs:
-            - j8_build
-            - j8_dtests-with-vnodes:
-                  requires:
-                      - j8_build
-            - j8_dtests-no-vnodes:
-                  requires:
-                      - j8_build
+  jobs:
+    - j8_build
+    - j8_dtests-with-vnodes:
+        requires:
+          - j8_build
+    - j8_dtests-no-vnodes:
+        requires:
+          - j8_build
 
 j11_with_dtest_jobs_only: &j11_with_dtest_jobs_only
-        jobs:
-            - build
-            - j11-with-vnodes:
-                requires:
-                  - j11_build
-            - j11_dtests-no-vnodes:
-                requires:
-                  - j11_build
+  jobs:
+    - build
+    - j11-with-vnodes:
+        requires:
+          - j11_build
+    - j11_dtests-no-vnodes:
+        requires:
+          - j11_build
 
 workflows:
     version: 2
@@ -758,6 +828,41 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
+  j8_repeated-utest:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_repeated_utest
+
+  j11_repeated-utest:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - run_repeated_utest
+
+  j8_repeated-dtest:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest
+
+  j11_repeated-dtest:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - log_environment
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest
+
 commands:
   log_environment:
     steps:
@@ -1102,3 +1207,175 @@ commands:
       - store_artifacts:
           path: ~/cassandra-dtest/logs
           destination: dtest_<<parameters.file_tag>>_logs
+
+  run_repeated_utest:
+    steps:
+      - run:
+          name: Run repeated utest
+          no_output_timeout: 15m
+          command: |
+            if [ "$REPEATED_UTEST_CLASS" == "<nil>" ]; then
+              echo "Repeated utest class name hasn't been defined, exiting without running any test"
+            elif [ "$REPEATED_UTEST_COUNT" == "<nil>" ]; then
+              echo "Repeated utest count hasn't been defined, exiting without running any test"
+            elif [ "$REPEATED_UTEST_COUNT" -le 0 ]; then
+              echo "Repeated utest count is lesser or equals than zero, exiting without running any test"
+            else
+            
+              # Calculate the number of test iterations to be run by the current parallel runner.
+              # Since we are running the same test multiple times there is no need to use `circleci tests split`.
+              count=$((REPEATED_UTEST_COUNT / CIRCLE_NODE_TOTAL))
+              if (($CIRCLE_NODE_INDEX < (REPEATED_UTEST_COUNT % CIRCLE_NODE_TOTAL))); then
+                count=$((count+1))
+              fi
+
+              if (($count <= 0)); then
+                echo "No tests to run in this runner"
+              else
+                echo "Running $REPEATED_UTEST_TARGET $REPEATED_UTEST_CLASS $REPEATED_UTEST_METHODS $count times"
+
+                set -x
+                export PATH=$JAVA_HOME/bin:$PATH
+                time mv ~/cassandra /tmp
+                cd /tmp/cassandra
+                if [ -d ~/dtest_jars ]; then
+                  cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+                fi
+
+                target=$REPEATED_UTEST_TARGET
+                class_path=$REPEATED_UTEST_CLASS
+                class_name="${class_path##*.}"
+
+                # Prepare the -Dtest.name argument.
+                # It can be the fully qualified class name or the short class name, depending on the target.
+                if [[ $target == "test" || \
+                      $target == "test-cdc" || \
+                      $target == "test-compression" || \
+                      $target == "test-system-keyspace-directory" ]]; then
+                  name="-Dtest.name=$class_name"
+                else
+                  name="-Dtest.name=$class_path"
+                fi
+
+                # Prepare the -Dtest.methods argument, which is optional
+                if [ "$REPEATED_UTEST_METHODS" == "<nil>" ]; then
+                  methods=""
+                else
+                  methods="-Dtest.methods=$REPEATED_UTEST_METHODS"
+                fi
+
+                # Run the test target as many times as requested collecting the exit code,
+                # stopping the iteration only if REPEATED_UTEST_STOP_ON_FAILURE is set.
+                exit_code="$?"
+                for i in $(seq -w 1 $count); do
+
+                  echo "Running test iteration $i of $count"
+
+                  # run the test
+                  status="passes"
+                  if !( set -o pipefail && ant $target $name $methods -Dno-build-test=true | tee stdout.txt ); then
+                    status="fails"
+                    exit_code=1
+                  fi
+
+                  # move the stdout output file
+                  dest=/tmp/results/repeated_utest/stdout/${status}/${i}
+                  mkdir -p $dest
+                  mv stdout.txt $dest/${REPEATED_UTEST_TARGET}-${REPEATED_UTEST_CLASS}.txt
+
+                  # move the XML output files
+                  source=build/test/output
+                  dest=/tmp/results/repeated_utest/output/${status}/${i}
+                  mkdir -p $dest
+                  if [[ -d $source && -n "$(ls $source)" ]]; then
+                    mv $source/* $dest/
+                  fi
+
+                  # move the log files
+                  source=build/test/logs
+                  dest=/tmp/results/repeated_utest/logs/${status}/${i}
+                  mkdir -p $dest
+                  if [[ -d $source && -n "$(ls $source)" ]]; then
+                    mv $source/* $dest/
+                  fi
+
+                  # maybe stop iterations on test failure
+                  if [[ $REPEATED_UTEST_STOP_ON_FAILURE = true ]] && (( $exit_code > 0 )); then
+                    break
+                  fi
+                done
+
+                (exit ${exit_code})
+              fi
+            fi
+      - store_test_results:
+          path: /tmp/results/repeated_utest/output
+      - store_artifacts:
+          path: /tmp/results/repeated_utest/stdout
+          destination: stdout
+      - store_artifacts:
+          path: /tmp/results/repeated_utest/output
+          destination: junitxml
+      - store_artifacts:
+          path: /tmp/results/repeated_utest/logs
+          destination: logs
+
+  run_repeated_dtest:
+    steps:
+      - run:
+          name: Run repeated dtest
+          no_output_timeout: 15m
+          command: |
+            if [ "$REPEATED_DTEST_NAME" == "<nil>" ]; then
+              echo "Repeated dtest name hasn't been defined, exiting without running any test"
+            elif [ "$REPEATED_DTEST_COUNT" == "<nil>" ]; then
+              echo "Repeated dtest count hasn't been defined, exiting without running any test"
+            elif [ "$REPEATED_DTEST_COUNT" -le 0 ]; then
+              echo "Repeated dtest count is lesser or equals than zero, exiting without running any test"
+            else
+
+              # Calculate the number of test iterations to be run by the current parallel runner.
+              # Since we are running the same test multiple times there is no need to use `circleci tests split`.
+              count=$((REPEATED_DTEST_COUNT / CIRCLE_NODE_TOTAL))
+              if (($CIRCLE_NODE_INDEX < (REPEATED_DTEST_COUNT % CIRCLE_NODE_TOTAL))); then
+                count=$((count+1))
+              fi
+
+              if (($count <= 0)); then
+                echo "No tests to run in this runner"
+              else
+                echo "Running $REPEATED_DTEST_NAME $count times"
+            
+                source ~/env3.6/bin/activate
+                export PATH=$JAVA_HOME/bin:$PATH
+
+                java -version
+                cd ~/cassandra-dtest
+                mkdir -p /tmp/dtest
+
+                echo "env: $(env)"
+                echo "** done env"
+                mkdir -p /tmp/results/dtests
+
+                stop_on_failure_arg=""
+                if $REPEATED_UTEST_STOP_ON_FAILURE; then
+                  stop_on_failure_arg="-x"
+                fi
+
+                vnodes_args=""
+                if $REPEATED_DTEST_VNODES; then
+                  vnodes_args="--use-vnodes --num-tokens=16"
+                fi
+
+                # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $REPEATED_DTEST_NAME | tee /tmp/dtest/stdout.txt
+              fi
+            fi
+      - store_test_results:
+          path: /tmp/results
+      - store_artifacts:
+          path: /tmp/dtest
+          destination: dtest
+      - store_artifacts:
+          path: ~/cassandra-dtest/logs
+          destination: dtest_logs

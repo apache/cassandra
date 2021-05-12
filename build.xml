@@ -1233,7 +1233,8 @@
       </jar>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib" description="Compile test classes">
+  <target name="build-test" depends="_main-jar,stress-build,fqltool-build,resolver-dist-lib" unless="no-build-test"
+          description="Compile test classes">
     <antcall target="_build-test"/>
   </target>
 
