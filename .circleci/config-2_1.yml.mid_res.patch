@@ -224,5 +224,5 @@
 @@ -1063,3 +1081,4 @@ commands:
        - store_artifacts:
            path: ~/cassandra-dtest/logs
-           destination: dtest_<<parameters.file_tag>>_logs
+           destination: dtest_logs
 +
