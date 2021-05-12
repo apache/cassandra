@@ -124,6 +124,8 @@ New features
 
 Upgrading
 ---------
+    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC will not work in cqlsh 6.0.0
+      being connected to earlier major Cassandra versions where DESCRIBE does not exist server side.
     - cqlsh shell startup script now prefers 'python3' before 'python' when identifying a runtime.
     - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request
       verb were introduced and verbs were renamed. DroppedMessageMetrics pre-4.0 are now available with _REQ suffix. As
