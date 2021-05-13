@@ -103,8 +103,9 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // require the server to be initialized, so skipping them if it isn't.
         if (Guardrails.ready())
         {
-            // Guardrail on table properties
+            // Guardrails on table properties
             Guardrails.disallowedTableProperties.ensureAllowed(attrs.updatedProperties(), state);
+            Guardrails.ignoredTableProperties.maybeIgnoreAndWarn(attrs.updatedProperties(), attrs::removeProperty, state);
 
             // Guardrail on columns per table
             Guardrails.columnsPerTable.guard(rawColumns.size(), tableName, state);
