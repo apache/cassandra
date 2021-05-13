@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.TableAttributes;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -63,7 +64,13 @@ import static java.lang.String.format;
  */
 public class GuardrailsConfig
 {
-    public static final Long NO_LIMIT = -1L;
+    public static final String INDEX_GUARDRAILS_TABLE_FAILURE_THRESHOLD = Config.PROPERTY_PREFIX + "index.guardrails.table_failure_threshold";
+    public static final String INDEX_GUARDRAILS_TOTAL_FAILURE_THRESHOLD = Config.PROPERTY_PREFIX + "index.guardrails.total_failure_threshold";
+
+    public static final int NO_LIMIT = -1;
+    public static final int UNSET = -2;
+    public static final int DEFAULT_INDEXES_PER_TABLE_THRESHOLD = 10;
+    public static final int DEFAULT_INDEXES_TOTAL_THRESHOLD = 100;
 
     public Boolean enabled = false;
 
@@ -79,8 +86,13 @@ public class GuardrailsConfig
 
     public Boolean counter_enabled;
 
-    public Long secondary_index_per_table_failure_threshold;
-    public Long materialized_view_per_table_failure_threshold;
+    // Legacy 2i guardrail
+    public Integer secondary_index_per_table_failure_threshold;
+    public Integer sasi_indexes_per_table_failure_threshold;
+    // SAI indexes guardrail
+    public Integer sai_indexes_per_table_failure_threshold;
+    public Integer sai_indexes_total_failure_threshold;
+    public Integer materialized_view_per_table_failure_threshold;
 
     public Set<String> write_consistency_levels_disallowed;
 
@@ -149,19 +161,21 @@ public class GuardrailsConfig
      * If {@link DatabaseDescriptor#isApplyDbaasDefaults()} is true, apply cloud defaults to guardrails settings that
      * are not specified in yaml; otherwise, apply on-prem defaults to guardrails settings that are not specified in yaml;
      */
+    @VisibleForTesting
     public void applyConfig()
     {
         enforceDefault(truncate_table_enabled, v -> truncate_table_enabled = v, true, true);
 
         enforceDefault(user_timestamps_enabled, v -> user_timestamps_enabled = v, true, true);
 
-        enforceDefault(column_value_size_failure_threshold_in_kb, v -> column_value_size_failure_threshold_in_kb = v, NO_LIMIT, 5 * 1024L);
+        enforceDefault(column_value_size_failure_threshold_in_kb, v -> column_value_size_failure_threshold_in_kb = v, -1L, 5 * 1024L);
 
-        enforceDefault(columns_per_table_failure_threshold, v -> columns_per_table_failure_threshold = v, NO_LIMIT, 20L);
-        enforceDefault(secondary_index_per_table_failure_threshold, v -> secondary_index_per_table_failure_threshold = v, NO_LIMIT, 1L);
-        enforceDefault(materialized_view_per_table_failure_threshold, v -> materialized_view_per_table_failure_threshold = v, NO_LIMIT, 2L);
-        enforceDefault(tables_warn_threshold, v -> tables_warn_threshold = v, NO_LIMIT, 100L);
-        enforceDefault(tables_failure_threshold, v -> tables_failure_threshold = v, NO_LIMIT, 200L);
+        enforceDefault(columns_per_table_failure_threshold, v -> columns_per_table_failure_threshold = v, -1L, 20L);
+        enforceDefault(secondary_index_per_table_failure_threshold, v -> secondary_index_per_table_failure_threshold = v, NO_LIMIT, 1);
+        enforceDefault(sasi_indexes_per_table_failure_threshold, v -> sasi_indexes_per_table_failure_threshold = v, NO_LIMIT, 0);
+        enforceDefault(materialized_view_per_table_failure_threshold, v -> materialized_view_per_table_failure_threshold = v, NO_LIMIT, 2);
+        enforceDefault(tables_warn_threshold, v -> tables_warn_threshold = v, -1L, 100L);
+        enforceDefault(tables_failure_threshold, v -> tables_failure_threshold = v, -1L, 200L);
 
         // We use a LinkedHashSet just for the sake of preserving the ordering in error messages
         enforceDefault(write_consistency_levels_disallowed,
@@ -183,20 +197,32 @@ public class GuardrailsConfig
                                                           .collect(Collectors.toList())));
 
         enforceDefault(partition_size_warn_threshold_in_mb, v -> partition_size_warn_threshold_in_mb = v, 100, 100);
-        enforceDefault(partition_keys_in_select_failure_threshold, v -> partition_keys_in_select_failure_threshold = v, NO_LIMIT.intValue(), 20);
+        enforceDefault(partition_keys_in_select_failure_threshold, v -> partition_keys_in_select_failure_threshold = v, NO_LIMIT, 20);
 
         enforceDefault(counter_enabled, v -> counter_enabled = v, true, true);
 
-        enforceDefault(fields_per_udt_failure_threshold, v -> fields_per_udt_failure_threshold = v, NO_LIMIT, 10L);
-        enforceDefault(collection_size_warn_threshold_in_kb, v -> collection_size_warn_threshold_in_kb = v, NO_LIMIT, 5 * 1024L);
-        enforceDefault(items_per_collection_warn_threshold, v -> items_per_collection_warn_threshold = v, NO_LIMIT, 20L);
+        enforceDefault(fields_per_udt_failure_threshold, v -> fields_per_udt_failure_threshold = v, -1L, 10L);
+        enforceDefault(collection_size_warn_threshold_in_kb, v -> collection_size_warn_threshold_in_kb = v, -1L, 5 * 1024L);
+        enforceDefault(items_per_collection_warn_threshold, v -> items_per_collection_warn_threshold = v, -1L, 20L);
 
         // for node status
-        enforceDefault(disk_usage_percentage_warn_threshold, v -> disk_usage_percentage_warn_threshold = v, NO_LIMIT.intValue(), 70);
-        enforceDefault(disk_usage_percentage_failure_threshold, v -> disk_usage_percentage_failure_threshold = v, NO_LIMIT.intValue(), 80);
+        enforceDefault(disk_usage_percentage_warn_threshold, v -> disk_usage_percentage_warn_threshold = v, NO_LIMIT, 70);
+        enforceDefault(disk_usage_percentage_failure_threshold, v -> disk_usage_percentage_failure_threshold = v, NO_LIMIT, 80);
 
-        enforceDefault(in_select_cartesian_product_failure_threshold, v -> in_select_cartesian_product_failure_threshold = v, NO_LIMIT.intValue(), 25);
+        enforceDefault(in_select_cartesian_product_failure_threshold, v -> in_select_cartesian_product_failure_threshold = v, NO_LIMIT, 25);
         enforceDefault(read_before_write_list_operations_enabled, v -> read_before_write_list_operations_enabled = v, true, false);
+
+        // SAI Table Failure threshold (maye be overridden via system property)
+        Integer overrideTableFailureThreshold = Integer.getInteger(INDEX_GUARDRAILS_TABLE_FAILURE_THRESHOLD, UNSET);
+        if (overrideTableFailureThreshold != UNSET)
+            sai_indexes_per_table_failure_threshold = overrideTableFailureThreshold;
+        enforceDefault(sai_indexes_per_table_failure_threshold, v -> sai_indexes_per_table_failure_threshold = v, DEFAULT_INDEXES_PER_TABLE_THRESHOLD, DEFAULT_INDEXES_PER_TABLE_THRESHOLD);
+
+        // SAI Table Failure threshold (maye be overridden via system property)
+        Integer overrideTotalFailureThreshold = Integer.getInteger(INDEX_GUARDRAILS_TOTAL_FAILURE_THRESHOLD, UNSET);
+        if (overrideTotalFailureThreshold != UNSET)
+            sai_indexes_total_failure_threshold = overrideTotalFailureThreshold;
+        enforceDefault(sai_indexes_total_failure_threshold, v -> sai_indexes_total_failure_threshold = v, DEFAULT_INDEXES_TOTAL_THRESHOLD, DEFAULT_INDEXES_TOTAL_THRESHOLD);
     }
 
     private void validateDisallowedTableProperties()

@@ -29,13 +29,13 @@ import static org.junit.Assert.assertEquals;
 
 public class GuardrailSecondaryIndexesPerTableTest extends GuardrailTester
 {
-    private Long defaultSIPerTableFailureThreshold;
+    private int defaultSIPerTableFailureThreshold;
 
     @Before
     public void before()
     {
         defaultSIPerTableFailureThreshold = config().secondary_index_per_table_failure_threshold;
-        config().secondary_index_per_table_failure_threshold = 1L;
+        config().secondary_index_per_table_failure_threshold = 1;
     }
 
     @After

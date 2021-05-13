@@ -44,7 +44,7 @@ public class GuardrailsOnTableTest extends GuardrailTester
     private static final String ALTER_VIEW = "ALTER MATERIALIZED VIEW %s.%s WITH %s";
     private static long defaultTablesSoftLimit;
     private static long defaultTableHardLimit;
-    private static long defaultMVPerTableFailureThreshold;
+    private static int defaultMVPerTableFailureThreshold;
     private static Set<String> defaultTablePropertiesDisallowed;
     private static Set<String> defaultTablePropertiesIgnored;
 

@@ -40,13 +40,13 @@ public class GuardrailMaterializedViewsPerTableTest extends GuardrailTester
     private static final String CREATE_VIEW = "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s " +
                                               "WHERE k is NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)";
 
-    private Long defaultMVPerTableFailureThreshold;
+    private int defaultMVPerTableFailureThreshold;
 
     @Before
     public void before()
     {
         defaultMVPerTableFailureThreshold = config().materialized_view_per_table_failure_threshold;
-        config().materialized_view_per_table_failure_threshold = 1L;
+        config().materialized_view_per_table_failure_threshold = 1;
 
         createTable(CREATE_TABLE);
     }
