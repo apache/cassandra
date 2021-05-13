@@ -77,6 +77,8 @@ public class GuardrailsConfig
 
     public Boolean user_timestamps_enabled;
 
+    public Boolean counter_enabled;
+
     public Long secondary_index_per_table_failure_threshold;
     public Long materialized_view_per_table_failure_threshold;
 
@@ -182,6 +184,8 @@ public class GuardrailsConfig
 
         enforceDefault(partition_size_warn_threshold_in_mb, v -> partition_size_warn_threshold_in_mb = v, 100, 100);
         enforceDefault(partition_keys_in_select_failure_threshold, v -> partition_keys_in_select_failure_threshold = v, NO_LIMIT.intValue(), 20);
+
+        enforceDefault(counter_enabled, v -> counter_enabled = v, true, true);
 
         enforceDefault(fields_per_udt_failure_threshold, v -> fields_per_udt_failure_threshold = v, NO_LIMIT, 10L);
         enforceDefault(collection_size_warn_threshold_in_kb, v -> collection_size_warn_threshold_in_kb = v, NO_LIMIT, 5 * 1024L);
