@@ -308,6 +308,12 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
         permits.updateAndGet(cur -> updateWorkPermits(cur, workPermits(cur) + deltaWorkPermits));
         logger.info("Resized {} maximum pool size from {} to {}", name, oldMaximumPoolSize, newMaximumPoolSize);
+
+        // If we we have more work permits than before we should spin up a worker now rather than waiting
+        // until either a new task is enqueued (if all workers are descheduled) or a spinning worker calls
+        // maybeSchedule().
+        pool.maybeStartSpinningWorker();
+
         maximumPoolSizeListener.onUpdateMaximumPoolSize(newMaximumPoolSize);
     }
 
