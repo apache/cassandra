@@ -1472,9 +1472,17 @@ enable_drop_compact_storage: false
   # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
   # columns_per_table_failure_threshold: -1
 
-  # Failure threshold to prevent creating more secondary indexes per table than threshold
+  # Failure threshold to prevent creating more secondary indexes per table than threshold (does not apply to CUSTOM INDEX StorageAttachedIndex)
   # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
   # secondary_index_per_table_failure_threshold: -1
+
+  # Failure threshold for number of StorageAttachedIndex per table (only applies to CUSTOM INDEX StorageAttachedIndex)
+  # Default is 10 (same when apply_dbaas_defaults is enabled)
+  # sai_indexes_per_table_failure_threshold: 10
+  #
+  # Failure threshold for total number of StorageAttachedIndex across all keyspaces (only applies to CUSTOM INDEX StorageAttachedIndex)
+  # Default is 10 (same when apply_dbaas_defaults is enabled)
+  # sai_indexes_total_failure_threshold: 100
 
   # Failure threshold to prevent creating more materialized views per table than threshold.
   # Default: -1 to disable, may differ if apply_dbaas_defaults is enabled
