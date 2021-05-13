@@ -3510,6 +3510,13 @@ public class DatabaseDescriptor
     {
         return conf.guardrails;
     }
+
+    @VisibleForTesting
+    public static boolean setApplyDbaasDefaults(boolean dbaasDefaults)
+    {
+        return conf.apply_dbaas_defaults = dbaasDefaults;
+    }
+
     public static boolean isApplyDbaasDefaults()
     {
         return conf.apply_dbaas_defaults;
