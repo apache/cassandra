@@ -178,7 +178,7 @@ public class TestBaseImpl extends DistributedTestBase
 
     public static void fixDistributedSchemas(Cluster cluster)
     {
-        // These keyspaces are under replicated by default, so must be updated when doing a mulit-node cluster;
+        // These keyspaces are under replicated by default, so must be updated when doing a multi-node cluster;
         // else bootstrap will fail with 'Unable to find sufficient sources for streaming range <range> in keyspace <name>'
         for (String ks : Arrays.asList("system_auth", "system_traces"))
         {
