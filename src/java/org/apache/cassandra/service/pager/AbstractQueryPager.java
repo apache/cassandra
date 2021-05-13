@@ -23,7 +23,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
@@ -59,7 +59,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
         return query.executionController();
     }
 
-    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState, long queryStartNanoTime)
+    public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, QueryState queryState, long queryStartNanoTime)
     {
         if (isExhausted())
             return EmptyIterators.partition();
@@ -72,7 +72,7 @@ abstract class AbstractQueryPager<T extends ReadQuery> implements QueryPager
             exhausted = true;
             return EmptyIterators.partition();
         }
-        return Transformation.apply(readQuery.execute(consistency, clientState, queryStartNanoTime), pager);
+        return Transformation.apply(readQuery.execute(consistency, queryState, queryStartNanoTime), pager);
     }
 
     public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController)

@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.junit.After;
@@ -34,6 +35,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.schema.Schema;
 
 import static java.lang.String.format;
+import static org.junit.Assert.assertEquals;
 
 public class GuardrailsOnTableTest extends GuardrailTester
 {
@@ -44,6 +46,7 @@ public class GuardrailsOnTableTest extends GuardrailTester
     private static long defaultTableHardLimit;
     private static long defaultMVPerTableFailureThreshold;
     private static Set<String> defaultTablePropertiesDisallowed;
+    private static Set<String> defaultTablePropertiesIgnored;
 
     @Before
     public void before()
@@ -52,14 +55,18 @@ public class GuardrailsOnTableTest extends GuardrailTester
         defaultTableHardLimit = DatabaseDescriptor.getGuardrailsConfig().tables_failure_threshold;
         defaultMVPerTableFailureThreshold = DatabaseDescriptor.getGuardrailsConfig().materialized_view_per_table_failure_threshold;
         defaultTablePropertiesDisallowed = DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed;
+        defaultTablePropertiesIgnored = DatabaseDescriptor.getGuardrailsConfig().table_properties_ignored;
 
-        // only allow "gc_grace_seconds"
         defaultMVPerTableFailureThreshold = 100;
+        // only allow "gc_grace_seconds" and "comments"
+        Set<String> allowed = new HashSet<>(Arrays.asList("gc_grace_seconds", "comment"));
         DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed =
         TableAttributes.validKeywords.stream()
-                                     .filter(p -> !p.equals("gc_grace_seconds"))
+                                     .filter(p -> !allowed.contains(p))
                                      .map(String::toUpperCase)
                                      .collect(Collectors.toSet());
+        // but actually ignore "comment"
+        DatabaseDescriptor.getGuardrailsConfig().table_properties_ignored = new HashSet<>(Arrays.asList("comment"));
     }
 
     @After
@@ -69,6 +76,7 @@ public class GuardrailsOnTableTest extends GuardrailTester
         DatabaseDescriptor.getGuardrailsConfig().tables_failure_threshold = defaultTableHardLimit;
         DatabaseDescriptor.getGuardrailsConfig().materialized_view_per_table_failure_threshold = defaultMVPerTableFailureThreshold;
         DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed = defaultTablePropertiesDisallowed;
+        DatabaseDescriptor.getGuardrailsConfig().table_properties_ignored = defaultTablePropertiesIgnored;
     }
 
     @Test
@@ -111,14 +119,27 @@ public class GuardrailsOnTableTest extends GuardrailTester
     @Test
     public void testTableProperties() throws Throwable
     {
-        // table properties is not allowed
+        // most table properties are not allowed
         assertValid(this::create);
         assertFails(() -> create("with id = " + UUID.randomUUID()), "[id]");
         assertFails(() -> create("with compression = { 'enabled': 'false' }"), "[compression]");
         assertFails(() -> create("with compression = { 'enabled': 'false' } AND id = " + UUID.randomUUID()), "[compression, id]");
         assertFails(() -> create("with compaction = { 'class': 'SizeTieredCompactionStrategy' }"), "[compaction]");
         assertFails(() -> create("with gc_grace_seconds = 1000 and compression = { 'enabled': 'false' }"), "[compression]");
+
+        // though gc_grace_seconds alone is
         assertValid(() -> create("with gc_grace_seconds = 1000"));
+
+        // and comment is "ignored". So it should warn, and getting the comment on the created table should be empty,
+        // not the one we set.
+        AtomicReference<String> tableName = new AtomicReference<>();
+        assertWarns(() -> tableName.set(create("with comment = 'my table'")), "[comment]");
+        com.datastax.driver.core.ResultSet rs =
+        executeNet("SELECT comment FROM system_schema.tables WHERE keyspace_name=? AND table_name=?",
+                   keyspace(),
+                   tableName.get());
+        com.datastax.driver.core.Row r = rs.one();
+        assertEquals("", r.getString("comment"));
 
         // alter column is allowed
         assertValid(this::create);
@@ -197,9 +218,11 @@ public class GuardrailsOnTableTest extends GuardrailTester
         create("");
     }
 
-    private void create(String withClause) throws Throwable
+    private String create(String withClause) throws Throwable
     {
-        executeNet(format(CREATE_TABLE, keyspace(), createTableName(), withClause));
+        String name = createTableName();
+        executeNet(format(CREATE_TABLE, keyspace(), name, withClause));
+        return name;
     }
 
     private void createMV(String withClause) throws Throwable
