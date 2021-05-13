@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.LoggerFactory;
 
@@ -572,14 +574,11 @@ public abstract class Guardrail
     }
 
     /**
-     * A guardrail that rejects the use of specific values.
+     * Base class for guardrail that are triggered based on a set of values.
      *
-     * <p>Note that like {@link DisableFlag}, this guardrail only triggers failures and is thus only for query-based
-     * guardrails.
-     *
-     * @param <T> the type of the values of which certain are disallowed.
+     * @param <T> the type of the values that trigger the guardrail.
      */
-    public static class DisallowedValues<T> extends Guardrail
+    private static abstract class ValuesBaseGuardrail<T> extends Guardrail
     {
         /*
          * Implementation note: as mentioned in the class Javadoc and for consistency with the other Guardrail
@@ -590,23 +589,13 @@ public abstract class Guardrail
 
         private final Supplier<Set<String>> rawSupplier;
         private final Function<String, T> parser;
-        private final String what;
+        protected final String what;
 
-        private volatile Set<T> cachedDisallowed;
+        private volatile ImmutableSet<T> cachedValues;
         private volatile Set<String> cachedRaw;
 
-        /**
-         * Creates a new {@link DisallowedValues} guardrail.
-         *
-         * @param name          the name of the guardrail (for identification in {@link Guardrails.Listener} events).
-         * @param disallowedRaw a supplier of the values that are disallowed in raw (string) form. The set returned by
-         *                      this supplier <b>must</b> be immutable (we don't use {@code ImmutableSet} because we
-         *                      want to feed values from {@link GuardrailsConfig} directly and having ImmutableSet
-         *                      there would currently be annoying (because populated automatically by snakeYaml)).
-         * @param parser        a function to parse the value to disallow from string.
-         * @param what          what represents the value disallowed (for reporting in error messages).
-         */
-        DisallowedValues(String name, Supplier<Set<String>> disallowedRaw, Function<String, T> parser, String what)
+        protected ValuesBaseGuardrail(
+            String name, Supplier<Set<String>> disallowedRaw, Function<String, T> parser, String what)
         {
             super(name);
             this.rawSupplier = disallowedRaw;
@@ -617,13 +606,14 @@ public abstract class Guardrail
                 ensureUpToDate();
         }
 
-        private void ensureUpToDate()
+        protected void ensureUpToDate()
         {
             Set<String> current = rawSupplier.get();
             // Same as below, this shouldn't happen if settings have been properly sanitized, but throw a meaningful
             // error if there is a bug.
             if (current == null)
-                throw new RuntimeException(format("Invalid null setting for guardrail on %s. This is a bug and should not have happened.", what));
+                throw new RuntimeException(format("Invalid null setting for guardrail on %s. This should not have"
+                                                  + " happened", what));
 
             // Note that this will fail on first call (as we want), as currentRaw will be null but not current
             if (current == cachedRaw)
@@ -633,9 +623,9 @@ public abstract class Guardrail
             {
                 // Setting cachedAllowed first so that on a parse failure we leave everything as it previously
                 // was (not that we'd expect that matter but ...).
-                cachedDisallowed = current.stream()
-                                          .map(parser)
-                                          .collect(Collectors.toCollection(HashSet::new));
+                cachedValues = current.stream()
+                                      .map(parser)
+                                      .collect(ImmutableSet.toImmutableSet());
                 cachedRaw = current;
             }
             catch (Exception e)
@@ -651,62 +641,96 @@ public abstract class Guardrail
             }
         }
 
+        protected Set<T> matchingValues(Set<T> values) {
+            return Sets.intersection(values, cachedValues);
+        }
+
+        protected String triggerValuesString()
+        {
+            return cachedRaw.toString();
+        }
+
+        /**
+         * Checks whether the provided value would trigger this guardrail.
+         *
+         * <p>This method is optional (does not have to be called) but can be used in the case some of the arguments
+         * to the actual guardrail method is expensive to build to save doing so in the common case (of the
+         * guardrail not being triggered).
+         *
+         * @param value the value to test.
+         * @param state the query state, used to skip the check if the query is internal or is done by a superuser.
+         * @return {@code true} if {@code value} is not allowed by this guardrail,
+         * {@code false otherwise}.
+         */
+        public boolean triggersOn(T value, @Nullable QueryState state)
+        {
+            if (!enabled(state))
+                return false;
+
+            ensureUpToDate();
+            return cachedValues.contains(value);
+        }
+    }
+
+
+    /**
+     * A guardrail that rejects the use of specific values.
+     *
+     * <p>Note that like {@link DisableFlag}, this guardrail only trigger failures and is thus only for query-based
+     * guardrails.
+     *
+     * @param <T> the type of the values of which certain are disallowed.
+     */
+    public static class DisallowedValues<T> extends ValuesBaseGuardrail<T>
+    {
+        /**
+         * Creates a new {@link DisallowedValues} guardrail.
+         *
+         * @param name the name of the guardrail (for identification in {@link Guardrails.Listener} events).
+         * @param disallowedRaw a supplier of the values that are disallowed in raw (string) form. The set returned by
+         *                      this supplier <b>must</b> be immutable (we don't use {@code ImmutableSet} because we
+         *                      want to feed values from {@link GuardrailsConfig} directly and having ImmutableSet
+         *                      there would currently be annoying (because populated automatically by snakeYaml)).
+         * @param parser a function to parse the value to disallow from string.
+         * @param what what represents the value disallowed (for reporting in error messages).
+         */
+        DisallowedValues(String name, Supplier<Set<String>> disallowedRaw, Function<String, T> parser, String what)
+        {
+            super(name, disallowedRaw, parser, what);
+        }
+
         /**
          * Triggers a failure if the provided value is disallowed by this guardrail.
          *
          * @param value the value to check.
+         * @param state the query state, used to skip the check if the query is internal or is done by a superuser.
+         * A {@code null} value means that the check should be done regardless of the query.
          */
-        public void ensureAllowed(T value)
+        public void ensureAllowed(T value, @Nullable QueryState state)
         {
-            ensureAllowed(value, null);
+            if (triggersOn(value, state))
+                fail(format("Provided value %s is not allowed for %s (disallowed values are: %s)",
+                            value, what, triggerValuesString()));
         }
 
         /**
          * Triggers a failure if any of the provided values is disallowed by this guardrail.
          *
          * @param values the values to check.
+         * @param state the query state, used to skip the check if the query is internal or is done by a superuser.
+         * A {@code null} value means that the check should be done regardless of the query.
          */
-        public void ensureAllowed(Set<T> values)
+        public void ensureAllowed(Set<T> values, @Nullable QueryState state)
         {
-            ensureAllowed(values, null);
-        }
-
-        /**
-         * Triggers a failure if the provided value is disallowed by this guardrail.
-         *
-         * @param value      the value to check.
-         * @param queryState the queryState, used to skip the check if the query is internal or is done by a superuser.
-         *                   A {@code null} value means that the check should be done regardless of the query.
-         */
-        public void ensureAllowed(T value, @Nullable QueryState queryState)
-        {
-            if (!enabled(queryState))
-                return;
-
-            ensureUpToDate();
-            if (cachedDisallowed.contains(value))
-                fail(format("Provided value %s is not allowed for %s (disallowed values are: %s)",
-                            value, what, cachedRaw));
-        }
-
-        /**
-         * Triggers a failure if any of the provided values is disallowed by this guardrail.
-         *
-         * @param values     the values to check.
-         * @param queryState the queryState, used to skip the check if the query is internal or is done by a superuser.
-         *                   A {@code null} value means that the check should be done regardless of the query.
-         */
-        public void ensureAllowed(Set<T> values, @Nullable QueryState queryState)
-        {
-            if (!enabled(queryState))
+            if (!enabled(state))
                 return;
 
             ensureUpToDate();
 
-            Set<T> intersection = Sets.intersection(values, cachedDisallowed);
-            if (!intersection.isEmpty())
+            Set<T> disallowed = matchingValues(values);
+            if (!disallowed.isEmpty())
                 fail(format("Provided values %s are not allowed for %s (disallowed values are: %s)",
-                            intersection.stream().sorted().collect(Collectors.toList()), what, cachedRaw));
+                            disallowed.stream().sorted().collect(Collectors.toList()), what, triggerValuesString()));
         }
     }
 
@@ -774,6 +798,57 @@ public abstract class Guardrail
             {
                 warn(messageProvider.createMessage(true, value));
             }
+        }
+    }
+    
+    /**
+     * A guardrail that warns but ignore some specific values.
+     *
+     * @param <T> the type of the values of which certain are ignored.
+     */
+    public static class IgnoredValues<T> extends ValuesBaseGuardrail<T>
+    {
+        /**
+         * Creates a new {@link IgnoredValues} guardrail.
+         *
+         * @param name the name of the guardrail (for identification in {@link Guardrails.Listener} events).
+         * @param ignoredRaw a supplier of the values that are ignored in raw (string) form. The set returned by
+         *                      this supplier <b>must</b> be immutable (we don't use {@code ImmutableSet} because we
+         *                      want to feed values from {@link GuardrailsConfig} directly and having ImmutableSet
+         *                      there would currently be annoying (because populated automatically by snakeYaml)).
+         * @param parser a function to parse the value to ignore from string.
+         * @param what what represents the value ignored (for reporting in error messages).
+         */
+        IgnoredValues(String name, Supplier<Set<String>> ignoredRaw, Function<String, T> parser, String what)
+        {
+            super(name, ignoredRaw, parser, what);
+        }
+
+        /**
+         * Checks for ignored values by this guardrail and when it found some, log a warning and trigger an action
+         * to ignore them.
+         *
+         * @param values the values to check.
+         * @param ignoreAction an action called on the subset of {@code values} that should be ignored. This action
+         * should do whatever is necessary to make sure the value is ignored.
+         * @param state the query state, used to skip the check if the query is internal or is done by a superuser.
+         * A {@code null} value means that the check should be done regardless of the query.
+         */
+        public void maybeIgnoreAndWarn(Set<T> values, Consumer<T> ignoreAction, @Nullable QueryState state)
+        {
+            if (!enabled(state))
+                return;
+
+            ensureUpToDate();
+
+            Set<T> toIgnore = matchingValues(values);
+            if (toIgnore.isEmpty())
+                return;
+
+            warn(format("Ignoring provided values %s as they are not supported for %s (ignored values are: %s)",
+                        toIgnore.stream().sorted().collect(Collectors.toList()), what, triggerValuesString()));
+            for (T value : toIgnore)
+                ignoreAction.accept(value);
         }
     }
 }

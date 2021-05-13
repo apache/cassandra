@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.guardrails.Guardrail.DisableFlag;
 import org.apache.cassandra.guardrails.Guardrail.DisallowedValues;
+import org.apache.cassandra.guardrails.Guardrail.IgnoredValues;
 import org.apache.cassandra.guardrails.Guardrail.PercentageThreshold;
 import org.apache.cassandra.guardrails.Guardrail.Predicates;
 import org.apache.cassandra.guardrails.Guardrail.SizeThreshold;
@@ -88,6 +89,11 @@ public abstract class Guardrails
                                                                                                     () -> config.table_properties_disallowed,
                                                                                                     String::toLowerCase,
                                                                                                     "Table Properties");
+
+    public static final IgnoredValues<String> ignoredTableProperties = new IgnoredValues<>("ignored_table_properties",
+                                                                                                               () -> config.table_properties_ignored,
+                                                                                                               String::toLowerCase,
+                                                                                                               "Table Properties");
 
     @SuppressWarnings("unchecked")
     public static final Predicates<InetAddressAndPort> replicaDiskUsage =

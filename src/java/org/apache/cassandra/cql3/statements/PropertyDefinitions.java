@@ -151,4 +151,9 @@ public class PropertyDefinitions
     {
         return properties.keySet();
     }
+
+    public void removeProperty(String name)
+    {
+        properties.remove(name);
+    }
 }

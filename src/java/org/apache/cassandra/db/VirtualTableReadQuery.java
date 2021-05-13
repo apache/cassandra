@@ -24,7 +24,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 
 /**
  * Base class for the {@code ReadQuery} implementations use to query virtual tables.
@@ -48,7 +48,7 @@ public abstract class VirtualTableReadQuery extends AbstractReadQuery
 
     @Override
     public PartitionIterator execute(ConsistencyLevel consistency,
-                                     ClientState clientState,
+                                     QueryState queryState,
                                      long queryStartNanoTime) throws RequestExecutionException
     {
         return executeInternal(executionController());

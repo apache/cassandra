@@ -73,6 +73,7 @@ public class GuardrailsConfig
     public Long tables_warn_threshold;
     public Long tables_failure_threshold;
     public Set<String> table_properties_disallowed;
+    public Set<String> table_properties_ignored;
 
     public Boolean user_timestamps_enabled;
 
@@ -122,6 +123,7 @@ public class GuardrailsConfig
         validateStrictlyPositiveInteger(in_select_cartesian_product_failure_threshold, "in_select_cartesian_product_failure_threshold");
 
         validateDisallowedTableProperties();
+        validateIgnoredTableProperties();
 
         validateDiskUsageThreshold();
 
@@ -164,7 +166,15 @@ public class GuardrailsConfig
         enforceDefault(table_properties_disallowed,
                        v -> table_properties_disallowed = v,
                        Collections.<String>emptySet(),
-                       new LinkedHashSet<>(TableAttributes.validKeywords.stream().sorted().filter(p -> !p.equals("default_time_to_live")).collect(Collectors.toList())));
+                       Collections.<String>emptySet());
+
+        enforceDefault(table_properties_ignored,
+                       v -> table_properties_ignored = v,
+                       Collections.<String>emptySet(),
+                       new LinkedHashSet<>(TableAttributes.allKeywords().stream()
+                                                          .sorted()
+                                                          .filter(p -> !p.equals("default_time_to_live"))
+                                                          .collect(Collectors.toList())));
 
         enforceDefault(partition_size_warn_threshold_in_mb, v -> partition_size_warn_threshold_in_mb = v, 100, 100);
         enforceDefault(partition_keys_in_select_failure_threshold, v -> partition_keys_in_select_failure_threshold = v, NO_LIMIT.intValue(), 20);
@@ -184,10 +194,20 @@ public class GuardrailsConfig
     private void validateDisallowedTableProperties()
     {
         Set<String> diff = Sets.difference(table_properties_disallowed.stream().map(String::toLowerCase).collect(Collectors.toSet()),
-                                           TableAttributes.validKeywords);
+                                           TableAttributes.allKeywords());
 
         if (!diff.isEmpty())
             throw new ConfigurationException(format("Invalid value for table_properties_disallowed guardrail: "
+                                                    + "'%s' do not parse as valid table properties", diff.toString()));
+    }
+
+    private void validateIgnoredTableProperties()
+    {
+        Set<String> diff = Sets.difference(table_properties_ignored.stream().map(String::toLowerCase).collect(Collectors.toSet()),
+                                           TableAttributes.allKeywords());
+
+        if (!diff.isEmpty())
+            throw new ConfigurationException(format("Invalid value for table_properties_ignored guardrail: "
                                                     + "'%s' do not parse as valid table properties", diff.toString()));
     }
 
