@@ -66,6 +66,7 @@ public final class AlterViewStatement extends AlterSchemaStatement
         attrs.validate();
 
         Guardrails.disallowedTableProperties.ensureAllowed(attrs.updatedProperties(), state);
+        Guardrails.ignoredTableProperties.maybeIgnoreAndWarn(attrs.updatedProperties(), attrs::removeProperty, state);
 
         TableParams params = attrs.asAlteredTableParams(view.metadata.params);
 

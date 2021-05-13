@@ -448,6 +448,36 @@ public class GuardrailsTest extends GuardrailTester
     }
 
     @Test
+    public void testIgnoredValues()
+    {
+        // Using a LinkedHashSet below to ensure the order in the error message checked below are not random
+        Guardrail.IgnoredValues<Integer> ignored = new Guardrail.IgnoredValues<>(
+        "x",
+        () -> new LinkedHashSet<>(Arrays.asList("4", "6", "20")),
+        Integer::valueOf,
+        "integer");
+
+        Set<Integer> triggeredOn = new HashSet<>();
+        assertNoWarnOrFails(() -> ignored.maybeIgnoreAndWarn(set(3), triggeredOn::add, userQueryState));
+        assertEquals(set(), triggeredOn);
+
+        assertWarn(() -> ignored.maybeIgnoreAndWarn(set(4), triggeredOn::add, userQueryState),
+                   "Ignoring provided values [4] as they are not supported for integer (ignored values are: [4, 6, 20])");
+        assertEquals(set(4), triggeredOn);
+        triggeredOn.clear();
+
+        assertWarn(() -> ignored.maybeIgnoreAndWarn(set(4, 6), triggeredOn::add, null),
+                   "Ignoring provided values [4, 6] as they are not supported for integer (ignored values are: [4, 6, 20])");
+        assertEquals(set(4, 6), triggeredOn);
+        triggeredOn.clear();
+
+        assertWarn(() -> ignored.maybeIgnoreAndWarn(set(4, 5, 6, 7), triggeredOn::add, null),
+                   "Ignoring provided values [4, 6] as they are not supported for integer (ignored values are: [4, 6, 20])");
+        assertEquals(set(4, 6), triggeredOn);
+        triggeredOn.clear();
+    }
+
+    @Test
     public void testDisallowedValuesUsers()
     {
         DisallowedValues<Integer> disallowed = new DisallowedValues<>(
