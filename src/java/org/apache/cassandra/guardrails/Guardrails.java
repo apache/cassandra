@@ -94,10 +94,14 @@ public abstract class Guardrails
                                                                                                     String::toLowerCase,
                                                                                                     "Table Properties");
 
-    public static final IgnoredValues<String> ignoredTableProperties = new IgnoredValues<>("ignored_table_properties",
-                                                                                                               () -> config.table_properties_ignored,
-                                                                                                               String::toLowerCase,
-                                                                                                               "Table Properties");
+    public static final IgnoredValues<String> ignoredTableProperties = new IgnoredValues<>("ignored_table_properties", 
+                                                                                           () -> config.table_properties_ignored, 
+                                                                                           String::toLowerCase, 
+                                                                                           "Table Properties");
+    
+    public static final DisableFlag counterEnabled = new DisableFlag("counter",
+                                                                     () -> !config.counter_enabled,
+                                                                     "Counter");
 
     @SuppressWarnings("unchecked")
     public static final Predicates<InetAddressAndPort> replicaDiskUsage =
