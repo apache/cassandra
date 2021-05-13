@@ -59,6 +59,10 @@ public abstract class Guardrails
                                                                             () -> !config.user_timestamps_enabled,
                                                                             "User provided timestamps (USING TIMESTAMP)");
 
+    public static final DisableFlag truncateTableEnabled = new DisableFlag("truncate_table",
+                                                                           () -> !config.truncate_table_enabled,
+                                                                           "TRUNCATE table");
+
     public static final DisallowedValues<ConsistencyLevel> disallowedWriteConsistencies = new DisallowedValues<>("disallowed_write_consistency_levels",
                                                                                                                  () -> config.write_consistency_levels_disallowed,
                                                                                                                  ConsistencyLevel::fromString,
