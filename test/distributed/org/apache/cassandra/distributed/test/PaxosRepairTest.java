@@ -317,7 +317,7 @@ public class PaxosRepairTest extends TestBaseImpl
                 // exception expected
             }
             Assert.assertTrue(hasUncommitted(cluster, KEYSPACE, TABLE));
-            cluster.forEach(i -> i.runOnInstance(() -> Keyspace.open("system").getColumnFamilyStore("paxos").forceBlockingFlush()));
+            cluster.forEach(i -> i.runOnInstance(() -> Keyspace.open("system").getColumnFamilyStore("paxos").forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS)));
 
             CountDownLatch haveFetchedLowBound = new CountDownLatch(1);
             CountDownLatch haveReproposed = new CountDownLatch(1);
@@ -580,7 +580,7 @@ public class PaxosRepairTest extends TestBaseImpl
     private static void compactPaxos()
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
-        FBUtilities.waitOnFuture(paxos.forceFlush());
+        FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
     }
 

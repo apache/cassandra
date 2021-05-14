@@ -24,13 +24,13 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 
@@ -75,35 +75,35 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
         // sstable-2
         updateView("Delete from %s using timestamp 2 where p = 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"));
         // sstable-3
         updateView("Insert into %s (p, v1) values (3, 1) using timestamp 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, null, null));
         // sstable-4
         updateView("UPdate %s using timestamp 4 set v1 = 2 where p = 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(2, 3, null, null));
         // sstable-5
         updateView("UPdate %s using timestamp 5 set v1 = 1 where p = 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, null, null));
 
@@ -152,7 +152,7 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         updateView("Insert into %s (p1, p2, v1, v2) values (1, 2, 3, 4) using timestamp 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, v2, WRITETIME(v2) from %s WHERE p1 = ? AND p2 = ?", 1, 2),
                                 row(3, 4, 1L));
@@ -160,14 +160,14 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         updateView("Delete from %s using timestamp 2 where p1 = 1 and p2 = 2;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         // view are empty
         assertRowsIgnoringOrder(executeView("SELECT * FROM %s"));
         // insert PK with TS=3
         updateView("Insert into %s (p1, p2) values (1, 2) using timestamp 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         // deleted column in MV remained dead
         assertRowsIgnoringOrder(executeView("SELECT * FROM %s"), row(2, 1, null, null));
 
@@ -177,21 +177,21 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         // reset values
         updateView("Insert into %s (p1, p2, v1, v2) values (1, 2, 3, 4) using timestamp 10;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, v2, WRITETIME(v2) from %s WHERE p1 = ? AND p2 = ?", 1, 2),
                                 row(3, 4, 10L));
 
         updateView("UPDATE %s using timestamp 20 SET v2 = 5 WHERE p1 = 1 and p2 = 2");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, v2, WRITETIME(v2) from %s WHERE p1 = ? AND p2 = ?", 1, 2),
                                 row(3, 5, 20L));
 
         updateView("DELETE FROM %s using timestamp 10 WHERE p1 = 1 and p2 = 2");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, v2, WRITETIME(v2) from %s WHERE p1 = ? AND p2 = ?", 1, 2),
                                 row(null, 5, 20L));
@@ -211,21 +211,21 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         updateView("Insert into %s (p, v1, v2) values (3, 1, 5) using timestamp 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3), row(5, 1L));
         // remove row/mv TS=2
         updateView("Delete from %s using timestamp 2 where p = 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         // view are empty
         assertRowsIgnoringOrder(executeView("SELECT * FROM %s"));
         // insert PK with TS=3
         updateView("Insert into %s (p, v1) values (3, 1) using timestamp 3;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         // deleted column in MV remained dead
         assertRowsIgnoringOrder(executeView("SELECT * FROM %s"), row(1, 3, null));
 
@@ -233,7 +233,7 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         updateView("Insert into %s (p, v1, v2) values (3, 1, 5) using timestamp 2;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
         // deleted column in MV remained dead
         assertRowsIgnoringOrder(executeView("SELECT * FROM %s"), row(1, 3, null));
         assertRowsIgnoringOrder(executeView("SELECT * from %s limit 1"), row(1, 3, null));
@@ -242,7 +242,7 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
         executeNet("UPDATE %s USING TIMESTAMP 3 SET v2 = ? WHERE p = ?", 4, 3);
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRows(execute("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, 4, 3L));
 
@@ -260,11 +260,11 @@ public class ViewComplexDeletionsTest extends ViewAbstractParameterizedTest
 
         ColumnFamilyStore batchlog = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
         batchlog.disableAutoCompaction();
-        batchlog.forceBlockingFlush();
+        Util.flush(batchlog);
         int batchlogSSTables = batchlog.getLiveSSTables().size();
 
         updateView("INSERT INTO %s(k1, v1) VALUES(1, 1)");
-        batchlog.forceBlockingFlush();
+        Util.flush(batchlog);
         assertEquals(batchlogSSTables, batchlog.getLiveSSTables().size());
     }
 }

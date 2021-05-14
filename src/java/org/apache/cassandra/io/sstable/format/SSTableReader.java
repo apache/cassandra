@@ -34,6 +34,7 @@ import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -138,7 +139,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  *
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
-public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>
+public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
@@ -1419,13 +1420,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                                  boolean permitMatchPastLast,
                                                  SSTableReadsListener listener);
 
-    public abstract UnfilteredRowIterator iterator(DecoratedKey key,
-                                                   Slices slices,
-                                                   ColumnFilter selectedColumns,
-                                                   boolean reversed,
-                                                   SSTableReadsListener listener);
-
-    public abstract UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
+    public abstract UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
 
     public abstract UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, boolean tombstoneOnly);
 
@@ -1585,14 +1580,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @return A Scanner for seeking over the rows of the SSTable.
      */
     public abstract ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator);
-
-    /**
-     * @param columns the columns to return.
-     * @param dataRange filter to use when reading the columns
-     * @param listener a listener used to handle internal read events
-     * @return A Scanner for seeking over the rows of the SSTable.
-     */
-    public abstract ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener);
 
     public FileDataInput getFileDataInput(long position)
     {

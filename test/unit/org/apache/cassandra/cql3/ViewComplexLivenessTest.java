@@ -20,9 +20,9 @@ package org.apache.cassandra.cql3;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 
@@ -115,7 +115,7 @@ public class ViewComplexLivenessTest extends ViewAbstractParameterizedTest
         assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"), row(1, 1, 1));
 
         updateView("Update %s set v1 = null WHERE p = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        Util.flush(ks);
         assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"));
 
         cfs.forceMajorCompaction(); // before gc grace second, strict-liveness tombstoned dead row remains
@@ -128,7 +128,7 @@ public class ViewComplexLivenessTest extends ViewAbstractParameterizedTest
         assertEquals(0, cfs.getLiveSSTables().size());
 
         updateView("Update %s using ttl 5 set v1 = 1 WHERE p = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        Util.flush(ks);
         assertRowsIgnoringOrder(executeView("SELECT p, v1, v2 from %s"), row(1, 1, 1));
 
         cfs.forceMajorCompaction(); // before ttl+gc_grace_second, strict-liveness ttled dead row remains

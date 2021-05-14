@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 
 public class RemoveCellTest extends CQLTester
@@ -30,7 +31,7 @@ public class RemoveCellTest extends CQLTester
         String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
         execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP ?", 0, 0, 0, 0L);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         execute("DELETE c FROM %s USING TIMESTAMP ? WHERE a = ? AND b = ?", 1L, 0, 0);
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ?", 0, 0), row(0, 0, null));
         assertRows(execute("SELECT c FROM %s WHERE a = ? AND b = ?", 0, 0), row(new Object[]{null}));

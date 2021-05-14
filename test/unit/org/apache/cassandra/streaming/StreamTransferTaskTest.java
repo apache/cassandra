@@ -31,9 +31,9 @@ import org.junit.BeforeClass;
 import org.junit.After;
 import org.junit.Test;
 
-import io.netty.channel.embedded.EmbeddedChannel;
 import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -99,7 +99,7 @@ public class StreamTransferTaskTest
         for (int i = 0; i < 2; i++)
         {
             SchemaLoader.insertData(KEYSPACE1, CF_STANDARD, i, 1);
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
 
         // create streaming task that streams those two sstables
@@ -150,7 +150,7 @@ public class StreamTransferTaskTest
         for (int i = 0; i < 2; i++)
         {
             SchemaLoader.insertData(KEYSPACE1, CF_STANDARD, i, 1);
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
 
         // create streaming task that streams those two sstables

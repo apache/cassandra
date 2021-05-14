@@ -25,12 +25,12 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.utils.FBUtilities;
 
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
@@ -70,14 +70,14 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
         updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
         // sstable 2
         updateView("UPdate %s using timestamp 2 set v2 = null where p = 3");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3),
                                 row(null, null));
@@ -85,14 +85,14 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
         updateView("UPdate %s using timestamp 3 set v1 = 2 where p = 3");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(2, 3, null, null));
         // sstable 4
         updateView("UPdate %s using timestamp 4 set v1 = 1 where p = 3");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            Util.flush(ks);
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, null, null));
 

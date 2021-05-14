@@ -119,7 +119,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
             executeFormattedQuery(formatQuery("INSERT INTO %s (id, val) VALUES (?, ?)"), "mockData" + i, "mockData" + i);
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        cfs.forceBlockingFlush();
+        org.apache.cassandra.Util.flush(cfs);
 
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         sstableFileName = sstables.iterator().next().getFilename();

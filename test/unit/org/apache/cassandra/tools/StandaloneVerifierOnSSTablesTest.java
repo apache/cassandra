@@ -215,6 +215,6 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        org.apache.cassandra.Util.flush(cfs);
     }
 }

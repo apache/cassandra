@@ -34,6 +34,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Range;
@@ -42,6 +43,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.index.transactions.IndexTransaction;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -144,7 +146,7 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
         for (int j=0, jsize=dataRanges.size(); j<jsize; j++)
         {
             for (int i=0, isize=memtables.size(); i<isize; i++)
-                iters.add(memtables.get(i).makePartitionIterator(memtableColumnFilter, dataRanges.get(j)));
+                iters.add(memtables.get(i).partitionIterator(memtableColumnFilter, dataRanges.get(j), SSTableReadsListener.NOOP_LISTENER));
         }
 
         return getPaxosUpdates(iters, tableId, false);
@@ -152,7 +154,7 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
 
     public CloseableIterator<PaxosKeyState> flushIterator(Memtable flushing)
     {
-        List<UnfilteredPartitionIterator> iters = singletonList(flushing.makePartitionIterator(memtableColumnFilter, FULL_RANGE));
+        List<UnfilteredPartitionIterator> iters = singletonList(flushing.partitionIterator(memtableColumnFilter, FULL_RANGE, SSTableReadsListener.NOOP_LISTENER));
         return getPaxosUpdates(iters, null, true);
     }
 

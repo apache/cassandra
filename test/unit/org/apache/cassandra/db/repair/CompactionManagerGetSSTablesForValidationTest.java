@@ -29,6 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.TableMetadata;
@@ -94,7 +95,7 @@ public class CompactionManagerGetSSTablesForValidationTest
         for (int i=0; i<3; i++)
         {
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES(?, ?)", ks, tbl), i, i);
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
         Assert.assertEquals(3, cfs.getLiveSSTables().size());
 

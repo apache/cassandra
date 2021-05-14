@@ -130,7 +130,41 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
             }
 
-            IntervalSet<CommitLogPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt, localHostId);
+            IntervalSet<CommitLogPosition> filter;
+            final CommitLogPosition snapshotPosition = commitLog.archiver.snapshotCommitLogPosition;
+            if (snapshotPosition == CommitLogPosition.NONE)
+            {
+                // normal path: snapshot position is not explicitly specified, find it from sstables
+                if (!cfs.memtableWritesAreDurable())
+                {
+                    filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt, localHostId);
+                }
+                else
+                {
+                    if (commitLog.archiver.restorePointInTime == Long.MAX_VALUE)
+                    {
+                        // Normal restart, everything is persisted and restored by the memtable itself.
+                        filter = new IntervalSet<>(CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
+                    }
+                    else
+                    {
+                        // Point-in-time restore with a persistent memtable. In this case user should have restored
+                        // the memtable from a snapshot and specified that snapshot's commit log position, reaching
+                        // the "else" path below.
+                        // If they haven't, do not filter any commit log data -- this supports a mode of operation where
+                        // the user deletes old archived commit log segments when a snapshot completes -- but issue a
+                        // message as this may be inefficient / not what the user wants.
+                        logger.info("Point-in-time restore on a persistent memtable started without a snapshot time. " +
+                                    "All commit log data will be replayed.");
+                        filter = IntervalSet.empty();
+                    }
+                }
+            }
+            else
+            {
+                // If the positions is specified, it must override whatever we calculate.
+                filter = new IntervalSet<>(CommitLogPosition.NONE, snapshotPosition);
+            }
             cfPersisted.put(cfs.metadata.id, filter);
         }
         CommitLogPosition globalPosition = firstNotCovered(cfPersisted.values());
@@ -212,12 +246,14 @@ public class CommitLogReplayer implements CommitLogReadHandler
             if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 flushingSystem = true;
 
-            futures.addAll(keyspace.flush());
+            futures.addAll(keyspace.flush(ColumnFamilyStore.FlushReason.STARTUP));
         }
 
         // also flush batchlog incase of any MV updates
         if (!flushingSystem)
-            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
+            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME)
+                                .getColumnFamilyStore(SystemKeyspace.BATCHES)
+                                .forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED));
 
         FBUtilities.waitOnFutures(futures);
 

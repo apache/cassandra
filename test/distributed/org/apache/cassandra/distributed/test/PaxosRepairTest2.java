@@ -48,11 +48,11 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -298,7 +298,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
     private static void compactPaxos()
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
-        FBUtilities.waitOnFuture(paxos.forceFlush());
+        FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
     }
 

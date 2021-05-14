@@ -27,6 +27,7 @@ import harry.core.Configuration;
 import harry.core.Run;
 import harry.ddl.SchemaSpec;
 import harry.model.clock.OffsetClock;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
@@ -124,7 +125,7 @@ public abstract class FuzzTestBase extends TestBaseImpl
                 if (schema.staticColumns != null)
                     writeStatic(current, 0, current, current, true).applyUnsafe();
             }
-            store.forceBlockingFlush();
+            Util.flush(store);
             return null;
         }
     }

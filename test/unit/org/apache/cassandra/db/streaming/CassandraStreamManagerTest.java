@@ -33,6 +33,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.Assert;
 import org.junit.Before;
@@ -118,7 +119,7 @@ public class CassandraStreamManagerTest
     {
         Set<SSTableReader> before = cfs.getLiveSSTables();
         queryable.run();
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         Set<SSTableReader> after = cfs.getLiveSSTables();
 
         Set<SSTableReader> diff = Sets.difference(after, before);

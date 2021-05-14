@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.AfterClass;
@@ -81,7 +82,8 @@ public class RepairTest extends TestBaseImpl
     private static void flush(ICluster<IInvokableInstance> cluster, String keyspace, int ... nodes)
     {
         for (int node : nodes)
-            cluster.get(node).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush(keyspace)));
+            cluster.get(node).runOnInstance(rethrow(() -> StorageService.instance.forceKeyspaceFlush(keyspace,
+                                                                                                     ColumnFamilyStore.FlushReason.UNIT_TESTS)));
     }
 
     private static ICluster create(Consumer<IInstanceConfig> configModifier) throws IOException

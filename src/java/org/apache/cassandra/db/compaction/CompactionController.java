@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -263,10 +263,9 @@ public class CompactionController extends AbstractCompactionController
 
         for (Memtable memtable : memtables)
         {
-            Partition partition = memtable.getPartition(key);
-            if (partition != null)
+            if (memtable.rowIterator(key) != null)
             {
-                minTimestampSeen = Math.min(minTimestampSeen, partition.stats().minTimestamp);
+                minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
                 hasTimestamp = true;
             }
         }

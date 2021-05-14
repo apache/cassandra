@@ -324,6 +324,10 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
             seedDesc.putMapPropertyType("parameters", String.class, String.class);
             addTypeDescription(seedDesc);
+
+            TypeDescription memtableDesc = new TypeDescription(Config.MemtableOptions.class);
+            memtableDesc.addPropertyParameters("configurations", String.class, InheritingClass.class);
+            addTypeDescription(memtableDesc);
         }
 
         @Override

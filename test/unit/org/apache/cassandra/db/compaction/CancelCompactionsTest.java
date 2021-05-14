@@ -462,7 +462,7 @@ public class CancelCompactionsTest extends CQLTester
         for (int i = 0; i < 10; i++)
         {
             execute("insert into %s (id, something) values (?,?)", i, i);
-            getCurrentColumnFamilyStore().forceBlockingFlush();
+            flush();
         }
         AbstractCompactionTask ct = null;
 

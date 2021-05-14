@@ -703,7 +703,7 @@ public class VerifyTest
         Batch bogus = Batch.createLocal(nextTimeUUID(), 0, Collections.emptyList());
         BatchlogManager.store(bogus);
         ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("batches");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
 
@@ -761,7 +761,7 @@ public class VerifyTest
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     protected void fillCounterCF(ColumnFamilyStore cfs, int partitionsPerSSTable) throws WriteTimeoutException
@@ -773,7 +773,7 @@ public class VerifyTest
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
     }
 
     protected long simpleFullChecksum(String filename) throws IOException

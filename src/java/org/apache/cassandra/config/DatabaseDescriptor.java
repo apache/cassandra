@@ -3326,6 +3326,13 @@ public class DatabaseDescriptor
         return conf.memtable_cleanup_threshold;
     }
 
+    public static Map<String, InheritingClass> getMemtableConfigurations()
+    {
+        if (conf == null || conf.memtable == null)
+            return null;
+        return conf.memtable.configurations;
+    }
+
     public static int getIndexSummaryResizeIntervalInMinutes()
     {
         return conf.index_summary_resize_interval.toMinutesAsInt();

@@ -191,7 +191,7 @@ public class IndexSummaryManagerTest
                     .build()
                     .applyUnsafe();
             }
-            futures.add(cfs.forceFlush());
+            futures.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         }
         for (Future future : futures)
         {
@@ -516,7 +516,7 @@ public class IndexSummaryManagerTest
             .applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
@@ -581,7 +581,7 @@ public class IndexSummaryManagerTest
                 .build()
                 .applyUnsafe();
             }
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
 
         assertTrue(manager.getAverageIndexInterval() >= cfs.metadata().params.minIndexInterval);

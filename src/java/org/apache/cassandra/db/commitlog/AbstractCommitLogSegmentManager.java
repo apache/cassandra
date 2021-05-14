@@ -420,9 +420,20 @@ public abstract class AbstractCommitLogSegmentManager
                 else if (!flushes.containsKey(dirtyTableId))
                 {
                     final ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(dirtyTableId);
-                    // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
-                    // no deadlock possibility since switchLock removal
-                    flushes.put(dirtyTableId, force ? cfs.forceFlush() : cfs.forceFlush(maxCommitLogPosition));
+
+                    if (cfs.memtableWritesAreDurable())
+                    {
+                        // The memtable does not need this data to be preserved (we only wrote it for PITR and CDC)
+                        segment.markClean(dirtyTableId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
+                    }
+                    else
+                    {
+                        // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
+                        // no deadlock possibility since switchLock removal
+                        flushes.put(dirtyTableId, force
+                                                  ? cfs.forceFlush(ColumnFamilyStore.FlushReason.COMMITLOG_DIRTY)
+                                                  : cfs.forceFlush(maxCommitLogPosition));
+                    }
                 }
             }
         }
