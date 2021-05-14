@@ -300,7 +300,7 @@ public class SecondaryIndexTest
         new RowUpdateBuilder(cfs.metadata(), 1, "k1").noRowMarker().add("birthdate", 1L).build().applyUnsafe();
 
         // force a flush, so our index isn't being read from a memtable
-        keyspace.getColumnFamilyStore(WITH_KEYS_INDEX).forceBlockingFlush();
+        keyspace.getColumnFamilyStore(WITH_KEYS_INDEX).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // now apply another update, but force the index update to be skipped
         keyspace.apply(new RowUpdateBuilder(cfs.metadata(), 2, "k1").noRowMarker().add("birthdate", 2L).build(),
@@ -356,7 +356,7 @@ public class SecondaryIndexTest
         assertIndexedOne(cfs, col, 10l);
 
         // force a flush and retry the query, so our index isn't being read from a memtable
-        keyspace.getColumnFamilyStore(cfName).forceBlockingFlush();
+        keyspace.getColumnFamilyStore(cfName).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertIndexedOne(cfs, col, 10l);
 
         // now apply another update, but force the index update to be skipped
@@ -522,7 +522,7 @@ public class SecondaryIndexTest
             new RowUpdateBuilder(cfs.metadata(), 0, "k" + i).noRowMarker().add("birthdate", 1l).build().applyUnsafe();
 
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
     }
 
@@ -537,7 +537,7 @@ public class SecondaryIndexTest
         new RowUpdateBuilder(cfs.metadata(), 0, "k3").clustering("c").add("birthdate", 1L).add("notbirthdate", 3L).build().applyUnsafe();
         new RowUpdateBuilder(cfs.metadata(), 0, "k4").clustering("c").add("birthdate", 1L).add("notbirthdate", 3L).build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         ReadCommand rc = Util.cmd(cfs)
                              .fromKeyIncl("k1")
                              .toKeyIncl("k3")

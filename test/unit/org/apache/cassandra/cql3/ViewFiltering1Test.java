@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -99,7 +100,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) using timestamp 0", 1, 1, 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         // views should be updated.
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1), row(1, 1, 1, 1));
@@ -111,7 +112,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s using timestamp 1 set c = ? WHERE a=?", 0, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM " + mv1), 0);
         assertRowCount(execute("SELECT * FROM " + mv2), 0);
@@ -122,7 +123,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s using timestamp 2 set c = ? WHERE a=?", 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         // row should be back in views.
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1), row(1, 1, 1, 1));
@@ -134,7 +135,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s using timestamp 3 set d = ? WHERE a=?", 0, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1), row(1, 1, 1, 0));
         assertRowCount(execute("SELECT * FROM " + mv2), 0);
@@ -145,7 +146,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s using timestamp 4 set c = ? WHERE a=?", 0, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM " + mv1), 0);
         assertRowCount(execute("SELECT * FROM " + mv2), 0);
@@ -156,7 +157,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s using timestamp 5 set d = ? WHERE a=?", 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         // should not update as c=0
         assertRowCount(execute("SELECT * FROM " + mv1), 0);
@@ -179,7 +180,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         updateView("UPDATE %s using timestamp 7 set b = ? WHERE a=?", 2, 1);
         if (flush)
         {
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
             for (String view : getViews())
                 ks.getColumnFamilyStore(view).forceMajorCompaction();
         }
@@ -193,7 +194,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("DELETE b, c FROM %s using timestamp 6 WHERE a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM %s"), row(1, 2, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1));
@@ -205,7 +206,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("DELETE FROM %s using timestamp 8 where a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM " + mv1), 0);
         assertRowCount(execute("SELECT * FROM " + mv2), 0);
@@ -216,7 +217,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("UPDATE %s using timestamp 9 set b = ?,c = ? where a=?", 1, 1, 1); // upsert
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1), row(1, 1, 1, null));
         assertRows(execute("SELECT * FROM " + mv2));
@@ -227,7 +228,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("DELETE FROM %s using timestamp 10 where a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM " + mv1), 0);
         assertRowCount(execute("SELECT * FROM " + mv2), 0);
@@ -238,7 +239,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) using timestamp 11", 1, 1, 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         // row should be back in views.
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1), row(1, 1, 1, 1));
@@ -250,7 +251,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         updateView("DELETE FROM %s using timestamp 12 where a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM " + mv1), 0);
         assertRowCount(execute("SELECT * FROM " + mv2), 0);
@@ -307,7 +308,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
                 list(1, 1, 2),
                 set(1, 2),
                 map(1, 1, 2, 2));
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv2), row(1, 1));
@@ -315,7 +316,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv4), row(1, 1));
 
         execute("UPDATE %s SET l=l-[1] WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1));
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv2));
@@ -323,7 +324,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv4), row(1, 1));
 
         execute("UPDATE %s SET s=s-{2}, m=m-{2} WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT a,b,c FROM %s"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1));
@@ -332,7 +333,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv4), row(1, 1));
 
         execute("UPDATE %s SET  m=m-{1} WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT a,b,c FROM %s"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1));
@@ -342,7 +343,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
 
         // filter conditions result not changed
         execute("UPDATE %s SET  l=l+[2], s=s-{0}, m=m+{3:3} WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT a,b,c FROM %s"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv1));

@@ -102,7 +102,7 @@ public class CassandraEntireSSTableStreamWriterTest
             .build()
             .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();

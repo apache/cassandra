@@ -184,7 +184,7 @@ public abstract class CassandraIndex implements Index
     public Callable<Void> getBlockingFlushTask()
     {
         return () -> {
-            indexCfs.forceBlockingFlush();
+            indexCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_TABLE_FLUSH);
             return null;
         };
     }
@@ -659,7 +659,7 @@ public abstract class CassandraIndex implements Index
         CompactionManager.instance.interruptCompactionForCFs(cfss, (sstable) -> true, true);
         CompactionManager.instance.waitForCessation(cfss, (sstable) -> true);
         Keyspace.writeOrder.awaitNewBarrier();
-        indexCfs.forceBlockingFlush();
+        indexCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_REMOVED);
         indexCfs.readOrdering.awaitNewBarrier();
         indexCfs.invalidate();
     }
@@ -685,7 +685,7 @@ public abstract class CassandraIndex implements Index
     @SuppressWarnings("resource")
     private void buildBlocking()
     {
-        baseCfs.forceBlockingFlush();
+        baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_STARTED);
 
         try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL));
              Refs<SSTableReader> sstables = viewFragment.refs)
@@ -709,7 +709,7 @@ public abstract class CassandraIndex implements Index
                                                                          ImmutableSet.copyOf(sstables));
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
-            indexCfs.forceBlockingFlush();
+            indexCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_COMPLETED);
         }
         logger.info("Index build of {} complete", metadata.name);
     }

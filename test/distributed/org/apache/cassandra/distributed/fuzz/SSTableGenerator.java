@@ -113,7 +113,7 @@ public class SSTableGenerator
 
     public Collection<SSTableReader> flush()
     {
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         sstables.removeAll(store.getLiveSSTables());
 
         Set<SSTableReader> ret = new HashSet<>(sstables);

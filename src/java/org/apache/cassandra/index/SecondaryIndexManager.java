@@ -51,8 +51,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index.IndexBuildingSupport;
@@ -261,7 +260,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * Adds and builds a index
      *
      * @param indexDef the IndexMetadata describing the index
-     * @param isNewCF true if the index is added as part of a new table/columnfamily (i.e. loading a CF at startup), 
+     * @param isNewCF true if the index is added as part of a new table/columnfamily (i.e. loading a CF at startup),
      * false for all other cases (i.e. newly added index)
      */
     public synchronized Future<?> addIndex(IndexMetadata indexDef, boolean isNewCF)
@@ -378,7 +377,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         // Once we are tracking new writes, flush any memtable contents to not miss them from the sstable-based rebuild
         if (needsFlush)
-            baseCfs.forceBlockingFlush();
+            baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_STARTED);
 
         // Now that we are tracking new writes and we haven't left untracked contents on the memtables, we are ready to
         // index the sstables
@@ -618,7 +617,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      *
      * @param indexes the index to be marked as building
      * @param isFullRebuild {@code true} if this method is invoked as a full index rebuild, {@code false} otherwise
-     * @param isNewCF {@code true} if this method is invoked when initializing a new table/columnfamily (i.e. loading a CF at startup), 
+     * @param isNewCF {@code true} if this method is invoked when initializing a new table/columnfamily (i.e. loading a CF at startup),
      * {@code false} for all other cases (i.e. newly added index)
      */
     private synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
@@ -669,7 +668,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             if (writableIndexes.put(indexName, index) == null)
                 logger.info("Index [{}] became writable after successful build.", indexName);
         }
-        
+
         AtomicInteger counter = inProgressBuilds.get(indexName);
         if (counter != null)
         {
@@ -835,7 +834,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             indexes.forEach(index ->
                             index.getBackingTable()
-                                 .map(cfs -> wait.add(cfs.forceFlush()))
+                                 .map(cfs -> wait.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_COMPLETED)))
                                  .orElseGet(() -> nonCfsIndexes.add(index)));
         }
 
@@ -892,7 +891,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     /**
      * When building an index against existing data in sstables, add the given partition to the index
-     * 
+     *
      * @param key the key for the partition being indexed
      * @param indexes the indexes that must be updated
      * @param pageSize the number of {@link Unfiltered} objects to process in a single page
@@ -905,12 +904,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         if (!indexes.isEmpty())
         {
-            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(baseCfs.metadata(), 
-                                                                               FBUtilities.nowInSeconds(), 
-                                                                               ColumnFilter.selection(columns), 
-                                                                               RowFilter.NONE, 
-                                                                               DataLimits.NONE, 
-                                                                               key, 
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(baseCfs.metadata(),
+                                                                               FBUtilities.nowInSeconds(),
+                                                                               ColumnFilter.selection(columns),
+                                                                               RowFilter.NONE,
+                                                                               DataLimits.NONE,
+                                                                               key,
                                                                                new ClusteringIndexSliceFilter(Slices.ALL, false));
 
             int nowInSec = cmd.nowInSec();
@@ -1201,7 +1200,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         if (!hasIndexes())
             return UpdateTransaction.NO_OP;
-        
+
         ArrayList<Index.Indexer> idxrs = new ArrayList<>();
         for (Index i : writableIndexes.values())
         {
@@ -1209,7 +1208,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             if (idxr != null)
                 idxrs.add(idxr);
         }
-        
+
         if (idxrs.size() == 0)
             return UpdateTransaction.NO_OP;
         else

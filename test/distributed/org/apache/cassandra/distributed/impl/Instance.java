@@ -141,8 +141,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.memory.BufferPools;
+import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -513,7 +513,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void flush(String keyspace)
     {
-        FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush());
+        FBUtilities.waitOnFutures(Keyspace.open(keyspace).flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
     }
 
     public void forceCompact(String keyspace, String table)

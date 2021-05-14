@@ -406,7 +406,7 @@ public class Keyspace
     // disassociate a cfs from this keyspace instance.
     private void unloadCf(ColumnFamilyStore cfs, boolean dropData)
     {
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.DROP);
         cfs.invalidate(true, dropData);
     }
 
@@ -677,11 +677,11 @@ public class Keyspace
         return replicationStrategy;
     }
 
-    public List<Future<?>> flush()
+    public List<Future<?>> flush(ColumnFamilyStore.FlushReason reason)
     {
         List<Future<?>> futures = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores.values())
-            futures.add(cfs.forceFlush());
+            futures.add(cfs.forceFlush(reason));
         return futures;
     }
 

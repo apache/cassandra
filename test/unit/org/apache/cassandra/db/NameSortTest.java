@@ -84,7 +84,7 @@ public class NameSortTest
             rub.build().applyUnsafe();
         }
         validateNameSort(cfs);
-        keyspace.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        keyspace.getColumnFamilyStore("Standard1").forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         validateNameSort(cfs);
     }
 

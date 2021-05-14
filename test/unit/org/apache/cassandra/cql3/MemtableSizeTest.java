@@ -73,7 +73,7 @@ public class MemtableSizeTest extends CQLTester
 
             cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             cfs.disableAutoCompaction();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             long deepSizeBefore = ObjectSizes.measureDeep(cfs.getTracker().getView().getCurrentMemtable());
             System.out.printf("Memtable deep size before %s\n%n",

@@ -144,7 +144,7 @@ public class ViewTest extends ViewAbstractTest
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,c,val)VALUES(?,?,?)", 0, i % 2, "baz");
 
-        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         Assert.assertEquals(2, execute("select * from %s").size());
         Assert.assertEquals(2, executeView("select * from %s").size());
@@ -323,7 +323,7 @@ public class ViewTest extends ViewAbstractTest
         assertRows(executeView("SELECT a, b, c from %s WHERE b = ?", 1), row(0, 1, null));
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentView());
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Assert.assertEquals(1, cfs.getLiveSSTables().size());
     }
 
@@ -436,22 +436,22 @@ public class ViewTest extends ViewAbstractTest
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         for (int i = 0; i < 1024; i++)
             execute("INSERT into %s (k,c,val)VALUES(?,?,?)", i, i, String.valueOf(i));
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         String mv1 = createViewAsync("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +
                                      "WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");

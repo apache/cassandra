@@ -273,7 +273,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         // the streamed sstables.
         if (requiresWritePath)
         {
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.STREAMS_RECEIVED);
             abort();
         }
     }

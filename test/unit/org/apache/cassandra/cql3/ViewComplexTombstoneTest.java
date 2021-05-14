@@ -70,14 +70,14 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
         updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3), row(3, 1L));
         // sstable 2
         updateView("UPdate %s using timestamp 2 set v2 = null where p = 3");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(executeView("SELECT v2, WRITETIME(v2) from %s WHERE v1 = ? AND p = ?", 1, 3),
                                 row(null, null));
@@ -85,14 +85,14 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
         updateView("UPdate %s using timestamp 3 set v1 = 2 where p = 3");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(2, 3, null, null));
         // sstable 4
         updateView("UPdate %s using timestamp 4 set v1 = 1 where p = 3");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRowsIgnoringOrder(executeView("SELECT v1, p, v2, WRITETIME(v2) from %s"), row(1, 3, null, null));
 

@@ -181,7 +181,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
 
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
         // Decrement the timestamp to simulate a timestamp in the past hour
         for (int r = 3; r < 5; r++)
@@ -191,10 +191,10 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             new RowUpdateBuilder(cfs.metadata(), r, key.getKey())
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         HashMultimap<Long, SSTableReader> buckets = HashMultimap.create();
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
@@ -237,7 +237,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
                     .clustering("column")
                     .add("val", value).build().applyUnsafe();
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
         // Reset the buckets, overfill it now
@@ -272,7 +272,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
@@ -282,7 +282,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(cfs.getLiveSSTables().size(), 2);
 
         Map<String, String> options = new HashMap<>();
@@ -324,7 +324,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         SSTableReader expiredSSTable = cfs.getLiveSSTables().iterator().next();
         Thread.sleep(10);
 
@@ -337,7 +337,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(cfs.getLiveSSTables().size(), 2);
 
         Map<String, String> options = new HashMap<>();

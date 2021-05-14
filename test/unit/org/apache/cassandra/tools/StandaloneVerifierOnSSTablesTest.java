@@ -215,6 +215,6 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 }

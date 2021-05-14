@@ -86,7 +86,7 @@ public class AbstractPendingRepairTest extends AbstractRepairTest
         int pk = nextSSTableKey++;
         Set<SSTableReader> pre = cfs.getLiveSSTables();
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES(?, ?)", ks, tbl), pk, pk);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Set<SSTableReader> post = cfs.getLiveSSTables();
         Set<SSTableReader> diff = new HashSet<>(post);
         diff.removeAll(pre);

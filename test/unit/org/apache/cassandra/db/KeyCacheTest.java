@@ -132,7 +132,7 @@ public class KeyCacheTest
 
         // insert data and force to disk
         SchemaLoader.insertData(KEYSPACE1, cf, 0, 100);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // populate the cache
         readData(KEYSPACE1, cf, 0, 100);
@@ -232,7 +232,7 @@ public class KeyCacheTest
 
         // insert data and force to disk
         SchemaLoader.insertData(KEYSPACE1, cf, 0, 100);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         Collection<SSTableReader> firstFlushTables = ImmutableList.copyOf(store.getLiveSSTables());
 
@@ -242,7 +242,7 @@ public class KeyCacheTest
 
         // insert some new data and force to disk
         SchemaLoader.insertData(KEYSPACE1, cf, 100, 50);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // check that it's fine
         readData(KEYSPACE1, cf, 100, 50);
@@ -303,7 +303,7 @@ public class KeyCacheTest
         new RowUpdateBuilder(cfs.metadata(), 0, "key2").clustering("2").build().applyUnsafe();
 
         // to make sure we have SSTable
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // reads to cache key position
         Util.getAll(Util.cmd(cfs, "key1").build());
@@ -426,7 +426,7 @@ public class KeyCacheTest
 
             // insert data and force to disk
             SchemaLoader.insertData(keyspace, cf, 0, numberOfRows);
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
         for(Pair<String, String> entry : tables)
         {

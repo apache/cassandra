@@ -212,12 +212,14 @@ public class CommitLogReplayer implements CommitLogReadHandler
             if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 flushingSystem = true;
 
-            futures.addAll(keyspace.flush());
+            futures.addAll(keyspace.flush(ColumnFamilyStore.FlushReason.STARTUP));
         }
 
         // also flush batchlog incase of any MV updates
         if (!flushingSystem)
-            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
+            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME)
+                                .getColumnFamilyStore(SystemKeyspace.BATCHES)
+                                .forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED));
 
         FBUtilities.waitOnFutures(futures);
 

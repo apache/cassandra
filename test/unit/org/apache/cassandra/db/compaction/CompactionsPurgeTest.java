@@ -102,14 +102,14 @@ public class CompactionsPurgeTest
                    .build().applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // deletes
         for (int i = 0; i < 10; i++)
         {
             RowUpdateBuilder.deleteRow(cfs.metadata(), 1, key, String.valueOf(i)).applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // resurrect one column
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, key);
@@ -117,7 +117,7 @@ public class CompactionsPurgeTest
                .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                .build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // major compact and test that all columns but the resurrected one is completely gone
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
@@ -146,14 +146,14 @@ public class CompactionsPurgeTest
                    .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                    .build().applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // deletes
         for (int i = 0; i < 10; i++)
         {
             RowUpdateBuilder.deleteRow(cfs.metadata(), Long.MAX_VALUE, key, String.valueOf(i)).applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // major compact - tombstones should be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
@@ -164,7 +164,7 @@ public class CompactionsPurgeTest
                .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                .build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         cfs.invalidateCachedPartition(dk(key));
 
@@ -191,13 +191,13 @@ public class CompactionsPurgeTest
                    .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                    .build().applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         new Mutation.PartitionUpdateCollector(KEYSPACE1, dk(key))
             .add(PartitionUpdate.fullPartitionDelete(cfs.metadata(), dk(key), Long.MAX_VALUE, FBUtilities.nowInSeconds()))
             .build()
             .applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // major compact - tombstones should be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
@@ -208,7 +208,7 @@ public class CompactionsPurgeTest
                .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                .build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         cfs.invalidateCachedPartition(dk(key));
 
@@ -235,11 +235,11 @@ public class CompactionsPurgeTest
                    .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                    .build().applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         new RowUpdateBuilder(cfs.metadata(), Long.MAX_VALUE, dk(key))
             .addRangeTombstone(String.valueOf(0), String.valueOf(9)).build().applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // major compact - tombstones should be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
@@ -250,7 +250,7 @@ public class CompactionsPurgeTest
                .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                .build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         cfs.invalidateCachedPartition(dk(key));
 
@@ -278,7 +278,7 @@ public class CompactionsPurgeTest
                         .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                         .build().applyUnsafe();
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             // deletes
             for (int i = 0; i < 10; i++)
@@ -286,7 +286,7 @@ public class CompactionsPurgeTest
                 RowUpdateBuilder.deleteRow(cfs.metadata(), 1, key, String.valueOf(i)).applyUnsafe();
             }
 
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
         DecoratedKey key1 = Util.dk("key1");
@@ -294,7 +294,7 @@ public class CompactionsPurgeTest
 
         // flush, remember the current sstable and then resurrect one column
         // for first key. Then submit minor compaction on remembered sstables.
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Collection<SSTableReader> sstablesIncomplete = cfs.getLiveSSTables();
 
         RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), 2, "key1");
@@ -302,7 +302,7 @@ public class CompactionsPurgeTest
                 .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
         {
             Iterables.getOnlyElement(tasks).execute(ActiveCompactionsTracker.NOOP);
@@ -343,16 +343,16 @@ public class CompactionsPurgeTest
         .add("val", ByteBufferUtil.EMPTY_BYTE_BUFFER)
         .build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         // delete c1
         RowUpdateBuilder.deleteRow(cfs.metadata(), 10, key3, "c1").applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Collection<SSTableReader> sstablesIncomplete = cfs.getLiveSSTables();
 
         // delete c2 so we have new delete in a diffrent SSTable
         RowUpdateBuilder.deleteRow(cfs.metadata(), 9, key3, "c2").applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // compact the sstables with the c1/c2 data and the c1 tombstone
         try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
@@ -393,7 +393,7 @@ public class CompactionsPurgeTest
         {
             RowUpdateBuilder.deleteRow(cfs.metadata(), 1, key, String.valueOf(i)).applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(String.valueOf(cfs.getLiveSSTables()), 1, cfs.getLiveSSTables().size()); // inserts & deletes were in the same memtable -> only deletes in sstable
 
         // compact and test that the row is completely gone
@@ -438,7 +438,7 @@ public class CompactionsPurgeTest
         assertFalse(Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build()).isEmpty());
 
         // flush and major compact
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
 
         // Since we've force purging (by passing MAX_VALUE for gc_before), the row should have been invalidated and we should have no deletion info anymore
@@ -474,7 +474,7 @@ public class CompactionsPurgeTest
         assertFalse(partition.partitionLevelDeletion().isLive());
 
         // flush and major compact (with tombstone purging)
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assertFalse(Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build()).isEmpty());
 
@@ -504,14 +504,14 @@ public class CompactionsPurgeTest
         // write a row out to one sstable
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
                                                      keyspace, table, 1, "foo", 1));
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         UntypedResultSet result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(1, result.size());
 
         // write a row tombstone out to a second sstable
         QueryProcessor.executeInternal(String.format("DELETE FROM %s.%s WHERE k = %d", keyspace, table, 1));
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // basic check that the row is considered deleted
         assertEquals(2, cfs.getLiveSSTables().size());
@@ -529,14 +529,14 @@ public class CompactionsPurgeTest
         // write a row out to one sstable
         QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v1, v2) VALUES (%d, '%s', %d)",
                                                      keyspace, table, 1, "foo", 1));
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(2, cfs.getLiveSSTables().size());
         result = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s WHERE k = %d", keyspace, table, 1));
         assertEquals(1, result.size());
 
         // write a row tombstone out to a different sstable
         QueryProcessor.executeInternal(String.format("DELETE FROM %s.%s WHERE k = %d", keyspace, table, 1));
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         // compact the two sstables with a gcBefore that *does* allow the row tombstone to be purged
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, (int) (System.currentTimeMillis() / 1000) + 10000, false));

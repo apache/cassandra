@@ -327,7 +327,7 @@ public final class SchemaKeyspace
     private static void flush()
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
-            ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush()));
+            ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED)));
     }
 
     /**

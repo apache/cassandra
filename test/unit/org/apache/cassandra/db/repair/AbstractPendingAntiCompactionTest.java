@@ -109,7 +109,7 @@ public abstract class AbstractPendingAntiCompactionTest
             int val = i * rowsPerSSTable;  // multiplied to prevent ranges from overlapping
             for (int j = 0; j < rowsPerSSTable; j++)
                 QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?)", ks, cfs.getTableName()), val + j, val + j);
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
         Assert.assertEquals(num, cfs.getLiveSSTables().size());
     }

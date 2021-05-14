@@ -47,7 +47,7 @@ class OnInstanceFlushAndCleanup extends ClusterReliableAction
                 {
                     try
                     {
-                        cfs.forceBlockingFlush();
+                        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                         if (cfs.forceCleanup(1) != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                             throw new IllegalStateException();
                         cfs.forceMajorCompaction();

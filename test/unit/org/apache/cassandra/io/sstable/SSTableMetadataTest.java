@@ -95,7 +95,7 @@ public class SSTableMetadataTest
             .build()
             .applyUnsafe();
 
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(1, store.getLiveSSTables().size());
         int ttltimestamp = (int) (System.currentTimeMillis() / 1000);
         int firstDelTime = 0;
@@ -113,7 +113,7 @@ public class SSTableMetadataTest
         .applyUnsafe();
 
         ttltimestamp = (int) (System.currentTimeMillis() / 1000);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(2, store.getLiveSSTables().size());
         List<SSTableReader> sstables = new ArrayList<>(store.getLiveSSTables());
         if (sstables.get(0).getSSTableMetadata().maxLocalDeletionTime < sstables.get(1).getSSTableMetadata().maxLocalDeletionTime)
@@ -163,7 +163,7 @@ public class SSTableMetadataTest
         .build()
         .applyUnsafe();
 
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(1, store.getLiveSSTables().size());
         int ttltimestamp = (int) (System.currentTimeMillis() / 1000);
         int firstMaxDelTime = 0;
@@ -175,7 +175,7 @@ public class SSTableMetadataTest
 
         RowUpdateBuilder.deleteRow(store.metadata(), timestamp + 1, "deletetest", "todelete").applyUnsafe();
 
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(2, store.getLiveSSTables().size());
         boolean foundDelete = false;
         for (SSTableReader sstable : store.getLiveSSTables())
@@ -212,7 +212,7 @@ public class SSTableMetadataTest
                     .applyUnsafe();
             }
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertEquals(1, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
         {
@@ -233,7 +233,7 @@ public class SSTableMetadataTest
             .applyUnsafe();
         }
 
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         store.forceMajorCompaction();
         assertEquals(1, store.getLiveSSTables().size());
         for (SSTableReader sstable : store.getLiveSSTables())
@@ -260,7 +260,7 @@ public class SSTableMetadataTest
         ColumnFamily cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
@@ -271,7 +271,7 @@ public class SSTableMetadataTest
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
@@ -282,7 +282,7 @@ public class SSTableMetadataTest
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertTrue(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
 
@@ -292,7 +292,7 @@ public class SSTableMetadataTest
         cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
         cells.addColumn(new BufferCounterCell(cellname("col"), state.context, 1L, Long.MIN_VALUE));
         new Mutation(Util.dk("k").getKey(), cells).applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertFalse(cfs.getLiveSSTables().iterator().next().getSSTableMetadata().hasLegacyCounterShards);
         cfs.truncateBlocking();
     } */

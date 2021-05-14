@@ -4219,7 +4219,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             logger.debug("Forcing flush on keyspace {}, CF {}", keyspaceName, cfStore.name);
-            cfStore.forceBlockingFlush();
+            cfStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
         }
     }
 
@@ -5282,7 +5282,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.nonSystem())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    flushes.add(cfs.forceFlush());
+                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.SHUTDOWN));
             }
             // wait for the flushes.
             // TODO this is a godawful way to track progress, since they flush in parallel.  a long one could
@@ -5314,7 +5314,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.system())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    flushes.add(cfs.forceFlush());
+                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.SHUTDOWN));
             }
             FBUtilities.waitOnFutures(flushes);
 

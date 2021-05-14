@@ -124,7 +124,7 @@ public abstract class FuzzTestBase extends TestBaseImpl
                 if (schema.staticColumns != null)
                     writeStatic(current, 0, current, current, true).applyUnsafe();
             }
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             return null;
         }
     }

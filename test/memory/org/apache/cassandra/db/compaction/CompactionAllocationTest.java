@@ -524,7 +524,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -639,7 +639,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -739,7 +739,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -833,7 +833,7 @@ public class CompactionAllocationTest
                                                            makeRandomString(rowWidth>>2), makeRandomString(rowWidth>>2));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                 }
 
                 for (IndexDef index : indexes)

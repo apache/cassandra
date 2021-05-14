@@ -162,7 +162,7 @@ public class LongLeveledCompactionStrategyTest
         }
 
         //Flush sstable
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         store.runWithCompactionsDisabled(new Callable<Void>()
         {
@@ -261,7 +261,7 @@ public class LongLeveledCompactionStrategyTest
 
             Mutation rm = new Mutation(builder.build());
             rm.apply();
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
     }
 }

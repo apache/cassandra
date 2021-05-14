@@ -117,7 +117,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
                    .add("reg2", ByteBuffer.wrap(reg2));
             writer.append(builder.build().unfilteredIterator());
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         ssTableReader = writer.finish(true);
         txn.update(ssTableReader, false);

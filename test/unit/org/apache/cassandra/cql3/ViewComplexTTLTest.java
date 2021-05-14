@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -66,7 +67,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("UPDATE %s SET a = 1 WHERE k = 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, 1, null));
         assertRows(executeView("SELECT * from %s"), row(1, 1, null));
@@ -74,7 +75,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("DELETE a FROM %s WHERE k = 1");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"));
         assertEmpty(executeView("SELECT * from %s"));
@@ -82,7 +83,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("INSERT INTO %s (k) VALUES (1);");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, null, null));
         assertEmpty(executeView("SELECT * from %s"));
@@ -90,7 +91,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("UPDATE %s USING TTL 5 SET a = 10 WHERE k = 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, 10, null));
         assertRows(executeView("SELECT * from %s"), row(10, 1, null));
@@ -98,7 +99,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("UPDATE %s SET b = 100 WHERE k = 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, 10, 100));
         assertRows(executeView("SELECT * from %s"), row(10, 1, 100));
@@ -113,7 +114,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("DELETE b FROM %s WHERE k=1");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, null, null));
         assertEmpty(executeView("SELECT * from %s"));
@@ -121,7 +122,7 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
         updateView("DELETE FROM %s WHERE k=1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         assertEmpty(execute("SELECT * from %s"));
         assertEmpty(executeView("SELECT * from %s"));
@@ -198,11 +199,11 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) using timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) USING TTL 3 and timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         Thread.sleep(4000);
 
@@ -213,11 +214,11 @@ public class ViewComplexTTLTest extends ViewAbstractParameterizedTest
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) USING TTL 3 and timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) USING timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         Thread.sleep(4000);
 

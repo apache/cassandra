@@ -298,7 +298,7 @@ public class PaxosRepairTest2 extends TestBaseImpl
     private static void compactPaxos()
     {
         ColumnFamilyStore paxos = Keyspace.open(SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.PAXOS);
-        FBUtilities.waitOnFuture(paxos.forceFlush());
+        FBUtilities.waitOnFuture(paxos.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(paxos, 0, false));
     }
 

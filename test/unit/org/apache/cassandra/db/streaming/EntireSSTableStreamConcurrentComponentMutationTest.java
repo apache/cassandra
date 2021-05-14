@@ -128,7 +128,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
             .build()
             .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         CompactionManager.instance.performMaximal(store, false);
 
         Token start = ByteOrderedPartitioner.instance.getTokenFactory().fromString(Long.toHexString(0));

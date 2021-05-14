@@ -71,7 +71,7 @@ public class MigrationManagerDropKSTest
                                            "dropKs", "col" + i, "anyvalue");
         ColumnFamilyStore cfs = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(cfs);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
 
         SchemaTestUtil.announceKeyspaceDrop(ks.name);

@@ -97,7 +97,7 @@ public class CacheLoaderBench extends CQLTester
                 RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis() + random.nextInt(), "key");
                 rowBuilder.add(colDef, "val1");
                 rowBuilder.build().apply();
-                cfs.forceBlockingFlush();
+                cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             }
 
             Assert.assertEquals(numSSTables, cfs.getLiveSSTables().size());
