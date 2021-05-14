@@ -76,7 +76,7 @@ public class AutoSavingCacheTest
             RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), currentTimeMillis(), "key1");
             rowBuilder.add(colDef, "val1");
             rowBuilder.build().apply();
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
         }
 
         Assert.assertEquals(2, cfs.getLiveSSTables().size());

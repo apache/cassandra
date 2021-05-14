@@ -633,7 +633,7 @@ public class LegacySSTableTest
             }
         }
 
-        StorageService.instance.forceKeyspaceFlush("legacy_tables");
+        StorageService.instance.forceKeyspaceFlush("legacy_tables", ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", BigFormat.latestVersion));
         ksDir.tryCreateDirectories();

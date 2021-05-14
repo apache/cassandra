@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionsTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -187,7 +188,7 @@ public class ValidatorTest
 
         CompactionsTest.populate(keyspace, columnFamily, 0, n, 0); //ttl=3s
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
@@ -244,7 +245,7 @@ public class ValidatorTest
         // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
         CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
@@ -303,7 +304,7 @@ public class ValidatorTest
         // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
         CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction

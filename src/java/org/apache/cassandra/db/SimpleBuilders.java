@@ -421,6 +421,12 @@ public abstract class SimpleBuilders
             return this;
         }
 
+        public Row.SimpleBuilder deletePrevious()
+        {
+            builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp - 1, nowInSec)));
+            return this;
+        }
+
         public Row.SimpleBuilder delete(String columnName)
         {
             return add(columnName, null);

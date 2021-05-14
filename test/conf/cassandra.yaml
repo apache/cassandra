@@ -61,3 +61,45 @@ local_read_size_warn_threshold: 4096KiB
 local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
+
+memtable:
+    configurations:
+        skiplist:
+            inherits: default
+            class_name: SkipListMemtable
+        skiplist_sharded:
+            class_name: ShardedSkipListMemtable
+            parameters:
+                serialize_writes: false
+                shards: 4
+        skiplist_sharded_locking:
+            inherits: skiplist_sharded
+            parameters:
+                serialize_writes: true
+        skiplist_remapped:
+            inherits: skiplist
+        test_fullname:
+            inherits: default
+            class_name: org.apache.cassandra.db.memtable.TestMemtable
+        test_shortname:
+            class_name: TestMemtable
+            parameters:
+                skiplist: true  # note: YAML must interpret this as string, not a boolean
+        test_empty_class:
+            class_name: ""
+        test_missing_class:
+            parameters:
+        test_unknown_class:
+            class_name: NotExisting
+        test_invalid_param:
+            class_name: SkipListMemtable
+            parameters:
+                invalid: throw
+        test_invalid_extra_param:
+            inherits: test_shortname
+            parameters:
+                invalid: throw
+        test_invalid_factory_method:
+            class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
+        test_invalid_factory_field:
+            class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField

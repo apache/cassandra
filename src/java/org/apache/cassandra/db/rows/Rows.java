@@ -273,7 +273,7 @@ public abstract class Rows
      *
      * @return the smallest timestamp delta between corresponding rows from existing and update. A
      * timestamp delta being computed as the difference between the cells and DeletionTimes from {@code existing}
-     * and those in {@code existing}.
+     * and those in {@code update}.
      */
     public static long merge(Row existing,
                              Row update,

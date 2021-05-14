@@ -35,7 +35,7 @@ public class SnapshotTest extends CQLTester
     {
         createTable("create table %s (id int primary key, k int)");
         execute("insert into %s (id, k) values (1,1)");
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        getCurrentColumnFamilyStore().forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
         {
             File toc = new File(sstable.descriptor.filenameFor(Component.TOC));

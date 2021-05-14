@@ -18,33 +18,53 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.List;
+
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 
+@RunWith(Parameterized.class)
 public class MemtableSizeTest extends CQLTester
 {
-    static String keyspace;
-    String table;
-    ColumnFamilyStore cfs;
+    static final Logger logger = LoggerFactory.getLogger(MemtableSizeTest.class);
 
-    int partitions = 50_000;
-    int rowsPerPartition = 4;
+    static final int partitions = 50_000;
+    static final int rowsPerPartition = 4;
 
-    int deletedPartitions = 10_000;
-    int deletedRows = 5_000;
+    static final int deletedPartitions = 10_000;
+    static final int deletedRows = 5_000;
+
+    @Parameterized.Parameter(0)
+    public String memtableClass;
+
+    @Parameterized.Parameter(1)
+    public int differencePerPartition;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static List<Object[]> parameters()
+    {
+        return ImmutableList.of(new Object[]{"skiplist", 50},
+                                new Object[]{"skiplist_sharded", 60});
+    }
 
     // must be within 50 bytes per partition of the actual size
-    final int MAX_DIFFERENCE = (partitions + deletedPartitions + deletedRows) * 50;
+    final long MAX_DIFFERENCE_PARTITIONS = (partitions + deletedPartitions + deletedRows);
 
     @BeforeClass
     public static void setUp()
@@ -52,42 +72,44 @@ public class MemtableSizeTest extends CQLTester
         CQLTester.setUpClass();
         CQLTester.prepareServer();
         CQLTester.disablePreparedReuseForTest();
-        System.err.println("setupClass done.");
+        logger.info("setupClass done.");
     }
 
     @Test
-    public void testTruncationReleasesLogSpace()
+    public void testSize()
     {
-        Util.flakyTest(this::testSize, 2, "Fails occasionally, see CASSANDRA-16684");
+        Util.flakyTest(this::testSizeFlaky, 2, "Fails occasionally, see CASSANDRA-16684");
     }
 
-    private void testSize()
+    private void testSizeFlaky()
     {
         try
         {
-            keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-            table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid)) with compression = {'enabled': false}");
+            String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
+            String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
+                                                 " with compression = {'enabled': false}" +
+                                                 " and memtable = '" + memtableClass + "'");
             execute("use " + keyspace + ';');
 
             String writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
 
-            cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+            ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             cfs.disableAutoCompaction();
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
 
             long deepSizeBefore = ObjectSizes.measureDeep(cfs.getTracker().getView().getCurrentMemtable());
-            System.out.printf("Memtable deep size before %s\n%n",
-                              FBUtilities.prettyPrintMemory(deepSizeBefore));
+            logger.info("Memtable deep size before {}\n",
+                        FBUtilities.prettyPrintMemory(deepSizeBefore));
             long i;
             long limit = partitions;
-            System.out.println("Writing " + partitions + " partitions of " + rowsPerPartition + " rows");
+            logger.info("Writing {} partitions of {} rows", partitions, rowsPerPartition);
             for (i = 0; i < limit; ++i)
             {
                 for (long j = 0; j < rowsPerPartition; ++j)
                     execute(writeStatement, i, j, i + j);
             }
 
-            System.out.println("Deleting " + deletedPartitions + " partitions");
+            logger.info("Deleting {} partitions", deletedPartitions);
             limit += deletedPartitions;
             for (; i < limit; ++i)
             {
@@ -95,7 +117,7 @@ public class MemtableSizeTest extends CQLTester
                 execute("DELETE FROM " + table + " WHERE userid = ?", i);
             }
 
-            System.out.println("Deleting " + deletedRows + " rows");
+            logger.info("Deleting {} rows", deletedRows);
             limit += deletedRows;
             for (; i < limit; ++i)
             {
@@ -103,31 +125,28 @@ public class MemtableSizeTest extends CQLTester
                 execute("DELETE FROM " + table + " WHERE userid = ? AND picid = ?", i, 0L);
             }
 
-
             if (!cfs.getLiveSSTables().isEmpty())
-                System.out.println("Warning: " + cfs.getLiveSSTables().size() + " sstables created.");
+                logger.info("Warning: " + cfs.getLiveSSTables().size() + " sstables created.");
 
             Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
-            long actualHeap = memtable.getAllocator().onHeap().owns();
-            System.out.printf("Memtable in %s mode: %d ops, %s serialized bytes, %s (%.0f%%) on heap, %s (%.0f%%) off-heap%n",
-                              DatabaseDescriptor.getMemtableAllocationType(),
-                              memtable.getOperations(),
-                              FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
-                              FBUtilities.prettyPrintMemory(actualHeap),
-                              100 * memtable.getAllocator().onHeap().ownershipRatio(),
-                              FBUtilities.prettyPrintMemory(memtable.getAllocator().offHeap().owns()),
-                              100 * memtable.getAllocator().offHeap().ownershipRatio());
+            Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
+            long actualHeap = usage.ownsOnHeap;
+            logger.info("Memtable in {} mode: {} ops, {} serialized bytes, {}\n",
+                        DatabaseDescriptor.getMemtableAllocationType(),
+                        memtable.operationCount(),
+                        FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
+                        usage);
 
             long deepSizeAfter = ObjectSizes.measureDeep(memtable);
-            System.out.printf("Memtable deep size %s\n%n",
-                              FBUtilities.prettyPrintMemory(deepSizeAfter));
+            logger.info("Memtable deep size {}\n",
+                        FBUtilities.prettyPrintMemory(deepSizeAfter));
 
             long expectedHeap = deepSizeAfter - deepSizeBefore;
             String message = String.format("Expected heap usage close to %s, got %s.\n",
                                            FBUtilities.prettyPrintMemory(expectedHeap),
                                            FBUtilities.prettyPrintMemory(actualHeap));
-            System.out.println(message);
-            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= MAX_DIFFERENCE);
+            logger.info(message);
+            Assert.assertTrue(message, Math.abs(actualHeap - expectedHeap) <= MAX_DIFFERENCE_PARTITIONS * differencePerPartition);
         }
         catch (Throwable throwable)
         {

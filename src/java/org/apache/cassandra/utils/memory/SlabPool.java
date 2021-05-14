@@ -18,8 +18,6 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-
 public class SlabPool extends MemtablePool
 {
     final boolean allocateOnHeap;
@@ -30,7 +28,7 @@ public class SlabPool extends MemtablePool
         this.allocateOnHeap = maxOffHeapMemory == 0;
     }
 
-    public MemtableAllocator newAllocator(ColumnFamilyStore table)
+    public MemtableAllocator newAllocator(String table)
     {
         return new SlabAllocator(onHeap.newAllocator(), offHeap.newAllocator(), allocateOnHeap);
     }

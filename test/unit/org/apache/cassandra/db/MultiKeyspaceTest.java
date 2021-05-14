@@ -20,7 +20,9 @@ package org.apache.cassandra.db;
  *
  */
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
+
 import org.junit.Test;
 
 
@@ -38,8 +40,8 @@ public class MultiKeyspaceTest extends CQLTester
         execute("INSERT INTO multikstest1.standard1 (a, b) VALUES (0, 0)");
         execute("INSERT INTO multikstest2.standard1 (a, b) VALUES (0, 0)");
 
-        Keyspace.open("multikstest1").flush();
-        Keyspace.open("multikstest2").flush();
+        Util.flushKeyspace("multikstest1");
+        Util.flushKeyspace("multikstest2");
 
         assertRows(execute("SELECT * FROM multikstest1.standard1"),
                    row(0, 0));

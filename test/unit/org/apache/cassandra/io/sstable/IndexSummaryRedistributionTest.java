@@ -125,7 +125,7 @@ public class IndexSummaryRedistributionTest
                 .build()
                 .applyUnsafe();
             }
-            futures.add(cfs.forceFlush());
+            futures.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
         }
         for (Future future : futures)
         {

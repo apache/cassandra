@@ -99,6 +99,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
@@ -252,7 +253,7 @@ public class Util
             rm.applyUnsafe();
 
         ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(tableId);
-        store.forceBlockingFlush();
+        Util.flush(store);
         return store;
     }
 
@@ -1007,4 +1008,38 @@ public class Util
         return new File(targetBasePath.toPath().resolve(relative));
     }
 
+    public static void flush(ColumnFamilyStore cfs)
+    {
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+    }
+
+    public static void flushTable(Keyspace keyspace, String table)
+    {
+        flush(keyspace.getColumnFamilyStore(table));
+    }
+
+    public static void flushTable(Keyspace keyspace, TableId table)
+    {
+        flush(keyspace.getColumnFamilyStore(table));
+    }
+
+    public static void flushTable(String keyspace, String table)
+    {
+        flushTable(Keyspace.open(keyspace), table);
+    }
+
+    public static void flush(Keyspace keyspace)
+    {
+        FBUtilities.waitOnFutures(keyspace.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
+    }
+
+    public static void flushKeyspace(String keyspaceName)
+    {
+        flush(Keyspace.open(keyspaceName));
+    }
+
+    public static void flush(TableViews view)
+    {
+        view.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+    }
 }

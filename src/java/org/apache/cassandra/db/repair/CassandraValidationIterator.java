@@ -29,6 +29,7 @@ import java.util.function.LongPredicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
@@ -56,7 +57,6 @@ import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -196,12 +196,19 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
             if (!isIncremental)
             {
                 // flush first so everyone is validating data that is as similar as possible
-                StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), cfs.name);
+                cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VALIDATION);
+                // Note: we also flush for incremental repair during the anti-compaction process.
             }
             sstables = getSSTablesToValidate(cfs, ranges, parentId, isIncremental);
         }
 
+        // Persistent memtables will not flush or snapshot to sstables, make an sstable with their data.
+        cfs.writeAndAddMemtableRanges(parentId,
+                                      () -> Collections2.transform(Range.normalize(ranges), Range::makeRowRange),
+                                      sstables);
+
         Preconditions.checkArgument(sstables != null);
+
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentId);
         logger.info("{}, parentSessionId={}: Performing validation compaction on {} sstables in {}.{}",
                     prs.previewKind.logPrefix(sessionID),

@@ -27,7 +27,6 @@ import com.google.common.base.Preconditions;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -82,7 +81,7 @@ public abstract class MemtablePool
         ExecutorUtils.shutdownNowAndWait(timeout, unit, cleaner);
     }
 
-    public abstract MemtableAllocator newAllocator(ColumnFamilyStore table);
+    public abstract MemtableAllocator newAllocator(String table);
 
     public boolean needsCleaning()
     {

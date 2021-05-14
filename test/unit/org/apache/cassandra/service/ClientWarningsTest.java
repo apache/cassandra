@@ -27,6 +27,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.CQLTester;
@@ -122,7 +123,7 @@ public class ClientWarningsTest extends CQLTester
                 client.execute(query);
             }
             ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-            store.forceBlockingFlush();
+            Util.flush(store);
 
             for (int i = 0; i < iterations; i++)
             {
@@ -132,7 +133,7 @@ public class ClientWarningsTest extends CQLTester
                                                                     i), QueryOptions.DEFAULT);
                 client.execute(query);
             }
-            store.forceBlockingFlush();
+            Util.flush(store);
 
             {
                 QueryMessage query = new QueryMessage(String.format("SELECT * FROM %s.%s WHERE pk = 1",

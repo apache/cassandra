@@ -26,7 +26,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -169,7 +169,7 @@ public class View
         return sstables.isEmpty()
                && liveMemtables.size() <= 1
                && flushingMemtables.size() == 0
-               && (liveMemtables.size() == 0 || liveMemtables.get(0).getOperations() == 0);
+               && (liveMemtables.size() == 0 || liveMemtables.get(0).operationCount() == 0);
     }
 
     @Override

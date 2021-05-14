@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -71,7 +72,7 @@ public class MigrationManagerDropKSTest
                                            "dropKs", "col" + i, "anyvalue");
         ColumnFamilyStore cfs = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(cfs);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
 
         SchemaTestUtil.announceKeyspaceDrop(ks.name);

@@ -216,11 +216,11 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             try
             {
                 DecoratedKey dk = Util.dk("large_value");
-                UnfilteredRowIterator rowIter = sstable.iterator(dk,
-                                                                 Slices.ALL,
-                                                                 ColumnFilter.all(cfs.metadata()),
-                                                                 false,
-                                                                 SSTableReadsListener.NOOP_LISTENER);
+                UnfilteredRowIterator rowIter = sstable.rowIterator(dk,
+                                                                    Slices.ALL,
+                                                                    ColumnFilter.all(cfs.metadata()),
+                                                                    false,
+                                                                    SSTableReadsListener.NOOP_LISTENER);
                 while (rowIter.hasNext())
                 {
                     rowIter.next();

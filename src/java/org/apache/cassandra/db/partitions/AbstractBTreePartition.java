@@ -66,6 +66,11 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             this.staticRow = staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
             this.stats = stats;
         }
+
+        protected Holder withColumns(RegularAndStaticColumns columns)
+        {
+            return new Holder(columns, this.tree, this.deletionInfo, this.staticRow, this.stats);
+        }
     }
 
     public DeletionInfo deletionInfo()

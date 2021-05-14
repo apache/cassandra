@@ -83,7 +83,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 .build()
                 .apply();
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         assertEquals(sstables.iterator().next().bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
@@ -700,7 +700,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                     .build()
                     .apply();
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         cfs.forceMajorCompaction();
         validateKeys(keyspace);
 

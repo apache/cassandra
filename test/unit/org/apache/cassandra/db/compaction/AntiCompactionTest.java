@@ -31,6 +31,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -299,7 +301,7 @@ public class AntiCompactionTest
                     .build()
                     .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        Util.flush(store);
     }
 
     @Test
@@ -442,7 +444,7 @@ public class AntiCompactionTest
                 .build()
                 .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        Util.flush(store);
         return store;
     }
 

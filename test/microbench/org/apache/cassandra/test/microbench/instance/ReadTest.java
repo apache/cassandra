@@ -19,108 +19,59 @@
 package org.apache.cassandra.test.microbench.instance;
 
 
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Future;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.*;
 
-@BenchmarkMode(Mode.AverageTime)
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 15, time = 2, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1)
-@Threads(1)
 @State(Scope.Benchmark)
-public abstract class ReadTest extends CQLTester
+public abstract class ReadTest extends SimpleTableWriter
 {
-    static String keyspace;
-    String table;
-    ColumnFamilyStore cfs;
-    Random rand;
-
-    @Param({"1000"})
-    int BATCH = 1_000;
-
     public enum Flush
     {
         INMEM, NO, YES
     }
 
-    @Param({"1000000"})
-    int count = 1_000_000;
-
     @Param({"INMEM", "YES"})
     Flush flush = Flush.INMEM;
-
-    public enum Execution
-    {
-        SERIAL,
-        SERIAL_NET,
-        PARALLEL,
-        PARALLEL_NET,
-    }
-
-    @Param({"PARALLEL"})
-    Execution async = Execution.PARALLEL;
 
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
-        rand = new Random(1);
-        CQLTester.setUpClass();
-        CQLTester.prepareServer();
-        System.err.println("setupClass done.");
-        keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-        table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid)) with compression = {'enabled': false}");
-        execute("use "+keyspace+";");
-        switch (async)
-        {
-            case SERIAL_NET:
-            case PARALLEL_NET:
-                CQLTester.requireNetwork();
-                executeNet(getDefaultVersion(), "use " + keyspace + ";");
-        }
-        String writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
-        System.err.println("Prepared, batch " + BATCH + " flush " + flush);
-        System.err.println("Disk access mode " + DatabaseDescriptor.getDiskAccessMode() + " index " + DatabaseDescriptor.getIndexAccessMode());
+        super.commonSetup();
 
-        cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-        cfs.disableAutoCompaction();
-        cfs.forceBlockingFlush();
-
-        //Warm up
+        // Write the data we are going to read.
+        long writeStart = System.currentTimeMillis();
         System.err.println("Writing " + count);
         long i;
         for (i = 0; i <= count - BATCH; i += BATCH)
-            performWrite(writeStatement, i, BATCH);
+            performWrite(i, BATCH);
         if (i < count)
-            performWrite(writeStatement, i, count - i);
+            performWrite(i, (int) (count - i));
+        long writeLength = System.currentTimeMillis() - writeStart;
+        System.err.format("... done in %.3f s.\n", writeLength / 1000.0);
 
         Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
-        System.err.format("Memtable in %s mode: %d ops, %s serialized bytes, %s (%.0f%%) on heap, %s (%.0f%%) off-heap\n",
+        Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
+        System.err.format("%s in %s mode: %d ops, %s serialized bytes, %s\n",
+                          memtable.getClass().getSimpleName(),
                           DatabaseDescriptor.getMemtableAllocationType(),
-                          memtable.getOperations(),
+                          memtable.operationCount(),
                           FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
-                          FBUtilities.prettyPrintMemory(memtable.getAllocator().onHeap().owns()),
-                          100 * memtable.getAllocator().onHeap().ownershipRatio(),
-                          FBUtilities.prettyPrintMemory(memtable.getAllocator().offHeap().owns()),
-                          100 * memtable.getAllocator().offHeap().ownershipRatio());
+                          usage);
 
         switch (flush)
         {
         case YES:
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
             break;
         case INMEM:
             if (!cfs.getLiveSSTables().isEmpty())
@@ -137,29 +88,6 @@ public abstract class ReadTest extends CQLTester
         }
     }
 
-    abstract Object[] writeArguments(long i);
-
-    public void performWrite(String writeStatement, long ofs, long count) throws Throwable
-    {
-        for (long i = ofs; i < ofs + count; ++i)
-            execute(writeStatement, writeArguments(i));
-    }
-
-
-    @TearDown(Level.Trial)
-    public void teardown() throws InterruptedException
-    {
-        if (flush == Flush.INMEM && !cfs.getLiveSSTables().isEmpty())
-            throw new AssertionError("SSTables created for INMEM test.");
-
-        // do a flush to print sizes
-        cfs.forceBlockingFlush();
-
-        CommitLog.instance.shutdownBlocking();
-        CQLTester.tearDownClass();
-        CQLTester.cleanup();
-    }
-
     public Object performReadSerial(String readStatement, Supplier<Object[]> supplier) throws Throwable
     {
         long sum = 0;
@@ -170,20 +98,25 @@ public abstract class ReadTest extends CQLTester
 
     public Object performReadThreads(String readStatement, Supplier<Object[]> supplier) throws Throwable
     {
-        return IntStream.range(0, BATCH)
-                        .parallel()
-                        .mapToLong(i ->
-                                   {
-                                       try
-                                       {
-                                           return execute(readStatement, supplier.get()).size();
-                                       }
-                                       catch (Throwable throwable)
-                                       {
-                                           throw Throwables.propagate(throwable);
-                                       }
-                                   })
-                        .sum();
+        List<Future<Integer>> futures = new ArrayList<>();
+        for (long i = 0; i < BATCH; ++i)
+        {
+            futures.add(executorService.submit(() ->
+                                               {
+                                                   try
+                                                   {
+                                                       return execute(readStatement, supplier.get()).size();
+                                                   }
+                                                   catch (Throwable throwable)
+                                                   {
+                                                       throw Throwables.propagate(throwable);
+                                                   }
+                                               }));
+        }
+        long done = 0;
+        for (Future<Integer> f : futures)
+            done += f.get();
+        return done;
     }
 
     public Object performReadSerialNet(String readStatement, Supplier<Object[]> supplier) throws Throwable
@@ -197,37 +130,55 @@ public abstract class ReadTest extends CQLTester
 
     public long performReadThreadsNet(String readStatement, Supplier<Object[]> supplier) throws Throwable
     {
-        return IntStream.range(0, BATCH)
-                        .parallel()
-                        .mapToLong(i ->
-                                   {
-                                       try
-                                       {
-                                           return executeNet(getDefaultVersion(), readStatement, supplier.get())
-                                                          .getAvailableWithoutFetching();
-                                       }
-                                       catch (Throwable throwable)
-                                       {
-                                           throw Throwables.propagate(throwable);
-                                       }
-                                   })
-                        .sum();
+        List<Future<Integer>> futures = new ArrayList<>();
+        for (long i = 0; i < BATCH; ++i)
+        {
+            futures.add(executorService.submit(() ->
+                                               {
+                                                   try
+                                                   {
+                                                       return executeNet(getDefaultVersion(), readStatement, supplier.get())
+                                                              .getAvailableWithoutFetching();
+                                                   }
+                                                   catch (Throwable throwable)
+                                                   {
+                                                       throw Throwables.propagate(throwable);
+                                                   }
+                                               }));
+        }
+        long done = 0;
+        for (Future<Integer> f : futures)
+            done += f.get();
+        return done;
     }
 
 
     public Object performRead(String readStatement, Supplier<Object[]> supplier) throws Throwable
     {
-        switch (async)
+        if (useNet)
         {
-            case SERIAL:
-                return performReadSerial(readStatement, supplier);
-            case SERIAL_NET:
+            if (threadCount == 1)
                 return performReadSerialNet(readStatement, supplier);
-            case PARALLEL:
-                return performReadThreads(readStatement, supplier);
-            case PARALLEL_NET:
+            else
                 return performReadThreadsNet(readStatement, supplier);
         }
-        return null;
+        else
+        {
+            if (threadCount == 1)
+                return performReadSerial(readStatement, supplier);
+            else
+                return performReadThreads(readStatement, supplier);
+        }
+    }
+
+    void doExtraChecks()
+    {
+        if (flush == Flush.INMEM && !cfs.getLiveSSTables().isEmpty())
+            throw new AssertionError("SSTables created for INMEM test.");
+    }
+
+    String extraInfo()
+    {
+        return " flush " + flush;
     }
 }

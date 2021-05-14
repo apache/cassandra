@@ -291,7 +291,7 @@ public class SASIIndex implements Index, INotificationConsumer
 
             public void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
             {
-                baseCfs.getTracker().getView().getCurrentMemtable().getAllocator().onHeap().allocate(additionalSpace, opGroup);
+                baseCfs.getTracker().getView().getCurrentMemtable().markExtraOnHeapUsed(additionalSpace, opGroup);
             }
         };
     }

@@ -18,7 +18,10 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.Comparator;
+
+import com.google.common.base.Strings;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
@@ -117,6 +120,21 @@ public class CommitLogPosition implements Comparable<CommitLogPosition>
         public long serializedSize(CommitLogPosition clsp)
         {
             return TypeSizes.sizeof(clsp.segmentId) + TypeSizes.sizeof(clsp.position);
+        }
+
+        public CommitLogPosition fromString(String position) throws ParseException
+        {
+            if (Strings.isNullOrEmpty(position))
+                return NONE;
+            String[] parts = position.split(",");
+            if (parts.length != 2)
+                throw new ParseException("Commit log position must be given as <segment>,<position>", 0);
+            return new CommitLogPosition(Long.parseLong(parts[0].trim()), Integer.parseInt(parts[1].trim()));
+        }
+
+        public String toString(CommitLogPosition position)
+        {
+            return position == NONE ? "" : String.format("%d, %d", position.segmentId, position.position);
         }
     }
 }

@@ -66,15 +66,17 @@ public class CommitLogArchiver
     final String restoreCommand;
     final String restoreDirectories;
     public long restorePointInTime;
+    public CommitLogPosition snapshotCommitLogPosition;
     public final TimeUnit precision;
 
     public CommitLogArchiver(String archiveCommand, String restoreCommand, String restoreDirectories,
-            long restorePointInTime, TimeUnit precision)
+            long restorePointInTime, CommitLogPosition snapshotCommitLogPosition, TimeUnit precision)
     {
         this.archiveCommand = archiveCommand;
         this.restoreCommand = restoreCommand;
         this.restoreDirectories = restoreDirectories;
         this.restorePointInTime = restorePointInTime;
+        this.snapshotCommitLogPosition = snapshotCommitLogPosition;
         this.precision = precision;
         executor = !Strings.isNullOrEmpty(archiveCommand)
                 ? executorFactory()
@@ -85,7 +87,7 @@ public class CommitLogArchiver
 
     public static CommitLogArchiver disabled()
     {
-        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, TimeUnit.MICROSECONDS);
+        return new CommitLogArchiver(null, null, null, Long.MAX_VALUE, CommitLogPosition.NONE, TimeUnit.MICROSECONDS);
     }
 
     public static CommitLogArchiver construct()
@@ -129,7 +131,27 @@ public class CommitLogArchiver
                 {
                     throw new RuntimeException("Unable to parse restore target time", e);
                 }
-                return new CommitLogArchiver(archiveCommand, restoreCommand, restoreDirectories, restorePointInTime, precision);
+
+                String snapshotPosition = commitlog_commands.getProperty("snapshot_commitlog_position");
+                CommitLogPosition snapshotCommitLogPosition;
+                try
+                {
+
+                    snapshotCommitLogPosition = Strings.isNullOrEmpty(snapshotPosition)
+                                                ? CommitLogPosition.NONE
+                                                : CommitLogPosition.serializer.fromString(snapshotPosition);
+                }
+                catch (ParseException | NumberFormatException e)
+                {
+                    throw new RuntimeException("Unable to parse snapshot commit log position", e);
+                }
+
+                return new CommitLogArchiver(archiveCommand,
+                                             restoreCommand,
+                                             restoreDirectories,
+                                             restorePointInTime,
+                                             snapshotCommitLogPosition,
+                                             precision);
             }
         }
         catch (IOException e)

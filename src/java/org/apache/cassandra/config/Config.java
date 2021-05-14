@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -173,6 +174,17 @@ public class Config
     @Replaces(oldName = "memtable_offheap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public SmallestDataStorageMebibytes memtable_offheap_space;
     public Float memtable_cleanup_threshold = null;
+
+    public static class MemtableOptions
+    {
+        public LinkedHashMap<String, InheritingClass> configurations; // order must be preserved
+
+        public MemtableOptions()
+        {
+        }
+    }
+
+    public MemtableOptions memtable;
 
     // Limit the maximum depth of repair session merkle trees
     @Deprecated

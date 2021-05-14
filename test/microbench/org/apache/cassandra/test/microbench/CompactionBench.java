@@ -70,13 +70,13 @@ public class CompactionBench extends CQLTester
             execute(writeStatement, i, i, i );
 
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         System.err.println("Writing 50k again...");
         for (long i = 0; i < 50000; i++)
             execute(writeStatement, i, i, i );
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         cfs.snapshot("originals");
 

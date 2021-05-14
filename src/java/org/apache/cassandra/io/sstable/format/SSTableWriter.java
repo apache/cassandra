@@ -382,8 +382,21 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         FileUtils.createHardLinkWithoutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
     }
 
+    /**
+     * Parameters for calculating the expected size of an sstable. Exposed on memtable flush sets (i.e. collected
+     * subsets of a memtable that will be written to sstables).
+     */
+    public interface SSTableSizeParameters
+    {
+        long partitionCount();
+        long partitionKeysSize();
+        long dataSize();
+    }
+
     public static abstract class Factory
     {
+        public abstract long estimateSize(SSTableSizeParameters parameters);
+
         public abstract SSTableWriter open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,

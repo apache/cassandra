@@ -355,6 +355,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setGossipTokens(localTokens);
         tokenMetadata.updateNormalTokens(tokens, FBUtilities.getBroadcastAddressAndPort());
         setMode(Mode.NORMAL, false);
+        invalidateLocalRanges();
     }
 
     public void setGossipTokens(Collection<Token> tokens)
@@ -1866,7 +1867,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         // Force disk boundary invalidation now that local tokens are set
-        invalidateDiskBoundaries();
+        invalidateLocalRanges();
         repairPaxosForTopologyChange("bootstrap");
 
         Future<StreamState> bootstrapStream = startBootstrap(tokens);
@@ -1900,7 +1901,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
     }
 
-    private void invalidateDiskBoundaries()
+    private void invalidateLocalRanges()
     {
         for (Keyspace keyspace : Keyspace.all())
         {
@@ -1908,7 +1909,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 for (final ColumnFamilyStore store : cfs.concatWithIndexes())
                 {
-                    store.invalidateDiskBoundaries();
+                    store.invalidateLocalRanges();
                 }
             }
         }
@@ -2834,6 +2835,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         if (!tokensToUpdateInSystemKeyspace.isEmpty())
             SystemKeyspace.updateTokens(endpoint, tokensToUpdateInSystemKeyspace);
+
+        // Tokens changed, the local range ownership probably changed too.
+        invalidateLocalRanges();
     }
 
     @VisibleForTesting
@@ -2954,6 +2958,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (isMoving || operationMode == Mode.MOVING)
         {
             tokenMetadata.removeFromMoving(endpoint);
+            // The above may change the local ownership.
+            invalidateLocalRanges();
             notifyMoved(endpoint);
         }
         else if (!isMember) // prior to this, the node was not a member
@@ -4219,7 +4225,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
         {
             logger.debug("Forcing flush on keyspace {}, CF {}", keyspaceName, cfStore.name);
-            cfStore.forceBlockingFlush();
+            cfStore.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
+        }
+    }
+
+    /**
+     * Flush all memtables for a keyspace and column families.
+     * @param keyspaceName
+     * @throws IOException
+     */
+    public void forceKeyspaceFlush(String keyspaceName, ColumnFamilyStore.FlushReason reason) throws IOException
+    {
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName))
+        {
+            logger.debug("Forcing flush on keyspace {}, CF {}", keyspaceName, cfStore.name);
+            cfStore.forceBlockingFlush(reason);
         }
     }
 
@@ -5282,7 +5302,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.nonSystem())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    flushes.add(cfs.forceFlush());
+                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.DRAIN));
             }
             // wait for the flushes.
             // TODO this is a godawful way to track progress, since they flush in parallel.  a long one could
@@ -5314,7 +5334,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (Keyspace keyspace : Keyspace.system())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
-                    flushes.add(cfs.forceFlush());
+                    flushes.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.DRAIN));
             }
             FBUtilities.waitOnFutures(flushes);
 

@@ -365,7 +365,7 @@ public class BigTableScanner implements ISSTableScanner
                             }
 
                             ClusteringIndexFilter filter = dataRange.clusteringIndexFilter(partitionKey());
-                            return sstable.iterator(dfile, partitionKey(), currentEntry, filter.getSlices(BigTableScanner.this.metadata()), columns, filter.isReversed());
+                            return sstable.rowIterator(dfile, partitionKey(), currentEntry, filter.getSlices(BigTableScanner.this.metadata()), columns, filter.isReversed());
                         }
                         catch (CorruptSSTableException | IOException e)
                         {
@@ -440,6 +440,11 @@ public class BigTableScanner implements ISSTableScanner
         public UnfilteredRowIterator next()
         {
             return null;
+        }
+
+        public int getMinLocalDeletionTime()
+        {
+            return DeletionTime.LIVE.localDeletionTime();
         }
     }
 }

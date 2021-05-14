@@ -176,7 +176,7 @@ public class MigrationManagerTest
         // flush to exercise more than just hitting the memtable
         ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(tableName);
         assertNotNull(cfs);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         // and make sure we get out what we put in
         UntypedResultSet rows = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", ksName, tableName));
@@ -199,7 +199,7 @@ public class MigrationManagerTest
                                            "dropCf", "col" + i, "anyvalue");
         ColumnFamilyStore store = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(store);
-        store.forceBlockingFlush();
+        Util.flush(store);
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
         SchemaTestUtil.announceTableDrop(ks.name, cfm.name);
@@ -248,7 +248,7 @@ public class MigrationManagerTest
                                        "key0", "col0", "val0");
         ColumnFamilyStore store = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(store);
-        store.forceBlockingFlush();
+        Util.flush(store);
 
         UntypedResultSet rows = QueryProcessor.executeInternal("SELECT * FROM newkeyspace1.newstandard1");
         assertRows(rows, row("key0", "col0", "val0"));
@@ -301,7 +301,7 @@ public class MigrationManagerTest
 
         ColumnFamilyStore cfs = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.name);
         assertNotNull(cfs);
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         UntypedResultSet rows = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", EMPTY_KEYSPACE, tableName));
         assertRows(rows, row("key0", "col0", "val0"));
@@ -456,7 +456,7 @@ public class MigrationManagerTest
                                                     TABLE1i),
                                        "key0", "col0", 1L, 1L);
 
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         ColumnFamilyStore indexCfs = cfs.indexManager.getIndexByName(indexName)
                                                      .getBackingTable()
                                                      .orElseThrow(throwAssert("Cannot access index cfs"));

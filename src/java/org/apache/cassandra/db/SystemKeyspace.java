@@ -923,7 +923,9 @@ public final class SystemKeyspace
 
             for (String cfname : cfnames)
             {
-                futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(cfname).forceFlush());
+                futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME)
+                                    .getColumnFamilyStore(cfname)
+                                    .forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED));
             }
             FBUtilities.waitOnFutures(futures);
         }
@@ -1433,7 +1435,8 @@ public final class SystemKeyspace
 
     public static void flushPaxosRepairHistory()
     {
-        Schema.instance.getColumnFamilyStoreInstance(PaxosRepairHistoryTable.id).forceBlockingFlush();
+        Schema.instance.getColumnFamilyStoreInstance(PaxosRepairHistoryTable.id)
+                       .forceBlockingFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
     public static PaxosRepairHistory loadPaxosRepairHistory(String keyspace, String table)

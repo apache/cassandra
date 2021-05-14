@@ -98,7 +98,7 @@ public class RangeCommandIteratorTest
             builder.add("val", String.valueOf(i));
             builder.build().applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
 
         PartitionRangeReadCommand command = (PartitionRangeReadCommand) Util.cmd(cfs).build();
         AbstractBounds<PartitionPosition> keyRange = command.dataRange().keyRange();

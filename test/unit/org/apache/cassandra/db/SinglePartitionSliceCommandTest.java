@@ -180,7 +180,7 @@ public class SinglePartitionSliceCommandTest
                                                      ck1));
 
         if (flush)
-            Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE_SCLICES).forceBlockingFlush();
+            Util.flushTable(KEYSPACE, TABLE_SCLICES);
 
         AbstractClusteringIndexFilter clusteringFilter = createClusteringFilter(uniqueCk1, uniqueCk2, isSlice);
         ReadCommand cmd = SinglePartitionReadCommand.create(CFM_SLICES,
@@ -279,7 +279,7 @@ public class SinglePartitionSliceCommandTest
         }
 
         // check (de)serialized iterator for sstable static cell
-        Schema.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush();
+        Schema.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
             response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
@@ -318,7 +318,7 @@ public class SinglePartitionSliceCommandTest
             QueryProcessor.executeOnceInternal("DELETE FROM ks.test_read_rt USING TIMESTAMP 10 WHERE k=1 AND c1=1");
 
             List<Unfiltered> memtableUnfiltereds = assertQueryReturnsSingleRT(query);
-            cfs.forceBlockingFlush();
+            Util.flush(cfs);
             List<Unfiltered> sstableUnfiltereds = assertQueryReturnsSingleRT(query);
 
             String errorMessage = String.format("Expected %s but got %s with postfix '%s'",
@@ -356,17 +356,17 @@ public class SinglePartitionSliceCommandTest
                                                                   timestamp,
                                                                   "DELETE FROM ks.partition_row_deletion USING TIMESTAMP 10 WHERE k=1");
             if (flush && multiSSTable)
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
             QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
                                                                   timestamp,
                                                                   "DELETE FROM ks.partition_row_deletion USING TIMESTAMP 10 WHERE k=1 and c=1");
             if (flush)
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
 
             QueryProcessor.executeOnceInternal("INSERT INTO ks.partition_row_deletion(k,c,v) VALUES(1,1,1) using timestamp 11");
             if (flush)
             {
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
                 try
                 {
                     cfs.forceMajorCompaction();
@@ -424,17 +424,17 @@ public class SinglePartitionSliceCommandTest
                                                                   timestamp,
                                                                   "DELETE FROM ks.partition_range_deletion USING TIMESTAMP 10 WHERE k=1");
             if (flush && multiSSTable)
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
             QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
                                                                   timestamp,
                                                                   "DELETE FROM ks.partition_range_deletion USING TIMESTAMP 10 WHERE k=1 and c1=1");
             if (flush)
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
 
             QueryProcessor.executeOnceInternal("INSERT INTO ks.partition_range_deletion(k,c1,c2,v) VALUES(1,1,1,1) using timestamp 11");
             if (flush)
             {
-                cfs.forceBlockingFlush();
+                Util.flush(cfs);
                 try
                 {
                     cfs.forceMajorCompaction();
@@ -544,7 +544,7 @@ public class SinglePartitionSliceCommandTest
         QueryProcessor.executeOnceInternal("INSERT INTO ks.legacy_mc_inaccurate_min_max (k, c1, c2, c3, v) VALUES (100, 2, 2, 2, 2)");
         QueryProcessor.executeOnceInternal("DELETE FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=1");
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=1 AND c2=1");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=1 AND c2=1");
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=1 AND c2=1 AND c3=1"); // clustering names
 
@@ -560,7 +560,7 @@ public class SinglePartitionSliceCommandTest
         new Mutation(builder.build()).apply();
 
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=3 AND c2=2");
-        cfs.forceBlockingFlush();
+        Util.flush(cfs);
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=3 AND c2=2");
         assertQueryReturnsSingleRT("SELECT * FROM ks.legacy_mc_inaccurate_min_max WHERE k=100 AND c1=3 AND c2=2 AND c3=2"); // clustering names
 

@@ -104,10 +104,10 @@ public class TableViews extends AbstractCollection<View>
         views.forEach(View::stopBuild);
     }
 
-    public void forceBlockingFlush()
+    public void forceBlockingFlush(ColumnFamilyStore.FlushReason reason)
     {
         for (ColumnFamilyStore viewCfs : allViewsCfs())
-            viewCfs.forceBlockingFlush();
+            viewCfs.forceBlockingFlush(reason);
     }
 
     public void dumpMemtables()
