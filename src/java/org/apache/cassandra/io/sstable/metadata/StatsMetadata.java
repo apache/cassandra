@@ -285,12 +285,6 @@ public class StatsMetadata extends MetadataComponent
                 size += CommitLogPosition.serializer.serializedSize(component.commitLogIntervals.lowerBound().orElse(CommitLogPosition.NONE));
             if (version.hasCommitLogIntervals())
                 size += commitLogPositionSetSerializer.serializedSize(component.commitLogIntervals);
-            if (version.hasOriginatingHostId())
-            {
-                size += 1; // boolean: is originatingHostId present
-                if (component.originatingHostId != null)
-                    size += UUIDSerializer.serializer.serializedSize(component.originatingHostId, version.correspondingMessagingVersion());
-            }
 
             if (version.hasPendingRepair())
             {
@@ -302,6 +296,13 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasIsTransient())
             {
                 size += TypeSizes.sizeof(component.isTransient);
+            }
+
+            if (version.hasOriginatingHostId())
+            {
+                size += 1; // boolean: is originatingHostId present
+                if (component.originatingHostId != null)
+                    size += UUIDSerializer.serializer.serializedSize(component.originatingHostId, version.correspondingMessagingVersion());
             }
 
             return size;
@@ -337,18 +338,6 @@ public class StatsMetadata extends MetadataComponent
                 CommitLogPosition.serializer.serialize(component.commitLogIntervals.lowerBound().orElse(CommitLogPosition.NONE), out);
             if (version.hasCommitLogIntervals())
                 commitLogPositionSetSerializer.serialize(component.commitLogIntervals, out);
-            if (version.hasOriginatingHostId())
-            {
-                if (component.originatingHostId != null)
-                {
-                    out.writeByte(1);
-                    UUIDSerializer.serializer.serialize(component.originatingHostId, out, 0);
-                }
-                else
-                {
-                    out.writeByte(0);
-                }
-            }
 
             if (version.hasPendingRepair())
             {
@@ -366,6 +355,19 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasIsTransient())
             {
                 out.writeBoolean(component.isTransient);
+            }
+
+            if (version.hasOriginatingHostId())
+            {
+                if (component.originatingHostId != null)
+                {
+                    out.writeByte(1);
+                    UUIDSerializer.serializer.serialize(component.originatingHostId, out, 0);
+                }
+                else
+                {
+                    out.writeByte(0);
+                }
             }
         }
 
@@ -439,10 +441,6 @@ public class StatsMetadata extends MetadataComponent
             else
                 commitLogIntervals = new IntervalSet<CommitLogPosition>(commitLogLowerBound, commitLogUpperBound);
 
-            UUID originatingHostId = null;
-            if (version.hasOriginatingHostId() && in.readByte() != 0)
-                originatingHostId = UUIDSerializer.serializer.deserialize(in, 0);
-
             UUID pendingRepair = null;
             if (version.hasPendingRepair() && in.readByte() != 0)
             {
@@ -450,6 +448,10 @@ public class StatsMetadata extends MetadataComponent
             }
 
             boolean isTransient = version.hasIsTransient() && in.readBoolean();
+
+            UUID originatingHostId = null;
+            if (version.hasOriginatingHostId() && in.readByte() != 0)
+                originatingHostId = UUIDSerializer.serializer.deserialize(in, 0);
 
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
