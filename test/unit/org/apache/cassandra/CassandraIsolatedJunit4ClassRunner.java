@@ -26,8 +26,6 @@ import org.junit.runners.BlockJUnit4ClassRunner;
 import org.junit.runners.model.InitializationError;
 
 import org.apache.cassandra.distributed.impl.AbstractCluster;
-import org.apache.cassandra.distributed.shared.Versions;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  *
