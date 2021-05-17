@@ -1,6 +1,7 @@
 4.1
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * cqlsh: fix DESC TYPE with non-ascii character in the identifier (CASSANDRA-16400)
  * Remove drivers dependency and bring cql_keywords_reserved on server side (CASSANDRA-16659)
  * Fix in-browser "help", Python 3 (CASSANDRA-16658)
  * Fix DROP COMPACT STORAGE for counters (CASSANDRA-16653)
