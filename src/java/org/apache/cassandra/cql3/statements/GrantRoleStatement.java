@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -35,5 +36,11 @@ public class GrantRoleStatement extends RoleManagementStatement
     {
         DatabaseDescriptor.getRoleManager().grantRole(state.getUser(), role, grantee);
         return null;
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.GRANT);
     }
 }

@@ -88,6 +88,27 @@ appender reference in the root level section below.
   <appender name="LogbackMetrics" class="com.codahale.metrics.logback.InstrumentedAppender" />
    -->
 
+  <!-- Audit Logging (FileAuditLogger) rolling file appender to audit.log -->
+  <appender name="FileAuditLoggerAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${cassandra.logdir}/audit/audit.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+      <fileNamePattern>${cassandra.logdir}/audit.log.%i.zip</fileNamePattern>
+      <minIndex>1</minIndex>
+      <maxIndex>20</maxIndex>
+    </rollingPolicy>
+    <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+      <maxFileSize>20MB</maxFileSize>
+    </triggeringPolicy>
+    <encoder>
+      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Audit Logging additivity to redirect audt logging events to audit/audit.log -->
+  <logger name="org.apache.cassandra.audit" additivity="false" level="INFO">
+    <appender-ref ref="FileAuditLoggerAppender"/>
+  </logger>
+
   <root level="INFO">
     <appender-ref ref="SYSTEMLOG" />
     <appender-ref ref="STDOUT" />

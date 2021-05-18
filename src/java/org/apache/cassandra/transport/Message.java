@@ -42,6 +42,7 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.concurrent.LocalAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
@@ -210,6 +211,8 @@ public abstract class Message
     public static abstract class Request extends Message
     {
         protected boolean tracingRequested;
+        protected final AuditLogManager auditLogManager = AuditLogManager.getInstance();
+        protected boolean auditLogEnabled = auditLogManager.isAuditingEnabled();
 
         protected Request(Type type)
         {

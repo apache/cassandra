@@ -28,6 +28,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CFName;
@@ -436,5 +437,11 @@ public class AlterTableStatement extends SchemaAlteringStatement
                              oType,
                              rawColumnName,
                              validator);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.ALTER_TABLE, keyspace(), cfName.getColumnFamily());
     }
 }

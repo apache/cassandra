@@ -25,6 +25,8 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.audit.AuditLogEntry;
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -215,6 +217,12 @@ public class BatchMessage extends Message.Request
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
             BatchStatement batch = new BatchStatement(-1, batchType, statements, Attributes.none());
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload());
+            long logTime = auditLogEnabled ? System.currentTimeMillis() : 0;
+
+            if (auditLogEnabled)
+            {
+                auditLogManager.logBatch(type.name(), queryOrIdList, values, prepared, options, state, logTime);
+            }
 
             if (tracingId != null)
                 response.setTracingId(tracingId);
@@ -223,6 +231,16 @@ public class BatchMessage extends Message.Request
         }
         catch (Exception e)
         {
+            if (auditLogEnabled)
+            {
+                AuditLogEntry entry = new AuditLogEntry.Builder(state.getClientState())
+                                      .setOperation(getAuditString())
+                                      .setOptions(options)
+                                      .setType(AuditLogEntryType.BATCH)
+                                      .build();
+                auditLogManager.log(entry, e);
+            }
+
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
@@ -243,6 +261,15 @@ public class BatchMessage extends Message.Request
             sb.append(queryOrIdList.get(i)).append(" with ").append(values.get(i).size()).append(" values");
         }
         sb.append("] at consistency ").append(options.getConsistency());
+        return sb.toString();
+    }
+
+    private String getAuditString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BATCH of [");
+        sb.append(queryOrIdList.size());
+        sb.append("] statements at consistency ").append(options.getConsistency());
         return sb.toString();
     }
 }

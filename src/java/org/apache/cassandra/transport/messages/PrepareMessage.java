@@ -22,6 +22,10 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.audit.AuditLogEntry;
+import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
@@ -77,6 +81,18 @@ public class PrepareMessage extends Message.Request
 
             Message.Response response = ClientState.getCQLQueryHandler().prepare(query, state, getCustomPayload());
 
+            if (auditLogEnabled)
+            {
+                ParsedStatement.Prepared parsedStmt = QueryProcessor.parseStatement(query, state);
+                AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
+                                              .setOperation(query)
+                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                                              .setScope(parsedStmt.statement)
+                                              .setKeyspace(parsedStmt.statement)
+                                              .build();
+                auditLogManager.log(auditLogEntry);
+            }
+
             if (tracingId != null)
                 response.setTracingId(tracingId);
 
@@ -84,6 +100,15 @@ public class PrepareMessage extends Message.Request
         }
         catch (Exception e)
         {
+            if (auditLogEnabled)
+            {
+                AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
+                                              .setOperation(query)
+                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                                              .build();
+                auditLogManager.log(auditLogEntry, e);
+            }
+
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }

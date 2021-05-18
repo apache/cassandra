@@ -61,6 +61,7 @@ import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManagerMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
@@ -1427,6 +1428,31 @@ public class NodeProbe implements AutoCloseable
     public MessagingServiceMBean getMessagingServiceProxy()
     {
         return msProxy;
+    }
+
+    public void disableAuditLog() {
+        ssProxy.disableAuditLog();
+    }
+
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces,
+                               String includedCategories, String excludedCategories, String includedUsers, String excludedUsers)
+    {
+        try
+        {
+            ssProxy.enableAuditLog(loggerName, includedKeyspaces, excludedKeyspaces, includedCategories, excludedCategories,
+                                   includedUsers, excludedUsers);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new RuntimeException(e.getMessage(), e);
+        }
+    }
+
+    public String getAuditLogStatus() {
+        if(ssProxy.isAuditLogEnabled()){
+            return "enabled";
+        }
+        return "disabled";
     }
 }
 

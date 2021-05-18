@@ -395,6 +395,7 @@ public class QueryProcessor implements QueryHandler
             return existing;
 
         ParsedStatement.Prepared prepared = getStatement(queryString, clientState);
+        prepared.rawCQLStatement = queryString;
         int boundTerms = prepared.statement.getBoundTerms();
         if (boundTerms > FBUtilities.MAX_UNSIGNED_SHORT)
             throw new InvalidRequestException(String.format("Too many markers(?). %d markers exceed the allowed maximum of %d", boundTerms, FBUtilities.MAX_UNSIGNED_SHORT));

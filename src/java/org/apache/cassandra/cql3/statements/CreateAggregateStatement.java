@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -258,5 +259,11 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         r.add(stateType);
         r.addAll(argTypes);
         return r;
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.CREATE_AGGREGATE, keyspace(), functionName.name);
     }
 }

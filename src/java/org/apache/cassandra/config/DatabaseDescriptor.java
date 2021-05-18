@@ -34,6 +34,7 @@ import com.google.common.primitives.Longs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.RequestSchedulerId;
@@ -2245,4 +2246,21 @@ public class DatabaseDescriptor
         conf.check_for_duplicate_rows_during_compaction = enabled;
     }
 
+    public static boolean getBlockForPeersInRemoteDatacenters()
+    {
+        return conf.block_for_peers_in_remote_dcs;
+    }
+
+    public static int getBlockForPeersTimeoutInSeconds()
+    {
+        return conf.block_for_peers_timeout_in_secs;
+    }
+
+    public static AuditLogOptions getAuditLoggingOptions() {
+        return conf.audit_logging_options;
+    }
+
+    public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions) {
+        conf.audit_logging_options = auditLoggingOptions;
+    }
 }

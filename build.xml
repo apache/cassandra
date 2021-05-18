@@ -1465,6 +1465,47 @@
     </testmacro>
   </target>
 
+    <target name="auditlog-test" depends="build-test" description="Execute AuditLog tests">
+        <sequential>
+            <echo message="running AuditLog tests"/>
+            <mkdir dir="${build.test.dir}/cassandra"/>
+            <mkdir dir="${build.test.dir}/output"/>
+            <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
+                <formatter type="brief" usefile="false"/>
+                <jvmarg value="-Dstorage-config=${test.conf}"/>
+                <jvmarg value="-Djava.awt.headless=true"/>
+                <jvmarg value="-javaagent:${basedir}/lib/jamm-0.3.0.jar" />
+                <jvmarg value="-ea"/>
+                <jvmarg value="-Xss256k"/>
+                <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
+                <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
+                <classpath>
+                    <path refid="cassandra.classpath" />
+                    <pathelement location="${test.classes}"/>
+                    <path refid="cobertura.classpath"/>
+                    <pathelement location="${test.conf}"/>
+                    <fileset dir="${test.lib}">
+                        <include name="**/*.jar" />
+                    </fileset>
+                </classpath>
+                <batchtest todir="${build.test.dir}/output">
+                    <fileset dir="${test.unit.src}" includes="**/audit/*Test.java">
+                    </fileset>
+                </batchtest>
+            </junit>
+            <fail message="Some AuditLog test(s) failed.">
+                <condition>
+                    <and>
+                        <isset property="testfailed"/>
+                        <not>
+                            <isset property="ant.test.failure.ignore"/>
+                        </not>
+                    </and>
+                </condition>
+            </fail>
+        </sequential>
+    </target>
+
   <target name="cql-test" depends="build-test" description="Execute CQL tests">
     <sequential>
       <echo message="running CQL tests"/>

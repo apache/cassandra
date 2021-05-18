@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
@@ -76,5 +77,11 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         cfm.triggers(triggers.without(triggerName));
         MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DROP_TRIGGER, keyspace(), triggerName);
     }
 }

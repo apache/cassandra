@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.auth.IRoleManager.Option;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -86,5 +87,11 @@ public class AlterRoleStatement extends AuthenticationStatement
         if (!opts.isEmpty())
             DatabaseDescriptor.getRoleManager().alterRole(state.getUser(), role, opts);
         return null;
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.ALTER_ROLE);
     }
 }

@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -577,5 +578,11 @@ public class BatchStatement implements CQLStatement
                 m.put(p.getKey(), p.getValue().build());
             return m;
         }
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.BATCH);
     }
 }

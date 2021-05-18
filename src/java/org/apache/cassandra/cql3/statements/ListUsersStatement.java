@@ -21,6 +21,7 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -54,5 +55,10 @@ public class ListUsersStatement extends ListRolesStatement
             result.addColumnValue(BooleanType.instance.decompose(Roles.hasSuperuserStatus(role)));
         }
         return new ResultMessage.Rows(result);
+    }
+
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.LIST_USERS);
     }
 }

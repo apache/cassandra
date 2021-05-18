@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
@@ -98,5 +99,12 @@ public class CreateRoleStatement extends AuthenticationStatement
                 // not a problem, grant is an optional method on IAuthorizer
             }
         }
+    }
+
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.CREATE_ROLE);
     }
 }

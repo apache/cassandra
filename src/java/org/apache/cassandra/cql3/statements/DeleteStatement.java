@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
@@ -186,5 +187,11 @@ public class DeleteStatement extends ModificationStatement
 
             return stmt;
         }
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DELETE, keyspace(), columnFamily());
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -64,5 +65,11 @@ public class UseStatement extends ParsedStatement implements CQLStatement
         // In production, internal queries are exclusively on the system keyspace and 'use' is thus useless
         // but for some unit tests we need to set the keyspace (e.g. for tests with DROP INDEX)
         return execute(state, options);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.USE_KEYSPACE, keyspace);
     }
 }

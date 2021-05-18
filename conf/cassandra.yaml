@@ -1040,3 +1040,16 @@ windows_timer_interval: 1
 # An interval of 0 disables any wait time, which is the behavior of former Cassandra versions.
 #
 # otc_backlog_expiration_interval_ms: 200
+
+# Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
+# on audit_logging for full details about the various configuration options.
+audit_logging_options:
+    enabled: false
+    logger: FileAuditLogger
+    # audit_logs_dir:
+    # included_keyspaces:
+    # excluded_keyspaces:
+    # included_categories:
+    # excluded_categories:
+    # included_users:
+    # excluded_users:

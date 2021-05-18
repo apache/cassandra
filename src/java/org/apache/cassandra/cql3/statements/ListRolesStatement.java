@@ -24,6 +24,7 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -122,5 +123,11 @@ public class ListRolesStatement extends AuthorizationStatement
             result.addColumnValue(optionsType.decompose(roleManager.getCustomOptions(role)));
         }
         return new ResultMessage.Rows(result);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.LIST_ROLES);
     }
 }

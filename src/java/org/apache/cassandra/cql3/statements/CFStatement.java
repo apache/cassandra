@@ -53,7 +53,7 @@ public abstract class CFStatement extends ParsedStatement
 
     public String keyspace()
     {
-        assert cfName.hasKeyspace() : "The statement hasn't be prepared correctly";
+        assert cfName.hasKeyspace() : "The statement hasn't been prepared correctly";
         return cfName.getKeyspace();
     }
 

@@ -23,6 +23,7 @@ import java.util.List;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.Schema;
@@ -187,4 +188,11 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         }
         return old;
     }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DROP_FUNCTION, functionName.keyspace, functionName.name);
+    }
+
 }

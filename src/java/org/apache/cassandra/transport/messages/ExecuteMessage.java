@@ -22,6 +22,8 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.audit.AuditLogEntry;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -128,6 +130,21 @@ public class ExecuteMessage extends Message.Request
             // by wrapping the QueryOptions.
             QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.boundNames);
             Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload());
+
+            long logTime = auditLogEnabled ? System.currentTimeMillis() : 0;
+            if (auditLogEnabled)
+            {
+                AuditLogEntry auditEntry = new AuditLogEntry.Builder(state.getClientState())
+                                           .setType(statement.getAuditLogContext().auditLogEntryType)
+                                           .setOperation(prepared.rawCQLStatement)
+                                           .setTimestamp(logTime)
+                                           .setScope(statement)
+                                           .setKeyspace(state, statement)
+                                           .setOptions(options)
+                                           .build();
+                AuditLogManager.getInstance().log(auditEntry);
+            }
+
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 
@@ -138,6 +155,32 @@ public class ExecuteMessage extends Message.Request
         }
         catch (Exception e)
         {
+            if (auditLogEnabled)
+            {
+                if (e instanceof PreparedQueryNotFoundException)
+                {
+                    AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
+                                                  .setOperation(toString())
+                                                  .setOptions(options)
+                                                  .build();
+                    auditLogManager.log(auditLogEntry, e);
+                }
+                else
+                {
+                    ParsedStatement.Prepared prepared = ClientState.getCQLQueryHandler().getPrepared(statementId);
+                    if (prepared != null)
+                    {
+                        AuditLogEntry auditLogEntry = new AuditLogEntry.Builder(state.getClientState())
+                                                      .setOperation(toString())
+                                                      .setType(prepared.statement.getAuditLogContext().auditLogEntryType)
+                                                      .setScope(prepared.statement)
+                                                      .setKeyspace(state, prepared.statement)
+                                                      .setOptions(options)
+                                                      .build();
+                        auditLogManager.log(auditLogEntry, e);
+                    }
+                }
+            }
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }

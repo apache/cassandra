@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -180,5 +181,11 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
         AbstractType<?> type = rawType.prepare(functionName.keyspace).getType();
         return type;
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.CREATE_FUNCTION, functionName.keyspace, functionName.name);
     }
 }

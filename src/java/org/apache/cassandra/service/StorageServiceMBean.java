@@ -31,6 +31,8 @@ import java.util.concurrent.TimeoutException;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.TabularData;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 public interface StorageServiceMBean extends NotificationEmitter
 {
     /**
@@ -638,4 +640,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for */
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
+
+    public void disableAuditLog();
+    public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories, String includedUsers, String excludedUsers) throws ConfigurationException;
+    public boolean isAuditLogEnabled();
 }

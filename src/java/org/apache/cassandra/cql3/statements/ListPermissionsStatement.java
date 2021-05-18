@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -126,5 +127,11 @@ public class ListPermissionsStatement extends AuthorizationStatement
             result.addColumnValue(UTF8Type.instance.decompose(pd.permission.toString()));
         }
         return new ResultMessage.Rows(result);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.LIST_PERMISSIONS);
     }
 }

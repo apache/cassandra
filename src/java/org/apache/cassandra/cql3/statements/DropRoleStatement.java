@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
@@ -71,5 +72,11 @@ public class DropRoleStatement extends AuthenticationStatement
         DatabaseDescriptor.getAuthorizer().revokeAllFrom(role);
         DatabaseDescriptor.getAuthorizer().revokeAllOn(role);
         return null;
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DROP_ROLE);
     }
 }

@@ -34,6 +34,7 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -304,6 +305,12 @@ public class SelectStatement implements CQLStatement
             return processResults(data, options, nowInSec, userLimit);
         }
     }
+
+    @Override
+    public AuditLogContext getAuditLogContext() {
+        return new AuditLogContext(AuditLogEntryType.SELECT, keyspace(), cfm.cfName);
+    }
+
 
     // Simple wrapper class to avoid some code duplication
     private static abstract class Pager

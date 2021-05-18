@@ -34,6 +34,7 @@ import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.config.Schema;
@@ -583,5 +584,32 @@ public class StorageServiceServerTest
 
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
         assert repairRangeFrom.size() == 0;
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testAuditLogEnableLoggerNotFound() throws Exception
+    {
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
+        StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
+    }
+
+    @Test
+    public void testAuditLogEnableLoggerTransitions() throws Exception
+    {
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
+
+        try
+        {
+            StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null);
+        }
+        catch (ConfigurationException | IllegalStateException e)
+        {
+            e.printStackTrace();
+        }
+
+        StorageService.instance.enableAuditLog(null, null, null, null, null, null, null);
+        assertTrue(AuditLogManager.getInstance().isAuditingEnabled());
     }
 }

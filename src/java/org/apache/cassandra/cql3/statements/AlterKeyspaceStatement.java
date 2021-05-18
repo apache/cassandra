@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.*;
@@ -86,5 +87,11 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         KeyspaceMetadata newKsm = oldKsm.withSwapped(attrs.asAlteredKeyspaceParams(oldKsm.params));
         MigrationManager.announceKeyspaceUpdate(newKsm, isLocalOnly);
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, keyspace());
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.ALTER_KEYSPACE, keyspace(), null);
     }
 }

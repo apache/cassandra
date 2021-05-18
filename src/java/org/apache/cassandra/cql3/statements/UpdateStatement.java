@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
@@ -350,5 +351,11 @@ public class UpdateStatement extends ModificationStatement
                                        conditions,
                                        attrs);
         }
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.UPDATE, keyspace(), columnFamily());
     }
 }

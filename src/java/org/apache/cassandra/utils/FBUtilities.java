@@ -41,6 +41,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -85,6 +86,7 @@ public class FBUtilities
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
     private static volatile InetAddress broadcastRpcAddress;
+    private static volatile InetAddressAndPort broadcastInetAddressAndPort;
 
     public static int getAvailableProcessors()
     {
@@ -175,6 +177,53 @@ public class FBUtilities
                                    ? DatabaseDescriptor.getRpcAddress()
                                    : DatabaseDescriptor.getBroadcastRpcAddress();
         return broadcastRpcAddress;
+    }
+
+    /**
+     * Get the broadcast address and port for intra-cluster storage traffic. This the address to advertise that uniquely
+     * identifies the node and is reachable from everywhere. This is the one you want unless you are trying to connect
+     * to the local address specifically.
+     */
+    public static InetAddressAndPort getBroadcastAddressAndPort()
+    {
+        if (broadcastInetAddressAndPort == null)
+        {
+            broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastAddress());
+        }
+        return broadcastInetAddressAndPort;
+    }
+
+    /**
+     * Retrieve just the broadcast address but not the port. This is almost always the wrong thing to be using because
+     * it's ambiguous since you need the address and port to identify a node. You want getBroadcastAddressAndPort
+     */
+    public static InetAddress getJustBroadcastAddress()
+    {
+        if (broadcastInetAddress == null)
+            broadcastInetAddress = DatabaseDescriptor.getBroadcastAddress() == null
+                                   ? getJustLocalAddress()
+                                   : DatabaseDescriptor.getBroadcastAddress();
+        return broadcastInetAddress;
+    }
+
+    /**
+     * Please use getJustBroadcastAddress instead. You need this only when you have to listen/connect. It's also missing
+     * the port you should be using. 99% of code doesn't want this.
+     */
+    public static InetAddress getJustLocalAddress()
+    {
+        if (localInetAddress == null)
+            try
+            {
+                localInetAddress = DatabaseDescriptor.getListenAddress() == null
+                                   ? InetAddress.getLocalHost()
+                                   : DatabaseDescriptor.getListenAddress();
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        return localInetAddress;
     }
 
     public static Collection<InetAddress> getAllLocalAddresses()
@@ -526,6 +575,29 @@ public class FBUtilities
         if (!className.contains("."))
             className = "org.apache.cassandra.auth." + className;
         return FBUtilities.construct(className, "role manager");
+    }
+
+    public static IAuditLogger newAuditLogger(String className) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.audit." + className;
+        return FBUtilities.construct(className, "Audit logger");
+    }
+
+    public static boolean isAuditLoggerClassExists(String className)
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.audit." + className;
+
+        try
+        {
+            FBUtilities.classForName(className, "Audit logger");
+        }
+        catch (ConfigurationException e)
+        {
+            return false;
+        }
+        return true;
     }
 
     /**

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
@@ -149,5 +150,11 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
 
         AbstractType<?> type = rawType.prepare(functionName.keyspace).getType();
         return type;
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DROP_AGGREGATE, functionName.keyspace, functionName.name);
     }
 }
