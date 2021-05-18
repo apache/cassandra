@@ -694,68 +694,76 @@ public class TableMetrics
         {
             public Double getValue()
             {
-                long falseCount = 0L;
-                long trueCount = 0L;
+                long falsePositiveCount = 0L;
+                long truePositiveCount = 0L;
+                long trueNegativeCount = 0L;
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                 {
-                    falseCount += sstable.getBloomFilterFalsePositiveCount();
-                    trueCount += sstable.getBloomFilterTruePositiveCount();
+                    falsePositiveCount += sstable.getBloomFilterFalsePositiveCount();
+                    truePositiveCount += sstable.getBloomFilterTruePositiveCount();
+                    trueNegativeCount += sstable.getBloomFilterTrueNegativeCount();
                 }
-                if (falseCount == 0L && trueCount == 0L)
+                if (falsePositiveCount == 0L && truePositiveCount == 0L)
                     return 0d;
-                return (double) falseCount / (trueCount + falseCount);
+                return (double) falsePositiveCount / (truePositiveCount + falsePositiveCount + trueNegativeCount);
             }
         }, new Gauge<Double>() // global gauge
         {
             public Double getValue()
             {
-                long falseCount = 0L;
-                long trueCount = 0L;
+                long falsePositiveCount = 0L;
+                long truePositiveCount = 0L;
+                long trueNegativeCount = 0L;
                 for (Keyspace keyspace : Keyspace.all())
                 {
                     for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.LIVE))
                     {
-                        falseCount += sstable.getBloomFilterFalsePositiveCount();
-                        trueCount += sstable.getBloomFilterTruePositiveCount();
+                        falsePositiveCount += sstable.getBloomFilterFalsePositiveCount();
+                        truePositiveCount += sstable.getBloomFilterTruePositiveCount();
+                        trueNegativeCount += sstable.getBloomFilterTrueNegativeCount();
                     }
                 }
-                if (falseCount == 0L && trueCount == 0L)
+                if (falsePositiveCount == 0L && truePositiveCount == 0L)
                     return 0d;
-                return (double) falseCount / (trueCount + falseCount);
+                return (double) falsePositiveCount / (truePositiveCount + falsePositiveCount + trueNegativeCount);
             }
         });
         recentBloomFilterFalseRatio = createTableGauge("RecentBloomFilterFalseRatio", new Gauge<Double>()
         {
             public Double getValue()
             {
-                long falseCount = 0L;
-                long trueCount = 0L;
+                long falsePositiveCount = 0L;
+                long truePositiveCount = 0L;
+                long trueNegativeCount = 0L;
                 for (SSTableReader sstable: cfs.getSSTables(SSTableSet.LIVE))
                 {
-                    falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
-                    trueCount += sstable.getRecentBloomFilterTruePositiveCount();
+                    falsePositiveCount += sstable.getRecentBloomFilterFalsePositiveCount();
+                    truePositiveCount += sstable.getRecentBloomFilterTruePositiveCount();
+                    trueNegativeCount += sstable.getRecentBloomFilterTrueNegativeCount();
                 }
-                if (falseCount == 0L && trueCount == 0L)
+                if (falsePositiveCount == 0L && truePositiveCount == 0L)
                     return 0d;
-                return (double) falseCount / (trueCount + falseCount);
+                return (double) falsePositiveCount / (truePositiveCount + falsePositiveCount + trueNegativeCount);
             }
         }, new Gauge<Double>() // global gauge
         {
             public Double getValue()
             {
-                long falseCount = 0L;
-                long trueCount = 0L;
+                long falsePositiveCount = 0L;
+                long truePositiveCount = 0L;
+                long trueNegativeCount = 0L;
                 for (Keyspace keyspace : Keyspace.all())
                 {
                     for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.LIVE))
                     {
-                        falseCount += sstable.getRecentBloomFilterFalsePositiveCount();
-                        trueCount += sstable.getRecentBloomFilterTruePositiveCount();
+                        falsePositiveCount += sstable.getRecentBloomFilterFalsePositiveCount();
+                        truePositiveCount += sstable.getRecentBloomFilterTruePositiveCount();
+                        trueNegativeCount += sstable.getRecentBloomFilterTrueNegativeCount();
                     }
                 }
-                if (falseCount == 0L && trueCount == 0L)
+                if (falsePositiveCount == 0L && truePositiveCount == 0L)
                     return 0d;
-                return (double) falseCount / (trueCount + falseCount);
+                return (double) falsePositiveCount / (truePositiveCount + falsePositiveCount + trueNegativeCount);
             }
         });
         bloomFilterDiskSpaceUsed = createTableGauge("BloomFilterDiskSpaceUsed", new Gauge<Long>()
