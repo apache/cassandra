@@ -127,11 +127,13 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        /** Will test all supported upgrade paths, starting from **/
         public TestCase upgradesFrom(Major from)
         {
             return upgrades(from, CURRENT);
         }
 
+        /** Will test all supported upgrade paths, in between from and to, inclusively **/
         public TestCase upgrades(Major from, Major to)
         {
             SUPPORTED_UPGRADE_PATHS.stream()
@@ -144,9 +146,10 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        public TestCase upgrade(Version initial, Version upgrade)
+        /** Will test this specific upgrade path **/
+        public TestCase singleUpgrade(Major from, Major to)
         {
-            this.upgrade.add(new TestVersions(initial, upgrade));
+            this.upgrade.add(new TestVersions(versions.getLatest(from), versions.getLatest(to)));
             return this;
         }
 
