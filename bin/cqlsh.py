@@ -1369,30 +1369,36 @@ class Shell(cmd.Cmd):
         stmt = SimpleStatement(parsed.extract_orig(), consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE, fetch_size=self.page_size if self.use_paging else None)
         future = self.session.execute_async(stmt)
 
-        try:
-            result = future.result()
+        if self.connection_versions['build'][0] < '4':
+            print('\nWARN: DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC '
+                  'will not work in cqlsh %r connected to Cassandra %r, the version that you are connected to. '
+                  'DESCRIBE does not exist server side prior Cassandra 4.0.'
+                  % (version, self.connection_versions['build']))
+        else:
+            try:
+                result = future.result()
 
-            what = parsed.matched[1][1].lower()
+                what = parsed.matched[1][1].lower()
 
-            if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates'):
-                self.describe_list(result)
-            elif what == 'keyspaces':
-                self.describe_keyspaces(result)
-            elif what == 'cluster':
-                self.describe_cluster(result)
-            elif what:
-                self.describe_element(result)
+                if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates'):
+                    self.describe_list(result)
+                elif what == 'keyspaces':
+                    self.describe_keyspaces(result)
+                elif what == 'cluster':
+                    self.describe_cluster(result)
+                elif what:
+                    self.describe_element(result)
 
-        except CQL_ERRORS as err:
-            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
-            self.printerr(err_msg.partition("message=")[2].strip('"'))
-        except Exception:
-            import traceback
-            self.printerr(traceback.format_exc())
+            except CQL_ERRORS as err:
+                err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+                self.printerr(err_msg.partition("message=")[2].strip('"'))
+            except Exception:
+                import traceback
+                self.printerr(traceback.format_exc())
 
-        if future:
-            if future.warnings:
-                self.print_warnings(future.warnings)
+            if future:
+                if future.warnings:
+                    self.print_warnings(future.warnings)
 
     do_desc = do_describe
 
