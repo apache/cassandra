@@ -1905,6 +1905,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return bloomFilterTracker.getRecentTruePositiveCount();
     }
 
+    public long getBloomFilterTrueNegativeCount()
+    {
+        return bloomFilterTracker.getTrueNegativeCount();
+    }
+
+    public long getRecentBloomFilterTrueNegativeCount()
+    {
+        return bloomFilterTracker.getRecentTrueNegativeCount();
+    }
+
     public InstrumentingCache<KeyCacheKey, RowIndexEntry> getKeyCache()
     {
         return keyCache;
