@@ -551,7 +551,7 @@ concurrent_materialized_view_writes: 32
 #
 # offheap_objects
 #    off heap objects
-memtable_allocation_type: heap_buffers
+memtable_allocation_type: offheap_objects
 
 # Limit memory usage for Merkle tree calculations during repairs. The default
 # is 1/16th of the available heap. The main tradeoff is that smaller trees
