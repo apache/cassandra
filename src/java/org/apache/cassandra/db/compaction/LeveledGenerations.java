@@ -155,8 +155,6 @@ class LeveledGenerations
             if (before != null && before.last.compareTo(sstable.first) >= 0 ||
                 after != null && after.first.compareTo(sstable.last) <= 0)
             {
-                if (strictLCSChecksTest) // we can only assert this in tests since this is normal when for example moving sstables from unrepaired to repaired
-                    throw new AssertionError("Got unexpected overlap in level "+sstable.getSSTableLevel());
                 sendToL0(sstable);
             }
             else
