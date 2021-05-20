@@ -103,7 +103,7 @@ public class LongBufferPoolTest
         public synchronized void check()
         {
             for (BufferPool.Chunk chunk : normalChunks)
-                assert DebugChunk.get(chunk).lastRecycled == recycleRound;
+                assertEquals(recycleRound, DebugChunk.get(chunk).lastRecycled);
             recycleRound++;
         }
     }
