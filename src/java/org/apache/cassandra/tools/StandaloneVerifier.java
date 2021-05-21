@@ -110,23 +110,14 @@ public class StandaloneVerifier
             handler.output("Running verifier with the following options: " + verifyOptions);
             for (SSTableReader sstable : sstables)
             {
-                try
+                try (Verifier verifier = new Verifier(cfs, sstable, handler, true, verifyOptions))
                 {
-
-                    try (Verifier verifier = new Verifier(cfs, sstable, handler, true, verifyOptions))
-                    {
-                        verifier.verify();
-                    }
-                    catch (CorruptSSTableException cs)
-                    {
-                        System.err.println(String.format("Error verifying %s: %s", sstable, cs.getMessage()));
-                        hasFailed = true;
-                    }
+                    verifier.verify();
                 }
                 catch (Exception e)
                 {
-                    System.err.println(String.format("Error verifying %s: %s", sstable, e.getMessage()));
-                    e.printStackTrace(System.err);
+                    handler.warn(String.format("Error verifying %s: %s", sstable, e.getMessage()), e);
+                    hasFailed = true;
                 }
             }
 
