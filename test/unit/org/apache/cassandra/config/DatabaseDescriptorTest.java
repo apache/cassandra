@@ -265,7 +265,7 @@ public class DatabaseDescriptorTest
             }
         }
     }
-    
+
     @Test
     public void testTokensFromString()
     {
@@ -337,7 +337,7 @@ public class DatabaseDescriptorTest
         testConfig.cas_contention_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
         testConfig.counter_write_request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
         testConfig.request_timeout_in_ms = DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT + 1;
-        
+
         assertTrue(testConfig.read_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertTrue(testConfig.range_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
         assertTrue(testConfig.write_request_timeout_in_ms > DatabaseDescriptor.LOWEST_ACCEPTED_TIMEOUT);
@@ -740,5 +740,16 @@ public class DatabaseDescriptorTest
         conf.track_warnings.row_index_size.warn_threshold_kb = 0;
         conf.track_warnings.row_index_size.abort_threshold_kb = 2;
         DatabaseDescriptor.applyTrackWarningsValidations(conf);
+    }
+
+    @Test
+    public void testDefaultSslContextFactoryConfiguration() {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
+                            config.client_encryption_options.ssl_context_factory.class_name);
+        Assert.assertTrue(config.client_encryption_options.ssl_context_factory.parameters.isEmpty());
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
+                            config.server_encryption_options.ssl_context_factory.class_name);
+        Assert.assertTrue(config.server_encryption_options.ssl_context_factory.parameters.isEmpty());
     }
 }
