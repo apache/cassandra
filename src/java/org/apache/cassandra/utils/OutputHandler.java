@@ -34,6 +34,10 @@ public interface OutputHandler
     // called when the user needs to be warn
     public void warn(String msg);
     public void warn(String msg, Throwable th);
+    public default void warn(Throwable th)
+    {
+        warn(th.getMessage(), th);
+    }
 
     public static class LogOutput implements OutputHandler
     {
