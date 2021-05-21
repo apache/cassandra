@@ -70,7 +70,7 @@ public class SSLFactoryTest
                             .withRequireClientAuth(false)
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
 
-        SSLFactory.checkedExpiry = false;
+        //SSLFactory.checkedExpiry = false;
     }
 
     @Test
@@ -103,50 +103,6 @@ public class SSLFactoryTest
     {
         return options.withKeyStore("test/conf/cassandra_ssl_test.keystore")
                       .withKeyStorePassword("cassandra");
-    }
-
-    @Test(expected = IOException.class)
-    public void buildTrustManagerFactory_NoFile() throws IOException
-    {
-        SSLFactory.buildTrustManagerFactory(encryptionOptions.withTrustStore("/this/is/probably/not/a/file/on/your/test/machine"));
-    }
-
-    @Test(expected = IOException.class)
-    public void buildTrustManagerFactory_BadPassword() throws IOException
-    {
-        SSLFactory.buildTrustManagerFactory(encryptionOptions.withTrustStorePassword("HomeOfBadPasswords"));
-    }
-
-    @Test
-    public void buildTrustManagerFactory_HappyPath() throws IOException
-    {
-        TrustManagerFactory trustManagerFactory = SSLFactory.buildTrustManagerFactory(encryptionOptions);
-        Assert.assertNotNull(trustManagerFactory);
-    }
-
-    @Test(expected = IOException.class)
-    public void buildKeyManagerFactory_NoFile() throws IOException
-    {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                    .withKeyStore("/this/is/probably/not/a/file/on/your/test/machine");
-        SSLFactory.buildKeyManagerFactory(options);
-    }
-
-    @Test(expected = IOException.class)
-    public void buildKeyManagerFactory_BadPassword() throws IOException
-    {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                    .withKeyStorePassword("HomeOfBadPasswords");
-        SSLFactory.buildKeyManagerFactory(options);
-    }
-
-    @Test
-    public void buildKeyManagerFactory_HappyPath() throws IOException
-    {
-        Assert.assertFalse(SSLFactory.checkedExpiry);
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SSLFactory.buildKeyManagerFactory(options);
-        Assert.assertTrue(SSLFactory.checkedExpiry);
     }
 
     @Test
