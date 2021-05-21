@@ -149,6 +149,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.locator.Replica",
     "org.apache.cassandra.locator.SimpleSeedProvider",
     "org.apache.cassandra.locator.SeedProvider",
+    "org.apache.cassandra.security.ISslContextFactory",
     "org.apache.cassandra.security.SSLFactory",
     "org.apache.cassandra.security.EncryptionContext",
     "org.apache.cassandra.service.CacheService$CacheType",

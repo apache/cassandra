@@ -88,6 +88,33 @@ As an alternative to the ``optional`` setting, separate ports can also be config
 where operational requirements demand it. To do so, set ``optional`` to false and use the ``native_transport_port_ssl``
 setting in ``cassandra.yaml`` to specify the port to be used for secure client communication.
 
+.. _customizing-ssl-context:
+
+Customizing SSL Context Creation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+There are situations when the current file-based configurations for keystore/truststore and passwords are not enough and
+you want to customize how SSL Context is created to your specific needs. In that case, you can create a custom implementation
+of Cassandra's ``org.apache.cassandra.security.ISslContextFactory`` interface and configure ``cassandra.yaml`` to use it.
+While the ``ISslContextFactory`` provides full control of building a SSL Context, you can extend
+``org.apache.cassandra.security.AbstractSslContextFactory`` or ``org.apache.cassandra.security.FileBasedSslContextFactory``
+to keep your custom implementation to the bare minimum. You can find an example of such a customization
+in ``examples`` directory for Kubernetes in ``KubernetesSecretsSslContextFactory.java``.
+
+Below is the example to customize internode ssl configuration with ``YourCassandraSslContextFactory``. The same way you
+can customize the client-to-node encryption.
+
+::
+
+    server_encryption_options:
+        ssl_context_factory:
+            class_name: com.your-company.YourCassandraSslContextFactory
+            parameters:
+                key1: "value1"
+                key2: "value2"
+                key3: "value3"
+        internode_encryption: none
+
 .. _operation-roles:
 
 Roles

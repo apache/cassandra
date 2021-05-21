@@ -44,6 +44,7 @@ import io.netty.util.Version;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
@@ -163,7 +164,7 @@ public class PipelineConfigurator
                 return channel -> {
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
                                                                              encryptionOptions.require_client_auth,
-                                                                             SSLFactory.SocketType.SERVER);
+                                                                             ISslContextFactory.SocketType.SERVER);
 
                     channel.pipeline().addFirst(SSL_HANDLER, new ByteToMessageDecoder()
                     {
@@ -197,7 +198,7 @@ public class PipelineConfigurator
                 return channel -> {
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
                                                                              encryptionOptions.require_client_auth,
-                                                                             SSLFactory.SocketType.SERVER);
+                                                                             ISslContextFactory.SocketType.SERVER);
                     channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
                 };
             default:
