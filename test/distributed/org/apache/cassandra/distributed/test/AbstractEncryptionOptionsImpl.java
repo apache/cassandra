@@ -50,6 +50,7 @@ import io.netty.util.concurrent.FutureListener;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -194,8 +195,8 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             setProtocolAndCipher(null, null);
 
             SslContext sslContext = SSLFactory.getOrCreateSslContext(
-                encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
-                true, SSLFactory.SocketType.CLIENT);
+            encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
+            true, ISslContextFactory.SocketType.CLIENT);
 
             EventLoopGroup workerGroup = new NioEventLoopGroup();
             Bootstrap b = new Bootstrap();

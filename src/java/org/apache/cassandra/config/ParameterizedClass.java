@@ -60,6 +60,12 @@ public class ParameterizedClass
     }
 
     @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(class_name, parameters);
+    }
+
+    @Override
     public String toString()
     {
         return class_name + (parameters == null ? "" : parameters.toString());
