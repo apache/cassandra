@@ -292,7 +292,7 @@ public class Config
     public ParameterizedClass hints_compression;
 
     public volatile boolean incremental_backups = false;
-    public boolean trickle_fsync = false;
+    public boolean trickle_fsync = true;
     public int trickle_fsync_interval_in_kb = 10240;
 
     public volatile int sstable_preemptive_open_interval_in_mb = 50;

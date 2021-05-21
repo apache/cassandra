@@ -633,7 +633,7 @@ index_summary_resize_interval_in_minutes: 60
 # buffers. Enable this to avoid sudden dirty buffer flushing from
 # impacting read latencies. Almost always a good idea on SSDs; not
 # necessarily on platters.
-trickle_fsync: false
+trickle_fsync: true
 trickle_fsync_interval_in_kb: 10240
 
 # TCP port, for commands and data
