@@ -90,6 +90,13 @@ Audit logging does not log:
 1. Configuration changes made in ``cassandra.yaml``
 2. Nodetool Commands
 
+Limitations
+^^^^^^^^^^^
+
+Executing prepared statements will log the query as provided by the client in the prepare call, along with the execution
+timestamp and all other attributes (see below). Actual values bound for prepared statement execution will not show up
+in the audit log.
+
 Audit Logging is Flexible and Configurable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -129,6 +136,8 @@ Two types of audit loggers are supported: ``FileAuditLogger`` and ``BinAuditLogg
 ``FileAuditLogger`` is synchronous, file-based audit logger; just uses the standard logging mechanism. ``FileAuditLogger`` logs events to ``audit/audit.log`` file using ``slf4j`` logger.
 
 The ``NoOpAuditLogger`` is a No-Op implementation of the audit logger to be used as a default audit logger when audit logging is disabled.
+
+*Recommendation* ``BinAuditLogger`` is a community recommended logger considering the performance.
 
 It is possible to configure your custom logger implementation by injecting a map of property keys and their respective values. Default `IAuditLogger`
 implementations shipped with Cassandra do not react on these properties but your custom logger might. They would be present as
@@ -244,6 +253,36 @@ The ``max_queue_weight`` option sets the maximum weight of in memory queue for r
 
 The  ``max_log_size`` option sets the maximum size of the rolled files to retain on disk before deleting the oldest.
 
+Configuring FileAuditLogger
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+To use ``FileAuditLogger`` as a logger in AuditLogging, apart from setting the class name in cassandra.yaml, below
+configuration is needed (the code is already provided for your convenience in a comment in logback.xml) to have the audit
+log events to flow through separate audit log file instead of system.log.
+
+
+.. code-block:: xml
+
+        <!-- Audit Logging (FileAuditLogger) rolling file appender to audit.log -->
+        <appender name="AUDIT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+          <file>${cassandra.logdir}/audit/audit.log</file>
+          <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- rollover daily -->
+            <fileNamePattern>${cassandra.logdir}/audit/audit.log.%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+            <!-- each file should be at most 50MB, keep 30 days worth of history, but at most 5GB -->
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+          </rollingPolicy>
+          <encoder>
+            <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+          </encoder>
+        </appender>
+
+        <!-- Audit Logging additivity to redirect audt logging events to audit/audit.log -->
+        <logger name="org.apache.cassandra.audit" additivity="false" level="INFO">
+            <appender-ref ref="AUDIT"/>
+        </logger>
+
 Using Nodetool to Enable Audit Logging
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The ``nodetool  enableauditlog``  command may be used to enable audit logs and it overrides the settings in ``cassandra.yaml``.  The ``nodetool enableauditlog`` command syntax is as follows.
@@ -308,6 +347,14 @@ OPTIONS
         -u <username>, --username <username>
             Remote jmx agent username
 
+The ``nodetool  enableauditlog``  command can be used to reload auditlog filters when called with default or
+previous ``loggername`` and updated filters
+
+E.g.,
+
+::
+
+    nodetool enableauditlog --loggername <Default/ existing loggerName> --included-keyspaces <New Filter values>
 
 The ``nodetool disableauditlog`` command disables audit log. The command syntax is as follows.
 
