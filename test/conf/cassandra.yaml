@@ -31,11 +31,6 @@ seed_provider:
           - seeds: "127.0.0.1:7012"
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
-ssl_context_factory:
-    - class_name: org.apache.cassandra.security.DefaultSslContextFactoryImpl
-      parameters:
-        - key1: "value1"
-        - key2: "value2"
 server_encryption_options:
     internode_encryption: none
     keystore: conf/.keystore

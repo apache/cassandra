@@ -48,7 +48,7 @@ import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
 
 /**
- * Cassandra's default implementation class for the configuration key {@code ssl_context_factory_class_name}. It uses
+ * Cassandra's default implementation class for the configuration key {@code ssl_context_factory}. It uses
  * file based keystores.
  */
 public final class DefaultSslContextFactoryImpl implements ISslContextFactory

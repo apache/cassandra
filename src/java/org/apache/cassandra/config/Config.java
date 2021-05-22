@@ -280,9 +280,11 @@ public class Config
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
-    public ParameterizedClass ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security" +
-                                                                           ".DefaultSslContextFactoryImpl",
-                                                                           new HashMap<>());
+    /**
+     * Default to the Cassandra's default ISslContextFactory impl class with empty parameters
+     */
+    public ParameterizedClass ssl_context_factory =
+        new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactoryImpl", new HashMap<>());
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 

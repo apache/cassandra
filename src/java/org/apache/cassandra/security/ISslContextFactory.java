@@ -27,19 +27,24 @@ import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * The purpose of this interface is to provide pluggable mechanism for creating custom JSSE and Netty SSLContext
- * objects. Please use the Cassandra configuration key {@code ssl_context_factory_class_name} and provide a custom class-name
- * implementing this interface to plugin a your own way to load the SSLContext.
+ * objects. Please use the Cassandra configuration key {@code ssl_context_factory} and provide a custom class-name
+ * implementing this interface with parameters to be used to plugin a your own way to load the SSLContext.
  *
  * Implementation of this interface must have a constructor with argument of type {@code Map<String,String>} to allow
  * custom parameters to be passed from the Cassandra yaml configuration.
  *
- * Example:
- * <pre>
- *
- * </pre>
- *
  * Since on top of Netty, Cassandra is internally using JSSE SSLContext also for certain use-cases- this interface
  * has methods for both.
+ *
+ * Below is an example of how to configure a custom implementation with parameters
+ * <pre>
+ *ssl_context_factory:
+ *       class_name: org.apache.cassandra.security.YourSslContextFactoryImpl
+ *       parameters:
+ *         key1: "value1"
+ *         key2: "value2"
+ *         key3: "value3"
+ * </pre>
  */
 public interface ISslContextFactory
 {
