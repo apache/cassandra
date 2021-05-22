@@ -593,4 +593,12 @@ public class DatabaseDescriptorTest
         Assert.assertEquals(Integer.valueOf(1), config.num_tokens);
         Assert.assertEquals(1, DatabaseDescriptor.tokensFromString(config.initial_token).size());
     }
+
+    @Test
+    public void testDefaultSslContextFactoryConfiguration() {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
+                            config.ssl_context_factory.class_name);
+        Assert.assertTrue(config.ssl_context_factory.parameters.isEmpty());
+    }
 }
