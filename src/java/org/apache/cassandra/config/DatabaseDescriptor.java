@@ -68,6 +68,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -125,6 +126,7 @@ public class DatabaseDescriptor
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
+    private static ISslContextFactory sslContextFactory;
 
     private static long preparedStatementsCacheSizeInMB;
 
@@ -1002,6 +1004,9 @@ public class DatabaseDescriptor
     {
         try
         {
+            sslContextFactory = FBUtilities.newSslContextFactory(conf.ssl_context_factory.class_name,
+                                                                 conf.ssl_context_factory.parameters);
+            SSLFactory.setSslContextFactory(sslContextFactory);
             SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, true, true);
             SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.require_client_auth, true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
@@ -1271,6 +1276,8 @@ public class DatabaseDescriptor
     {
         DatabaseDescriptor.roleManager = roleManager;
     }
+
+    public static ISslContextFactory getSslContextFactory() { return sslContextFactory; }
 
     public static int getPermissionsValidity()
     {

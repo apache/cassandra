@@ -69,8 +69,6 @@ public class SSLFactoryTest
                             .withTrustStorePassword("cassandra")
                             .withRequireClientAuth(false)
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
-
-        //SSLFactory.checkedExpiry = false;
     }
 
     @Test

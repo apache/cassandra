@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -46,7 +47,11 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
 
-public final class DefaultSslContextFactoryImpl implements SslContextFactory
+/**
+ * Cassandra's default implementation class for the configuration key {@code ssl_context_factory_class_name}. It uses
+ * file based keystores.
+ */
+public final class DefaultSslContextFactoryImpl implements ISslContextFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(DefaultSslContextFactoryImpl.class);
 
@@ -57,6 +62,15 @@ public final class DefaultSslContextFactoryImpl implements SslContextFactory
      * List of files that trigger hot reloading of SSL certificates
      */
     private static volatile List<HotReloadableFile> hotReloadableFiles = ImmutableList.of();
+
+    private Map<String,String> parameters;
+
+    /* For test only */
+    DefaultSslContextFactoryImpl(){}
+
+    public DefaultSslContextFactoryImpl(Map<String,String> parameters) {
+        this.parameters = parameters;
+    }
 
     @Override
     public SSLContext createJSSESslContext(EncryptionOptions options, boolean buildTruststore) throws SSLException

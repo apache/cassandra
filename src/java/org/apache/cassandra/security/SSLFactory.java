@@ -45,6 +45,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A Factory for providing and setting up client {@link SSLSocket}s. Also provides
@@ -107,7 +108,7 @@ public final class SSLFactory
      */
     private static boolean isHotReloadingInitialized = false;
 
-    private static SslContextFactory sslContextFactory = new DefaultSslContextFactoryImpl();
+    private static ISslContextFactory sslContextFactory;
 
     /** Provides the list of protocols that would have been supported if "TLS" was selected as the
      * protocol before the change for CASSANDRA-13325 that expects explicit protocol versions.
@@ -127,6 +128,10 @@ public final class SSLFactory
         {
             throw new RuntimeException("Error finding supported TLS Protocols", e);
         }
+    }
+
+    public static void setSslContextFactory(ISslContextFactory sslContextFactory) {
+        SSLFactory.sslContextFactory = sslContextFactory;
     }
 
     /**
@@ -188,9 +193,9 @@ public final class SSLFactory
     static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore,
                                             SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws IOException
     {
-        SslContextFactory.SocketType adaptedSocketType = socketType == SocketType.SERVER ?
-                                                         SslContextFactory.SocketType.SERVER :
-                                                         SslContextFactory.SocketType.CLIENT;
+        ISslContextFactory.SocketType adaptedSocketType = socketType == SocketType.SERVER ?
+                                                          ISslContextFactory.SocketType.SERVER :
+                                                          ISslContextFactory.SocketType.CLIENT;
         return sslContextFactory.createNettySslContext(options, buildTruststore, adaptedSocketType, useOpenSsl,
                                                        cipherFilter);
     }
