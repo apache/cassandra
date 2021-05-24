@@ -65,6 +65,11 @@ Long running tests
 
 Test that consume a significant amount of time during execution can be found in the ``test/long`` directory and executed as a regular JUnit test or standalone program. Except for the execution time, there’s nothing really special about them. However, ant will execute tests under ``test/long`` only when using the ``ant long-test`` target.
 
+Flaky tests
+-----------
+
+If a test failure is difficult to reproduce you can always use a shell loop, circle repeat strategy and similar solutions. At the JUnit level ``RepeatableRunner`` will let you run a JUnit class N times for convenience. On tests that are fast this is a much faster way to iterate than doing it at the shell level. Beware of tests that modify singleton state or similar as they won't work.
+
 DTests
 ======
 

@@ -60,7 +60,7 @@ except ImportError:
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
-CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/cql3/CQL-3.2.html'
+CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cql/index.html'
 
 # default location of local CQL.html
 if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
@@ -78,15 +78,11 @@ else:
 # opened from _within_ a desktop environment. I.e. 'xdg-open' will fail,
 # if the session's been opened via ssh to a remote box.
 #
-# Use 'python' to get some information about the detected browsers.
-# >>> import webbrowser
-# >>> webbrowser._tryorder
-# >>> webbrowser._browser
-#
-# webbrowser._tryorder is None in python3.7+
-if webbrowser._tryorder is None or len(webbrowser._tryorder) == 0:
-    CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
-elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
+try:
+    webbrowser.register_standard_browsers()  # registration is otherwise lazy in Python3
+except AttributeError:
+    pass
+if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
     # only on Linux (some OS with xdg-open)
     webbrowser._tryorder.remove('xdg-open')
     webbrowser._tryorder.append('xdg-open')
@@ -622,37 +618,37 @@ class Shell(cmd.Cmd):
         self.connection_versions = vers
 
     def get_keyspace_names(self):
-        return list(map(str, list(self.conn.metadata.keyspaces.keys())))
+        return list(self.conn.metadata.keyspaces)
 
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(map(str, list(self.get_keyspace_meta(ksname).tables.keys())))
+        return list(self.get_keyspace_meta(ksname).tables)
 
     def get_materialized_view_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(map(str, list(self.get_keyspace_meta(ksname).views.keys())))
+        return list(self.get_keyspace_meta(ksname).views)
 
     def get_index_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(map(str, list(self.get_keyspace_meta(ksname).indexes.keys())))
+        return list(self.get_keyspace_meta(ksname).indexes)
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
         layout = self.get_table_meta(ksname, cfname)
-        return [str(col) for col in layout.columns]
+        return list(layout.columns)
 
     def get_usertype_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return list(self.get_keyspace_meta(ksname).user_types.keys())
+        return list(self.get_keyspace_meta(ksname).user_types)
 
     def get_usertype_layout(self, ksname, typename):
         if ksname is None:
@@ -1373,30 +1369,36 @@ class Shell(cmd.Cmd):
         stmt = SimpleStatement(parsed.extract_orig(), consistency_level=cassandra.ConsistencyLevel.LOCAL_ONE, fetch_size=self.page_size if self.use_paging else None)
         future = self.session.execute_async(stmt)
 
-        try:
-            result = future.result()
+        if self.connection_versions['build'][0] < '4':
+            print('\nWARN: DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC '
+                  'will not work in cqlsh %r connected to Cassandra %r, the version that you are connected to. '
+                  'DESCRIBE does not exist server side prior Cassandra 4.0.'
+                  % (version, self.connection_versions['build']))
+        else:
+            try:
+                result = future.result()
 
-            what = parsed.matched[1][1].lower()
+                what = parsed.matched[1][1].lower()
 
-            if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates'):
-                self.describe_list(result)
-            elif what == 'keyspaces':
-                self.describe_keyspaces(result)
-            elif what == 'cluster':
-                self.describe_cluster(result)
-            elif what:
-                self.describe_element(result)
+                if what in ('columnfamilies', 'tables', 'types', 'functions', 'aggregates'):
+                    self.describe_list(result)
+                elif what == 'keyspaces':
+                    self.describe_keyspaces(result)
+                elif what == 'cluster':
+                    self.describe_cluster(result)
+                elif what:
+                    self.describe_element(result)
 
-        except CQL_ERRORS as err:
-            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
-            self.printerr(err_msg.partition("message=")[2].strip('"'))
-        except Exception:
-            import traceback
-            self.printerr(traceback.format_exc())
+            except CQL_ERRORS as err:
+                err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+                self.printerr(err_msg.partition("message=")[2].strip('"'))
+            except Exception:
+                import traceback
+                self.printerr(traceback.format_exc())
 
-        if future:
-            if future.warnings:
-                self.print_warnings(future.warnings)
+            if future:
+                if future.warnings:
+                    self.print_warnings(future.warnings)
 
     do_desc = do_describe
 
@@ -1404,9 +1406,7 @@ class Shell(cmd.Cmd):
         """
         Print the output for a DESCRIBE KEYSPACES query
         """
-        names = list()
-        for row in rows:
-            names.append(str(row['name']))
+        names = [ensure_str(r['name']) for r in rows]
 
         print('')
         cmd.Cmd.columnize(self, names)
@@ -1426,7 +1426,7 @@ class Shell(cmd.Cmd):
                 keyspace = row['keyspace_name']
                 names = list()
 
-            names.append(str(row['name']))
+            names.append(ensure_str(row['name']))
 
         if keyspace is not None:
             self.print_keyspace_element_names(keyspace, names)
@@ -1923,12 +1923,12 @@ class Shell(cmd.Cmd):
                 urlpart = cqldocs.get_help_topic(t)
                 if urlpart is not None:
                     url = "%s#%s" % (CASSANDRA_CQL_HTML, urlpart)
-                    if len(webbrowser._tryorder) == 0:
-                        self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
-                    elif self.browser is not None:
-                        webbrowser.get(self.browser).open_new_tab(url)
+                    if self.browser is not None:
+                        opened = webbrowser.get(self.browser).open_new_tab(url)
                     else:
-                        webbrowser.open_new_tab(url)
+                        opened = webbrowser.open_new_tab(url)
+                    if not opened:
+                        self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
             else:
                 self.printerr("*** No help on %s" % (t,))
 

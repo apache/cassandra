@@ -143,7 +143,7 @@ public class Verifier implements Closeable
         }
         catch (Throwable t)
         {
-            outputHandler.warn(t.getMessage());
+            outputHandler.warn(t);
             markAndThrow(t, false);
         }
 
@@ -154,7 +154,7 @@ public class Verifier implements Closeable
         }
         catch (Throwable t)
         {
-            outputHandler.warn(t.getMessage());
+            outputHandler.warn(t);
             markAndThrow(t);
         }
 
@@ -166,7 +166,7 @@ public class Verifier implements Closeable
         catch (Throwable t)
         {
             outputHandler.output("Index summary is corrupt - if it is removed it will get rebuilt on startup "+sstable.descriptor.filenameFor(Component.SUMMARY));
-            outputHandler.warn(t.getMessage());
+            outputHandler.warn(t);
             markAndThrow(t, false);
         }
 
@@ -178,7 +178,7 @@ public class Verifier implements Closeable
         }
         catch (Throwable t)
         {
-            outputHandler.warn(t.getMessage());
+            outputHandler.warn(t);
             markAndThrow(t);
         }
 
@@ -199,7 +199,7 @@ public class Verifier implements Closeable
             }
             catch (Throwable t)
             {
-                outputHandler.warn(t.getMessage());
+                outputHandler.warn(t);
                 markAndThrow(t);
             }
         }
@@ -226,7 +226,7 @@ public class Verifier implements Closeable
         }
         catch (IOException e)
         {
-            outputHandler.warn(e.getMessage());
+            outputHandler.warn(e);
             markAndThrow(e);
         }
         finally

@@ -84,6 +84,29 @@ appender reference in the root level section below.
     </encoder>
   </appender>
 
+  <!-- Uncomment below configuration (Audit Logging (FileAuditLogger) rolling file appender and Audit Logging
+  additivity) in order to have the log events flow through separate log file instead of system.log.
+  Audit Logging (FileAuditLogger) rolling file appender to audit.log -->
+  <!-- <appender name="AUDIT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${cassandra.logdir}/audit/audit.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy"> -->
+      <!-- rollover daily -->
+      <!-- <fileNamePattern>${cassandra.logdir}/audit/audit.log.%d{yyyy-MM-dd}.%i.zip</fileNamePattern> -->
+      <!-- each file should be at most 50MB, keep 30 days worth of history, but at most 5GB -->
+      <!-- <maxFileSize>50MB</maxFileSize>
+      <maxHistory>30</maxHistory>
+      <totalSizeCap>5GB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
+    </encoder>
+  </appender> -->
+
+  <!-- Audit Logging additivity to redirect audit logging events to audit/audit.log -->
+  <!-- <logger name="org.apache.cassandra.audit" additivity="false" level="INFO">
+    <appender-ref ref="AUDIT"/>
+  </logger> -->
+
   <!-- Uncomment bellow and corresponding appender-ref to activate logback metrics
   <appender name="LogbackMetrics" class="com.codahale.metrics.logback.InstrumentedAppender" />
    -->

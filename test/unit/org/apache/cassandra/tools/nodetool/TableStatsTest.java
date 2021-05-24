@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tools.nodetool.stats;
+package org.apache.cassandra.tools.nodetool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,39 +25,34 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.CoreMatchers;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class NodetoolTableStatsTest extends CQLTester
+public class TableStatsTest extends CQLTester
 {
     @BeforeClass
     public static void setup() throws Exception
     {
-        StorageService.instance.initServer();
+        requireNetwork();
         startJMXServer();
     }
 
     @Test
+    @SuppressWarnings("SingleCharacterStringConcatenation")
     public void testMaybeChangeDocs()
     {
         // If you added, modified options or help, please update docs if necessary
-        ToolResult tool = ToolRunner.invokeNodetool("help", "tablestats");
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("help", "tablestats");
+        tool.assertOnCleanExit();
+
         String help =   "NAME\n" +
                         "        nodetool tablestats - Print statistics on tables\n" + 
                         "\n" + 
@@ -134,50 +129,41 @@ public class NodetoolTableStatsTest extends CQLTester
                         "            List of tables (or keyspace) names\n" + 
                         "\n" + 
                         "\n";
-        Assertions.assertThat(tool.getStdout()).isEqualTo(help);
-        tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
     public void testTableStats()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("tablestats");
-
-        assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_schema"));
-        assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats");
         tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
 
         tool = ToolRunner.invokeNodetool("tablestats", "system_distributed");
-        assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_distributed"));
-        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsString("Keyspace : system_schema")));
-        assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
         tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Keyspace : system_distributed");
+        assertThat(tool.getStdout()).doesNotContain("Keyspace : system_schema");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
     }
 
     @Test
     public void testTableIgnoreArg()
     {
-        ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-i", "system_schema.aggregates");
-
-        assertThat(tool.getStdout(), CoreMatchers.containsString("Keyspace : system_schema"));
-        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsString("Table: system_schema.aggregates")));
-        assertTrue(StringUtils.countMatches(tool.getStdout(), "Table:") > 1);
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-i", "system_schema.aggregates");
         tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
+        assertThat(tool.getStdout()).doesNotContain("Table: system_schema.aggregates");
+        assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
     }
 
     @Test
     public void testHumanReadableArg()
     {
         Arrays.asList("-H", "--human-readable").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
-            assertThat(argFormat(arg), tool.getStdout(), CoreMatchers.containsString(" KiB"));
-            assertTrue(String.format("Expected empty stderr for option [%s] but found: %s",
-                                     arg,
-                                     tool.getCleanedStderr()),
-                       tool.getCleanedStderr().isEmpty());
-            assertEquals(String.format("Expected exit code 0 for option [%s] but found: %s", arg, tool.getExitCode()),
-                         0,
-                         tool.getExitCode());
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
+            tool.assertOnCleanExit();
+            assertThat(tool.getStdout()).contains(" KiB");
         });
     }
 
@@ -187,66 +173,57 @@ public class NodetoolTableStatsTest extends CQLTester
         Pattern regExp = Pattern.compile("((?m)Table: .*$)");
 
         Arrays.asList("-s", "--sort").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "table_name");
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "table_name");
             Matcher m = regExp.matcher(tool.getStdout());
             ArrayList<String> orig = new ArrayList<>();
             while (m.find())
                 orig.add(m.group(1));
 
             tool = ToolRunner.invokeNodetool("tablestats", arg, "sstable_count");
+            tool.assertOnCleanExit();
             m = regExp.matcher(tool.getStdout());
             ArrayList<String> sorted = new ArrayList<>();
             while (m.find())
                 sorted.add(m.group(1));
 
-            assertNotEquals(argFormat(arg), orig, sorted);
+            assertThat(sorted).isNotEqualTo(orig);
             Collections.sort(orig);
             Collections.sort(sorted);
-            assertEquals(argFormat(arg), orig, sorted);
-            assertTrue(argFormat(arg), tool.getCleanedStderr().isEmpty());
-            assertEquals(0, tool.getExitCode());
+            assertThat(sorted).isEqualTo(orig);
         });
 
-        ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "wrongSort");
-        assertThat(tool.getStdout(), CoreMatchers.containsString("argument for sort must be one of"));
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "wrongSort");
+        assertThat(tool.getStdout()).contains("argument for sort must be one of");
         tool.assertCleanStdErr();
-        assertEquals(1, tool.getExitCode());
+        assertThat(tool.getExitCode()).isEqualTo(1);
     }
 
     @Test
     public void testTopArg()
     {
         Arrays.asList("-t", "--top").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", arg, "1");
-            assertEquals(argFormat(arg), StringUtils.countMatches(tool.getStdout(), "Table:"), 1);
-            assertTrue(argFormat(arg), tool.getCleanedStderr().isEmpty());
-            assertEquals(argFormat(arg), 0, tool.getExitCode());
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", arg, "1");
+            tool.assertOnCleanExit();
+            assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isEqualTo(1);
         });
 
-        ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", "-t", "-1");
-        assertThat(tool.getStdout(), CoreMatchers.containsString("argument for top must be a positive integer"));
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-s", "table_name", "-t", "-1");
         tool.assertCleanStdErr();
-        assertEquals(1, tool.getExitCode());
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("argument for top must be a positive integer");
     }
 
     @Test
     public void testSSTableLocationCheckArg()
     {
         Arrays.asList("-l", "--sstable-location-check").forEach(arg -> {
-            ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "system.local");
-            assertEquals(argFormat(arg), StringUtils.countMatches(tool.getStdout(), "SSTables in correct location: "), 1);
-            assertTrue(argFormat(arg), tool.getCleanedStderr().isEmpty());
-            assertEquals(argFormat(arg), 0, tool.getExitCode());
+            ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "system.local");
+            tool.assertOnCleanExit();
+            assertThat(StringUtils.countMatches(tool.getStdout(), "SSTables in correct location: ")).isEqualTo(1);
         });
 
-        ToolResult tool = ToolRunner.invokeNodetool("tablestats", "system.local");
-        assertThat(tool.getStdout(), CoreMatchers.not(CoreMatchers.containsString("SSTables in correct location: ")));
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "system.local");
         tool.assertCleanStdErr();
-        assertEquals(0, tool.getExitCode());
-    }
-
-    private String argFormat(String arg)
-    {
-        return "Arg: [" + arg + ']';
+        assertThat(tool.getStdout()).doesNotContain("SSTables in correct location: ");
     }
 }

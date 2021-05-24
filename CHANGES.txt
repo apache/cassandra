@@ -1,4 +1,12 @@
-4.0-rc2
+4.1
+ * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
+Merged from 4.0:
+ * Improve AuditLogging documentation and logback.xml(CASSANDRA-16682)
+ * Spin up SEPWorker threads whenever we grow the number of work permits(CASSANDRA-16668)
+ * Add a warning to cqlsh 6.0.0 that DESCRIBE does not work with a Cassandra 3.x servers (CASSANDRA-16652)
+ * cqlsh: fix DESC TYPE with non-ascii character in the identifier (CASSANDRA-16400)
+ * Remove drivers dependency and bring cql_keywords_reserved on server side (CASSANDRA-16659)
+ * Fix in-browser "help", Python 3 (CASSANDRA-16658)
  * Fix DROP COMPACT STORAGE for counters (CASSANDRA-16653)
  * Add back validation for AlterTableStatements (CASSANDRA-16643)
  * Fix cqlsh encoding error with unicode in multi-line statement (CASSANDRA-16539)
@@ -9,6 +17,8 @@ Merged from 3.11:
  * Nodetool garbagecollect should retain SSTableLevel for LCS (CASSANDRA-16634)
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
 Merged from 3.0:
+ * StandaloneVerifier does not fail when unable to verify SSTables, it only fails if Corruption is thrown (CASSANDRA-16683)
+ * Fix bloom filter false ratio calculation by including true negatives (CASSANDRA-15834)
  * Prevent loss of commit log data when moving sstables between nodes (CASSANDRA-16619)
  * Fix materialized view builders inserting truncated data (CASSANDRA-16567)
 
