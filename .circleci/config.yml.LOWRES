@@ -134,7 +134,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -326,7 +325,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -415,7 +413,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -505,7 +502,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -617,7 +613,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -729,7 +724,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -988,7 +982,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1077,7 +1070,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1166,7 +1158,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1278,7 +1269,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1349,7 +1339,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1419,7 +1408,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1489,7 +1477,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1953,7 +1940,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2091,7 +2077,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2161,7 +2146,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2444,7 +2428,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2701,7 +2684,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -3073,7 +3055,6 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
-          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;git://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
