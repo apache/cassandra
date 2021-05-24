@@ -177,6 +177,7 @@ DEFAULT_PORT = 9042
 DEFAULT_SSL = False
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
+DEFAULT_NO_FILE_IO = False
 
 DEFAULT_FLOAT_PRECISION = 5
 DEFAULT_DOUBLE_PRECISION = 5
@@ -232,6 +233,9 @@ parser.add_argument("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS
                     help='Specify the default request timeout in seconds (default: %default seconds).')
 parser.add_argument("-t", "--tty", action='store_true', dest='tty',
                     help='Force tty mode (command prompt).')
+parser.add_argument("--no-file-io", action='store_true', dest='no_file_io',
+                    help='Disable cqlsh commands that perform file I/O.')
+parser.add_argument('--disable-history', action='store_true', help='Disable saving of history', default=False)
 
 cfarguments, args = parser.parse_known_args()
 
@@ -423,6 +427,7 @@ class Shell(cmd.Cmd):
     last_hist = None
     shunted_query_out = None
     use_paging = True
+    no_file_io = DEFAULT_NO_FILE_IO
 
     default_page_size = 100
 
@@ -443,6 +448,7 @@ class Shell(cmd.Cmd):
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=None,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
+                 no_file_io=DEFAULT_NO_FILE_IO,
                  is_subshell=False):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
@@ -532,6 +538,7 @@ class Shell(cmd.Cmd):
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
+        self.no_file_io = no_file_io
         self.is_subshell = is_subshell
 
     @property
@@ -1554,6 +1561,10 @@ class Shell(cmd.Cmd):
         on a line by itself to end the data input.
         """
 
+        if self.no_file_io:
+            self.printerr('No file I/O permitted')
+            return
+
         ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
         if ks is None:
             ks = self.current_keyspace
@@ -1638,6 +1649,11 @@ class Shell(cmd.Cmd):
 
         See also the --file option to cqlsh.
         """
+
+        if self.no_file_io:
+            self.printerr('No file I/O permitted')
+            return
+
         fname = parsed.get_binding('fname')
         fname = os.path.expanduser(self.cql_unprotect_value(fname))
         try:
@@ -1663,6 +1679,7 @@ class Shell(cmd.Cmd):
                          max_trace_wait=self.max_trace_wait, ssl=self.ssl,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
+                         no_file_io=self.no_file_io,
                          is_subshell=True)
         # duplicate coverage related settings in subshell
         if self.coverage:
@@ -1698,6 +1715,11 @@ class Shell(cmd.Cmd):
         To inspect the current capture configuration, use CAPTURE with no
         arguments.
         """
+
+        if self.no_file_io:
+            self.printerr('No file I/O permitted')
+            return
+
         fname = parsed.get_binding('fname')
         if fname is None:
             if self.shunted_query_out is not None:
@@ -1895,6 +1917,11 @@ class Shell(cmd.Cmd):
     do_cls = do_clear
 
     def do_debug(self, parsed):
+
+        if self.no_file_io:
+            self.printerr('No file I/O permitted')
+            return
+
         import pdb
         pdb.set_trace()
 
@@ -2161,6 +2188,8 @@ def read_options(cmdlineargs, environment):
     argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     argvalues.execute = None
+    argvalues.no_file_io = option_with_default(configs.getboolean, 'ui', 'no_file_io', DEFAULT_NO_FILE_IO)
+    argvalues.disable_history = option_with_default(configs.getboolean, 'history', 'disabled', False)
 
     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
     # Make sure some user values read from the command line are in unicode
@@ -2245,8 +2274,8 @@ def init_history():
         readline.set_completer_delims(delims)
 
 
-def save_history():
-    if readline is not None:
+def save_history(history_disabled=False):
+    if readline is not None and not history_disabled:
         try:
             readline.write_history_file(HISTORY)
         except IOError:
@@ -2331,6 +2360,7 @@ def main(options, hostname, port):
                       single_statement=options.execute,
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
+                      no_file_io=options.no_file_io,
                       encoding=options.encoding)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
@@ -2351,7 +2381,7 @@ def main(options, hostname, port):
         signal.signal(signal.SIGHUP, handle_sighup)
 
     shell.cmdloop()
-    save_history()
+    save_history(options.disable_history)
 
     if shell.batch_mode and shell.statement_error:
         sys.exit(2)
