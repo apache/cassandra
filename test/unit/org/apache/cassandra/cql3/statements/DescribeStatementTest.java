@@ -477,25 +477,37 @@ public class DescribeStatementTest extends CQLTester
                                       "    v3 int,\n" +
                                       "    PRIMARY KEY ((pk1, pk2), c)\n" +
                                       ") WITH ID = " + id + "\n" +
-                                      "    AND CLUSTERING ORDER BY (c ASC)\n" +
-                                      "    AND " + tableParametersCql();
+                                      "    AND CLUSTERING ORDER BY (c ASC)\n";
 
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
                       row(KEYSPACE,
                           "table",
                           table,
-                          tableCreateStatement));
+                          tableCreateStatement +
+                          "    AND " + tableParametersCql()));
 
         String dropStatement = "ALTER TABLE " + KEYSPACE + "." + table + " DROP v3 USING TIMESTAMP 1589286942065000;";
 
         execute(dropStatement);
 
+        String tableCreateStatementAfterDrop = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                      "    pk1 text,\n" +
+                                      "    pk2 int,\n" +
+                                      "    c int,\n" +
+                                      "    s decimal static,\n" +
+                                      "    v1 text,\n" +
+                                      "    v2 int,\n" +
+                                      "    PRIMARY KEY ((pk1, pk2), c)\n" +
+                                      ") WITH ID = " + id + "\n" +
+                                      "    AND CLUSTERING ORDER BY (c ASC)\n";
+
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
                       row(KEYSPACE,
                           "table",
                           table,
-                          tableCreateStatement + "\n" +
-                          dropStatement));
+                          tableCreateStatementAfterDrop +
+                          "    AND DROPPED COLUMN RECORD v3 int USING TIMESTAMP 1589286942065000" + "\n" +
+                          "    AND " + tableParametersCql()));
 
         String addStatement = "ALTER TABLE " + KEYSPACE + "." + table + " ADD v3 int;";
 
@@ -505,9 +517,9 @@ public class DescribeStatementTest extends CQLTester
                       row(KEYSPACE,
                           "table",
                           table,
-                          tableCreateStatement + "\n" +
-                          dropStatement + "\n" +
-                          addStatement));
+                          tableCreateStatement +
+                          "    AND DROPPED COLUMN RECORD v3 int USING TIMESTAMP 1589286942065000" + "\n" +
+                          "    AND " + tableParametersCql()));
     }
 
     @Test
@@ -522,25 +534,31 @@ public class DescribeStatementTest extends CQLTester
                                       "    v1 text,\n" +
                                       "    v2 int,\n" +
                                       "    v3 int\n" +
-                                      ") WITH ID = " + id + "\n" +
-                                      "    AND " + tableParametersCql();
-
-        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
-                      row(KEYSPACE,
-                          "table",
-                          table,
-                          tableCreateStatement));
-
-        String dropStatement = "ALTER TABLE " + KEYSPACE + "." + table + " DROP v3 USING TIMESTAMP 1589286942065000;";
-
-        execute(dropStatement);
-
+                                      ") WITH ID = " + id;
+        
         assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
                       row(KEYSPACE,
                           "table",
                           table,
                           tableCreateStatement + "\n" +
-                          dropStatement));
+                          "    AND " + tableParametersCql()));
+        String dropStatement = "ALTER TABLE " + KEYSPACE + "." + table + " DROP v3 USING TIMESTAMP 1589286942065000;";
+
+        execute(dropStatement);
+
+        String tableCreateStatementAfterDrop = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
+                                      "    pk text PRIMARY KEY,\n" +
+                                      "    v1 text,\n" +
+                                      "    v2 int\n" +
+                                      ") WITH ID = " + id;
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE,
+                          "table",
+                          table,
+                          tableCreateStatementAfterDrop + "\n" +
+                          "    AND DROPPED COLUMN RECORD v3 int USING TIMESTAMP 1589286942065000" + "\n" +
+                          "    AND " + tableParametersCql()));
 
         String tableCreateStatementWithoutDroppedColumn = "CREATE TABLE " + KEYSPACE + "." + table + " (\n" +
                                                           "    pk text PRIMARY KEY,\n" +

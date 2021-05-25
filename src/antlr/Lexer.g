@@ -220,6 +220,10 @@ K_EDGE:        E D G E;
 K_VERTEX:      V E R T E X;
 K_LABEL:       L A B E L;
 
+K_DROPPED:     D R O P P E D;
+K_COLUMN:      C O L U M N;
+K_RECORD:      R E C O R D;
+
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
 fragment B: ('b'|'B');

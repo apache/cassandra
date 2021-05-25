@@ -19,7 +19,6 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.Map.Entry;
 
 import javax.annotation.Nullable;
 
@@ -1041,7 +1040,19 @@ public class TableMetadata implements SchemaElement
 
         public Builder recordColumnDrop(ColumnMetadata column, long timeMicros)
         {
-            droppedColumns.put(column.name.bytes, new DroppedColumn(column.withNewType(column.type.expandUserTypes()), timeMicros));
+            return recordColumnDrop(new DroppedColumn(column.asDropped(), timeMicros));
+        }
+
+        public Builder recordColumnDrop(DroppedColumn dropped)
+        {
+            DroppedColumn previous = droppedColumns.get(dropped.column.name.bytes);
+            if (previous != null && previous.droppedTime > dropped.droppedTime)
+                throw new ConfigurationException(String.format("Invalid dropped column record for column %s in %s at "
+                                                               + "%d: pre-existing record at %d is newer",
+                                                               dropped.column.name, this.name, previous.droppedTime,
+                                                               dropped.droppedTime));
+
+            droppedColumns.put(dropped.column.name.bytes, dropped);
             return this;
         }
 
@@ -1261,7 +1272,7 @@ public class TableMetadata implements SchemaElement
         builder.append(" WITH ")
                .increaseIndent();
 
-        appendTableOptions(builder, internals);
+        appendTableOptions(builder, internals, includeDroppedColumns);
 
         builder.decreaseIndent();
 
@@ -1270,9 +1281,6 @@ public class TableMetadata implements SchemaElement
             builder.newLine()
                    .append("*/");
         }
-
-        if (includeDroppedColumns)
-            appendDropColumns(builder);
     }
 
     private void appendColumnDefinitions(CqlBuilder builder,
@@ -1283,36 +1291,15 @@ public class TableMetadata implements SchemaElement
         while (iter.hasNext())
         {
             ColumnMetadata column = iter.next();
-            // If the column has been re-added after a drop, we don't include it right away. Instead, we'll add the
-            // dropped one first below, then we'll issue the DROP and then the actual ADD for this column, thus
-            // simulating the proper sequence of events.
-            if (includeDroppedColumns && droppedColumns.containsKey(column.name.bytes))
-                continue;
-
             column.appendCqlTo(builder);
 
             if (hasSingleColumnPrimaryKey && column.isPartitionKey())
                 builder.append(" PRIMARY KEY");
 
-            if (!hasSingleColumnPrimaryKey || (includeDroppedColumns && !droppedColumns.isEmpty()) || iter.hasNext())
+            if (!hasSingleColumnPrimaryKey || iter.hasNext())
                 builder.append(',');
 
             builder.newLine();
-        }
-
-        if (includeDroppedColumns)
-        {
-            Iterator<DroppedColumn> iterDropped = droppedColumns.values().iterator();
-            while (iterDropped.hasNext())
-            {
-                DroppedColumn dropped = iterDropped.next();
-                dropped.column.appendCqlTo(builder);
-
-                if (!hasSingleColumnPrimaryKey || iter.hasNext())
-                    builder.append(',');
-
-                builder.newLine();
-            }
         }
     }
 
@@ -1344,7 +1331,7 @@ public class TableMetadata implements SchemaElement
                .newLine();
     }
 
-    void appendTableOptions(CqlBuilder builder, boolean internals)
+    void appendTableOptions(CqlBuilder builder, boolean internals, boolean includeDroppedColumns)
     {
         if (internals)
             builder.append("ID = ")
@@ -1368,6 +1355,8 @@ public class TableMetadata implements SchemaElement
         }
         else
         {
+            if (includeDroppedColumns)
+                appendDropColumns(builder);
             params.appendCqlTo(builder);
         }
         builder.append(";");
@@ -1375,31 +1364,11 @@ public class TableMetadata implements SchemaElement
 
     private void appendDropColumns(CqlBuilder builder)
     {
-        for (Entry<ByteBuffer, DroppedColumn> entry : droppedColumns.entrySet())
+        for (DroppedColumn dropped : droppedColumns.values())
         {
-            DroppedColumn dropped = entry.getValue();
-
-            builder.newLine()
-                   .append("ALTER TABLE ")
-                   .append(toString())
-                   .append(" DROP ")
-                   .append(dropped.column.name)
-                   .append(" USING TIMESTAMP ")
-                   .append(dropped.droppedTime)
-                   .append(';');
-
-            ColumnMetadata column = getColumn(entry.getKey());
-            if (column != null)
-            {
-                builder.newLine()
-                       .append("ALTER TABLE ")
-                       .append(toString())
-                       .append(" ADD ");
-
-                column.appendCqlTo(builder);
-
-                builder.append(';');
-            }
+            builder.append(dropped.toCQLString())
+                   .newLine()
+                   .append("AND ");
         }
     }
 
@@ -1572,13 +1541,13 @@ public class TableMetadata implements SchemaElement
                    .append("*/");
         }
 
-        void appendTableOptions(CqlBuilder builder, boolean internals)
+        void appendTableOptions(CqlBuilder builder, boolean internals, boolean includeDroppedColumns)
         {
             builder.append("COMPACT STORAGE")
                    .newLine()
                    .append("AND ");
 
-            super.appendTableOptions(builder, internals);
+            super.appendTableOptions(builder, internals, includeDroppedColumns);
         }
 
         public static ColumnMetadata getCompactValueColumn(RegularAndStaticColumns columns)
