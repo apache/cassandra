@@ -89,6 +89,7 @@ Audit logging does not log:
 
 1. Configuration changes made in ``cassandra.yaml``
 2. Nodetool Commands
+3. Passwords mentioned as part of DCL statements. Passwords are instead obfuscated as *******
 
 Limitations
 ^^^^^^^^^^^
@@ -450,37 +451,45 @@ The ``auditlogviewer`` tool is used to dump audit logs. Run the ``auditlogviewer
 
  [ec2-user@ip-10-0-2-238 hourly]$ auditlogviewer /cassandra/audit/logs/hourly
  WARN  03:12:11,124 Using Pauser.sleepy() as not enough processors, have 2, needs 8+
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564711427328|type :USE_KEYSPACE|category:OTHER|ks:auditlogkeyspace|operation:USE AuditLogKeyspace;
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564711427329|type :USE_KEYSPACE|category:OTHER|ks:auditlogkeyspace|operation:USE "auditlogkeyspace"
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564711446279|type :SELECT|category:QUERY|ks:auditlogkeyspace|scope:t|operation:SELECT * FROM t;
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564713878834|type :DROP_TABLE|category:DDL|ks:auditlogkeyspace|scope:t|operation:DROP TABLE IF EXISTS
  AuditLogKeyspace.t;
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/3.91.56.164|port:42382|timestamp:1564714618360|ty
  pe:REQUEST_FAILURE|category:ERROR|operation:CREATE KEYSPACE AuditLogKeyspace
  WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};; Cannot add
  existing keyspace "auditlogkeyspace"
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564714690968|type :DROP_KEYSPACE|category:DDL|ks:auditlogkeyspace|operation:DROP KEYSPACE AuditLogKeyspace;
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/3.91.56.164|port:42406|timestamp:1564714708329|ty pe:CREATE_KEYSPACE|category:DDL|ks:auditlogkeyspace|operation:CREATE KEYSPACE
  AuditLogKeyspace
  WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1};
- Type: AuditLog
+ Type: audit
  LogMessage:
  user:anonymous|host:10.0.2.238:7000|source:/127.0.0.1|port:46264|timestamp:1564714870678|type :USE_KEYSPACE|category:OTHER|ks:auditlogkeyspace|operation:USE auditlogkeyspace;
  [ec2-user@ip-10-0-2-238 hourly]$
+ Type: audit
+ LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630496708|type:CREATE_ROLE|category:DCL|operation:create role role1 WITH password = '*******';
+ Type: audit
+ LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630634552|type:ALTER_ROLE|category:DCL|operation:alter ROLE role1 WITH PASSWORD = '*******' AND LOGIN = false;
+ Type: audit
+ LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630698686|type:CREATE_ROLE|category:DCL|operation:create user user1 WITH PASSWORD '*******' NOSUPERUSER ;
+ Type: audit
+ LogMessage: user:cassandra|host:localhost/127.0.0.1:7000|source:/127.0.0.1|port:65282|timestamp:1622630747344|type:ALTER_ROLE|category:DCL|operation:alter user user1 WITH PASSWORD '*******';
 
 
 The ``auditlogviewer`` tool usage syntax is as follows.

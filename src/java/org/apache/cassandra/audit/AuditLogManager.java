@@ -22,12 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,6 +59,8 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     private volatile AuditLogFilter filter;
 
+    private IObfuscator passwordObfuscator;
+
     private AuditLogManager()
     {
         final AuditLogOptions auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
@@ -77,6 +77,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         }
 
         filter = AuditLogFilter.create(auditLogOptions);
+        passwordObfuscator = new PasswordObfuscator();
     }
 
     public void initialize()
@@ -95,10 +96,14 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         return FBUtilities.newAuditLogger(BinAuditLogger.class.getName(), Collections.emptyMap());
     }
 
-    @VisibleForTesting
-    public IAuditLogger getLogger()
+    IAuditLogger getLogger()
     {
         return auditLogger;
+    }
+
+    IObfuscator getPasswordObfuscator()
+    {
+        return passwordObfuscator;
     }
 
     public boolean isEnabled()
@@ -114,6 +119,10 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     {
         if (!filter.isFiltered(logEntry))
         {
+            if (logEntry.getType().getCategory() == AuditLogEntryCategory.DCL)
+            {
+                logEntry.setOperation(passwordObfuscator.obfuscate(logEntry.getOperation()));
+            }
             auditLogger.log(logEntry);
         }
     }

@@ -42,7 +42,7 @@ public class AuditLogEntry
     private final UUID batch;
     private final String keyspace;
     private final String scope;
-    private final String operation;
+    private String operation;
     private final QueryOptions options;
     private final QueryState state;
 
@@ -146,6 +146,12 @@ public class AuditLogEntry
     public String getOperation()
     {
         return operation;
+    }
+
+    public AuditLogEntry setOperation(String operation)
+    {
+        this.operation = operation;
+        return this;
     }
 
     public QueryOptions getOptions()
