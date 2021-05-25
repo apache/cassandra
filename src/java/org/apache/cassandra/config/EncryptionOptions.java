@@ -85,8 +85,6 @@ public class EncryptionOptions
     {
         ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
                                                      new HashMap<>());
-        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
-                                                                     ssl_context_factory.parameters);
         keystore = "conf/.keystore";
         keystore_password = "cassandra";
         truststore = "conf/.truststore";
@@ -109,8 +107,6 @@ public class EncryptionOptions
                              Boolean optional)
     {
         this.ssl_context_factory = ssl_context_factory;
-        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
-                                                                     ssl_context_factory.parameters);
         this.keystore = keystore;
         this.keystore_password = keystore_password;
         this.truststore = truststore;
@@ -129,8 +125,6 @@ public class EncryptionOptions
     public EncryptionOptions(EncryptionOptions options)
     {
         ssl_context_factory = options.ssl_context_factory;
-        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
-                                                                     ssl_context_factory.parameters);
         keystore = options.keystore;
         keystore_password = options.keystore_password;
         truststore = options.truststore;
@@ -149,6 +143,8 @@ public class EncryptionOptions
     /* Computes enabled and optional before use. Because the configuration can be loaded
      * through pluggable mechanisms this is the only safe way to make sure that
      * enabled and optional are set correctly.
+     *
+     * It also initializes the ISslContextFactory's instance
      */
     public EncryptionOptions applyConfig()
     {
