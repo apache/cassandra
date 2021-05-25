@@ -63,9 +63,11 @@ import org.json.simple.parser.JSONParser;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 public class SchemaCQLHelperTest extends CQLTester
 {
@@ -142,8 +144,8 @@ public class SchemaCQLHelperTest extends CQLTester
     @Test
     public void testDroppedColumnsCQL()
     {
-        String keyspace = "cql_test_keyspace_dropped_columns";
-        String table = "test_table_dropped_columns";
+        String keyspace = createKeyspaceName();
+        String table = createTableName();
 
         TableMetadata.Builder builder =
         TableMetadata.builder(keyspace, table)
@@ -173,29 +175,56 @@ public class SchemaCQLHelperTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
-        String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_dropped_columns.test_table_dropped_columns (\n" +
+        String expected = "CREATE TABLE IF NOT EXISTS " + keyspace + '.' + table + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 varint,\n" +
-                          "    reg1 varint,\n" +
-                          "    reg3 varint,\n" +
-                          "    reg2 varint,\n" +
-                          "    st1 varint static,\n" +
                           "    PRIMARY KEY (pk1, ck1)\n) WITH ID =";
         String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
 
         assertThat(actual,
                    allOf(startsWith(expected),
-                         containsString("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg1 USING TIMESTAMP 10000;"),
-                         containsString("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg3 USING TIMESTAMP 30000;"),
-                         containsString("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP reg2 USING TIMESTAMP 20000;"),
-                         containsString("ALTER TABLE cql_test_keyspace_dropped_columns.test_table_dropped_columns DROP st1 USING TIMESTAMP 5000;")));
+                         containsString("DROPPED COLUMN RECORD reg1 varint USING TIMESTAMP 10000"),
+                         containsString("DROPPED COLUMN RECORD reg2 varint USING TIMESTAMP 20000"),
+                         containsString("DROPPED COLUMN RECORD reg3 varint USING TIMESTAMP 30000"),
+                         containsString("DROPPED COLUMN RECORD st1 varint static USING TIMESTAMP 5000")));
+    }
+
+    @Test
+    public void testDroppedColumnsCQLWithEarlierTimestamp()
+    {
+        String keyspace = createKeyspaceName();
+        String table = createTableName();
+
+        TableMetadata.Builder builder =
+        TableMetadata.builder(keyspace, table)
+                     .addPartitionKeyColumn("pk1", IntegerType.instance)
+                     .addClusteringColumn("ck1", IntegerType.instance)
+                     .addStaticColumn("st1", IntegerType.instance)
+                     .addRegularColumn("reg1", IntegerType.instance)
+                     .addRegularColumn("reg2", IntegerType.instance)
+                     .addRegularColumn("reg3", IntegerType.instance);
+
+        ColumnMetadata st1 = builder.getColumn(ByteBufferUtil.bytes("st1"));
+        builder.removeRegularOrStaticColumn(st1.name);
+
+        String expectedMessage = String.format("Invalid dropped column record for column st1 in %s at 5000: pre-existing record at 1000 is newer", table);
+        try
+        {
+            builder.recordColumnDrop(st1, 5000)
+                   .recordColumnDrop(st1, 1000);
+            fail("Expected an ConfigurationException: " + expectedMessage);
+        }
+        catch (ConfigurationException e)
+        {
+            assertThat(e.getMessage(), containsString(expectedMessage));
+        }
     }
 
     @Test
     public void testReaddedColumns()
     {
-        String keyspace = "cql_test_keyspace_readded_columns";
-        String table = "test_table_readded_columns";
+        String keyspace = createKeyspaceName();
+        String table = createTableName();
 
         TableMetadata.Builder builder =
         TableMetadata.builder(keyspace, table)
@@ -223,21 +252,19 @@ public class SchemaCQLHelperTest extends CQLTester
 
         // when re-adding, column is present as both column and as dropped column record.
         String actual = SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata());
-        String expected = "CREATE TABLE IF NOT EXISTS cql_test_keyspace_readded_columns.test_table_readded_columns (\n" +
+        String expected = "CREATE TABLE IF NOT EXISTS " + keyspace + '.' + table + " (\n" +
                           "    pk1 varint,\n" +
                           "    ck1 varint,\n" +
-                          "    reg2 varint,\n" +
-                          "    reg1 varint,\n" +
                           "    st1 varint static,\n" +
+                          "    reg1 varint,\n" +
+                          "    reg2 varint,\n" +
                           "    PRIMARY KEY (pk1, ck1)\n" +
                           ") WITH ID";
 
         assertThat(actual,
                    allOf(startsWith(expected),
-                         containsString("ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP reg1 USING TIMESTAMP 10000;"),
-                         containsString("ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD reg1 varint;"),
-                         containsString("ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns DROP st1 USING TIMESTAMP 20000;"),
-                         containsString("ALTER TABLE cql_test_keyspace_readded_columns.test_table_readded_columns ADD st1 varint static;")));
+                         containsString("DROPPED COLUMN RECORD reg1 varint USING TIMESTAMP 10000"),
+                         containsString("DROPPED COLUMN RECORD st1 varint static USING TIMESTAMP 20000")));
     }
 
     @Test
@@ -309,7 +336,8 @@ public class SchemaCQLHelperTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
 
         assertThat(SchemaCQLHelper.getTableMetadataAsCQL(cfs.metadata(), true, true, true, cfs.keyspace.getMetadata()),
-                   containsString("CLUSTERING ORDER BY (cl1 ASC)\n" +
+                   containsString("AND CLUSTERING ORDER BY (cl1 ASC)\n" +
+                            "    AND DROPPED COLUMN RECORD reg1 ascii USING TIMESTAMP " + droppedTimestamp +"\n" +
                             "    AND additional_write_policy = 'ALWAYS'\n" +
                             "    AND bloom_filter_fp_chance = 1.0\n" +
                             "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
@@ -447,16 +475,14 @@ public class SchemaCQLHelperTest extends CQLTester
                           "    ck1 varint,\n" +
                           "    ck2 varint,\n" +
                           "    reg2 int,\n" +
-                          "    reg1 " + typeC+ ",\n" +
                           "    reg3 int,\n" +
+                          "    reg1 " + typeC + ",\n" +
                           "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
                           ") WITH ID = " + cfs.metadata.id + "\n" +
-                          "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)";
+                          "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 DESC)" + "\n" +
+                          "    AND DROPPED COLUMN RECORD reg3 int USING TIMESTAMP 10000";
 
-        assertThat(schema,
-                   allOf(startsWith(expected),
-                         containsString("ALTER TABLE " + keyspace() + "." + tableName + " DROP reg3 USING TIMESTAMP 10000;"),
-                         containsString("ALTER TABLE " + keyspace() + "." + tableName + " ADD reg3 int;")));
+        assertThat(schema, startsWith(expected));
 
         assertThat(schema, containsString("CREATE INDEX IF NOT EXISTS " + tableName + "_reg2_idx ON " + keyspace() + '.' + tableName + " (reg2);"));
 
@@ -492,5 +518,45 @@ public class SchemaCQLHelperTest extends CQLTester
 
         execute("insert into %s (t_id, id, ck, nk) VALUES (true, true, false, true)");
         assertRows(execute("select t_id, id, ck, nk from %s"), row(true, true, false, true), row(true, false, false, true));
+    }
+
+    @Test
+    public void testParseCreateTableWithDroppedColumns()
+    {
+        String keyspace = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String createTable = "CREATE TABLE IF NOT EXISTS %s (\n" +
+                             "    pk1 varint,\n" +
+                             "    ck1 varint,\n" +
+                             "    PRIMARY KEY (pk1, ck1)\n" +
+                             ") WITH ID = 552f4510-b8fd-11eb-aef4-518b3b328020\n" +
+                             "    AND CLUSTERING ORDER BY (ck1 ASC)\n" +
+                             "    AND DROPPED COLUMN RECORD reg1 varint USING TIMESTAMP 10000\n" +
+                             "    AND DROPPED COLUMN RECORD st1 varint static USING TIMESTAMP 5000\n";
+        createTable(keyspace, createTable);
+    }
+
+    @Test
+    public void testParseCreateTableWithDuplicateDroppedColumns()
+    {
+        String keyspace = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        String createTable = "CREATE TABLE IF NOT EXISTS %s (\n" +
+                             "    pk1 varint,\n" +
+                             "    ck1 varint,\n" +
+                             "    PRIMARY KEY (pk1, ck1)\n" +
+                             ") WITH ID = 552f4510-b8fd-11eb-aef4-518b3b328020\n" +
+                             "    AND CLUSTERING ORDER BY (ck1 ASC)\n" +
+                             "    AND DROPPED COLUMN RECORD reg1 varint USING TIMESTAMP 10000\n" +
+                             "    AND DROPPED COLUMN RECORD reg1 varint static USING TIMESTAMP 5000\n";
+        try
+        {
+            createTable(keyspace, createTable);
+            fail("Expected an InvalidRequestException: Cannot have multiple dropped column record for column reg1");
+        }
+        catch (RuntimeException e)
+        {
+            assertThat(e.getCause(), notNullValue());
+            assertThat(e.getCause().getMessage(),
+                       containsString("Cannot have multiple dropped column record for column"));
+        }
     }
 }
