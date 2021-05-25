@@ -324,6 +324,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
                     builder.addRegularColumn(column, type.getType());
             });
         }
+        for (DroppedColumn.Raw record : attrs.droppedColumnRecords())
+            builder.recordColumnDrop(record.prepare(keyspaceName, tableName));
         return builder;
     }
 
