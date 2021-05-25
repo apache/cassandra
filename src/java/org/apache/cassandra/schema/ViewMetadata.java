@@ -198,7 +198,7 @@ public final class ViewMetadata implements SchemaElement
                .append(" WITH ")
                .increaseIndent();
 
-        metadata.appendTableOptions(builder, internals);
+        metadata.appendTableOptions(builder, internals, false);
     }
 
     @Override
