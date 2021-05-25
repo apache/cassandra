@@ -822,6 +822,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     appStates.put(ApplicationState.TOKENS, valueFactory.tokens(bootstrapTokens));
                     appStates.put(ApplicationState.STATUS, valueFactory.hibernate(true));
                 }
+                MigrationCoordinator.instance.removeAndIgnoreEndpoint(DatabaseDescriptor.getReplaceAddress());
             }
             else if (shouldBootstrap())
             {
@@ -899,7 +900,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         logger.warn(String.format("There are nodes in the cluster with a different schema version than us we did not merged schemas from, " +
                                   "our version : (%s), outstanding versions -> endpoints : %s. Use -Dcassandra.skip_schema_check=true " +
-                                  "to ignore this.",
+                                  "to ignore this, -Dcassandra.skip_schema_check_for_endpoints=<ep1[,epN]> to skip specific endpoints," +
+                                  "or -Dcassandra.skip_schema_check_for_versions=<ver1[,verN]> to skip specific schema versions",
                                   Schema.instance.getVersion(),
                                   MigrationCoordinator.instance.outstandingVersions()));
 
@@ -2463,7 +2465,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void removeEndpoint(InetAddress endpoint)
     {
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(endpoint));
-        MigrationCoordinator.instance.removeVersionInfoForEndpoint(endpoint);
+        MigrationCoordinator.instance.removeAndIgnoreEndpoint(endpoint);
         SystemKeyspace.removeEndpoint(endpoint);
     }
 
