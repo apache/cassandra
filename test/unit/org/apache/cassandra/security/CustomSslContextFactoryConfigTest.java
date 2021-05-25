@@ -47,11 +47,15 @@ public class CustomSslContextFactoryConfigTest
     public void testCustomSslContextFactoryConfiguration() {
 
         Config config = DatabaseDescriptor.loadConfig();
+        config.client_encryption_options.applyConfig();
+
         Assert.assertEquals("org.apache.cassandra.security.CustomSslContextFactoryImplForTest",
-                            config.ssl_context_factory.class_name);
-        Assert.assertEquals(3, config.ssl_context_factory.parameters.size());
-        Assert.assertEquals("value1", config.ssl_context_factory.parameters.get("key1"));
-        Assert.assertEquals("value2", config.ssl_context_factory.parameters.get("key2"));
-        Assert.assertEquals("value3", config.ssl_context_factory.parameters.get("key3"));
+                            config.client_encryption_options.ssl_context_factory.class_name);
+        Assert.assertEquals(config.client_encryption_options.ssl_context_factory.class_name,
+                            config.client_encryption_options.sslContextFactoryInstance.getClass().getName());
+        Assert.assertEquals(3, config.client_encryption_options.ssl_context_factory.parameters.size());
+        Assert.assertEquals("value1", config.client_encryption_options.ssl_context_factory.parameters.get("key1"));
+        Assert.assertEquals("value2", config.client_encryption_options.ssl_context_factory.parameters.get("key2"));
+        Assert.assertEquals("value3", config.client_encryption_options.ssl_context_factory.parameters.get("key3"));
     }
 }

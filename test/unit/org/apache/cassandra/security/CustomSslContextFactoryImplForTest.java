@@ -46,7 +46,7 @@ public class CustomSslContextFactoryImplForTest implements ISslContextFactory
     }
 
     @Override
-    public void initHotReloading(EncryptionOptions.ServerEncryptionOptions serverOpts, EncryptionOptions clientOpts) throws SSLException
+    public void initHotReloading(EncryptionOptions options) throws SSLException
     {
 
     }

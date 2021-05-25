@@ -45,7 +45,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A Factory for providing and setting up client {@link SSLSocket}s. Also provides
@@ -108,8 +107,6 @@ public final class SSLFactory
      */
     private static boolean isHotReloadingInitialized = false;
 
-    private static ISslContextFactory sslContextFactory;
-
     /** Provides the list of protocols that would have been supported if "TLS" was selected as the
      * protocol before the change for CASSANDRA-13325 that expects explicit protocol versions.
      * @return list of enabled protocol names
@@ -130,16 +127,12 @@ public final class SSLFactory
         }
     }
 
-    public static void setSslContextFactory(ISslContextFactory sslContextFactory) {
-        SSLFactory.sslContextFactory = sslContextFactory;
-    }
-
     /**
      * Create a JSSE {@link SSLContext}.
      */
     public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
-        return sslContextFactory.createJSSESslContext(options, buildTruststore);
+        return options.sslContextFactoryInstance.createJSSESslContext(options, buildTruststore);
     }
 
     /**
@@ -196,8 +189,8 @@ public final class SSLFactory
         ISslContextFactory.SocketType adaptedSocketType = socketType == SocketType.SERVER ?
                                                           ISslContextFactory.SocketType.SERVER :
                                                           ISslContextFactory.SocketType.CLIENT;
-        return sslContextFactory.createNettySslContext(options, buildTruststore, adaptedSocketType, useOpenSsl,
-                                                       cipherFilter);
+        return options.sslContextFactoryInstance.createNettySslContext(options, buildTruststore, adaptedSocketType, useOpenSsl,
+                                                                       cipherFilter);
     }
 
     /**
@@ -212,9 +205,10 @@ public final class SSLFactory
         if (!isHotReloadingInitialized)
             throw new IllegalStateException("Hot reloading functionality has not been initialized.");
 
-        logger.debug("Checking whether certificates have been updated {}", sslContextFactory.getClass().getName());
+        logger.debug("Checking whether certificates have been updated {} and {}",
+                     serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
 
-        if (sslContextFactory.shouldReload())
+        if (serverOpts.sslContextFactoryInstance.shouldReload() || clientOpts.sslContextFactoryInstance.shouldReload())
         {
             logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
             try
@@ -244,7 +238,8 @@ public final class SSLFactory
 
         logger.debug("Initializing hot reloading SSLContext");
 
-        sslContextFactory.initHotReloading(serverOpts, clientOpts);
+        serverOpts.sslContextFactoryInstance.initHotReloading(clientOpts);
+        clientOpts.sslContextFactoryInstance.initHotReloading(clientOpts);
 
         if (!isHotReloadingInitialized)
         {

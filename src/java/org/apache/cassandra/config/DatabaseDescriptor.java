@@ -1004,9 +1004,6 @@ public class DatabaseDescriptor
     {
         try
         {
-            sslContextFactory = FBUtilities.newSslContextFactory(conf.ssl_context_factory.class_name,
-                                                                 conf.ssl_context_factory.parameters);
-            SSLFactory.setSslContextFactory(sslContextFactory);
             SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, true, true);
             SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.require_client_auth, true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);

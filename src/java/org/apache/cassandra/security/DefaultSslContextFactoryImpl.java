@@ -142,21 +142,14 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public synchronized void initHotReloading(EncryptionOptions.ServerEncryptionOptions serverOpts,
-                          EncryptionOptions clientOpts) throws SSLException {
+    public synchronized void initHotReloading(EncryptionOptions options) throws SSLException {
 
         List<HotReloadableFile> fileList = new ArrayList<>();
 
-        if (serverOpts != null && serverOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
+        if (options != null && options.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
         {
-            fileList.add(new HotReloadableFile(serverOpts.keystore));
-            fileList.add(new HotReloadableFile(serverOpts.truststore));
-        }
-
-        if (clientOpts != null && clientOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-        {
-            fileList.add(new HotReloadableFile(clientOpts.keystore));
-            fileList.add(new HotReloadableFile(clientOpts.truststore));
+            fileList.add(new HotReloadableFile(options.keystore));
+            fileList.add(new HotReloadableFile(options.truststore));
         }
 
         hotReloadableFiles = ImmutableList.copyOf(fileList);
