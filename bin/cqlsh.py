@@ -425,7 +425,7 @@ class Shell(cmd.Cmd):
     last_hist = None
     shunted_query_out = None
     use_paging = True
-    no_file_io = False
+    no_file_io = DEFAULT_NO_FILE_IO
 
     default_page_size = 100
 
@@ -446,8 +446,8 @@ class Shell(cmd.Cmd):
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=None,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
-                 is_subshell=False,
-                 no_file_io=False):
+                 no_file_io=DEFAULT_NO_FILE_IO,
+                 is_subshell=False):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -536,8 +536,8 @@ class Shell(cmd.Cmd):
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
-        self.is_subshell = is_subshell
         self.no_file_io = no_file_io
+        self.is_subshell = is_subshell
 
     @property
     def batch_mode(self):
@@ -1677,6 +1677,7 @@ class Shell(cmd.Cmd):
                          max_trace_wait=self.max_trace_wait, ssl=self.ssl,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
+                         no_file_io=self.no_file_io,
                          is_subshell=True)
         # duplicate coverage related settings in subshell
         if self.coverage:
@@ -2184,7 +2185,7 @@ def read_options(cmdlineargs, environment):
     optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     optvalues.execute = None
-    optvalues.no_file_io = option_with_default(configs.getboolean, 'ui', 'no_file_io', False)
+    optvalues.no_file_io = option_with_default(configs.getboolean, 'ui', 'no_file_io', DEFAULT_NO_FILE_IO)
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
     # Make sure some user values read from the command line are in unicode
