@@ -75,10 +75,11 @@ public interface ISslContextFactory
 
     /**
      * Initializes hot reloading of the security keys/certs. The implementation must guarantee this to be thread safe.
-     * @param options Client encryption options (Native Protocol)
+     * @param options Encryption options
      * @throws SSLException
      */
     void initHotReloading(EncryptionOptions options) throws SSLException;
+
     /**
      * Returns if any changes require the reloading of the SSL context returned by this factory.
      * This will be called by Cassandra's periodic polling for any potential changes that will reload the SSL context
@@ -86,6 +87,15 @@ public interface ISslContextFactory
      * @return
      */
     boolean shouldReload();
+
+    /**
+     * Returns if this factory uses private keystore.
+     * @param options Encryption options
+     * @return {@code true} by default unless the implementation overrides this
+     */
+    default boolean hasKeystore(EncryptionOptions options) {
+        return true;
+    }
 
     /**
      * Indicates if the process holds the inbound/listening end of the socket ({@link SSLFactory.SocketType#SERVER})), or the

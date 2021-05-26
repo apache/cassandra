@@ -34,6 +34,13 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * This holds various options used for enabling SSL/TLS encryption.
+ * Examples of such options are: supported cipher-suites, ssl protocol with version, accepted protocols, end-point
+ * verification, require
+ * client-auth/cert etc.
+ *
+ */
 public class EncryptionOptions
 {
     Logger logger = LoggerFactory.getLogger(EncryptionOptions.class);
@@ -55,6 +62,11 @@ public class EncryptionOptions
         }
     }
 
+    /*
+     * If the ssl_context_factory is configured, most likely it won't use file based keystores and truststores and
+     * can choose to completely customize SSL context's creation. Most likely it won't also use keystore_password and
+     *  truststore_passwords configurations as they are in plaintext format.
+     */
     public final ParameterizedClass ssl_context_factory;
     public final String keystore;
     public final String keystore_password;
@@ -79,6 +91,11 @@ public class EncryptionOptions
     // Calculated by calling applyConfig() after populating/parsing
     protected Boolean isEnabled = null;
     protected Boolean isOptional = null;
+
+    /*
+     * We will wait to initialize this until applyConfig() call to make sure we do it only when the caller is ready
+     * to use this option instance.
+     */
     public ISslContextFactory sslContextFactoryInstance;
 
     public EncryptionOptions()
@@ -162,7 +179,7 @@ public class EncryptionOptions
         // If someone is asking for an _insecure_ connection and not explicitly telling us to refuse
         // encrypted connections AND they have a keystore file, we assume they would like to be able
         // to transition to encrypted connections in the future.
-        else if (new File(keystore).exists())
+        else if (sslContextFactoryInstance.hasKeystore(this))
         {
             isOptional = !isEnabled;
         }
@@ -467,7 +484,8 @@ public class EncryptionOptions
                Objects.equals(accepted_protocols, opt.accepted_protocols) &&
                Objects.equals(algorithm, opt.algorithm) &&
                Objects.equals(store_type, opt.store_type) &&
-               Objects.equals(cipher_suites, opt.cipher_suites);
+               Objects.equals(cipher_suites, opt.cipher_suites) &&
+               Objects.equals(ssl_context_factory, opt.ssl_context_factory);
     }
 
     /**
@@ -491,6 +509,8 @@ public class EncryptionOptions
         result += 31 * (cipher_suites == null ? 0 : cipher_suites.hashCode());
         result += 31 * Boolean.hashCode(require_client_auth);
         result += 31 * Boolean.hashCode(require_endpoint_verification);
+        result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.class_name.hashCode());
+        result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.parameters.hashCode());
         return result;
     }
 

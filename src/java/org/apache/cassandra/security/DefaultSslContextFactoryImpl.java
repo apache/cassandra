@@ -161,6 +161,11 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         return hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload);
     }
 
+    @Override
+    public boolean hasKeystore(EncryptionOptions options) {
+        return new File(options.keystore).exists();
+    }
+
     /**
      * Helper class for hot reloading SSL Contexts
      */
