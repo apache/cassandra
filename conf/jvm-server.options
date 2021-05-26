@@ -22,6 +22,9 @@
 # and perhaps have affinity.
 #-Dcassandra.available_processors=number_of_processors
 
+# Specify host id for the first boot and persist it
+#-Dcassandra.host_id_first_boot=host_id
+
 # The directory location of the cassandra.yaml file.
 #-Dcassandra.config=directory
 

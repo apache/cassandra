@@ -1,4 +1,5 @@
 4.1
+ * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
