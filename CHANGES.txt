@@ -1,4 +1,5 @@
 4.0-rc2
+ * Keep python driver in artifacts (CASSANDRA-16700)
  * Improve AuditLogging documentation and logback.xml(CASSANDRA-16682)
  * Spin up SEPWorker threads whenever we grow the number of work permits(CASSANDRA-16668)
  * Add a warning to cqlsh 6.0.0 that DESCRIBE does not work with a Cassandra 3.x servers (CASSANDRA-16652)
