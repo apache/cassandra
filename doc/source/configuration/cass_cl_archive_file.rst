@@ -1,9 +1,9 @@
 .. _cassandra-cl-archive:
 
-commitlog-archiving.properties file 
+commitlog_archiving.properties file
 ================================
 
-The ``commitlog-archiving.properties`` configuration file can optionally set commands that are executed when archiving or restoring a commitlog segment. 
+The ``commitlog_archiving.properties`` configuration file can optionally set commands that are executed when archiving or restoring a commitlog segment.
 
 ===========================
 Options
