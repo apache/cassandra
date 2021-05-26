@@ -1185,6 +1185,11 @@
           <exclude name="ide/nbproject/private/**" />
         </tarfileset>
 
+        <!-- python driver -->
+        <tarfileset dir="${basedir}" prefix="${final.name}-src">
+          <include name="lib/cassandra-driver-internal-only-**" />
+        </tarfileset>
+
         <!-- Shell includes in bin/ and tools/bin/ -->
         <tarfileset dir="${basedir}" prefix="${final.name}-src">
           <include name="bin/*.in.sh" />
