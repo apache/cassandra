@@ -35,7 +35,6 @@ public class CustomSslContextFactoryConfigTest
     public static void setupDatabaseDescriptor()
     {
         System.setProperty("cassandra.config", "cassandra-sslcontextfactory.yaml");
-        DatabaseDescriptor.daemonInitialization();
     }
 
     @AfterClass
@@ -49,7 +48,7 @@ public class CustomSslContextFactoryConfigTest
         Config config = DatabaseDescriptor.loadConfig();
         config.client_encryption_options.applyConfig();
 
-        Assert.assertEquals("org.apache.cassandra.security.CustomSslContextFactoryImplForTest",
+        Assert.assertEquals("org.apache.cassandra.security.DummySslContextFactoryImpl",
                             config.client_encryption_options.ssl_context_factory.class_name);
         Assert.assertEquals(config.client_encryption_options.ssl_context_factory.class_name,
                             config.client_encryption_options.sslContextFactoryInstance.getClass().getName());
