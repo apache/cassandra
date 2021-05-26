@@ -51,7 +51,7 @@ endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
 client_encryption_options:
     ssl_context_factory:
-        class_name: org.apache.cassandra.security.CustomSslContextFactoryImplForTest
+        class_name: org.apache.cassandra.security.DummySslContextFactoryImpl
         parameters:
             key1: "value1"
             key2: "value2"

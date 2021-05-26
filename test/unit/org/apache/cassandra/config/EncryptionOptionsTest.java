@@ -28,7 +28,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.security.CustomSslContextFactoryImplForTest;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;

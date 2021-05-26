@@ -29,9 +29,9 @@ import org.apache.cassandra.config.EncryptionOptions;
 /**
  * TEST ONLY Class. DON'T use it for anything else.
  */
-public class CustomSslContextFactoryImplForTest implements ISslContextFactory
+public class DummySslContextFactoryImpl implements ISslContextFactory
 {
-    public CustomSslContextFactoryImplForTest(Map<String,String> parameters) {}
+    public DummySslContextFactoryImpl(Map<String,String> parameters) {}
 
     @Override
     public SSLContext createJSSESslContext(EncryptionOptions options, boolean buildTruststore) throws SSLException
