@@ -21,6 +21,8 @@ package org.apache.cassandra.security;
 import java.io.File;
 import java.io.IOException;
 import java.security.cert.CertificateException;
+import java.util.HashMap;
+import java.util.Map;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.commons.io.FileUtils;
@@ -38,6 +40,7 @@ import io.netty.handler.ssl.util.SelfSignedCertificate;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.config.ParameterizedClass;
 
 import static org.junit.Assert.assertArrayEquals;
 
@@ -233,5 +236,65 @@ public class SSLFactoryTest
 
         Assert.assertTrue(ctx2.isClient());
         Assert.assertEquals(ctx2.cipherSuites(), options.cipher_suites);
+    }
+
+    @Test
+    public void testCacheKeyEqualityForCustomSslContextFactory() {
+
+        Map<String,String> parameters1 = new HashMap<>();
+        parameters1.put("key1", "value1");
+        parameters1.put("key2", "value2");
+        EncryptionOptions encryptionOptions1 =
+        new EncryptionOptions()
+        .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
+        .withProtocol("TLSv1.1")
+        .withRequireClientAuth(true)
+        .withRequireEndpointVerification(false);
+
+        SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, SSLFactory.SocketType.SERVER,
+                                                                false);
+
+        Map<String,String> parameters2 = new HashMap<>();
+        parameters2.put("key1", "value1");
+        parameters2.put("key2", "value2");
+        EncryptionOptions encryptionOptions2 =
+        new EncryptionOptions()
+        .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
+        .withProtocol("TLSv1.1")
+        .withRequireClientAuth(true)
+        .withRequireEndpointVerification(false);
+
+        SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, SSLFactory.SocketType.SERVER,
+                                                                false);
+
+        Assert.assertEquals(cacheKey1, cacheKey2);
+    }
+
+    @Test
+    public void testCacheKeyInequalityForCustomSslContextFactory() {
+
+        Map<String,String> parameters1 = new HashMap<>();
+        parameters1.put("key1", "value11");
+        parameters1.put("key2", "value12");
+        EncryptionOptions encryptionOptions1 =
+        new EncryptionOptions()
+        .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
+        .withProtocol("TLSv1.1");
+
+        SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, SSLFactory.SocketType.SERVER,
+                                                                false);
+
+        Map<String,String> parameters2 = new HashMap<>();
+        parameters2.put("key1", "value21");
+        parameters2.put("key2", "value22");
+        EncryptionOptions encryptionOptions2 =
+        new EncryptionOptions()
+        .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
+        .withProtocol("TLSv1.1");
+
+        SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, SSLFactory.SocketType.SERVER,
+                                                                false);
+
+        Assert.assertNotEquals(cacheKey1, cacheKey2);
     }
 }
