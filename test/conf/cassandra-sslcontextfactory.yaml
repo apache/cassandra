@@ -57,6 +57,12 @@ client_encryption_options:
             key2: "value2"
             key3: "value3"
 server_encryption_options:
+    ssl_context_factory:
+        class_name: org.apache.cassandra.security.MissingSslContextFactoryImpl
+        parameters:
+            key1: "value1"
+            key2: "value2"
+            key3: "value3"
     internode_encryption: none
     keystore: conf/.keystore
     keystore_password: cassandra

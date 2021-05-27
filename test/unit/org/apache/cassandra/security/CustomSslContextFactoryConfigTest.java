@@ -27,6 +27,7 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class CustomSslContextFactoryConfigTest
@@ -43,7 +44,7 @@ public class CustomSslContextFactoryConfigTest
     }
 
     @Test
-    public void testCustomSslContextFactoryConfiguration() {
+    public void testValidCustomSslContextFactoryConfiguration() {
 
         Config config = DatabaseDescriptor.loadConfig();
         config.client_encryption_options.applyConfig();
@@ -56,5 +57,19 @@ public class CustomSslContextFactoryConfigTest
         Assert.assertEquals("value1", config.client_encryption_options.ssl_context_factory.parameters.get("key1"));
         Assert.assertEquals("value2", config.client_encryption_options.ssl_context_factory.parameters.get("key2"));
         Assert.assertEquals("value3", config.client_encryption_options.ssl_context_factory.parameters.get("key3"));
+    }
+
+    @Test
+    public void testInvalidCustomSslContextFactoryConfiguration() {
+        Config config = DatabaseDescriptor.loadConfig();
+        try {
+            config.server_encryption_options.applyConfig();
+        } catch(ConfigurationException ce) {
+            Assert.assertEquals("Unable to create instance of ISslContextFactory for org.apache.cassandra.security" +
+                                ".MissingSslContextFactoryImpl", ce.getMessage());
+            Assert.assertNotNull("Unable to find root cause of pluggable ISslContextFactory loading failure",
+                                 ce.getCause());
+            Assert.assertTrue(ce.getCause() instanceof ClassNotFoundException);
+        }
     }
 }

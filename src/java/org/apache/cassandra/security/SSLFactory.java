@@ -208,7 +208,13 @@ public final class SSLFactory
         logger.debug("Checking whether certificates have been updated {} and {}",
                      serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
 
-        if (serverOpts.sslContextFactoryInstance.shouldReload() || clientOpts.sslContextFactoryInstance.shouldReload())
+        boolean serverSslContextShouldReload = serverOpts == null ? false :
+                                               serverOpts.sslContextFactoryInstance.shouldReload();
+
+        boolean clientSslContextShouldReload = clientOpts == null ? false :
+                                               clientOpts.sslContextFactoryInstance.shouldReload();
+
+        if (serverSslContextShouldReload || clientSslContextShouldReload)
         {
             logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
             try
@@ -238,8 +244,13 @@ public final class SSLFactory
 
         logger.debug("Initializing hot reloading SSLContext");
 
-        serverOpts.sslContextFactoryInstance.initHotReloading(clientOpts);
-        clientOpts.sslContextFactoryInstance.initHotReloading(clientOpts);
+        if ( serverOpts != null ) {
+            serverOpts.sslContextFactoryInstance.initHotReloading(serverOpts);
+        }
+
+        if ( clientOpts != null ) {
+            clientOpts.sslContextFactoryInstance.initHotReloading(clientOpts);
+        }
 
         if (!isHotReloadingInitialized)
         {

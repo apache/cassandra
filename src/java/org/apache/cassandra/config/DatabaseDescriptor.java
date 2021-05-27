@@ -68,7 +68,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
-import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
@@ -126,8 +125,6 @@ public class DatabaseDescriptor
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
-    private static ISslContextFactory sslContextFactory;
-
     private static long preparedStatementsCacheSizeInMB;
 
     private static long keyCacheSizeInMB;
@@ -1273,8 +1270,6 @@ public class DatabaseDescriptor
     {
         DatabaseDescriptor.roleManager = roleManager;
     }
-
-    public static ISslContextFactory getSslContextFactory() { return sslContextFactory; }
 
     public static int getPermissionsValidity()
     {
