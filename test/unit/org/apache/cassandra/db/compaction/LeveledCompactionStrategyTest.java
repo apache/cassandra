@@ -108,7 +108,7 @@ public class LeveledCompactionStrategyTest
      * Since we use StandardLeveled CF for every test, we want to clean up after the test.
      */
     @After
-    public void truncateStandardLeveled()
+    public void truncateSTandardLeveled()
     {
         cfs.truncateBlocking();
     }
@@ -663,7 +663,7 @@ public class LeveledCompactionStrategyTest
     }
 
     @Test
-    public void testSingleTokenSSTable()
+    public void singleTokenSSTableTest()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
@@ -696,7 +696,7 @@ public class LeveledCompactionStrategyTest
     }
 
     @Test
-    public void testRandomMultiLevelAdd()
+    public void randomMultiLevelAddTest()
     {
         int iterations = 100;
         int levelCount = 9;
