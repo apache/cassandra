@@ -600,5 +600,8 @@ public class DatabaseDescriptorTest
         Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
                             config.client_encryption_options.ssl_context_factory.class_name);
         Assert.assertTrue(config.client_encryption_options.ssl_context_factory.parameters.isEmpty());
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
+                            config.server_encryption_options.ssl_context_factory.class_name);
+        Assert.assertTrue(config.server_encryption_options.ssl_context_factory.parameters.isEmpty());
     }
 }

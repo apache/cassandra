@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -280,6 +279,7 @@ public class Config
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
+
     public InternodeCompression internode_compression = InternodeCompression.none;
 
     public int hinted_handoff_throttle_in_kb = 1024;

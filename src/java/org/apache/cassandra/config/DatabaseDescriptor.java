@@ -125,6 +125,7 @@ public class DatabaseDescriptor
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
+
     private static long preparedStatementsCacheSizeInMB;
 
     private static long keyCacheSizeInMB;
