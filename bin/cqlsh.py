@@ -234,6 +234,7 @@ parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
 parser.add_option("--no-file-io", action='store_true', dest='no_file_io',
                   help='Disable cqlsh commands that perform file I/O.')
+parser.add_option('--disable-history', action='store_true', help='Disable saving of history', default=False)
 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
@@ -2186,6 +2187,7 @@ def read_options(cmdlineargs, environment):
     optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     optvalues.execute = None
     optvalues.no_file_io = option_with_default(configs.getboolean, 'ui', 'no_file_io', DEFAULT_NO_FILE_IO)
+    optvalues.disable_history = option_with_default(configs.getboolean, 'history', 'disabled', False)
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
     # Make sure some user values read from the command line are in unicode
@@ -2270,8 +2272,8 @@ def init_history():
         readline.set_completer_delims(delims)
 
 
-def save_history():
-    if readline is not None:
+def save_history(history_disabled=False):
+    if readline is not None and not history_disabled:
         try:
             readline.write_history_file(HISTORY)
         except IOError:
@@ -2377,7 +2379,7 @@ def main(options, hostname, port):
         signal.signal(signal.SIGHUP, handle_sighup)
 
     shell.cmdloop()
-    save_history()
+    save_history(options.disable_history)
 
     if shell.batch_mode and shell.statement_error:
         sys.exit(2)
