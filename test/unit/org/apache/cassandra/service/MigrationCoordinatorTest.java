@@ -205,7 +205,7 @@ public class MigrationCoordinatorTest
 		WaitQueue.Signal signal = coordinator.getVersionInfoUnsafe(V1).register();
 		Assert.assertFalse(signal.isSignalled());
 
-		coordinator.removeVersionInfoForEndpoint(EP1);
+		coordinator.removeAndIgnoreEndpoint(EP1);
 		Assert.assertNull(coordinator.getVersionInfoUnsafe(V1));
 
 		Assert.assertTrue(signal.isSignalled());
