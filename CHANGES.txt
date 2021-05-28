@@ -7,6 +7,7 @@
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
+ * Don't wait on schema versions from replacement target when replacing a node (CASSANDRA-16692)
  * StandaloneVerifier does not fail when unable to verify SSTables, it only fails if Corruption is thrown (CASSANDRA-16683)
  * Fix bloom filter false ratio calculation by including true negatives (CASSANDRA-15834)
  * Prevent loss of commit log data when moving sstables between nodes (CASSANDRA-16619)
