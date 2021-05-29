@@ -1129,11 +1129,12 @@ public final class SystemKeyspace
         String hostString = System.getProperty("cassandra.host_id_first_boot", UUID.randomUUID().toString());
         try {
             hostId = UUID.fromString(hostString);
+            hostId = setLocalHostId(hostId);
         } catch (IllegalArgumentException e) {
             logger.error("hostId to use was illegal UUID: {}", hostString, e);
         }
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
-        return setLocalHostId(hostId);
+        return hostId;
     }
 
     /**
