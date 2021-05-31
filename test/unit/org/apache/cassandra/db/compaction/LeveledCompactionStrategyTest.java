@@ -67,6 +67,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.Collections.singleton;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -698,7 +699,7 @@ public class LeveledCompactionStrategyTest
     public void randomMultiLevelAddTest()
     {
         int iterations = 100;
-        int levelCount = 8;
+        int levelCount = 9;
 
         ColumnFamilyStore cfs = MockSchema.newCFS();
         LeveledManifest lm = new LeveledManifest(cfs, 10, 10, new SizeTieredCompactionStrategyOptions());
@@ -822,5 +823,33 @@ public class LeveledCompactionStrategyTest
     {
         assertEquals(l1.size(), l2.size());
         assertEquals(new HashSet<>(l1), new HashSet<>(l2));
+    }
+
+    @Test
+    public void testHighestLevelHasMoreDataThanSupported()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS();
+        int fanoutSize = 2; // to generate less sstables
+        LeveledManifest lm = new LeveledManifest(cfs, 1, fanoutSize, new SizeTieredCompactionStrategyOptions());
+
+        // generate data for L7 to trigger compaction
+        int l7 = 7;
+        int maxBytesForL7 = (int) (Math.pow(fanoutSize, l7) * 1024 * 1024);
+        int sstablesSizeForL7 = (int) (maxBytesForL7 * 1.001) + 1;
+        List<SSTableReader> sstablesOnL7 = Collections.singletonList(MockSchema.sstableWithLevel( 1, sstablesSizeForL7, l7, cfs));
+        lm.addSSTables(sstablesOnL7);
+
+        // generate data for L8 to trigger compaction
+        int l8 = 8;
+        int maxBytesForL8 = (int) (Math.pow(fanoutSize, l8) * 1024 * 1024);
+        int sstablesSizeForL8 = (int) (maxBytesForL8 * 1.001) + 1;
+        List<SSTableReader> sstablesOnL8 = Collections.singletonList(MockSchema.sstableWithLevel( 2, sstablesSizeForL8, l8, cfs));
+        lm.addSSTables(sstablesOnL8);
+
+        // compaction for L8 sstables is not supposed to be run because there is no upper level to promote sstables
+        // that's why we expect compaction candidates for L7 only
+        Collection<SSTableReader> compactionCandidates = lm.getCompactionCandidates().sstables;
+        assertThat(compactionCandidates).containsAll(sstablesOnL7);
+        assertThat(compactionCandidates).doesNotContainAnyElementsOf(sstablesOnL8);
     }
 }

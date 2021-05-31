@@ -242,11 +242,22 @@ public class LeveledManifest
             // we want to calculate score excluding compacting ones
             Set<SSTableReader> sstablesInLevel = Sets.newHashSet(sstables);
             Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, cfs.getTracker().getCompacting());
-            double score = (double) SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i, maxSSTableSizeInBytes);
+            long remainingBytesForLevel = SSTableReader.getTotalBytes(remaining);
+            long maxBytesForLevel = maxBytesForLevel(i, maxSSTableSizeInBytes);
+            double score = (double) remainingBytesForLevel / (double) maxBytesForLevel;
             logger.trace("Compaction score for level {} is {}", i, score);
 
             if (score > 1.001)
             {
+                // the highest level should not ever exceed its maximum size under normal curcumstaces,
+                // but if it happens we warn about it
+                if (i == generations.levelCount() - 1)
+                {
+                    logger.warn("L" + i + " (maximum supported level) has " + remainingBytesForLevel + " bytes while "
+                            + "its maximum size is supposed to be " + maxBytesForLevel + " bytes");
+                    continue;
+                }
+
                 // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
                 if (l0Compaction != null)
                     return l0Compaction;
