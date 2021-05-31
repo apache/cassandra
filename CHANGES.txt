@@ -1,4 +1,5 @@
 3.11.11
+ * Fix LeveledCompactionStrategy compacts last level throw an ArrayIndexOutOfBoundsException (CASSANDRA-15669)
  * Maps $CASSANDRA_LOG_DIR to cassandra.logdir java property when executing nodetool (CASSANDRA-16199)
  * Nodetool garbagecollect should retain SSTableLevel for LCS (CASSANDRA-16634)
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
