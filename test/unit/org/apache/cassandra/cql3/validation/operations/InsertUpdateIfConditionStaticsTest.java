@@ -376,4 +376,44 @@ public class InsertUpdateIfConditionStaticsTest extends CQLTester
                            + "APPLY BATCH"),
                    row(false));
     }
+
+    @Test
+    public void testStaticColumnsCasUpdateWithNullStaticColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s1 int static, s2 int static, value int, PRIMARY KEY (pk, ck))");
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (2, 1, 1) USING TIMESTAMP 1001");
+        flush();
+        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
+        execute("INSERT INTO %s (pk, s1) VALUES (2, 2) USING TIMESTAMP 2001");
+        flush();
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3001 WHERE pk = 2");
+        flush();
+
+        assertRows(execute("UPDATE %s SET s1 = ? WHERE pk = ? IF s1 = NULL", 2, 1), row(true));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1), row(1, null, 2, 1, null));
+        assertRows(execute("UPDATE %s SET s1 = ? WHERE pk = ? IF EXISTS", 2, 2), row(true));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 2), row(2, null, 2, 1, null));
+    }
+
+    @Test
+    public void testStaticColumnsCasDeleteWithNullStaticColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s1 int static, s2 int static, value int, PRIMARY KEY (pk, ck))");
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (2, 1, 1) USING TIMESTAMP 1001");
+        flush();
+        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
+        execute("INSERT INTO %s (pk, s1) VALUES (2, 2) USING TIMESTAMP 2001");
+        flush();
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3001 WHERE pk = 2");
+        flush();
+
+        assertRows(execute("DELETE s2 FROM %s WHERE pk = ? IF s1 = NULL", 1), row(true));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 1));
+        assertRows(execute("DELETE s2 FROM %s WHERE pk = ? IF EXISTS", 2), row(true));
+        assertRows(execute("SELECT * FROM %s WHERE pk = ?", 2));
+    }
 }

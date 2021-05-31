@@ -175,7 +175,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (!upgradeInProgressPossible)
             return new ExpiringMemoizingSupplier.Memoized<>(null);
 
-        CassandraVersion minVersion = SystemKeyspace.CURRENT_VERSION.familyLowerBound.get();
+        CassandraVersion minVersion = SystemKeyspace.CURRENT_VERSION;
 
         // Skip the round if the gossiper has not started yet
         // Otherwise, upgradeInProgressPossible can be set to false wrongly.
@@ -198,7 +198,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 minVersion = version;
         }
 
-        if (minVersion.compareTo(SystemKeyspace.CURRENT_VERSION.familyLowerBound.get()) < 0)
+        if (minVersion.compareTo(SystemKeyspace.CURRENT_VERSION) < 0)
             return new ExpiringMemoizingSupplier.Memoized<>(minVersion);
 
         if (!allHostsHaveKnownVersion)
@@ -2220,19 +2220,20 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         return isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) || // this is quite obvious
                // however if we discovered only nodes at current version so far (in particular only this node),
-               // but still there are nodes with unkonwn version, we also want to report that the cluster may have nodes at 3.x
-               upgradeInProgressPossible && !isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION);
+               // but still there are nodes with unknown version, we also want to report that the cluster may have nodes at 3.x
+               upgradeInProgressPossible && !isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION.familyLowerBound.get());
     }
 
     /**
-     * Returns {@code true} if there are nodes on version lower than the provided version (only major / minor counts)
+     * Returns {@code true} if there are nodes on version lower than the provided version
      */
-    public boolean isUpgradingFromVersionLowerThan(CassandraVersion referenceVersion) {
+    public boolean isUpgradingFromVersionLowerThan(CassandraVersion referenceVersion)
+    {
         CassandraVersion v = upgradeFromVersionMemoized.get();
         if (SystemKeyspace.NULL_VERSION.equals(v) && scheduledGossipTask == null)
             return false;
-        else
-            return v != null && v.compareTo(referenceVersion.familyLowerBound.get()) < 0;
+
+        return v != null && v.compareTo(referenceVersion) < 0;
     }
 
     private boolean nodesAgreeOnSchema(Collection<InetAddressAndPort> nodes)

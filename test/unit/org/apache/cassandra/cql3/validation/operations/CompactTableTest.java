@@ -112,4 +112,21 @@ public class CompactTableTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE pk = ?",2),
                    row(2, 2, null, 2));
     }
+
+    @Test
+    public void testColumnDeletionWithCompactTableWithMultipleColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (pk, v1, v2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
+        flush();
+        execute("INSERT INTO %s (pk, v1) VALUES (1, 2) USING TIMESTAMP 2000");
+        flush();
+        execute("DELETE v1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE pk=1"), row(1, null, 1));
+        assertRows(execute("SELECT v1, v2 FROM %s WHERE pk=1"), row(null, 1));
+        assertRows(execute("SELECT v1 FROM %s WHERE pk=1"), row((Integer) null));
+    }
 }

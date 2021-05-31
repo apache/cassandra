@@ -125,16 +125,17 @@ public abstract class Selection
         return resultMetadata;
     }
 
-    public static Selection wildcard(TableMetadata table, boolean isJson)
+    public static Selection wildcard(TableMetadata table, boolean isJson, boolean returnStaticContentOnPartitionWithNoRows)
     {
         List<ColumnMetadata> all = new ArrayList<>(table.columns().size());
         Iterators.addAll(all, table.allColumnsInSelectOrder());
-        return new SimpleSelection(table, all, Collections.emptySet(), true, isJson);
+        return new SimpleSelection(table, all, Collections.emptySet(), true, isJson, returnStaticContentOnPartitionWithNoRows);
     }
 
     public static Selection wildcardWithGroupBy(TableMetadata table,
                                                 VariableSpecifications boundNames,
-                                                boolean isJson)
+                                                boolean isJson,
+                                                boolean returnStaticContentOnPartitionWithNoRows)
     {
         return fromSelectors(table,
                              Lists.newArrayList(table.allColumnsInSelectOrder()),
@@ -142,12 +143,13 @@ public abstract class Selection
                              Collections.emptySet(),
                              Collections.emptySet(),
                              true,
-                             isJson);
+                             isJson,
+                             returnStaticContentOnPartitionWithNoRows);
     }
 
-    public static Selection forColumns(TableMetadata table, List<ColumnMetadata> columns)
+    public static Selection forColumns(TableMetadata table, List<ColumnMetadata> columns, boolean returnStaticContentOnPartitionWithNoRows)
     {
-        return new SimpleSelection(table, columns, Collections.emptySet(), false, false);
+        return new SimpleSelection(table, columns, Collections.emptySet(), false, false, returnStaticContentOnPartitionWithNoRows);
     }
 
     public void addFunctionsTo(List<Function> functions)
@@ -170,7 +172,8 @@ public abstract class Selection
                                           Set<ColumnMetadata> orderingColumns,
                                           Set<ColumnMetadata> nonPKRestrictedColumns,
                                           boolean hasGroupBy,
-                                          boolean isJson)
+                                          boolean isJson,
+                                          boolean returnStaticContentOnPartitionWithNoRows)
     {
         List<ColumnMetadata> selectedColumns = new ArrayList<>();
 
@@ -190,13 +193,15 @@ public abstract class Selection
                                           nonPKRestrictedColumns,
                                           mapping,
                                           factories,
-                                          isJson)
+                                          isJson,
+                                          returnStaticContentOnPartitionWithNoRows)
             : new SimpleSelection(table,
                                   selectedColumns,
                                   filteredOrderingColumns,
                                   nonPKRestrictedColumns,
                                   mapping,
-                                  isJson);
+                                  isJson,
+                                  returnStaticContentOnPartitionWithNoRows);
     }
 
     /**
@@ -335,6 +340,7 @@ public abstract class Selection
     {
         /**
          * Returns the {@code ColumnFilter} corresponding to those selectors
+         *
          * @return the {@code ColumnFilter} corresponding to those selectors
          */
         public ColumnFilter getColumnFilter();
@@ -385,14 +391,15 @@ public abstract class Selection
                                List<ColumnMetadata> selectedColumns,
                                Set<ColumnMetadata> orderingColumns,
                                boolean isWildcard,
-                               boolean isJson)
+                               boolean isJson,
+                               boolean returnStaticContentOnPartitionWithNoRows)
         {
             this(table,
                  selectedColumns,
                  orderingColumns,
                  SelectionColumnMapping.simpleMapping(selectedColumns),
                  isWildcard ? ColumnFilterFactory.wildcard(table)
-                            : ColumnFilterFactory.fromColumns(table, selectedColumns, orderingColumns, Collections.emptySet()),
+                            : ColumnFilterFactory.fromColumns(table, selectedColumns, orderingColumns, Collections.emptySet(), returnStaticContentOnPartitionWithNoRows),
                  isWildcard,
                  isJson);
         }
@@ -402,13 +409,14 @@ public abstract class Selection
                                Set<ColumnMetadata> orderingColumns,
                                Set<ColumnMetadata> nonPKRestrictedColumns,
                                SelectionColumnMapping mapping,
-                               boolean isJson)
+                               boolean isJson,
+                               boolean returnStaticContentOnPartitionWithNoRows)
         {
             this(table,
                  selectedColumns,
                  orderingColumns,
                  mapping,
-                 ColumnFilterFactory.fromColumns(table, selectedColumns, orderingColumns, nonPKRestrictedColumns),
+                 ColumnFilterFactory.fromColumns(table, selectedColumns, orderingColumns, nonPKRestrictedColumns, returnStaticContentOnPartitionWithNoRows),
                  false,
                  isJson);
         }
@@ -510,13 +518,14 @@ public abstract class Selection
                                        Set<ColumnMetadata> nonPKRestrictedColumns,
                                        SelectionColumnMapping metadata,
                                        SelectorFactories factories,
-                                       boolean isJson)
+                                       boolean isJson,
+                                       boolean returnStaticContentOnPartitionWithNoRows)
         {
             super(table,
                   columns,
                   orderingColumns,
                   metadata,
-                  ColumnFilterFactory.fromSelectorFactories(table, factories, orderingColumns, nonPKRestrictedColumns),
+                  ColumnFilterFactory.fromSelectorFactories(table, factories, orderingColumns, nonPKRestrictedColumns, returnStaticContentOnPartitionWithNoRows),
                   isJson);
 
             this.factories = factories;
