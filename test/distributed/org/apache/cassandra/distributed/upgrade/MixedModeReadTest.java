@@ -51,7 +51,7 @@ public class MixedModeReadTest extends UpgradeTestBase
             // we need to let gossip settle or the test will fail
             int attempts = 1;
             //noinspection Convert2MethodRef
-            while (!((IInvokableInstance) (cluster.get(1))).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0.familyLowerBound.get()) &&
+            while (!((IInvokableInstance) cluster.get(1)).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) &&
                                                                                  !Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion(("3.0")).familyLowerBound.get())))
             {
                 if (attempts++ > 90)
