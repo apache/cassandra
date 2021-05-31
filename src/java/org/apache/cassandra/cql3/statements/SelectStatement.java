@@ -804,19 +804,6 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    // Determines whether, when we have a partition result with not rows, we still return the static content (as a
-    // result set row with null for all other regular columns.)
-    private boolean returnStaticContentOnPartitionWithNoRows()
-    {
-        if (table.isStaticCompactTable())
-            return true;
-
-        // The general rational is that if some rows are specifically selected by the query (have clustering or
-        // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
-        // query, then we include that content.
-        return queriesFullPartitions();
-    }
-
     // Used by ModificationStatement for CAS operations
     void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
     throws InvalidRequestException
@@ -829,7 +816,7 @@ public class SelectStatement implements CQLStatement
         // If there is no rows, we include the static content if we should and we're done.
         if (!partition.hasNext())
         {
-            if (!staticRow.isEmpty() && returnStaticContentOnPartitionWithNoRows())
+            if (!staticRow.isEmpty() && restrictions.returnStaticContentOnPartitionWithNoRows())
             {
                 result.newRow(partition.partitionKey(), staticRow.clustering());
                 for (ColumnMetadata def : selection.getColumns())
@@ -874,15 +861,6 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
-    }
-
-    /**
-     * Checks if the query is a full partitions selection.
-     * @return {@code true} if the query is a full partitions selection, {@code false} otherwise.
-     */
-    private boolean queriesFullPartitions()
-    {
-        return !restrictions.hasClusteringColumnsRestrictions() && !restrictions.hasRegularColumnsRestrictions();
     }
 
     private static void addValue(ResultSetBuilder result, ColumnMetadata def, Row row, int nowInSec, ProtocolVersion protocolVersion)
@@ -1021,8 +999,8 @@ public class SelectStatement implements CQLStatement
 
             if (selectables.isEmpty()) // wildcard query
             {
-                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson)
-                                  : Selection.wildcard(table, parameters.isJson);
+                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows())
+                                  : Selection.wildcard(table, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows());
             }
 
             return Selection.fromSelectors(table,
@@ -1031,7 +1009,8 @@ public class SelectStatement implements CQLStatement
                                            resultSetOrderingColumns,
                                            restrictions.nonPKRestrictedColumns(false),
                                            hasGroupBy,
-                                           parameters.isJson);
+                                           parameters.isJson,
+                                           restrictions.returnStaticContentOnPartitionWithNoRows());
         }
 
         /**
