@@ -36,7 +36,8 @@ cover the full range. We also can't compact all L0 sstables with all L1 sstables
 use too much memory.
 
 When deciding which level to compact LCS checks the higher levels first (with LCS, a "higher" level is one with a higher
-number, L0 being the lowest one) and if the level is behind a compaction will be started in that level.
+number: L0 is the lowest one, L8 is the highest one) and if the level is behind a compaction will be started
+in that level.
 
 Major compaction
 ~~~~~~~~~~~~~~~~

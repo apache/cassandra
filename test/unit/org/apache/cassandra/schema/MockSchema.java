@@ -97,6 +97,11 @@ public class MockSchema
         return sstable(generation, 0, false, firstToken, lastToken, level, cfs);
     }
 
+    public static SSTableReader sstableWithLevel(int generation, int size, int level, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, size, false, generation, generation, level, cfs);
+    }
+
     public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, ColumnFamilyStore cfs)
     {
         return sstable(generation, size, keepRef, firstToken, lastToken, 0, cfs);
