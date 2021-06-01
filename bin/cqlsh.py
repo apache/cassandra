@@ -230,6 +230,10 @@ parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, 
                   help='Specify the connection timeout in seconds (default: %default seconds).')
 parser.add_option("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
                   help='Specify the default request timeout in seconds (default: %default seconds).')
+parser.add_option("--consistency-level", dest='consistency_level',
+                  help='Specify the initial consistency level.')
+parser.add_option("--serial-consistency-level", dest='serial_consistency_level',
+                  help='Specify the initial serial consistency level.')
 parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
 parser.add_option("--no-file-io", action='store_true', dest='no_file_io',
@@ -429,11 +433,14 @@ class Shell(cmd.Cmd):
     no_file_io = DEFAULT_NO_FILE_IO
 
     default_page_size = 100
+    consistency_level = None
+    serial_consistency_level = None
 
     def __init__(self, hostname, port, color=False,
                  username=None, password=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
+                 consistency_level=None, serial_consistency_level=None,
                  tracing_enabled=False, expand_enabled=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
@@ -463,6 +470,14 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_enabled
         self.page_size = self.default_page_size
         self.expand_enabled = expand_enabled
+
+        if not consistency_level:
+            raise Exception('Argument consistency_level must not be None')
+        if not serial_consistency_level:
+            raise Exception('Argument serial_consistency_level must not be None')
+        self.consistency_level = consistency_level
+        self.serial_consistency_level = serial_consistency_level
+
         if use_conn:
             self.conn = use_conn
         else:
@@ -531,9 +546,6 @@ class Shell(cmd.Cmd):
             self.show_line_nums = True
         self.stdin = stdin
         self.query_out = sys.stdout
-        self.consistency_level = cassandra.ConsistencyLevel.ONE
-        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL
-
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
@@ -1668,6 +1680,8 @@ class Shell(cmd.Cmd):
                          username=username, password=password,
                          encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
+                         consistency_level=self.consistency_level,
+                         serial_consistency_level=self.serial_consistency_level,
                          tracing_enabled=self.tracing_enabled,
                          display_nanotime_format=self.display_nanotime_format,
                          display_timestamp_format=self.display_timestamp_format,
@@ -2180,6 +2194,9 @@ def read_options(cmdlineargs, environment):
     optvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
     optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
+    optvalues.consistency_level = option_with_default(configs.get, 'cql', 'consistency_level', 'ONE')
+    optvalues.serial_consistency_level = option_with_default(configs.get, 'cql', 'serial_consistency_level', 'SERIAL')
+
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
     optvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
@@ -2195,6 +2212,24 @@ def read_options(cmdlineargs, environment):
     options.username = maybe_ensure_text(options.username)
     options.password = maybe_ensure_text(options.password)
     options.keyspace = maybe_ensure_text(options.keyspace)
+
+    serial_levels = [cassandra.ConsistencyLevel.SERIAL, cassandra.ConsistencyLevel.LOCAL_SERIAL]
+
+    try:
+        cl = cassandra.ConsistencyLevel.name_to_value[options.consistency_level.upper()]
+        if cl in serial_levels:
+            raise KeyError
+        options.consistency_level = cl
+    except KeyError:
+        parser.error('"{}" is not a valid consistency level'.format(options.consistency_level))
+
+    try:
+        cl = cassandra.ConsistencyLevel.name_to_value[options.serial_consistency_level.upper()]
+        if cl not in serial_levels:
+            raise KeyError
+        options.serial_consistency_level = cl
+    except KeyError:
+        parser.error('"{}" is not a valid serial consistency level'.format(options.serial_consistency_level))
 
     hostname = option_with_default(configs.get, 'connection', 'hostname', DEFAULT_HOST)
     port = option_with_default(configs.get, 'connection', 'port', DEFAULT_PORT)
@@ -2347,6 +2382,8 @@ def main(options, hostname, port):
                       protocol_version=options.protocol_version,
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
+                      consistency_level=options.consistency_level,
+                      serial_consistency_level=options.serial_consistency_level,
                       display_timestamp_format=options.time_format,
                       display_nanotime_format=options.nanotime_format,
                       display_date_format=options.date_format,
