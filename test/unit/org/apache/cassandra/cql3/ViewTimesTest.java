@@ -302,8 +302,10 @@ public class ViewTimesTest extends ViewAbstractTest
         catch (Exception e)
         {
             // Make sure the message is clear. See CASSANDRA-16960
-            assertEquals("Forbidden default_time_to_live detected for a materialized view. Data in a materialized view always expire at the same time than the corresponding "
-                         + "data in the parent table. default_time_to_live must be set to zero, see CASSANDRA-12868 for more information",
+            assertEquals("Forbidden default_time_to_live detected for a materialized view. " +
+                         "Data in a materialized view always expires at the same time as " +
+                         "the corresponding data in the parent table. default_time_to_live " +
+                         "must be set to zero, see CASSANDRA-12868 for more information",
                          e.getMessage());
         }
     }
