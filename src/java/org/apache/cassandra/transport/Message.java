@@ -51,6 +51,8 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
 
@@ -743,14 +745,14 @@ public abstract class Message
         @Override
         public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
         {
-            // Provide error message to client in case channel is still open
-            UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
-            ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
             if (ctx.channel().isOpen())
             {
+                // Provide error message to client in case channel is still open
+                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
+                ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 ChannelFuture future = ctx.writeAndFlush(errorMessage);
                 // On protocol exception, close the channel as soon as the message have been sent
-                if (cause instanceof ProtocolException)
+                if (isFatal(cause))
                 {
                     future.addListener(new ChannelFutureListener()
                     {
@@ -761,6 +763,27 @@ public abstract class Message
                     });
                 }
             }
+            if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException))
+            {
+                // if any ProtocolExceptions is not silent, then handle
+                if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException && !((ProtocolException) t).isSilent()))
+                {
+                    ClientMetrics.instance.markProtocolException();
+                    // since protocol exceptions are expected to be client issues, not logging stack trace
+                    // to avoid spamming the logs once a bad client shows up
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
+                }
+            }
+            else
+            {
+                ClientMetrics.instance.markUnknownException();
+                logger.warn("Unknown exception in client networking", cause);
+            }
+        }
+
+        private static boolean isFatal(Throwable cause)
+        {
+            return cause instanceof ProtocolException;
         }
     }
 
