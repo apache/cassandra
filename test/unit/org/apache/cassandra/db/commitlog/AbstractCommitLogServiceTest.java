@@ -29,6 +29,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogService.SyncRunnable;
 import org.apache.cassandra.utils.FreeRunningClock;
+import org.apache.cassandra.utils.MonotonicClock;
 
 import static org.apache.cassandra.db.commitlog.AbstractCommitLogService.DEFAULT_MARKER_INTERVAL_MILLIS;
 
@@ -100,7 +101,7 @@ public class AbstractCommitLogServiceTest
     {
         FakeCommitLogService(long syncIntervalMillis)
         {
-            super(new FakeCommitLog(), "This is not a real commit log", syncIntervalMillis, true);
+            super(new FakeCommitLog(), "This is not a real commit log", syncIntervalMillis, MonotonicClock.preciseTime, true);
             lastSyncedAt = 0;
         }
 
