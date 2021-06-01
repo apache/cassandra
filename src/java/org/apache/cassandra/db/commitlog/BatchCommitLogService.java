@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import org.apache.cassandra.utils.MonotonicClock;
+
 class BatchCommitLogService extends AbstractCommitLogService
 {
     /**
@@ -26,9 +28,9 @@ class BatchCommitLogService extends AbstractCommitLogService
      */
     private static final int POLL_TIME_MILLIS = 1000;
 
-    public BatchCommitLogService(CommitLog commitLog)
+    public BatchCommitLogService(CommitLog commitLog, MonotonicClock clock)
     {
-        super(commitLog, "COMMIT-LOG-WRITER", POLL_TIME_MILLIS);
+        super(commitLog, "COMMIT-LOG-WRITER", POLL_TIME_MILLIS, clock);
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)
