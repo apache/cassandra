@@ -1,3 +1,6 @@
+Future version (tbd)
+ * Require only MODIFY permission on base when updating table with MV (STAR-564)
+
 4.1
  * Add information whether sstables are dropped to SchemaChangeListener (CASSANDRA-17582)
  * Save sstable id as string in activity table (CASSANDRA-17585)
