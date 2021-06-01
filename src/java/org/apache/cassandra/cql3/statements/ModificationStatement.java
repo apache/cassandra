@@ -244,17 +244,7 @@ public abstract class ModificationStatement implements CQLStatement
         if (hasConditions())
             state.ensureTablePermission(metadata, Permission.SELECT);
 
-        // MV updates need to get the current state from the table, and might update the views
-        // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
-        Iterator<ViewMetadata> views = View.findAll(keyspace(), columnFamily()).iterator();
-        if (views.hasNext())
-        {
-            state.ensureTablePermission(metadata, Permission.SELECT);
-            do
-            {
-                state.ensureTablePermission(views.next().metadata, Permission.MODIFY);
-            } while (views.hasNext());
-        }
+        // Modification on base table with MV should skip SELECT access control to base table and WRITE access control to view table.
 
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
