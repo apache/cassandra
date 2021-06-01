@@ -46,6 +46,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.MonotonicClock;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.CommitLogSegmentFileComparator;
@@ -72,6 +73,9 @@ public class CommitLog implements CommitLogMBean
     volatile Configuration configuration;
     private boolean started = false;
 
+    @VisibleForTesting
+    final MonotonicClock clock;
+
     private static CommitLog construct()
     {
         CommitLog log = new CommitLog(CommitLogArchiver.construct(), DatabaseDescriptor.getCommitLogSegmentMgrProvider());
@@ -96,16 +100,18 @@ public class CommitLog implements CommitLogMBean
         this.archiver = archiver;
         metrics = new CommitLogMetrics();
 
+        this.clock = MonotonicClock.preciseTime;
+
         switch (DatabaseDescriptor.getCommitLogSync())
         {
             case periodic:
-                executor = new PeriodicCommitLogService(this);
+                executor = new PeriodicCommitLogService(this, clock);
                 break;
             case batch:
-                executor = new BatchCommitLogService(this);
+                executor = new BatchCommitLogService(this, clock);
                 break;
             case group:
-                executor = new GroupCommitLogService(this);
+                executor = new GroupCommitLogService(this, clock);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown commitlog service type: " + DatabaseDescriptor.getCommitLogSync());

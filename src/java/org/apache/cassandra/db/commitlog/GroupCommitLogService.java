@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.MonotonicClock;
 
 /**
  * A commitlog service that will block returning an ACK back to the a coordinator/client
@@ -26,9 +27,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
  */
 public class GroupCommitLogService extends AbstractCommitLogService
 {
-    public GroupCommitLogService(CommitLog commitLog)
+    public GroupCommitLogService(CommitLog commitLog, MonotonicClock clock)
     {
-        super(commitLog, "GROUP-COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncGroupWindow());
+        super(commitLog, "GROUP-COMMIT-LOG-WRITER", (int) DatabaseDescriptor.getCommitLogSyncGroupWindow(), clock);
     }
 
     protected void maybeWaitForSync(CommitLogSegment.Allocation alloc)

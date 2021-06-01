@@ -259,13 +259,13 @@ public interface MonotonicClock
         @Override
         public boolean isAfter(long instant)
         {
-            return now() > instant;
+            return instant - now() < 0;
         }
 
         @Override
         public boolean isAfter(long now, long instant)
         {
-            return now > instant;
+            return instant - now < 0;
         }
     }
 
