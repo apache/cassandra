@@ -27,6 +27,12 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -430,6 +436,104 @@ public class SecondaryIndexTest extends CQLTester
             assertRows(execute("SELECT k, v FROM %s WHERE m CONTAINS 2"), row(0, 1));
             assertEmpty(execute("SELECT k, v FROM %s  WHERE m CONTAINS 4"));
         });
+    }
+
+    private static void assertBackingTableKeyValidator(SecondaryIndexManager indexManager, String indexName, AbstractType expectedType)
+    {
+        assertEquals(expectedType, indexManager.getIndexByName(indexName)
+                                               .getBackingTable()
+                                               .map(ColumnFamilyStore::metadata)
+                                               .map(m -> m.partitionKeyType)
+                                               .orElseThrow(AssertionError::new));
+    }
+
+    /**
+     * Test for DB-1121
+     */
+    @Test
+    public void testIndexOnCollectionsBackingTableKeyValidator() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int PRIMARY KEY, " +
+                    "non_frozen_list list<int>, " +
+                    "non_frozen_set set<text>, " +
+                    "non_frozen_map map<text, int>," +
+                    "frozen_list frozen<list<int>>, " +
+                    "frozen_set frozen<set<text>>, " +
+                    "frozen_map frozen<map<text, int>>)");
+
+        createIndex("CREATE INDEX non_frozen_list_idx ON %s (non_frozen_list)");
+        createIndex("CREATE INDEX non_frozen_set_idx ON %s (non_frozen_set)");
+        createIndex("CREATE INDEX non_frozen_map_idx ON %s (non_frozen_map)");
+        createIndex("CREATE INDEX non_frozen_map_keys_idx ON %s (KEYS(non_frozen_map))");
+        createIndex("CREATE INDEX non_frozen_map_entries_idx ON %s (ENTRIES(non_frozen_map))");
+        createIndex("CREATE INDEX frozen_list_idx ON %s (FULL(frozen_list))");
+        createIndex("CREATE INDEX frozen_set_idx ON %s (FULL(frozen_set))");
+        createIndex("CREATE INDEX frozen_map_idx ON %s (FULL(frozen_map))");
+
+        SecondaryIndexManager indexManager = ColumnFamilyStore.getIfExists(keyspace(), currentTable()).indexManager;
+
+        assertBackingTableKeyValidator(indexManager, "non_frozen_list_idx", Int32Type.instance);
+        assertBackingTableKeyValidator(indexManager, "non_frozen_set_idx", UTF8Type.instance);
+        assertBackingTableKeyValidator(indexManager, "non_frozen_map_idx", Int32Type.instance);
+        assertBackingTableKeyValidator(indexManager, "non_frozen_map_keys_idx", UTF8Type.instance);
+        assertBackingTableKeyValidator(indexManager, "non_frozen_map_entries_idx", CompositeType.getInstance(UTF8Type.instance, Int32Type.instance));
+        assertBackingTableKeyValidator(indexManager, "frozen_list_idx", ListType.getInstance(Int32Type.instance, false));
+        assertBackingTableKeyValidator(indexManager, "frozen_set_idx", SetType.getInstance(UTF8Type.instance, false));
+        assertBackingTableKeyValidator(indexManager, "frozen_map_idx", MapType.getInstance(UTF8Type.instance, Int32Type.instance, false));
+
+        // Unsupported index types for non-frozen list
+        assertInvalidMessage("Cannot create index on keys of column non_frozen_list with non-map type",
+                             "CREATE INDEX ON %s (KEYS(non_frozen_list))");
+        assertInvalidMessage("Cannot create index on entries of column non_frozen_list with non-map type",
+                             "CREATE INDEX ON %s (ENTRIES(non_frozen_list))");
+        assertInvalidMessage("full() indexes can only be created on frozen collections",
+                             "CREATE INDEX ON %s (FULL(non_frozen_list))");
+
+        // Unsupported index types for non-frozen set
+        assertInvalidMessage("Cannot create index on keys of column non_frozen_set with non-map type",
+                             "CREATE INDEX ON %s (KEYS(non_frozen_set))");
+        assertInvalidMessage("Cannot create index on entries of column non_frozen_set with non-map type",
+                             "CREATE INDEX ON %s (ENTRIES(non_frozen_set))");
+        assertInvalidMessage("full() indexes can only be created on frozen collections",
+                             "CREATE INDEX ON %s (FULL(non_frozen_set))");
+
+        // Unsupported index types for non-frozen map
+        assertInvalidMessage("full() indexes can only be created on frozen collections",
+                             "CREATE INDEX ON %s (FULL(non_frozen_map))");
+
+        // Unsupported index types for frozen list
+        assertInvalidMessage("Cannot create keys() index on frozen column frozen_list. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_list)' modifier",
+                             "CREATE INDEX ON %s (KEYS(frozen_list))");
+        assertInvalidMessage("Cannot create entries() index on frozen column frozen_list. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_list)' modifier",
+                             "CREATE INDEX ON %s (ENTRIES(frozen_list))");
+        assertInvalidMessage("Cannot create values() index on frozen column frozen_list. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_list)' modifier",
+                             "CREATE INDEX ON %s (VALUES(frozen_list))");
+
+        // Unsupported index types for frozen set
+        assertInvalidMessage("Cannot create keys() index on frozen column frozen_set. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_set)' modifier",
+                             "CREATE INDEX ON %s (KEYS(frozen_set))");
+        assertInvalidMessage("Cannot create entries() index on frozen column frozen_set. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_set)' modifier",
+                             "CREATE INDEX ON %s (ENTRIES(frozen_set))");
+        assertInvalidMessage("Cannot create values() index on frozen column frozen_set. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_set)' modifier",
+                             "CREATE INDEX ON %s (VALUES(frozen_set))");
+
+        // Unsupported index types for frozen map
+        assertInvalidMessage("Cannot create keys() index on frozen column frozen_map. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_map)' modifier",
+                             "CREATE INDEX ON %s (KEYS(frozen_map))");
+        assertInvalidMessage("Cannot create entries() index on frozen column frozen_map. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_map)' modifier",
+                             "CREATE INDEX ON %s (ENTRIES(frozen_map))");
+        assertInvalidMessage("Cannot create values() index on frozen column frozen_map. Frozen collections " +
+                             "are immutable and must be fully indexed by using the 'full(frozen_map)' modifier",
+                             "CREATE INDEX ON %s (VALUES(frozen_map))");
     }
 
     @Test
