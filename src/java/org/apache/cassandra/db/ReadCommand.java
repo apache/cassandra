@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
@@ -81,6 +80,7 @@ import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.Me
 public abstract class ReadCommand extends AbstractReadQuery
 {
     private static final int TEST_ITERATION_DELAY_MILLIS = Integer.parseInt(System.getProperty("cassandra.test.read_iteration_delay_ms", "0"));
+
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
 
@@ -90,13 +90,6 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final boolean acceptsTransient;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
-
-    // for data queries, coordinators may request information on the repaired data used in constructing the response
-    private boolean trackRepairedStatus = false;
-    // tracker for repaired data, initialized to singleton null object
-    private RepairedDataInfo repairedDataInfo = RepairedDataInfo.NULL_REPAIRED_DATA_INFO;
-
-    int oldestUnrepairedTombstone = Integer.MAX_VALUE;
 
     @Nullable
     private final IndexMetadata index;
@@ -219,68 +212,6 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     /**
-     * Activates repaired data tracking for this command.
-     *
-     * When active, a digest will be created from data read from repaired SSTables. The digests
-     * from each replica can then be compared on the coordinator to detect any divergence in their
-     * repaired datasets. In this context, an sstable is considered repaired if it is marked
-     * repaired or has a pending repair session which has been committed.
-     * In addition to the digest, a set of ids for any pending but as yet uncommitted repair sessions
-     * is recorded and returned to the coordinator. This is to help reduce false positives caused
-     * by compaction lagging which can leave sstables from committed sessions in the pending state
-     * for a time.
-     */
-    public void trackRepairedStatus()
-    {
-        trackRepairedStatus = true;
-    }
-
-    /**
-     * Whether or not repaired status of any data read is being tracked or not
-     *
-     * @return Whether repaired status tracking is active for this command
-     */
-    public boolean isTrackingRepairedStatus()
-    {
-        return trackRepairedStatus;
-    }
-
-    /**
-     * Returns a digest of the repaired data read in the execution of this command.
-     *
-     * If either repaired status tracking is not active or the command has not yet been
-     * executed, then this digest will be an empty buffer.
-     * Otherwise, it will contain a digest* of the repaired data read, or empty buffer
-     * if no repaired data was read.
-     * @return digest of the repaired data read in the execution of the command
-     */
-    public ByteBuffer getRepairedDataDigest()
-    {
-        return repairedDataInfo.getDigest();
-    }
-
-    /**
-     * Returns a boolean indicating whether any relevant sstables were skipped during the read
-     * that produced the repaired data digest.
-     *
-     * If true, then no pending repair sessions or partition deletes have influenced the extent
-     * of the repaired sstables that went into generating the digest.
-     * This indicates whether or not the digest can reliably be used to infer consistency
-     * issues between the repaired sets across replicas.
-     *
-     * If either repaired status tracking is not active or the command has not yet been
-     * executed, then this will always return true.
-     *
-     * @return boolean to indicate confidence in the dwhether or not the digest of the repaired data can be
-     * reliably be used to infer inconsistency issues between the repaired sets across
-     * replicas.
-     */
-    public boolean isRepairedDataDigestConclusive()
-    {
-        return repairedDataInfo.isConclusive();
-    }
-
-    /**
      * Index (metadata) chosen for this query. Can be null.
      *
      * @return index (metadata) chosen for this query
@@ -358,11 +289,6 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadExecutionController executionController);
 
-    protected int oldestUnrepairedTombstone()
-    {
-        return oldestUnrepairedTombstone;
-    }
-
     /**
      * Whether the underlying {@code ClusteringIndexFilter} is reversed or not.
      *
@@ -371,15 +297,15 @@ public abstract class ReadCommand extends AbstractReadQuery
     public abstract boolean isReversed();
 
     @SuppressWarnings("resource")
-    public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
+    public ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
         // ends equal, and there are no dangling RT bound in any partition.
         iterator = RTBoundValidator.validate(iterator, Stage.PROCESSED, true);
 
         return isDigestQuery()
-             ? ReadResponse.createDigestResponse(iterator, this)
-             : ReadResponse.createDataResponse(iterator, this);
+               ? ReadResponse.createDigestResponse(iterator, this)
+               : ReadResponse.createDataResponse(iterator, this, rdi);
     }
 
     long indexSerializedSize(int version)
@@ -448,22 +374,13 @@ public abstract class ReadCommand extends AbstractReadQuery
             Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
         }
 
-        if (isTrackingRepairedStatus())
-        {
-            final DataLimits.Counter repairedReadCount = limits().newCounter(nowInSec(),
-                                                                             false,
-                                                                             selectsFullPartition(),
-                                                                             metadata().enforceStrictLiveness()).onlyCount();
-            repairedDataInfo = new RepairedDataInfo(repairedReadCount);
-        }
-
         UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
         iterator = RTBoundValidator.validate(iterator, Stage.MERGED, false);
 
         try
         {
             iterator = withStateTracking(iterator);
-            iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs), Stage.PURGED, false);
+            iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
             iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
             // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
@@ -482,7 +399,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             // as the count is observed; if that happens in the middle of an open RT, its end bound will not be included.
             // If tracking repaired data, the counter is needed for overreading repaired data, otherwise we can
             // optimise the case where this.limit = DataLimits.NONE which skips an unnecessary transform
-            if (isTrackingRepairedStatus())
+            if (executionController.isTrackingRepairedStatus())
             {
                 DataLimits.Counter limit =
                     limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
@@ -490,7 +407,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                 // ensure that a consistent amount of repaired data is read on each replica. This causes silent
                 // overreading from the repaired data set, up to limits(). The extra data is not visible to
                 // the caller, only iterated to produce the repaired data digest.
-                iterator = repairedDataInfo.extend(iterator, limit);
+                iterator = executionController.getRepairedDataInfo().extend(iterator, limit);
             }
             else
             {
@@ -509,9 +426,14 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     protected abstract void recordLatency(TableMetrics metric, long latencyNanos);
 
+    public ReadExecutionController executionController(boolean trackRepairedStatus)
+    {
+        return ReadExecutionController.forCommand(this, trackRepairedStatus);
+    }
+
     public ReadExecutionController executionController()
     {
-        return ReadExecutionController.forCommand(this);
+        return ReadExecutionController.forCommand(this, false);
     }
 
     /**
@@ -697,13 +619,15 @@ public abstract class ReadCommand extends AbstractReadQuery
     // Skip purgeable tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
     // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for purgeable tombstones (which
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
-    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, ColumnFamilyStore cfs)
+    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, 
+                                                                     ColumnFamilyStore cfs,
+                                                                     ReadExecutionController controller)
     {
         class WithoutPurgeableTombstones extends PurgeFunction
         {
             public WithoutPurgeableTombstones()
             {
-                super(nowInSec(), cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(),
+                super(nowInSec(), cfs.gcBefore(nowInSec()), controller.oldestUnrepairedTombstone(),
                       cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
                       iterator.metadata().enforceStrictLiveness());
             }
@@ -744,7 +668,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     @SuppressWarnings("resource") // resultant iterators are closed by their callers
-    InputCollector<UnfilteredRowIterator> iteratorsForPartition(ColumnFamilyStore.ViewFragment view)
+    InputCollector<UnfilteredRowIterator> iteratorsForPartition(ColumnFamilyStore.ViewFragment view, ReadExecutionController controller)
     {
         final BiFunction<List<UnfilteredRowIterator>, RepairedDataInfo, UnfilteredRowIterator> merge =
             (unfilteredRowIterators, repairedDataInfo) -> {
@@ -757,11 +681,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         // internal counter is satisfied
         final Function<UnfilteredRowIterator, UnfilteredPartitionIterator> postLimitPartitions =
             (rows) -> EmptyIterators.unfilteredPartition(metadata());
-        return new InputCollector<>(view, repairedDataInfo, merge, postLimitPartitions, isTrackingRepairedStatus());
+        return new InputCollector<>(view, controller, merge, postLimitPartitions);
     }
 
     @SuppressWarnings("resource") // resultant iterators are closed by their callers
-    InputCollector<UnfilteredPartitionIterator> iteratorsForRange(ColumnFamilyStore.ViewFragment view)
+    InputCollector<UnfilteredPartitionIterator> iteratorsForRange(ColumnFamilyStore.ViewFragment view, ReadExecutionController controller)
     {
         final BiFunction<List<UnfilteredPartitionIterator>, RepairedDataInfo, UnfilteredPartitionIterator> merge =
             (unfilteredPartitionIterators, repairedDataInfo) -> {
@@ -773,7 +697,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         // Uses identity function to provide additional partitions to be consumed after the command's
         // DataLimits are satisfied. The input to the function will be the iterator of merged, repaired partitions
         // which we'll keep reading until the RepairedDataInfo's internal counter is satisfied.
-        return new InputCollector<>(view, repairedDataInfo, merge, Function.identity(), isTrackingRepairedStatus());
+        return new InputCollector<>(view, controller, merge, Function.identity());
     }
 
     /**
@@ -796,13 +720,13 @@ public abstract class ReadCommand extends AbstractReadQuery
         List<T> unrepairedIters;
 
         InputCollector(ColumnFamilyStore.ViewFragment view,
-                       RepairedDataInfo repairedDataInfo,
+                       ReadExecutionController controller,
                        BiFunction<List<T>, RepairedDataInfo, T> repairedMerger,
-                       Function<T, UnfilteredPartitionIterator> postLimitAdditionalPartitions,
-                       boolean isTrackingRepairedStatus)
+                       Function<T, UnfilteredPartitionIterator> postLimitAdditionalPartitions)
         {
-            this.repairedDataInfo = repairedDataInfo;
-            this.isTrackingRepairedStatus = isTrackingRepairedStatus;
+            this.repairedDataInfo = controller.getRepairedDataInfo();
+            this.isTrackingRepairedStatus = controller.isTrackingRepairedStatus();
+            
             if (isTrackingRepairedStatus)
             {
                 for (SSTableReader sstable : view.sstables)

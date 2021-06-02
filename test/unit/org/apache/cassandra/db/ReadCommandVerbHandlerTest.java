@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -91,46 +92,45 @@ public class ReadCommandVerbHandlerTest
     @Test
     public void setRepairedDataTrackingFlagIfHeaderPresent()
     {
-        ReadCommand command = command(metadata);
-        assertFalse(command.isTrackingRepairedStatus());
-
-        handler.doVerb(Message.builder(READ_REQ, command)
+        TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
+        assertFalse(command.isTrackingRepairedData());
+        handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
                               .from(peer())
                               .withFlag(MessageFlag.TRACK_REPAIRED_DATA)
                               .withId(messageId())
                               .build());
-        assertTrue(command.isTrackingRepairedStatus());
+        assertTrue(command.isTrackingRepairedData());
     }
 
     @Test
     public void dontSetRepairedDataTrackingFlagUnlessHeaderPresent()
     {
-        ReadCommand command = command(metadata);
-        assertFalse(command.isTrackingRepairedStatus());
-        handler.doVerb(Message.builder(READ_REQ, command)
+        TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
+        assertFalse(command.isTrackingRepairedData());
+        handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
                               .from(peer())
                               .withId(messageId())
                               .withParam(ParamType.TRACE_SESSION, UUID.randomUUID())
                               .build());
-        assertFalse(command.isTrackingRepairedStatus());
+        assertFalse(command.isTrackingRepairedData());
     }
 
     @Test
     public void dontSetRepairedDataTrackingFlagIfHeadersEmpty()
     {
-        ReadCommand command = command(metadata);
-        assertFalse(command.isTrackingRepairedStatus());
-        handler.doVerb(Message.builder(READ_REQ, command)
+        TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
+        assertFalse(command.isTrackingRepairedData());
+        handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
                               .withId(messageId())
                               .from(peer())
                               .build());
-        assertFalse(command.isTrackingRepairedStatus());
+        assertFalse(command.isTrackingRepairedData());
     }
 
     @Test (expected = InvalidRequestException.class)
     public void rejectsRequestWithNonMatchingTransientness()
     {
-        ReadCommand command = command(metadata_with_transient);
+        ReadCommand command = new TrackingSinglePartitionReadCommand(metadata_with_transient);
         handler.doVerb(Message.builder(READ_REQ, command)
                               .from(peer())
                               .withId(messageId())
@@ -154,19 +154,36 @@ public class ReadCommandVerbHandlerTest
         }
     }
 
-    private static SinglePartitionReadCommand command(TableMetadata metadata)
+    private static class TrackingSinglePartitionReadCommand extends SinglePartitionReadCommand
     {
-        return new SinglePartitionReadCommand(false,
-                                              0,
-                                              false,
-                                              metadata,
-                                              FBUtilities.nowInSeconds(),
-                                              ColumnFilter.all(metadata),
-                                              RowFilter.NONE,
-                                              DataLimits.NONE,
-                                              KEY,
-                                              new ClusteringIndexSliceFilter(Slices.ALL, false),
-                                              null);
+        private boolean trackingRepairedData = false;
+        
+        TrackingSinglePartitionReadCommand(TableMetadata metadata)
+        {
+            super(false,
+                  0,
+                  false,
+                  metadata,
+                  FBUtilities.nowInSeconds(),
+                  ColumnFilter.all(metadata),
+                  RowFilter.NONE,
+                  DataLimits.NONE,
+                  KEY,
+                  new ClusteringIndexSliceFilter(Slices.ALL, false),
+                  null);
+        }
+
+        @Override
+        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+        {
+            trackingRepairedData = executionController.isTrackingRepairedStatus();
+            return super.executeLocally(executionController);
+        }
+
+        public boolean isTrackingRepairedData()
+        {
+            return trackingRepairedData;
+        }
     }
 
     private static DecoratedKey key(TableMetadata metadata, int key)
