@@ -26,6 +26,7 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class SimpleDateSerializerTest
 {
@@ -151,5 +152,17 @@ public class SimpleDateSerializerTest
     public void testBadDayToMonth()
     {
         Integer days = SimpleDateSerializer.dateStringToDays("1000-09-31");
+    }
+
+    @Test(expected = MarshalException.class)
+    public void testOutOfBoundsHighMillis()
+    {
+        SimpleDateSerializer.timeInMillisToDay(TimeUnit.DAYS.toMillis(Integer.MAX_VALUE) + 1);
+    }
+
+    @Test(expected = MarshalException.class)
+    public void testOutOfBoundsLowMillis()
+    {
+        SimpleDateSerializer.timeInMillisToDay(TimeUnit.DAYS.toMillis(Integer.MIN_VALUE) - 1L);
     }
 }

@@ -70,14 +70,7 @@ public class SimpleDateSerializer extends TypeSerializer<Integer>
         {
             LocalDate parsed = formatter.parse(source, LocalDate::from);
             long millis = parsed.atStartOfDay(UTC).toInstant().toEpochMilli();
-            if (millis < minSupportedDateMillis)
-                throw new MarshalException(String.format("Input date %s is less than min supported date %s", source,
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(minSupportedDateMillis), UTC).toString()));
-            if (millis > maxSupportedDateMillis)
-                throw new MarshalException(String.format("Input date %s is greater than max supported date %s", source,
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(maxSupportedDateMillis), UTC).toString()));
-
-            return timeInMillisToDay(millis);
+            return timeInMillisToDay(source, millis);
         }
         catch (DateTimeParseException| ArithmeticException e1)
         {
@@ -107,6 +100,23 @@ public class SimpleDateSerializer extends TypeSerializer<Integer>
 
     public static int timeInMillisToDay(long millis)
     {
+        return timeInMillisToDay(null, millis);
+    }
+
+    private static int timeInMillisToDay(String source, long millis)
+    {
+        if (millis < minSupportedDateMillis)
+        {
+            throw new MarshalException(String.format("Input date %s is less than min supported date %s",
+                                                     null == source ? ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalDate() : source,
+                                                     ZonedDateTime.ofInstant(Instant.ofEpochMilli(minSupportedDateMillis), UTC).toLocalDate()));
+        }
+        if (millis > maxSupportedDateMillis)
+        {
+            throw new MarshalException(String.format("Input date %s is greater than max supported date %s",
+                                                     null == source ? ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC).toLocalDate() : source,
+                                                     ZonedDateTime.ofInstant(Instant.ofEpochMilli(maxSupportedDateMillis), UTC).toLocalDate()));
+        }
         return (int) (Duration.ofMillis(millis).toDays() - Integer.MIN_VALUE);
     }
 
