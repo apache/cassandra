@@ -3366,5 +3366,13 @@ public class DatabaseDescriptor
         conf.keyspace_count_warn_threshold = value;
     }
 
+    public static int getConsecutiveMessageErrorsThreshold()
+    {
+        return conf.consecutive_message_errors_threshold;
+    }
 
+    public static void setConsecutiveMessageErrorsThreshold(int value)
+    {
+        conf.consecutive_message_errors_threshold = value;
+    }
 }

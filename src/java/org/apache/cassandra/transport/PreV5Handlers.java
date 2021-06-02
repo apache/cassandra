@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +39,10 @@ import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Throwables;
+
+import static org.apache.cassandra.transport.Message.logger;
 
 public class PreV5Handlers
 {
@@ -228,16 +233,39 @@ public class PreV5Handlers
         public void exceptionCaught(final ChannelHandlerContext ctx, Throwable cause)
         {
             // Provide error message to client in case channel is still open
-            ExceptionHandlers.UnexpectedChannelExceptionHandler handler = new ExceptionHandlers.UnexpectedChannelExceptionHandler(ctx.channel(), false);
-            ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
             if (ctx.channel().isOpen())
             {
+                ExceptionHandlers.UnexpectedChannelExceptionHandler handler = new ExceptionHandlers.UnexpectedChannelExceptionHandler(ctx.channel(), false);
+                ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(getConnectionVersion(ctx)));
-                // On protocol exception, close the channel as soon as the message have been sent
-                if (cause instanceof ProtocolException)
+                // On protocol exception, close the channel as soon as the message have been sent.
+                // Most cases of PE are wrapped so the type check below is expected to fail more often than not.
+                // At this moment Fatal exceptions are not thrown in v4, but just as a precaustion we check for them here
+                if (isFatal(cause))
                     future.addListener((ChannelFutureListener) f -> ctx.close());
             }
+            if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException))
+            {
+                // if any ProtocolExceptions is not silent, then handle
+                if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException && !((ProtocolException) t).isSilent()))
+                {
+                    ClientMetrics.instance.markProtocolException();
+                    // since protocol exceptions are expected to be client issues, not logging stack trace
+                    // to avoid spamming the logs once a bad client shows up
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
+                }
+            }
+            else
+            {
+                ClientMetrics.instance.markUnknownException();
+                logger.warn("Unknown exception in client networking", cause);
+            }
             JVMStabilityInspector.inspectThrowable(cause);
+        }
+
+        private static boolean isFatal(Throwable cause)
+        {
+            return cause instanceof ProtocolException; // this matches previous versions which didn't annotate exceptions as fatal or not
         }
     }
 

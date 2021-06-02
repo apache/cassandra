@@ -47,6 +47,9 @@ public final class ClientMetrics
     
     private Meter requestDiscarded;
 
+    private Meter protocolException;
+    private Meter unknownException;
+
     private ClientMetrics()
     {
     }
@@ -74,6 +77,16 @@ public final class ClientMetrics
             clients.addAll(server.getConnectedClients());
 
         return clients;
+    }
+
+    public void markProtocolException()
+    {
+        protocolException.mark();
+    }
+
+    public void markUnknownException()
+    {
+        unknownException.mark();
     }
 
     public synchronized void init(Collection<Server> servers)
@@ -106,6 +119,9 @@ public final class ClientMetrics
         pausedConnections = new AtomicInteger();
         pausedConnectionsGauge = registerGauge("PausedConnections", pausedConnections::get);
         requestDiscarded = registerMeter("RequestDiscarded");
+
+        protocolException = registerMeter("ProtocolException");
+        unknownException = registerMeter("UnknownException");
 
         initialized = true;
     }
