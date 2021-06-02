@@ -28,9 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
-import java.util.function.LongConsumer;
-import java.util.function.Predicate;
+import java.util.function.*;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -48,10 +46,7 @@ import org.apache.cassandra.auth.AllowAllAuthorizer;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.exceptions.ExceptionCode;
-import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.net.proxy.InboundProxyHandler;
 import org.apache.cassandra.service.NativeTransportService;
@@ -143,57 +138,34 @@ public class CQLConnectionTest
     }
 
     @Test
-    public void handleCorruptionAfterNegotiation() throws Throwable
+    public void handleFrameCorruptionAfterNegotiation() throws Throwable
     {
         // A corrupt messaging frame should terminate the connection as clients
         // generally don't track which stream IDs are present in the frame, and the
         // server has no way to signal which streams are affected.
         // Before closing, the server should send an ErrorMessage to inform the
         // client of the corrupt message.
-        int messageCount = 10;
-        Codec codec = Codec.crc(alloc);
-        AllocationObserver observer = new AllocationObserver();
-        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
-
-        ServerConfigurator configurator = ServerConfigurator.builder()
-                                                            .withAllocationObserver(observer)
-                                                            .withProxyController(controller)
-                                                            .build();
-        Server server = server(configurator);
-        Client client = new Client(codec, messageCount);
-        server.start();
-        client.connect(address, port);
-        assertTrue(client.isConnected());
-
-        // Only install the transform after protocol negotiation is complete
-        controller.withPayloadTransform(msg -> {
-            // Corrupt frame
-            ByteBuf bb = (ByteBuf) msg;
-            bb.setByte(bb.readableBytes() / 2, 0xffff);
+        Function<ByteBuf, ByteBuf> corruptor = msg -> {
+            msg.setByte(msg.readableBytes() / 2, 0xffff);
             return msg;
-        });
+        };
+        IntFunction<Envelope> envelopeProvider = i -> randomEnvelope(i, Message.Type.OPTIONS);
+        Predicate<ErrorMessage> errorCheck =
+            error -> error.error.getMessage().contains("unrecoverable CRC mismatch detected in frame body");
 
-        for (int i=0; i < messageCount; i++)
-            client.send(randomEnvelope(i, Message.Type.OPTIONS));
+        // expected allocated bytes are 0 as the errors happen before allocation
+        testFrameCorruption(10, Codec.crc(alloc), envelopeProvider, corruptor, 0, errorCheck);
+        testFrameCorruption(10, Codec.lz4(alloc), envelopeProvider, corruptor, 0, errorCheck);
 
-        client.awaitResponses();
-        // Client has disconnected
-        assertFalse(client.isConnected());
-        // But before it did, it sent an error response
-        Envelope receieved = client.inboundMessages.poll();
-        assertNotNull(receieved);
-        Message.Response response = Message.responseDecoder().decode(client.channel, receieved);
-        assertEquals(Message.Type.ERROR, response.type);
-        assertTrue(((ErrorMessage)response).error.getMessage().contains("unrecoverable CRC mismatch detected in frame body"));
+        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, corruptor, 0, errorCheck);
+        testFrameCorruption(100, Codec.lz4(alloc), envelopeProvider, corruptor, 0, errorCheck);
 
-        // the failure happens before any capacity is allocated
-        observer.verifier().accept(0);
-
-        server.stop();
+        // we don't do more rounds with higher message count as the connection
+        // will be closed when the first corrupt frame is encountered
     }
 
     @Test
-    public void handleCorruptionOfLargeMessage() throws Throwable
+    public void handleCorruptionOfLargeMessageFrame() throws Throwable
     {
         // A corrupt messaging frame should terminate the connection as clients
         // generally don't track which stream IDs are present in the frame, and the
@@ -203,65 +175,42 @@ public class CQLConnectionTest
         // Client needs to expect multiple responses or else awaitResponses returns
         // after the error is first received and we race between handling the exception
         // caused by remote disconnection and checking the connection status.
-        int messageCount = 2;
-        Codec codec = Codec.crc(alloc);
-        AllocationObserver observer = new AllocationObserver();
-        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
 
-        ServerConfigurator configurator = ServerConfigurator.builder()
-                                                            .withAllocationObserver(observer)
-                                                            .withProxyController(controller)
-                                                            .build();
-        Server server = server(configurator);
-        Client client = new Client(codec, messageCount);
-        server.start();
-        client.connect(address, port);
-        assertTrue(client.isConnected());
-
-        // Only install the corrupting transform after protocol negotiation is complete
-        controller.withPayloadTransform(new Function<Object, Object>()
+        Function<ByteBuf, ByteBuf> corruptor = new Function<ByteBuf, ByteBuf>()
         {
             // Don't corrupt the first frame as this would fail early and bypass capacity allocation.
             // Instead, allow enough bytes to fill the first frame through untouched. Then, corrupt
             // a byte which will be in the second frame of the large message .
             int seenBytes = 0;
             int corruptedByte = 0;
-            public Object apply(Object o)
+            public ByteBuf apply(ByteBuf msg)
             {
                 // If we've already injected some corruption, pass through
                 if (corruptedByte > 0)
-                    return o;
+                    return msg;
 
                 // Will the current buffer size take us into the second frame? If so, corrupt it
-                ByteBuf bb = (ByteBuf)o;
-                if (seenBytes + bb.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE + 100)
+                if (seenBytes + msg.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE + 100)
                 {
                     int frameBoundary = MAX_FRAMED_PAYLOAD_SIZE - seenBytes;
-                    corruptedByte = bb.readerIndex() + frameBoundary + 100;
-                    bb.setByte(corruptedByte, 0xffff);
+                    corruptedByte = msg.readerIndex() + frameBoundary + 100;
+                    msg.setByte(corruptedByte, 0xffff);
                 }
                 else
                 {
-                    seenBytes += bb.readableBytes();
+                    seenBytes += msg.readableBytes();
                 }
 
-                return bb;
+                return msg;
             }
-        });
+        };
 
-        int totalBytes = MAX_FRAMED_PAYLOAD_SIZE * 2;
-        client.send(randomEnvelope(0, Message.Type.OPTIONS, totalBytes, totalBytes));
-        client.awaitResponses();
-        // Client has disconnected
-        assertFalse(client.isConnected());
-        // But before it did, it received an error response
-        Envelope received = client.inboundMessages.poll();
-        assertNotNull(received);
-        Message.Response response = Message.responseDecoder().decode(client.channel, received);
-        assertEquals(Message.Type.ERROR, response.type);
-        assertTrue(((ErrorMessage)response).error.getMessage().contains("unrecoverable CRC mismatch detected in frame"));
-        // total capacity is aquired when the first frame is read
-        observer.verifier().accept(totalBytes);
+        int totalBytesPerEnvelope = MAX_FRAMED_PAYLOAD_SIZE * 2;
+        IntFunction<Envelope> envelopeProvider = i -> randomEnvelope(i, Message.Type.OPTIONS, totalBytesPerEnvelope, totalBytesPerEnvelope);
+        Predicate<ErrorMessage> errorCheck =
+            error -> error.error.getMessage().contains("unrecoverable CRC mismatch detected in frame body");
+
+        testFrameCorruption(2, Codec.crc(alloc), envelopeProvider, corruptor, totalBytesPerEnvelope, errorCheck);
     }
 
     @Test
@@ -292,39 +241,120 @@ public class CQLConnectionTest
                                                             .withDecoder(decoder)
                                                             .build();
 
-        runTest(configurator, codec, messageCount, responseMatcher, observer.verifier());
+        runTest(configurator, codec, messageCount, (i) -> randomEnvelope(i, Message.Type.OPTIONS), responseMatcher, observer.verifier());
     }
 
     @Test
-    public void testMessageDecodingErrorEncounteredMidFrame()
+    public void testRecoverableEnvelopeDecodingErrors()
     {
-        messageDecodingErrorEncounteredMidFrame(10, Codec.crc(alloc));
-        messageDecodingErrorEncounteredMidFrame(10, Codec.lz4(alloc));
+        // If an error is encountered while decoding an Envelope header,
+        // it should be possible to continue processing subsequent Envelopes
+        // by skipping the Envelope body. For instance, a ProtocolException
+        // caused by an invalid opcode or version flag in the header should
+        // not require the connection to be terminated. Instead, an error
+        // response should be returned with the correct stream id and further
+        // Envelopes processed as normal.
 
-        messageDecodingErrorEncounteredMidFrame(100, Codec.crc(alloc));
-        messageDecodingErrorEncounteredMidFrame(100, Codec.lz4(alloc));
+        // every other message should error while extracting the Envelope header
+        IntPredicate shouldError = i -> i % 2 == 0;
+        testEnvelopeDecodingErrors(10, shouldError, Codec.crc(alloc));
+        testEnvelopeDecodingErrors(10, shouldError, Codec.lz4(alloc));
 
-        messageDecodingErrorEncounteredMidFrame(1000, Codec.crc(alloc));
-        messageDecodingErrorEncounteredMidFrame(1000, Codec.lz4(alloc));
+        testEnvelopeDecodingErrors(100, shouldError, Codec.crc(alloc));
+        testEnvelopeDecodingErrors(100, shouldError, Codec.lz4(alloc));
+
+        testEnvelopeDecodingErrors(1000, shouldError, Codec.crc(alloc));
+        testEnvelopeDecodingErrors(1000, shouldError, Codec.lz4(alloc));
     }
 
-    private void messageDecodingErrorEncounteredMidFrame(int messageCount, Codec codec)
+    private void testEnvelopeDecodingErrors(int messageCount, IntPredicate shouldError, Codec codec)
     {
+        TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
+        AllocationObserver observer = new AllocationObserver(false);
+        Message.Decoder<Message.Request> decoder = new FixedDecoder();
+
+        // mutate the request from the erroring streams to have an invalid opcode (99)
+        IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(shouldError, b -> b.put(4, (byte)99));
+
+        Predicate<Envelope.Header> responseMatcher =
+        h ->  (shouldError.test(h.streamId) && h.type == Message.Type.ERROR) || h.type == Message.Type.RESULT;
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withConsumer(consumer)
+                                                            .withAllocationObserver(observer)
+                                                            .withDecoder(decoder)
+                                                            .build();
+
+        runTest(configurator, codec, messageCount, envelopeProvider, responseMatcher, observer.verifier());
+    }
+
+    @Test
+    public void testUnrecoverableEnvelopeDecodingErrors()
+    {
+        // If multiple consecutive Envelopes in a Frame cause protocol
+        // exceptions during decoding, we fail fast and close the connection.
+        // The reason for this is that while some protocol errors may be
+        // non-fatal (e.g. an incorrect opcode, or missing BETA flag), a
+        // badly behaved client could also include garbage which may render
+        // any following bytes in the Frame unusable, even though the Frame
+        // level CRC32 is valid for the payload.
+        final IntPredicate firstTen = i -> i < 10;
+
+        // mutate the request from the erroring streams to have an invalid opcode (99)
+        IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(firstTen, b -> b.put(4, (byte)99));
+
+        Predicate<ErrorMessage> errorCheck = error -> error.error.getMessage().contains("Unknown opcode 99");
+        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, Function.identity(), 0, errorCheck);
+    }
+
+    @Test
+    public void testNegativeEnvelopeBodySize()
+    {
+        // A negative value for the body length of an envelope is essentially a
+        // fatal exception as the stream of bytes is unrecoverable
+
+        // every other message should error while extracting the Envelope header
+        IntPredicate shouldError = i -> i % 2 == 0;
+        // set the bodyLength byte to a negative value
+        IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(shouldError, b -> b.putInt(5, -10));
+        Predicate<ErrorMessage> errorCheck = error ->
+            error.error.getMessage().contains("Invalid value for envelope header body length field: -10");
+        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, Function.identity(), 0, errorCheck);
+    }
+
+    @Test
+    public void testRecoverableMessageDecodingErrors()
+    {
+        // If an error is encountered while decoding a CQL message body
+        // then it is usually safe to continue processing subsequent
+        // Envelopes provided that the error is localised to the message
+        // body. If, following such an error, we are able to successfully
+        // extract an Envelope header from the Frame payload we continue
+        // processing as normal. However, if the subsequent header cannot
+        // be extracted, we infer that the corruption of the previous message
+        // has rendered the entire Frame unrecoverable and close the client
+        // connection.
+        recoverableMessageDecodingErrorEncounteredMidFrame(10, Codec.crc(alloc));
+        recoverableMessageDecodingErrorEncounteredMidFrame(10, Codec.lz4(alloc));
+
+        recoverableMessageDecodingErrorEncounteredMidFrame(100, Codec.crc(alloc));
+        recoverableMessageDecodingErrorEncounteredMidFrame(100, Codec.lz4(alloc));
+
+        recoverableMessageDecodingErrorEncounteredMidFrame(1000, Codec.crc(alloc));
+        recoverableMessageDecodingErrorEncounteredMidFrame(1000, Codec.lz4(alloc));
+    }
+
+    private void recoverableMessageDecodingErrorEncounteredMidFrame(int messageCount, Codec codec)
+    {
+        // Message bodies are consistent with Envelope headers, but decoding a message
+        // mid-frame generates an error. A concrete example would be a BatchMessage
+        // which contains SELECT statements.
         final int streamWithError = messageCount / 2;
         TestConsumer consumer = new TestConsumer(new ResultMessage.Void(), codec.encoder);
         AllocationObserver observer = new AllocationObserver();
-        Message.Decoder<Message.Request> decoder = new FixedDecoder()
-        {
-            Message.Request decode(Channel channel, Envelope source)
-            {
-                if (source.header.streamId != streamWithError)
-                    return super.decode(channel, source);
-
-                throw new RequestExecutionException(ExceptionCode.SYNTAX_ERROR,
-                                                    "Error decoding message " + source.header.streamId)
-                {/*test exception*/};
-            }
-        };
+        Message.Decoder<Message.Request> decoder =
+            new FixedDecoder(i -> i == streamWithError,
+                             new ProtocolException("An exception was encountered when decoding a CQL message"));
 
         Predicate<Envelope.Header> responseMatcher =
             h -> (h.streamId == streamWithError && h.type == Message.Type.ERROR) || h.type == Message.Type.RESULT;
@@ -335,12 +365,33 @@ public class CQLConnectionTest
                                                             .withDecoder(decoder)
                                                             .build();
 
-        runTest(configurator, codec, messageCount, responseMatcher, observer.verifier());
+        runTest(configurator, codec, messageCount, (i) -> randomEnvelope(i, Message.Type.OPTIONS), responseMatcher, observer.verifier());
+    }
+
+    @Test
+    public void testUnrecoverableMessageDecodingErrors()
+    {
+        // If multiple consecutive CQL Messages in a Frame cause protocol
+        // exceptions during message decoding, we fail fast and close
+        // the connection. The reason for this is that while some protocol
+        // errors may be non-fatal (e.g. a SELECT statement contained in a
+        // BatchMessage, or unknown consistency level), a badly behaved
+        // client could also send garbage which may render any following
+        // bytes in the Frame unusable, even though the Frame level CRC32
+        // is valid for the payload.
+        final IntPredicate firstTen = i -> i < 10;
+        final ProtocolException protocolError = new ProtocolException("Unknown opcode 99");
+        IntFunction<Envelope> envelopeProvider = (i) -> randomEnvelope(i, Message.Type.OPTIONS);
+        Message.Decoder<Message.Request> decoder = new FixedDecoder(firstTen, protocolError);
+        Function<ByteBuf, ByteBuf> frameTransform = Function.identity();
+        Predicate<ErrorMessage> errorCheck = error -> error.error.getMessage().contains(protocolError.getMessage());
+        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, frameTransform, 0, decoder, errorCheck);
     }
 
     private void runTest(ServerConfigurator configurator,
                          Codec codec,
                          int messageCount,
+                         IntFunction<Envelope> envelopeProvider,
                          Predicate<Envelope.Header> responseMatcher,
                          LongConsumer allocationVerifier)
     {
@@ -353,7 +404,7 @@ public class CQLConnectionTest
             assertTrue(configurator.waitUntilReady());
 
             for (int i = 0; i < messageCount; i++)
-                client.send(randomEnvelope(i, Message.Type.OPTIONS));
+                client.send(envelopeProvider.apply(i));
 
             long totalBytes = client.sendSize;
 
@@ -372,11 +423,77 @@ public class CQLConnectionTest
         catch (Throwable t)
         {
             logger.error("Unexpected error", t);
-            throw new RuntimeException(t);
+            fail();
         }
         finally
         {
             client.stop();
+            server.stop();
+        }
+    }
+
+    private void testFrameCorruption(int messageCount,
+                                     Codec codec,
+                                     IntFunction<Envelope> envelopeProvider,
+                                     Function<ByteBuf, ByteBuf> transform,
+                                     long expectedBytesAllocated,
+                                     Predicate<ErrorMessage> errorPredicate)
+    {
+        testFrameCorruption(messageCount, codec, envelopeProvider, transform, expectedBytesAllocated, null, errorPredicate);
+    }
+
+    private void testFrameCorruption(int messageCount,
+                                     Codec codec,
+                                     IntFunction<Envelope> envelopeProvider,
+                                     Function<ByteBuf, ByteBuf> transform,
+                                     long expectedBytesAllocated,
+                                     Message.Decoder<Message.Request> requestDecoder,
+                                     Predicate<ErrorMessage> errorPredicate)
+    {
+        AllocationObserver observer = new AllocationObserver(false);
+        InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
+
+        if (requestDecoder == null)
+            requestDecoder = new FixedDecoder();
+
+        ServerConfigurator configurator = ServerConfigurator.builder()
+                                                            .withAllocationObserver(observer)
+                                                            .withProxyController(controller)
+                                                            .withDecoder(requestDecoder)
+                                                            .build();
+        Server server = server(configurator);
+        Client client = new Client(codec, messageCount);
+        server.start();
+        try
+        {
+            client.connect(address, port);
+            assertTrue(client.isConnected());
+
+            // Only install the transform after protocol negotiation is complete
+            controller.withPayloadTransform(transform);
+
+            for (int i = 0; i < messageCount; i++)
+                client.send(envelopeProvider.apply(i));
+
+            client.awaitResponses();
+            // Client has disconnected
+            assertFalse(client.isConnected());
+            // But before it did, it sent an error response
+            Envelope received = client.inboundMessages.poll();
+            assertNotNull(received);
+            Message.Response response = Message.responseDecoder().decode(client.channel, received);
+            assertEquals(Message.Type.ERROR, response.type);
+            assertTrue(errorPredicate.test((ErrorMessage) response));
+
+            observer.verifier().accept(expectedBytesAllocated);
+        }
+        catch (Exception e)
+        {
+            logger.error("Unexpected error", e);
+            fail();
+        }
+        finally
+        {
             server.stop();
         }
     }
@@ -404,14 +521,82 @@ public class CQLConnectionTest
                                Unpooled.wrappedBuffer(bytes));
     }
 
+    private IntFunction<Envelope> mutatedEnvelopeProvider(IntPredicate streamIdMatcher, Consumer<ByteBuffer> headerMutator)
+    {
+        // enables tests to mutate Envelope headers as they're serialized into a Frame
+        // payload. For instance, a test may modify the header length or set the opcode
+        // to something invalid to simulate a buggy client. Frame level CRCs will remain
+        // valid, so this can be used to exercise the CQL encoding layer.
+        return (i) -> new MutableEnvelope(randomEnvelope(i, Message.Type.OPTIONS))
+        {
+            @Override
+            Consumer<ByteBuffer> headerTransform()
+            {
+                if (streamIdMatcher.test(i))
+                    return headerMutator;
+
+                return super.headerTransform();
+            }
+        };
+    }
+
+    private static class MutableEnvelope extends Envelope
+    {
+        public MutableEnvelope(Envelope source)
+        {
+            super(source.header, source.body);
+        }
+
+        Consumer<ByteBuffer> headerTransform()
+        {
+            return byteBuffer -> {};
+        }
+
+        @Override
+        public void encodeHeaderInto(ByteBuffer buf)
+        {
+            int before = buf.position();
+            super.encodeHeaderInto(buf);
+            int after = buf.position();
+
+            // slice the output buffer to get another
+            // which shares the same backing bytes but
+            // is limited to the size of an Envelope.Header
+            buf.position(before);
+            ByteBuffer slice = buf.slice();
+            slice.limit(after - before);
+            buf.position(after);
+
+            // Apply the transformation to the header bytes
+            headerTransform().accept(slice);
+        }
+    }
+
     // Every CQL Envelope received will be parsed as an OptionsMessage, which is trivial to execute
     // on the server. This means we can randomise the actual content of the CQL messages to test
     // resource allocation/release (which is based purely on request size), without having to
     // worry about processing of the actual messages.
     static class FixedDecoder extends Message.Decoder<Message.Request>
     {
+        IntPredicate isErrorStream;
+        ProtocolException error;
+
+        FixedDecoder()
+        {
+           this(i -> false, null);
+        }
+
+        FixedDecoder(IntPredicate isErrorStream, ProtocolException error)
+        {
+           this.isErrorStream = isErrorStream;
+           this.error = error;
+        }
+
         Message.Request decode(Channel channel, Envelope source)
         {
+            if (isErrorStream.test(source.header.streamId))
+                throw error;
+
             Message.Request request = new OptionsMessage();
             request.setSource(source);
             request.setStreamId(source.header.streamId);
@@ -585,6 +770,18 @@ public class CQLConnectionTest
         volatile InstrumentedLimit endpoint;
         volatile InstrumentedLimit global;
 
+        final boolean strict;
+
+        AllocationObserver()
+        {
+            this(true);
+        }
+
+        AllocationObserver(boolean strict)
+        {
+            this.strict = strict;
+        }
+
         long endpointAllocationTotal()
         {
             return endpoint == null ? 0 : endpoint.totalAllocated.get();
@@ -622,12 +819,18 @@ public class CQLConnectionTest
         LongConsumer verifier()
         {
             return totalBytes -> {
-                // verify that we did have to acquire some resources from the global/endpoint reserves
-                assertThat(endpointAllocationTotal()).isEqualTo(totalBytes);
-                assertThat(globalAllocationTotal()).isEqualTo(totalBytes);
-                // and that we released it all
-                assertThat(endpointReleaseTotal()).isEqualTo(totalBytes);
-                assertThat(globalReleaseTotal()).isEqualTo(totalBytes);
+                // if strict mode (the default), verify that we did have to acquire the expected resources
+                // from the global/endpoint reserves and that we released the same amount. If any errors
+                // were encountered before allocation (i.e. decoding Envelope headers), the message bytes
+                // are never allocated (and so neither are they released).
+                if (strict)
+                {
+                    assertThat(endpointAllocationTotal()).isEqualTo(totalBytes);
+                    assertThat(globalAllocationTotal()).isEqualTo(totalBytes);
+                    // and that we released it all
+                    assertThat(endpointReleaseTotal()).isEqualTo(totalBytes);
+                    assertThat(globalReleaseTotal()).isEqualTo(totalBytes);
+                }
                 // assert that we definitely have no outstanding resources acquired from the reserves
                 ClientResourceLimits.Allocator tracker =
                     ClientResourceLimits.getAllocatorForEndpoint(FBUtilities.getJustLocalAddress());

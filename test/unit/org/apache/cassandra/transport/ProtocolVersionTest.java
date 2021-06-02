@@ -69,8 +69,11 @@ public class ProtocolVersionTest
         }
         catch (ProtocolException ex)
         {
-            Assert.assertNotNull(ex.getForcedProtocolVersion());
-            Assert.assertEquals(ProtocolVersion.MAX_SUPPORTED_VERSION, ex.getForcedProtocolVersion());
+            // behavior changed in CASSANDRA-16581
+            // When an unknown version is seen which is larger than any we know about, we can't try to fall back to the
+            // max version as this can cause issues as the channel protocol doesn't match (which gets rejected), so
+            // fall back to the channel version.
+            Assert.assertNull(ex.getForcedProtocolVersion());
         }
     }
 

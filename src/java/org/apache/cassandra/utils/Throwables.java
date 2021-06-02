@@ -46,6 +46,16 @@ public final class Throwables
         return cause.test(t) || (t.getCause() != null && cause.test(t.getCause()));
     }
 
+    public static boolean anyCauseMatches(Throwable t, Predicate<Throwable> cause)
+    {
+        do
+        {
+            if (cause.test(t))
+                return true;
+        } while ((t = t.getCause()) != null);
+        return false;
+    }
+
     public static <T extends Throwable> T merge(T existingFail, T newFail)
     {
         if (existingFail == null)

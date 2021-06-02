@@ -562,6 +562,8 @@ public class Config
     public volatile int table_count_warn_threshold = 150;
     public volatile int keyspace_count_warn_threshold = 40;
 
+    public volatile int consecutive_message_errors_threshold = 1;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

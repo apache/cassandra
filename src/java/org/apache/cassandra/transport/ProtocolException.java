@@ -47,4 +47,52 @@ public class ProtocolException extends RuntimeException implements TransportExce
     {
         return forcedProtocolVersion;
     }
+
+    public boolean isFatal()
+    {
+        return false;
+    }
+
+    public boolean isSilent()
+    {
+        return false;
+    }
+
+    public static ProtocolException toFatalException(ProtocolException e)
+    {
+        return new Fatal(e);
+    }
+
+    public static ProtocolException toSilentException(ProtocolException e)
+    {
+        return new Silent(e);
+    }
+
+    private static class Fatal extends ProtocolException
+    {
+        private Fatal(ProtocolException cause)
+        {
+            super(cause.getMessage(), cause.forcedProtocolVersion);
+        }
+
+        @Override
+        public boolean isFatal()
+        {
+            return true;
+        }
+    }
+
+    private static class Silent extends ProtocolException
+    {
+        public Silent(ProtocolException cause)
+        {
+            super(cause.getMessage(), cause.forcedProtocolVersion);
+        }
+
+        @Override
+        public boolean isSilent()
+        {
+            return true;
+        }
+    }
 }
