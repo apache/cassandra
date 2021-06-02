@@ -50,8 +50,7 @@ public class ProtocolVersionTest
         }
         catch (ProtocolException ex)
         {
-            Assert.assertNotNull(ex.getForcedProtocolVersion());
-            Assert.assertEquals(ProtocolVersion.MAX_SUPPORTED_VERSION, ex.getForcedProtocolVersion());
+            Assert.assertNull(ex.getForcedProtocolVersion());
         }
     }
 

@@ -65,6 +65,8 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     private final static ProtocolVersion[] SUPPORTED_VERSIONS = new ProtocolVersion[] { V3, V4, V5 };
     final static ProtocolVersion MIN_SUPPORTED_VERSION = SUPPORTED_VERSIONS[0];
     final static ProtocolVersion MAX_SUPPORTED_VERSION = SUPPORTED_VERSIONS[SUPPORTED_VERSIONS.length - 1];
+    /** These versions are sent by some clients, but are not valid Apache Cassandra versions (66, and 65 are DSE versions) */
+    private static int[] KNOWN_INVALID_VERSIONS = { 66, 65};
 
     /** All supported versions, published as an enumset */
     public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList((ProtocolVersion[]) ArrayUtils.addAll(SUPPORTED_VERSIONS)));
@@ -93,16 +95,21 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
         if (ret == null)
         {
             // if this is not a supported version check the old versions
-            for (ProtocolVersion version : UNSUPPORTED)
+            for (ProtocolVersion dseVersion : UNSUPPORTED)
             {
                 // if it is an old version that is no longer supported this ensures that we reply
                 // with that same version
-                if (version.num == versionNum)
-                    throw new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum), version);
+                if (dseVersion.num == versionNum)
+                    throw new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum), dseVersion);
+            }
+            for (int version : KNOWN_INVALID_VERSIONS)
+            {
+                if (versionNum == version)
+                    throw ProtocolException.toSilentException(new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum)));
             }
 
-            // If the version is invalid reply with the highest version that we support
-            throw new ProtocolException(invalidVersionMessage(versionNum), ceiling.getMaxVersion());
+            // If the version is invalid reply with the channel's version
+            throw new ProtocolException(invalidVersionMessage(versionNum));
         }
 
         return ret;
