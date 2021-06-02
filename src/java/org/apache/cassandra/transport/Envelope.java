@@ -85,6 +85,28 @@ public class Envelope
         return new Envelope(header, body);
     }
 
+    // used by V4 and earlier in Encoder.encode
+    public ByteBuf encodeHeader()
+    {
+        ByteBuf buf = CBUtil.allocator.buffer(Header.LENGTH);
+
+        Message.Type type = header.type;
+        buf.writeByte(type.direction.addToVersion(header.version.asInt()));
+        buf.writeByte(Header.Flag.serialize(header.flags));
+
+        // Continue to support writing pre-v3 headers so that we can give proper error messages to drivers that
+        // connect with the v1/v2 protocol. See CASSANDRA-11464.
+        if (header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
+            buf.writeShort(header.streamId);
+        else
+            buf.writeByte(header.streamId);
+
+        buf.writeByte(type.opcode);
+        buf.writeInt(body.readableBytes());
+        return buf;
+    }
+
+    // Used by V5 and later
     public void encodeHeaderInto(ByteBuffer buf)
     {
         buf.put((byte) header.type.direction.addToVersion(header.version.asInt()));
@@ -99,6 +121,7 @@ public class Envelope
         buf.putInt(body.readableBytes());
     }
 
+    // Used by V5 and later
     public void encodeInto(ByteBuffer buf)
     {
         encodeHeaderInto(buf);
@@ -176,47 +199,135 @@ public class Envelope
         /**
          * Used by protocol V5 and later to extract a CQL message header from the buffer containing
          * it, without modifying the position of the underlying buffer. This essentially mirrors the
-         * pre-V5 code in {@link org.apache.cassandra.transport.Envelope.Decoder#decode(ByteBuf)},
-         * with two differences:
-         *  The input is a ByteBuffer rather than a ByteBuf
-         *  This cannot return null, as V5 always deals with entire CQL messages. Coalescing of bytes
-         *  off the wire happens at the layer below, in {@link org.apache.cassandra.net.FrameDecoder}
+         * pre-V5 code in {@link Decoder#decode(ByteBuf)}, with three differences:
+         * <ul>
+         *  <li>The input is a ByteBuffer rather than a ByteBuf</li>
+         *  <li>This cannot return null, as V5 always deals with entire CQL messages. Coalescing of bytes
+         *  off the wire happens at the layer below, in {@link org.apache.cassandra.net.FrameDecoder}</li>
+         *  <li>This method never throws {@link ProtocolException}. Instead, a subclass of
+         *  {@link HeaderExtractionResult} is returned which may provide either a {@link Header} or a
+         *  {@link ProtocolException},depending on the result of its {@link HeaderExtractionResult#isSuccess()}
+         *  method.</li>
+         *</ul>
          *
          * @param buffer ByteBuffer containing the message envelope
-         * @return CQL Message header
+         * @return The result of attempting to extract a header from the input buffer.
          */
-        Envelope.Header extractHeader(ByteBuffer buffer)
+        HeaderExtractionResult extractHeader(ByteBuffer buffer)
         {
             Preconditions.checkArgument(buffer.remaining() >= Header.LENGTH,
                                         "Undersized buffer supplied. Expected %s, actual %s",
                                         Header.LENGTH,
                                         buffer.remaining());
-
             int idx = buffer.position();
             int firstByte = buffer.get(idx++);
-            Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int versionNum = firstByte & PROTOCOL_VERSION_MASK;
-            ProtocolVersion version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
-
             int flags = buffer.get(idx++);
-            EnumSet<Header.Flag> decodedFlags = decodeFlags(version, flags);
-
             int streamId = buffer.getShort(idx);
             idx += 2;
+            int opcode = buffer.get(idx++);
+            long bodyLength = buffer.getInt(idx);
 
-            // This throws a protocol exceptions if the opcode is unknown
+            // if a negative length is read, return error but report length as 0 so we don't attempt to skip
+            if (bodyLength < 0)
+                return new HeaderExtractionResult.Error(new ProtocolException("Invalid value for envelope header body length field: " + bodyLength),
+                                                        streamId, bodyLength);
+
+            Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             Message.Type type;
+            ProtocolVersion version;
+            EnumSet<Header.Flag> decodedFlags;
             try
             {
-                type = Message.Type.fromOpcode(buffer.get(idx++), direction);
+                // This throws a protocol exception if the version number is unsupported,
+                // the opcode is unknown or invalid flags are set for the version
+                version = ProtocolVersion.decode(versionNum, DatabaseDescriptor.getNativeTransportAllowOlderProtocols());
+                decodedFlags = decodeFlags(version, flags);
+                type = Message.Type.fromOpcode(opcode, direction);
+                return new HeaderExtractionResult.Success(new Header(version, decodedFlags, streamId, type, bodyLength));
             }
             catch (ProtocolException e)
             {
-                throw ErrorMessage.wrap(e, streamId);
+                // Including the streamId and bodyLength is a best effort to allow the caller
+                // to send a meaningful response to the client and continue processing the
+                // rest of the frame. It's possible that these are bogus and may have contributed
+                // to the ProtocolException. If so, the upstream CQLMessageHandler should run into
+                // further errors and once it breaches its threshold for consecutive errors, it will
+                // cause the channel to be closed.
+                return new HeaderExtractionResult.Error(e, streamId, bodyLength);
+            }
+        }
+
+        public static abstract class HeaderExtractionResult
+        {
+            enum Outcome { SUCCESS, ERROR };
+
+            private final Outcome outcome;
+            private final int streamId;
+            private final long bodyLength;
+            private HeaderExtractionResult(Outcome outcome, int streamId, long bodyLength)
+            {
+                this.outcome = outcome;
+                this.streamId = streamId;
+                this.bodyLength = bodyLength;
             }
 
-            long bodyLength = buffer.getInt(idx);
-            return new Header(version, decodedFlags, streamId, type, bodyLength);
+            boolean isSuccess()
+            {
+                return outcome == Outcome.SUCCESS;
+            }
+
+            int streamId()
+            {
+                return streamId;
+            }
+
+            long bodyLength()
+            {
+                return bodyLength;
+            }
+
+            Header header()
+            {
+                throw new IllegalStateException(String.format("Unable to provide header from extraction result : %s", outcome));
+            };
+
+            ProtocolException error()
+            {
+                throw new IllegalStateException(String.format("Unable to provide error from extraction result : %s", outcome));
+            }
+
+            private static class Success extends HeaderExtractionResult
+            {
+                private final Header header;
+                Success(Header header)
+                {
+                    super(Outcome.SUCCESS, header.streamId, header.bodySizeInBytes);
+                    this.header = header;
+                }
+
+                @Override
+                Header header()
+                {
+                    return header;
+                }
+            }
+
+            private static class Error extends HeaderExtractionResult
+            {
+                private final ProtocolException error;
+                private Error(ProtocolException error, int streamId, long bodyLength)
+                {
+                    super(Outcome.ERROR, streamId, bodyLength);
+                    this.error = error;
+                }
+
+                @Override
+                ProtocolException error()
+                {
+                    return error;
+                }
+            }
         }
 
         @VisibleForTesting
@@ -344,33 +455,13 @@ public class Envelope
 
         public void encode(ChannelHandlerContext ctx, Envelope source, List<Object> results)
         {
-            ByteBuf serializedHeader = encodeHeader(source);
+            ByteBuf serializedHeader = source.encodeHeader();
             int messageSize = serializedHeader.readableBytes() + source.body.readableBytes();
             ClientMessageSizeMetrics.bytesSent.inc(messageSize);
             ClientMessageSizeMetrics.bytesSentPerResponse.update(messageSize);
 
             results.add(serializedHeader);
             results.add(source.body);
-        }
-
-        public ByteBuf encodeHeader(Envelope source)
-        {
-            ByteBuf buf = CBUtil.allocator.buffer(Header.LENGTH);
-
-            Message.Type type = source.header.type;
-            buf.writeByte(type.direction.addToVersion(source.header.version.asInt()));
-            buf.writeByte(Header.Flag.serialize(source.header.flags));
-
-            // Continue to support writing pre-v3 headers so that we can give proper error messages to drivers that
-            // connect with the v1/v2 protocol. See CASSANDRA-11464.
-            if (source.header.version.isGreaterOrEqualTo(ProtocolVersion.V3))
-                buf.writeShort(source.header.streamId);
-            else
-                buf.writeByte(source.header.streamId);
-
-            buf.writeByte(type.opcode);
-            buf.writeInt(source.body.readableBytes());
-            return buf;
         }
     }
 

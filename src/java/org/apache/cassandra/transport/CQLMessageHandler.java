@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.metrics.ClientMessageSizeMetrics;
@@ -87,6 +88,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
     private final ProtocolVersion version;
 
     long channelPayloadBytesInFlight;
+    private int consecutiveMessageErrors = 0;
 
     interface MessageConsumer<M extends Message>
     {
@@ -129,17 +131,32 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         this.version            = version;
     }
 
+    @Override
+    public boolean process(FrameDecoder.Frame frame) throws IOException
+    {
+        // new frame, clean slate for processing errors
+        consecutiveMessageErrors = 0;
+        return super.process(frame);
+    }
+
     protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve)
     {
-        Envelope.Header header = extractHeader(bytes.get());
-        // null indicates a failure to extract the CQL message header.
-        // This will trigger a protocol exception and closing of the connection.
-        if (null == header)
-            return false;
+        ByteBuffer buf = bytes.get();
+        Envelope.Decoder.HeaderExtractionResult extracted = envelopeDecoder.extractHeader(buf);
+        if (!extracted.isSuccess())
+            return handleProtocolException(extracted.error(), buf, extracted.streamId(), extracted.bodyLength());
+
+        Envelope.Header header = extracted.header();
+        if (header.version != version)
+        {
+            ProtocolException error = new ProtocolException(String.format("Invalid message version. Got %s but previous" +
+                                                                          "messages on this connection had version %s",
+                                                                          header.version, version));
+            return handleProtocolException(error, buf, header.streamId, header.bodySizeInBytes);
+        }
 
         // max CQL message size defaults to 256mb, so should be safe to downcast
         int messageSize = Ints.checkedCast(header.bodySizeInBytes);
-
         if (throwOnOverload)
         {
             if (!acquireCapacity(header, endpointReserve, globalReserve))
@@ -161,7 +178,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 // backpressure when it receives OverloadedException
                 // but discard this message as we're responding with the overloaded error
                 incrementReceivedMessageMetrics(messageSize);
-                ByteBuffer buf = bytes.get();
                 buf.position(buf.position() + Envelope.Header.LENGTH + messageSize);
                 return true;
             }
@@ -175,8 +191,41 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
 
         channelPayloadBytesInFlight += messageSize;
         incrementReceivedMessageMetrics(messageSize);
-        processRequest(composeRequest(header, bytes));
-        return true;
+        return processRequest(composeRequest(header, bytes));
+    }
+
+    private boolean handleProtocolException(ProtocolException exception,
+                                            ByteBuffer buf,
+                                            int streamId,
+                                            long expectedMessageLength)
+    {
+        // hard fail if either :
+        //  * the expectedMessageLength is < 0 as we're unable to  skip the remainder
+        //    of the Envelope and attempt to read the next one
+        //  * we hit a run of errors in the same frame. Some errors are recoverable
+        //    as they have no effect on subsequent Envelopes, in which case we attempt
+        //    to continue processing. If we start seeing consecutive errors we assume
+        //    that this is not the case and that the entire remaining frame is garbage.
+        //    It's possible here that we fail hard when we could potentially not do
+        //    (e.g. every Envelope has an invalid opcode, but is otherwise semantically
+        //    intact), but this is a trade off.
+        if (expectedMessageLength < 0 || ++consecutiveMessageErrors > DatabaseDescriptor.getConsecutiveMessageErrorsThreshold())
+        {
+            // transform the exception to a fatal one so the exception handler closes the channel
+            if (!exception.isFatal())
+                exception = ProtocolException.toFatalException(exception);
+            handleError(exception, streamId);
+            return false;
+        }
+        else
+        {
+            // exception should not be a fatal error or the exception handler will close the channel
+            handleError(exception, streamId);
+            // skip body
+            buf.position(Math.min(buf.limit(), buf.position() + Envelope.Header.LENGTH + Ints.checkedCast(expectedMessageLength)));
+            // continue processing frame
+            return true;
+        }
     }
 
     private void incrementReceivedMessageMetrics(int messageSize)
@@ -185,31 +234,6 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         receivedBytes += messageSize + Envelope.Header.LENGTH;
         ClientMessageSizeMetrics.bytesReceived.inc(messageSize + Envelope.Header.LENGTH);
         ClientMessageSizeMetrics.bytesReceivedPerRequest.update(messageSize + Envelope.Header.LENGTH);
-    }
-
-    private Envelope.Header extractHeader(ByteBuffer buf)
-    {
-        try
-        {
-            Envelope.Header header = envelopeDecoder.extractHeader(buf);
-            if (header.version != version)
-                handleError(new ProtocolException(String.format("Invalid message version. Got %s but previous" +
-                                                                "messages on this connection had version %s",
-                                                                header.version, version)));
-
-            return header;
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            logger.error("{} unexpected exception caught while deserializing a message header", id(), t);
-            // Ideally we would recover from this as we could simply drop the entire frame.
-            // However, we have no good way to communicate this back to the client as we don't
-            // yet know the stream id. So this will trigger an Error response and the connection
-            // to be closed.
-            handleError(new ProtocolException("Deserialization error processing CQL payload"));
-            return null;
-        }
     }
 
     private Envelope composeRequest(Envelope.Header header, ShareableBytes bytes)
@@ -225,19 +249,40 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         return new Envelope(header, body);
     }
 
-    protected void processRequest(Envelope request)
+    protected boolean processRequest(Envelope request)
     {
         M message = null;
         try
         {
             message = messageDecoder.decode(channel, request);
             dispatcher.accept(channel, message, this::toFlushItem);
+            // sucessfully delivered a CQL message to the execution
+            // stage, so reset the counter of consecutive errors
+            consecutiveMessageErrors = 0;
+            return true;
         }
         catch (Exception e)
         {
             if (message != null)
                 request.release();
+
+            boolean continueProcessing = true;
+
+            // Indicate that an error was encountered. Initially, we can continue to
+            // process the current frame, but if we keep catching errors, we assume that
+            // the whole frame payload is no good, stop processing and close the connection.
+            if(++consecutiveMessageErrors > DatabaseDescriptor.getConsecutiveMessageErrorsThreshold())
+            {
+                if (!(e instanceof ProtocolException))
+                {
+                    logger.debug("Error decoding CQL message", e);
+                    e = new ProtocolException("Error encountered decoding CQL message: " + e.getMessage());
+                }
+                e = ProtocolException.toFatalException((ProtocolException) e);
+                continueProcessing = false;
+            }
             handleErrorAndRelease(e, request.header);
+            return continueProcessing;
         }
     }
 
@@ -271,7 +316,24 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
      */
     private void handleError(Throwable t, Envelope.Header header)
     {
-        errorHandler.accept(ErrorMessage.wrap(t, header.streamId));
+        handleError(t, header.streamId);
+    }
+
+    /**
+     * For "expected" errors this ensures we pass a WrappedException,
+     * which contains a streamId, to the error handler. This makes
+     * sure that whereever possible, the streamId is propagated back
+     * to the client.
+     * This variant doesn't call release as it is intended for use
+     * when an error occurs without any capacity being acquired.
+     * Typically, this would be the result of an acquisition failure
+     * if the THROW_ON_OVERLOAD option has been specified by the client.
+     * @param t
+     * @param streamId
+     */
+    private void handleError(Throwable t, int streamId)
+    {
+        errorHandler.accept(ErrorMessage.wrap(t, streamId));
     }
 
     /**
@@ -330,7 +392,16 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         ByteBuffer buf = bytes.get();
         try
         {
-            Envelope.Header header = extractHeader(buf);
+            Envelope.Decoder.HeaderExtractionResult extracted = envelopeDecoder.extractHeader(buf);
+            if (!extracted.isSuccess())
+            {
+                // Hard fail on any decoding error as we can't trust the subsequent frames of
+                // the large message
+                handleError(ProtocolException.toFatalException(extracted.error()));
+                return false;
+            }
+
+            Envelope.Header header = extracted.header();
             // max CQL message size defaults to 256mb, so should be safe to downcast
             int messageSize = Ints.checkedCast(header.bodySizeInBytes);
             receivedBytes += buf.remaining();
@@ -425,7 +496,7 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
                 processSubsequentFrameOfLargeMessage(frame);
         }
 
-        handleError(new ProtocolException(error));
+        handleError(ProtocolException.toFatalException(new ProtocolException(error)));
     }
 
     protected void fatalExceptionCaught(Throwable cause)

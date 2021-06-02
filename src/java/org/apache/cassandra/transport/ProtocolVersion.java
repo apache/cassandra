@@ -66,6 +66,8 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     private final static ProtocolVersion[] SUPPORTED_VERSIONS = new ProtocolVersion[] { V3, V4, V5, V6 };
     final static ProtocolVersion MIN_SUPPORTED_VERSION = SUPPORTED_VERSIONS[0];
     final static ProtocolVersion MAX_SUPPORTED_VERSION = SUPPORTED_VERSIONS[SUPPORTED_VERSIONS.length - 1];
+    /** These versions are sent by some clients, but are not valid Apache Cassandra versions (66, and 65 are DSE versions) */
+    private static int[] KNOWN_INVALID_VERSIONS = {66, 65};
 
     /** All supported versions, published as an enumset */
     public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList(ArrayUtils.addAll(SUPPORTED_VERSIONS)));
@@ -110,9 +112,14 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
                 if (version.num == versionNum)
                     throw new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum), version);
             }
+            for (int dseVersion : KNOWN_INVALID_VERSIONS)
+            {
+                if (versionNum == dseVersion)
+                    throw ProtocolException.toSilentException(new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum)));
+            }
 
-            // If the version is invalid response with the highest version that we support
-            throw new ProtocolException(invalidVersionMessage(versionNum), MAX_SUPPORTED_VERSION);
+            // If the version is invalid reply with the channel's version
+            throw new ProtocolException(invalidVersionMessage(versionNum));
         }
 
         if (!allowOlderProtocols && ret.isSmallerThan(CURRENT))

@@ -17,6 +17,7 @@ Merged from 3.11:
  * Nodetool garbagecollect should retain SSTableLevel for LCS (CASSANDRA-16634)
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
 Merged from 3.0:
+ * Failure to execute queries should emit a KPI other than read timeout/unavailable so it can be alerted/tracked (CASSANDRA-16581)
  * Don't wait on schema versions from replacement target when replacing a node (CASSANDRA-16692)
  * StandaloneVerifier does not fail when unable to verify SSTables, it only fails if Corruption is thrown (CASSANDRA-16683)
  * Fix bloom filter false ratio calculation by including true negatives (CASSANDRA-15834)
