@@ -56,14 +56,11 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         if (message.trackWarnings())
             command.trackWarnings();
 
-        if (message.trackRepairedData())
-            command.trackRepairedStatus();
-
         ReadResponse response;
-        try (ReadExecutionController executionController = command.executionController();
-             UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
+        try (ReadExecutionController controller = command.executionController(message.trackRepairedData());
+             UnfilteredPartitionIterator iterator = command.executeLocally(controller))
         {
-            response = command.createResponse(iterator);
+            response = command.createResponse(iterator, controller.getRepairedDataInfo());
         }
         catch (RejectException e)
         {
@@ -73,7 +70,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             // make sure to log as the exception is swallowed
             logger.error(e.getMessage());
 
-            response = command.createResponse(EmptyIterators.unfilteredPartition(command.metadata()));
+            response = command.createEmptyResponse();
             Message<ReadResponse> reply = message.responseWith(response);
             reply = MessageParams.addToMessage(reply);
 

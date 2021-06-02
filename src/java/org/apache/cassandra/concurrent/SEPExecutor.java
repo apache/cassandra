@@ -191,6 +191,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
         }
     }
 
+    @Override
     public void maybeExecuteImmediately(Runnable command)
     {
         FutureTask<?> ft = newTaskFor(command, null);
