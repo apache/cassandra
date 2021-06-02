@@ -336,9 +336,16 @@ public class Util
 
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command)
     {
+        try (ReadExecutionController controller = command.executionController())
+        {
+            return getAllUnfiltered(command, controller);
+        }
+    }
+    
+    public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command, ReadExecutionController controller)
+    {
         List<ImmutableBTreePartition> results = new ArrayList<>();
-        try (ReadExecutionController executionController = command.executionController();
-             UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
+        try (UnfilteredPartitionIterator iterator = command.executeLocally(controller))
         {
             while (iterator.hasNext())
             {
@@ -353,9 +360,16 @@ public class Util
 
     public static List<FilteredPartition> getAll(ReadCommand command)
     {
+        try (ReadExecutionController controller = command.executionController())
+        {
+            return getAll(command, controller);
+        }
+    }
+    
+    public static List<FilteredPartition> getAll(ReadCommand command, ReadExecutionController controller)
+    {
         List<FilteredPartition> results = new ArrayList<>();
-        try (ReadExecutionController executionController = command.executionController();
-             PartitionIterator iterator = command.executeInternal(executionController))
+        try (PartitionIterator iterator = command.executeInternal(controller))
         {
             while (iterator.hasNext())
             {
@@ -405,8 +419,15 @@ public class Util
 
     public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd)
     {
-        try (ReadExecutionController executionController = cmd.executionController();
-             UnfilteredPartitionIterator iterator = cmd.executeLocally(executionController))
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            return getOnlyPartitionUnfiltered(cmd, controller);
+        }
+    }
+    
+    public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd, ReadExecutionController controller)
+    {
+        try (UnfilteredPartitionIterator iterator = cmd.executeLocally(controller))
         {
             assert iterator.hasNext() : "Expecting a single partition but got nothing";
             try (UnfilteredRowIterator partition = iterator.next())
@@ -419,7 +440,12 @@ public class Util
 
     public static FilteredPartition getOnlyPartition(ReadCommand cmd)
     {
-        try (ReadExecutionController executionController = cmd.executionController();
+        return getOnlyPartition(cmd, false);
+    }
+    
+    public static FilteredPartition getOnlyPartition(ReadCommand cmd, boolean trackRepairedStatus)
+    {
+        try (ReadExecutionController executionController = cmd.executionController(trackRepairedStatus);
              PartitionIterator iterator = cmd.executeInternal(executionController))
         {
             assert iterator.hasNext() : "Expecting a single partition but got nothing";
