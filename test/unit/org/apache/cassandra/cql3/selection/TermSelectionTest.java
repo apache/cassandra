@@ -134,6 +134,10 @@ public class TermSelectionTest extends CQLTester
                    row(list(set(1), set(3))),
                    row(list(set(1), set(2))),
                    row(list(set(1), set(1))));
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT [{pk, t}, {ck}] FROM %s WHERE pk = 1");
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT [{pk}, {t}] FROM %s WHERE pk = 1");
 
         // Test Maps nested within Lists
         assertRows(execute("SELECT [{}, (map<text, int>){'min' : min(ck), 'max' : max(ck)}] FROM %s"),
@@ -154,10 +158,50 @@ public class TermSelectionTest extends CQLTester
                    row(list(tuple(1, 3, timestampInMicros))));
         assertRows(execute("SELECT [(min(ck), max(ck))] FROM %s"),
                    row(list(tuple(1, 3))));
-        assertRows(execute("SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (t, WRITETIME(t))] FROM %s"),
-                   row(list(tuple(1L, 1L), tuple("one", timestampInMicros))),
-                   row(list(tuple(1L, 2L), tuple("two", timestampInMicros))),
-                   row(list(tuple(1L, 3L), tuple("three", timestampInMicros))));
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (t, writetime(t))] FROM %s");
+
+        assertRows(execute("SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT), t), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))] FROM %s"),
+                   row(list(tuple(1L, 1L, "one"), tuple(1L, 1L))),
+                   row(list(tuple(1L, 2L, "two"), tuple(1L, 2L))),
+                   row(list(tuple(1L, 3L, "three"), tuple(1L, 3L))));
+
+        assertRows(execute("SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (CAST(pk AS BIGINT), CAST(ck AS BIGINT), t)] FROM %s"),
+                   row(list(tuple(1L, 1L), tuple(1L, 1L, "one"))),
+                   row(list(tuple(1L, 2L), tuple(1L, 2L, "two"))),
+                   row(list(tuple(1L, 3L), tuple(1L, 3L, "three"))));
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT [(CAST(pk AS BIGINT), t, CAST(ck AS BIGINT)), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))] FROM %s");
+
+        // list of tuples of tuples
+        assertRows(execute("SELECT [((t,t, t), (t,t,CAST(ck AS BIGINT))), ((t,t), (t,t,CAST(ck AS BIGINT)))] FROM %s"),
+                   row(list(tuple(tuple("one", "one", "one"), tuple("one", "one", 1L)),
+                            tuple(tuple("one", "one"), tuple("one", "one", 1L)))),
+                   row(list(tuple(tuple("two", "two", "two"), tuple("two", "two", 2L)),
+                            tuple(tuple("two", "two"), tuple("two", "two", 2L)))),
+                   row(list(tuple(tuple("three", "three", "three"), tuple("three", "three", 3L)),
+                            tuple(tuple("three", "three"), tuple("three", "three", 3L)))));
+
+        assertRows(execute("SELECT [((t,t), (t,t,CAST(ck AS BIGINT))), ((t,t), (t,t,CAST(ck AS BIGINT),t))] FROM %s"),
+                   row(list(tuple(tuple("one", "one"), tuple("one", "one", 1L)),
+                            tuple(tuple("one", "one"), tuple("one", "one", 1L, "one")))),
+                   row(list(tuple(tuple("two", "two"), tuple("two", "two", 2L)),
+                            tuple(tuple("two", "two"), tuple("two", "two", 2L, "two")))),
+                   row(list(tuple(tuple("three", "three"), tuple("three", "three", 3L)),
+                            tuple(tuple("three", "three"), tuple("three", "three", 3L, "three")))));
+
+        // single element tuple: tuple(t) incompatible with tuple(long, long)
+        assertInvalidMessage("(t) is not of the expected type: frozen<tuple<bigint, bigint>>",
+                             "SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (t)] FROM %s");
+
+        assertInvalidMessage("(cast(ck as bigint)) is not of the expected type: frozen<tuple<text, text>>",
+                             "SELECT [(t, t), (CAST(ck AS BIGINT))] FROM %s");
+
+        // single element tuple: tuple(long) compatible with tuple(long, long)
+        assertRows(execute("SELECT [(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (CAST(ck AS BIGINT))] FROM %s"),
+                   row(list(tuple(1L, 1L), tuple(1L))),
+                   row(list(tuple(1L, 2L), tuple(2L))),
+                   row(list(tuple(1L, 3L), tuple(3L))));
 
         // Test UDTs nested within Lists
         String type = createType("CREATE TYPE %s(a int, b int, c bigint)");
@@ -189,6 +233,10 @@ public class TermSelectionTest extends CQLTester
                    row(set(list(1), list(3))));
         assertRows(execute("SELECT {([min(ck)]), [max(ck)]} FROM %s"),
                    row(set(list(1), list(3))));
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT {[min(ck), writetime(t)], [max(ck)]} FROM %s");
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT {[writetime(t)], [max(ck)]} FROM %s");
 
         // Test Sets nested within Sets
         assertRows(execute("SELECT {{}, {min(ck), max(ck)}} FROM %s"),
@@ -223,6 +271,45 @@ public class TermSelectionTest extends CQLTester
                    row(set(tuple(1, 3, timestampInMicros))));
         assertRows(execute("SELECT {(min(ck), max(ck))} FROM %s"),
                    row(set(tuple(1, 3))));
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT {(min(ck), max(ck)), (t, writetime(t))} FROM %s");
+
+        assertRows(execute("SELECT {(CAST(pk AS BIGINT), CAST(ck AS BIGINT), t), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))} FROM %s"),
+                   row(set(tuple(1L, 1L, "one"), tuple(1L, 1L))),
+                   row(set(tuple(1L, 2L, "two"), tuple(1L, 2L))),
+                   row(set(tuple(1L, 3L, "three"), tuple(1L, 3L))));
+
+        assertRows(execute("SELECT {(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (CAST(pk AS BIGINT), CAST(ck AS BIGINT), t)} FROM %s"),
+                   row(set(tuple(1L, 1L), tuple(1L, 1L, "one"))),
+                   row(set(tuple(1L, 2L), tuple(1L, 2L, "two"))),
+                   row(set(tuple(1L, 3L), tuple(1L, 3L, "three"))));
+
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT {(CAST(pk AS BIGINT), t, CAST(ck AS BIGINT)), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))} FROM %s");
+
+        assertInvalidMessage("Invalid collection literal: all selectors must have the same CQL type inside collection literals",
+                             "SELECT {(CAST(pk AS BIGINT), t, CAST(ck AS BIGINT)), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))} FROM %s");
+
+        // set of tuples of tuples
+        assertRows(execute("SELECT {((t,t, t), (t,t,CAST(ck AS BIGINT))), ((t,t), (t,t,CAST(ck AS BIGINT)))} FROM %s"),
+                   row(set(tuple(tuple("one", "one", "one"), tuple("one", "one", 1L)),
+                           tuple(tuple("one", "one"), tuple("one", "one", 1L)))),
+                   row(set(tuple(tuple("two", "two", "two"), tuple("two", "two", 2L)),
+                           tuple(tuple("two", "two"), tuple("two", "two", 2L)))),
+                   row(set(tuple(tuple("three", "three", "three"), tuple("three", "three", 3L)),
+                           tuple(tuple("three", "three"), tuple("three", "three", 3L)))));
+
+        assertRows(execute("SELECT {((t,t), (t,t,CAST(ck AS BIGINT))), ((t,t), (t,t,CAST(ck AS BIGINT),t))} FROM %s"),
+                   row(set(tuple(tuple("one", "one"), tuple("one", "one", 1L)),
+                           tuple(tuple("one", "one"), tuple("one", "one", 1L, "one")))),
+                   row(set(tuple(tuple("two", "two"), tuple("two", "two", 2L)),
+                           tuple(tuple("two", "two"), tuple("two", "two", 2L, "two")))),
+                   row(set(tuple(tuple("three", "three"), tuple("three", "three", 3L)),
+                           tuple(tuple("three", "three"), tuple("three", "three", 3L, "three")))));
+
+        // getExactType for (t) is null
+        assertInvalidMessage("(t) is not of the expected type: frozen<tuple<bigint, bigint>>",
+                             "SELECT {(CAST(pk AS BIGINT), CAST(ck AS BIGINT)), (t), (CAST(pk AS BIGINT), CAST(ck AS BIGINT))} FROM %s");
 
         // Test UDTs nested within Sets
         assertRows(execute("SELECT {(" + type + "){a : min(ck), b: max(ck)}} FROM %s"),
