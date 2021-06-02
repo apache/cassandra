@@ -850,6 +850,16 @@ public class OperationFctsTest extends CQLTester
                              "SELECT time / 10m FROM %s WHERE pk = 1");
         assertInvalidMessage("the operation 'date - duration' failed: The duration must have a day precision. Was: 10m",
                              "SELECT * FROM %s WHERE pk = 1 AND time > ? - 10m", toDate("2016-10-04"));
+
+        // test overflow errors
+        assertInvalidMessage("is greater than max supported date",
+                             "INSERT INTO %s (pk, time, v) VALUES (2, '+5881581-01-01', 7)");
+        assertInvalidMessage("is greater than max supported date",
+                             "INSERT INTO %s (pk, time, v) VALUES (4, '+5881580-01-01' + 1y, 9)");
+        assertInvalidMessage("is less than min supported date",
+                             "INSERT INTO %s (pk, time, v) VALUES (3, '-5877642-01-01', 8)");
+        assertInvalidMessage("is less than min supported date",
+                             "INSERT INTO %s (pk, time, v) VALUES (5, '-5877640-01-01' - 2y, 10)");
     }
 
     private Date toTimestamp(String timestampAsString)
