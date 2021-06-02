@@ -134,14 +134,29 @@ public abstract class Maps
         AbstractType<?> valueType = null;
         for (Pair<T, T> entry : entries)
         {
-            if (keyType == null)
-                keyType = mapper.apply(entry.left);
-            if (valueType == null)
-                valueType = mapper.apply(entry.right);
-            if (keyType != null && valueType != null)
-                return MapType.getInstance(keyType, valueType, false);
+            keyType = selectType(keyType, mapper.apply(entry.left));
+            valueType = selectType(valueType, mapper.apply(entry.right));
         }
+
+        if (keyType != null && valueType != null)
+            return MapType.getInstance(keyType, valueType, false);
+
         return null;
+    }
+
+    private static <T> AbstractType<?> selectType(AbstractType<?> type, AbstractType<?> otherType)
+    {
+        if (otherType == null)
+            return type;
+
+        if (type != null && !otherType.isCompatibleWith(type))
+        {
+            if (type.isCompatibleWith(otherType))
+                return type;
+
+            throw new InvalidRequestException("Invalid collection literal: all selectors must have the same CQL type inside collection literals");
+        }
+        return otherType;
     }
 
     public static class Literal extends Term.Raw

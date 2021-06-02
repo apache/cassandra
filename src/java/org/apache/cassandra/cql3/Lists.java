@@ -128,8 +128,30 @@ public abstract class Lists
     public static <T> AbstractType<?> getExactListTypeIfKnown(List<T> items,
                                                               java.util.function.Function<T, AbstractType<?>> mapper)
     {
-        Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
-        return type.isPresent() ? ListType.getInstance(type.get(), false) : null;
+        AbstractType<?> type = getElementType(items, mapper);
+        return type != null ? ListType.getInstance(type, false) : null;
+    }
+
+    protected static <T> AbstractType<?> getElementType(List<T> items,
+                                                        java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        AbstractType<?> type = null;
+        for (T item : items)
+        {
+            AbstractType<?> itemType = mapper.apply(item);
+            if (itemType == null)
+                continue;
+
+            if (type != null && !itemType.isCompatibleWith(type))
+            {
+                if (type.isCompatibleWith(itemType))
+                    continue;
+
+                throw new InvalidRequestException("Invalid collection literal: all selectors must have the same CQL type inside collection literals");
+            }
+            type = itemType;
+        }
+        return type;
     }
 
     public static class Literal extends Term.Raw
