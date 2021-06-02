@@ -114,6 +114,23 @@ public interface Selectable extends AssignmentTestable
         }
     }
 
+    /**
+     * Checks that this {@code Selectable} is or can be converted into the specified type.
+     * @param table the table schema
+     * @param type the expected type
+     * @throws InvalidRequestException if the {@code Selectable} can not be converted into the specified type
+     */
+    default void validateType(TableMetadata table, AbstractType<?> type)
+    {
+        ColumnSpecification receiver = new ColumnSpecification(table.keyspace,
+                                                               table.name,
+                                                               new ColumnIdentifier(toString(), true),
+                                                               type);
+
+        if (!testAssignment(table.keyspace, receiver).isAssignable())
+            throw invalidRequest("%s is not of the expected type: %s", this, type.asCQL3Type());
+    }
+
     public interface Raw
     {
         public Selectable prepare(TableMetadata table);
@@ -175,6 +192,8 @@ public interface Selectable extends AssignmentTestable
                 type = expectedType;
                 if (type == null)
                     throw new InvalidRequestException("Cannot infer type for term " + this + " in selection clause (try using a cast to force a type)");
+
+                validateType(table, type);
             }
 
             // The fact we default the name to "[selection]" inconditionally means that any bind marker in a
@@ -624,6 +643,7 @@ public interface Selectable extends AssignmentTestable
                 if (type == null)
                     throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
                                          this);
+                validateType(cfm, type);
             }
 
             if (selectables.size() == 1 && !type.isTuple())
@@ -742,6 +762,7 @@ public interface Selectable extends AssignmentTestable
                 if (type == null)
                     throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
                                          this);
+                validateType(cfm, type);
             }
 
             ListType<?> listType = (ListType<?>) type;
@@ -827,6 +848,7 @@ public interface Selectable extends AssignmentTestable
                 if (type == null)
                     throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
                                          this);
+                validateType(cfm, type);
             }
 
             // The parser treats empty Maps as Sets so if the type is a MapType we know that the Map is empty
@@ -931,6 +953,7 @@ public interface Selectable extends AssignmentTestable
                 if (type == null)
                     throw invalidRequest("Cannot infer type for term %s in selection clause (try using a cast to force a type)",
                                          this);
+                validateType(cfm, type);
             }
 
             if (type.isUDT())
