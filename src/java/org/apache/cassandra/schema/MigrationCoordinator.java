@@ -19,11 +19,13 @@
 package org.apache.cassandra.schema;
 
 import java.lang.management.ManagementFactory;
+import java.net.UnknownHostException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Futures;
@@ -77,6 +80,49 @@ public class MigrationCoordinator
 
     public static final MigrationCoordinator instance = new MigrationCoordinator();
 
+    public static final String IGNORED_VERSIONS_PROP = "cassandra.skip_schema_check_for_versions";
+    public static final String IGNORED_ENDPOINTS_PROP = "cassandra.skip_schema_check_for_endpoints";
+
+    private static ImmutableSet<UUID> getIgnoredVersions()
+    {
+        String s = System.getProperty(IGNORED_VERSIONS_PROP);
+        if (s == null || s.isEmpty())
+            return ImmutableSet.of();
+
+        ImmutableSet.Builder<UUID> versions = ImmutableSet.builder();
+        for (String version : s.split(","))
+        {
+            versions.add(UUID.fromString(version));
+        }
+
+        return versions.build();
+    }
+
+    private static final Set<UUID> IGNORED_VERSIONS = getIgnoredVersions();
+
+    private static Set<InetAddressAndPort> getIgnoredEndpoints()
+    {
+        Set<InetAddressAndPort> endpoints = new HashSet<>();
+
+        String s = System.getProperty(IGNORED_ENDPOINTS_PROP);
+        if (s == null || s.isEmpty())
+            return endpoints;
+
+        for (String endpoint : s.split(","))
+        {
+            try
+            {
+                endpoints.add(InetAddressAndPort.getByName(endpoint));
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        return endpoints;
+    }
+
     static class VersionInfo
     {
         final UUID version;
@@ -117,6 +163,7 @@ public class MigrationCoordinator
     private final Map<UUID, VersionInfo> versionInfo = new HashMap<>();
     private final Map<InetAddressAndPort, UUID> endpointVersions = new HashMap<>();
     private final AtomicInteger inflightTasks = new AtomicInteger();
+    private final Set<InetAddressAndPort> ignoredEndpoints = getIgnoredEndpoints();
 
     public void start()
     {
@@ -302,6 +349,13 @@ public class MigrationCoordinator
 
     public synchronized Future<Void> reportEndpointVersion(InetAddressAndPort endpoint, UUID version)
     {
+        if (ignoredEndpoints.contains(endpoint) || IGNORED_VERSIONS.contains(version))
+        {
+            endpointVersions.remove(endpoint);
+            removeEndpointFromVersion(endpoint, null);
+            return FINISHED_FUTURE;
+        }
+
         UUID current = endpointVersions.put(endpoint, version);
         if (current != null && current.equals(version))
             return FINISHED_FUTURE;
@@ -349,14 +403,16 @@ public class MigrationCoordinator
         }
     }
 
-    public synchronized void removeVersionInfoForEndpoint(InetAddressAndPort endpoint)
+    public synchronized void removeAndIgnoreEndpoint(InetAddressAndPort endpoint)
     {
+        Preconditions.checkArgument(endpoint != null);
+        ignoredEndpoints.add(endpoint);
         Set<UUID> versions = ImmutableSet.copyOf(versionInfo.keySet());
         for (UUID version : versions)
         {
             removeEndpointFromVersion(endpoint, version);
         }
-    } 
+    }
 
     Future<Void> scheduleSchemaPull(InetAddressAndPort endpoint, VersionInfo info)
     {
