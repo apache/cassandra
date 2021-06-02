@@ -126,7 +126,7 @@ public abstract class Message
         }
 
         @VisibleForTesting
-        Codec<?> unsafeSetCodec(Codec<?> codec) throws NoSuchFieldException, IllegalAccessException
+        public Codec<?> unsafeSetCodec(Codec<?> codec) throws NoSuchFieldException, IllegalAccessException
         {
             Codec<?> original = this.codec;
             Field field = Type.class.getDeclaredField("codec");
