@@ -36,11 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 class RepairedDataInfo
 {
-    public static final RepairedDataInfo NULL_REPAIRED_DATA_INFO = new RepairedDataInfo(null)
-    {
-        boolean isConclusive(){ return true; }
-        ByteBuffer getDigest(){ return ByteBufferUtil.EMPTY_BYTE_BUFFER; }
-    };
+    public static final RepairedDataInfo NO_OP_REPAIRED_DATA_INFO = new RepairedDataInfo(null);
 
     // Keeps a digest of the partition currently being processed. Since we won't know
     // whether a partition will be fully purged from a read result until it's been
