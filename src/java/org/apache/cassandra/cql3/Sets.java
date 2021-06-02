@@ -119,8 +119,8 @@ public abstract class Sets
     public static <T> AbstractType<?> getExactSetTypeIfKnown(List<T> items,
                                                              java.util.function.Function<T, AbstractType<?>> mapper)
     {
-        Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
-        return type.isPresent() ? SetType.getInstance(type.get(), false) : null;
+        AbstractType<?> type = Lists.getElementType(items, mapper);
+        return type != null ? SetType.getInstance(type, false) : null;
     }
 
     public static class Literal extends Term.Raw
