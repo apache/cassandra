@@ -1072,7 +1072,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                             // to make sure that the previous read data was correct
                             logger.info("Race condition marking {} as a FatClient; ignoring", endpoint);
                             return;
-                        }                        
+                        }
                         removeEndpoint(endpoint); // will put it in justRemovedEndpoints to respect quarantine delay
                         evictFromMembership(endpoint); // can get rid of the state immediately
                     });
