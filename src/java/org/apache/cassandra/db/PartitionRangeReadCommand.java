@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,7 +40,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -256,20 +254,20 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @VisibleForTesting
-    public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController executionController)
+    public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().partitionKeyType));
 
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
-        InputCollector<UnfilteredPartitionIterator> inputCollector = iteratorsForRange(view);
+        InputCollector<UnfilteredPartitionIterator> inputCollector = iteratorsForRange(view, controller);
         try
         {
             for (Memtable memtable : view.memtables)
             {
                 @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
                 Memtable.MemtableUnfilteredPartitionIterator iter = memtable.makePartitionIterator(columnFilter(), dataRange());
-                oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, iter.getMinLocalDeletionTime());
+                controller.updateMinOldestUnrepairedTombstone(iter.getMinLocalDeletionTime());
                 inputCollector.addMemtableIterator(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false));
             }
 
@@ -281,13 +279,13 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 inputCollector.addSSTableIterator(sstable, RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false));
 
                 if (!sstable.isRepaired())
-                    oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
+                    controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
             }
             // iterators can be empty for offline tools
             if (inputCollector.isEmpty())
                 return EmptyIterators.unfilteredPartition(metadata());
 
-            return checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(inputCollector.finalizeIterators(cfs, nowInSec(), oldestUnrepairedTombstone)), cfs);
+            return checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone())), cfs);
         }
         catch (RuntimeException | Error e)
         {
@@ -321,10 +319,10 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     private UnfilteredPartitionIterator checkCacheFilter(UnfilteredPartitionIterator iter, final ColumnFamilyStore cfs)
     {
-        class CacheFilter extends Transformation
+        class CacheFilter extends Transformation<BaseRowIterator<?>>
         {
             @Override
-            public BaseRowIterator applyToPartition(BaseRowIterator iter)
+            public BaseRowIterator<?> applyToPartition(BaseRowIterator<?> iter)
             {
                 // Note that we rely on the fact that until we actually advance 'iter', no really costly operation is actually done
                 // (except for reading the partition key from the index file) due to the call to mergeLazily in queryStorage.

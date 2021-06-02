@@ -266,7 +266,7 @@ public class SinglePartitionSliceCommandTest
         // check (de)serialized iterator for memtable static cell
         try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
-            response = ReadResponse.createDataResponse(pi, cmd);
+            response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
         }
 
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
@@ -282,7 +282,7 @@ public class SinglePartitionSliceCommandTest
         Schema.instance.getColumnFamilyStoreInstance(metadata.id).forceBlockingFlush();
         try (ReadExecutionController executionController = cmd.executionController(); UnfilteredPartitionIterator pi = cmd.executeLocally(executionController))
         {
-            response = ReadResponse.createDataResponse(pi, cmd);
+            response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
         }
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
@@ -491,7 +491,7 @@ public class SinglePartitionSliceCommandTest
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> query = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) stmt.getQuery(QueryOptions.DEFAULT, 0);
         Assert.assertEquals(1, query.queries.size());
         SinglePartitionReadCommand command = Iterables.getOnlyElement(query.queries);
-        try (ReadExecutionController controller = ReadExecutionController.forCommand(command);
+        try (ReadExecutionController controller = ReadExecutionController.forCommand(command, false);
              UnfilteredPartitionIterator partitions = command.executeLocally(controller))
         {
             assert partitions.hasNext();

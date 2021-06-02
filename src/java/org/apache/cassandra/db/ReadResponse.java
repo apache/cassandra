@@ -43,9 +43,9 @@ public abstract class ReadResponse
     {
     }
 
-    public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command)
+    public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command, RepairedDataInfo rdi)
     {
-        return new LocalDataResponse(data, command);
+        return new LocalDataResponse(data, command, rdi);
     }
 
     @VisibleForTesting
@@ -176,11 +176,10 @@ public abstract class ReadResponse
     // built on the owning node responding to a query
     private static class LocalDataResponse extends DataResponse
     {
-        private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command)
+        private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command, RepairedDataInfo rdi)
         {
             super(build(iter, command.columnFilter()),
-                  command.getRepairedDataDigest(),
-                  command.isRepairedDataDigestConclusive(),
+                  rdi.getDigest(), rdi.isConclusive(),
                   MessagingService.current_version,
                   DeserializationHelper.Flag.LOCAL);
         }

@@ -192,9 +192,9 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
                                                  new ClusteringIndexNamesFilter(clusteringSet, false)).copyAsDigestQuery();
         cmd.setDigestVersion(MessagingService.current_version);
         ReadResponse resp;
-        try (ReadExecutionController ctrl = ReadExecutionController.forCommand(cmd); UnfilteredRowIterator iterator = cmd.queryMemtableAndDisk(cfs, ctrl))
+        try (ReadExecutionController ctrl = ReadExecutionController.forCommand(cmd, false); UnfilteredRowIterator iterator = cmd.queryMemtableAndDisk(cfs, ctrl))
         {
-            resp = ReadResponse.createDataResponse(new SingletonUnfilteredPartitionIterator(iterator), cmd);
+            resp = ReadResponse.createDataResponse(new SingletonUnfilteredPartitionIterator(iterator), cmd, ctrl.getRepairedDataInfo());
             logger.info("Response is: {}", resp.toDebugString(cmd, key));
             ByteBuffer digest = resp.digest(cmd);
             return ByteBufferUtil.bytesToHex(digest);
