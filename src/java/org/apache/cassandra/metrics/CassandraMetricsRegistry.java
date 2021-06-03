@@ -389,7 +389,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         }
 
         @Override
-        public long[] getRecentValues()
+        public synchronized long[] getRecentValues()
         {
             long[] now = metric.getSnapshot().getValues();
             long[] delta = delta(now, last);
@@ -606,7 +606,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         }
 
         @Override
-        public long[] getRecentValues()
+        public synchronized long[] getRecentValues()
         {
             long[] now = metric.getSnapshot().getValues();
             long[] delta = delta(now, last);
