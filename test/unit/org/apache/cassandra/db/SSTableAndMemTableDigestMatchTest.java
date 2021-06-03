@@ -154,14 +154,16 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
     private void testWithFilterAndStaticColumnsOnly(Function<TableMetadata, ColumnFilter> filterFactory) throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck int, s1 int static, s2 int static, v int, PRIMARY KEY(pk, ck))");
-        execute("INSERT INTO %s (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
-        flush();
-        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
-        flush();
-        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
-        flush();
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
+        assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()));
+
+        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
+        assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()));
+
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
         assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()));
     }
 

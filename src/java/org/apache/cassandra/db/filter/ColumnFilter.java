@@ -20,6 +20,8 @@ package org.apache.cassandra.db.filter;
 import java.io.IOException;
 import java.util.*;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterators;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
@@ -84,7 +86,7 @@ public abstract class ColumnFilter
          * This strategy will fetch all the regular and static columns.
          *
          * <p>According to the CQL semantic a partition exists if it has at least one row or one of its static columns is not null.
-         * For queries that have no restrictions on the clustering or regular columns, C* returns will return some data for
+         * For queries that have no restrictions on the clustering or regular columns, C* will return some data for
          * the partition even if it does not contains any row as long as one of the static columns contains data.
          * To be able to ensure those queries all columns need to be fetched.</p>
          *
@@ -183,7 +185,7 @@ public abstract class ColumnFilter
     }
 
     /**
-     * Returns {@code true} if there are 4.0 pre-release nodes in the cluster (e.g. 4.0-rc1), {@code false} otherwise.
+     * Returns {@code true} if there are pre-4.0-rc2 nodes in the cluster, {@code false} otherwise.
      *
      * <p>ColumnFilters from 4.0 releases before RC2 wrongly assumed that fetching all regular columns and not
      * the static columns was enough. That was not the case for queries that needed to return rows for empty partitions.
@@ -193,7 +195,7 @@ public abstract class ColumnFilter
     {
         if (Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0_RC2))
         {
-            logger.trace("ColumnFilter conversion has been applied so that static columns will not be fetched because there are 4.0 pre-release nodes in the cluster");
+            logger.trace("ColumnFilter conversion has been applied so that static columns will not be fetched because there are pre 4.0-rc2 nodes in the cluster");
             return true;
         }
         return false;
@@ -797,6 +799,7 @@ public abstract class ColumnFilter
                                      RegularAndStaticColumns fetched,
                                      SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections)
         {
+            assert queried != null;
             assert fetched.includes(queried);
 
             this.fetchingStrategy = fetchingStrategy;
@@ -832,7 +835,7 @@ public abstract class ColumnFilter
         @Override
         public boolean fetches(ColumnMetadata column)
         {
-            return fetchingStrategy.fetchesAllColumns(column.isStatic()) || queried.contains(column);
+            return fetchingStrategy.fetchesAllColumns(column.isStatic()) || fetched.contains(column);
         }
 
         @Override

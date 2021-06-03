@@ -345,20 +345,11 @@ public class ColumnFilterTest
                 assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
                 assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
             }
-            else if ("3.11".equals(clusterMinVersion))
+            else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
             {
                 assertEquals("*/[v1]", filter.toString());
                 assertEquals("v1", filter.toCQLString());
                 assertFetchedQueried(true, false, filter, s1, s2, v2);
-                assertCellFetchedQueried(true, false, filter, v2, path0, path1, path2, path3, path4);
-                assertCellFetchedQueried(true, false, filter, s2, path0, path1, path2, path3, path4);
-            }
-            else if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
-            {
-                assertEquals("*/[v1]", filter.toString());
-                assertEquals("v1", filter.toCQLString());
-                assertFetchedQueried(true, false, filter, v2);
-                assertFetchedQueried(true, false, filter, s1, s2);
                 assertCellFetchedQueried(true, false, filter, v2, path0, path1, path2, path3, path4);
                 assertCellFetchedQueried(true, false, filter, s2, path0, path1, path2, path3, path4);
             }
@@ -402,22 +393,13 @@ public class ColumnFilterTest
                 assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
                 assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
             }
-            else if ("3.11".equals(clusterMinVersion))
+            else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
             {
                 assertEquals("*/[s1]", filter.toString());
                 assertEquals("s1", filter.toCQLString());
                 assertFetchedQueried(true, false, filter, v1, v2, s2);
                 assertCellFetchedQueried(true, false, filter, v2, path0, path1, path2, path3, path4);
                 assertCellFetchedQueried(false, false, filter, s2, path0, path1, path2, path3, path4);
-            }
-            else if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
-            {
-                assertEquals("*/[s1]", filter.toString());
-                assertEquals("s1", filter.toCQLString());
-                assertFetchedQueried(true, false, filter, v1, v2);
-                assertFetchedQueried(true, false, filter, s2);
-                assertCellFetchedQueried(true, false, filter, v2, path0, path1, path2, path3, path4);
-                assertCellFetchedQueried(true, false, filter, s2, path0, path1, path2, path3, path4);
             }
             else
             {
@@ -461,7 +443,7 @@ public class ColumnFilterTest
             assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
             assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
         }
-        else if ("3.11".equals(clusterMinVersion))
+        else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
         {
             assertEquals("*/[v2[1]]", filter.toString());
             assertEquals("v2[1]", filter.toCQLString());
@@ -469,16 +451,6 @@ public class ColumnFilterTest
             assertCellFetchedQueried(true, true, filter, v2, path1);
             assertCellFetchedQueried(true, false, filter, v2, path0, path2, path3, path4);
             assertCellFetchedQueried(true, false, filter, s2, path0, path1, path2, path3, path4);
-        }
-        else if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
-        {
-            assertEquals("*/[v2[1]]", filter.toString());
-            assertEquals("v2[1]", filter.toCQLString());
-            assertFetchedQueried(true, false, filter, v1);
-            assertFetchedQueried(true, false, filter, s1, s2);
-            assertCellFetchedQueried(true, true, filter, v2, path1);
-            assertCellFetchedQueried(true, false, filter, v2, path0, path2, path3, path4);
-            assertCellFetchedQueried(false, false, filter, s2, path0, path1, path2, path3, path4);
         }
         else
         {
@@ -504,7 +476,7 @@ public class ColumnFilterTest
         testSelectStaticColumnCellWithMetadata(true);
     }
 
-    public void testSelectStaticColumnCellWithMetadata(boolean returnStaticContentOnPartitionWithNoRows)
+    private void testSelectStaticColumnCellWithMetadata(boolean returnStaticContentOnPartitionWithNoRows)
     {
         ColumnFilter filter = ColumnFilter.allRegularColumnsBuilder(metadata, returnStaticContentOnPartitionWithNoRows)
                                           .select(s2, path1)
@@ -519,22 +491,12 @@ public class ColumnFilterTest
             assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
             assertCellFetchedQueried(true, true, filter, s2, path1, path0, path2, path3, path4);
         }
-        else if ("3.11".equals(clusterMinVersion))
+        else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
         {
             assertEquals("*/[s2[1]]", filter.toString());
             assertEquals("s2[1]", filter.toCQLString());
             assertFetchedQueried(true, false, filter, v1, v2, s1);
             assertCellFetchedQueried(true, false, filter, v2, path0, path1, path2, path3, path4);
-            assertCellFetchedQueried(true, true, filter, s2, path1);
-            assertCellFetchedQueried(true, false, filter, s2, path0, path2, path3, path4);
-        }
-        else if (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion))
-        {
-            assertEquals("*/[s2[1]]", filter.toString());
-            assertEquals("s2[1]", filter.toCQLString());
-            assertFetchedQueried(true, false, filter, v1, v2);
-            assertFetchedQueried(true, false, filter, s1);
-            assertCellFetchedQueried(false, false, filter, v2, path0, path1, path2, path3, path4);
             assertCellFetchedQueried(true, true, filter, s2, path1);
             assertCellFetchedQueried(true, false, filter, s2, path0, path2, path3, path4);
         }
