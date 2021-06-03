@@ -32,6 +32,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -87,28 +88,39 @@ public class ExceptionHandlers
                     JVMStabilityInspector.inspectThrowable(cause);
                 }
             }
-            if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException))
-            {
-                // if any ProtocolExceptions is not silent, then handle
-                if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException && !((ProtocolException) t).isSilent()))
-                {
-                    ClientMetrics.instance.markProtocolException();
-                    // since protocol exceptions are expected to be client issues, not logging stack trace
-                    // to avoid spamming the logs once a bad client shows up
-                    NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
-                }
-            }
-            else
-            {
-                ClientMetrics.instance.markUnknownException();
-                logger.warn("Unknown exception in client networking", cause);
-            }
+            
+            logClientNetworkingExceptions(cause);
         }
 
         private static boolean isFatal(Throwable cause)
         {
             return Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException
                                                           && ((ProtocolException)t).isFatal());
+        }
+    }
+
+    static void logClientNetworkingExceptions(Throwable cause)
+    {
+        if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException))
+        {
+            // if any ProtocolExceptions is not silent, then handle
+            if (Throwables.anyCauseMatches(cause, t -> t instanceof ProtocolException && !((ProtocolException) t).isSilent()))
+            {
+                ClientMetrics.instance.markProtocolException();
+                // since protocol exceptions are expected to be client issues, not logging stack trace
+                // to avoid spamming the logs once a bad client shows up
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, "Protocol exception with client networking: " + cause.getMessage());
+            }
+        }
+        else if (Throwables.anyCauseMatches(cause, t -> t instanceof OverloadedException))
+        {
+            // Once the threshold for overload is breached, it will very likely spam the logs...
+            NoSpamLogger.log(logger, NoSpamLogger.Level.INFO, 1, TimeUnit.MINUTES, cause.getMessage());
+        }
+        else
+        {
+            ClientMetrics.instance.markUnknownException();
+            logger.warn("Unknown exception in client networking", cause);
         }
     }
 

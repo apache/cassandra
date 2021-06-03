@@ -21,6 +21,8 @@ package org.apache.cassandra.transport;
 import java.net.InetAddress;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
 import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.utils.NoWaitRateLimiter;
 
 public class ClientResourceLimits
 {
@@ -42,6 +45,13 @@ public class ClientResourceLimits
     private static final AbstractMessageHandler.WaitQueue GLOBAL_QUEUE = AbstractMessageHandler.WaitQueue.global(GLOBAL_LIMIT);
     private static final ConcurrentMap<InetAddress, Allocator> PER_ENDPOINT_ALLOCATORS = new ConcurrentHashMap<>();
 
+    public static final NoWaitRateLimiter GLOBAL_REQUEST_LIMITER = NoWaitRateLimiter.create(getNativeTransportRequestsPerSecond());
+
+    // TODO: Document if this executor survives...
+    public static final ExecutorService CONNECTION_WAKER = Executors.newSingleThreadExecutor();
+
+    public enum Overload { NONE, REQUESTS, BYTES_IN_FLIGHT }
+    
     public static Allocator getAllocatorForEndpoint(InetAddress endpoint)
     {
         while (true)
@@ -93,6 +103,19 @@ public class ClientResourceLimits
             histogram.update(allocator.endpointAndGlobal.endpoint().using());
         }
         return histogram.getSnapshot();
+    }
+
+    public static double getNativeTransportRequestsPerSecond()
+    {
+        return DatabaseDescriptor.getNativeTransportRequestsPerSecond();
+    }
+
+    public static void setNativeTransportRequestsPerSecond(double newPerSecond)
+    {
+        double existingPerSecond = getNativeTransportRequestsPerSecond();
+        DatabaseDescriptor.setNativeTransportRequestsPerSecond(newPerSecond);
+        GLOBAL_REQUEST_LIMITER.setRate(newPerSecond);
+        logger.info("Changed native_transport_requests_per_second from {} to {}", existingPerSecond, newPerSecond);
     }
 
     /**
@@ -166,8 +189,8 @@ public class ClientResourceLimits
          *
          * @param amount number permits to allocate
          * @return outcome SUCCESS if the allocation was successful. In the case of failure,
-         * either INSUFFICIENT_GLOBAL or INSUFFICIENT_ENPOINT to indicate which reserve rejected
-         * the allocation request.
+         * either INSUFFICIENT_GLOBAL or INSUFFICIENT_ENDPOINT to indicate which 
+         * reserve rejected the allocation request.
          */
         ResourceLimits.Outcome tryAllocate(long amount)
         {
@@ -211,19 +234,18 @@ public class ClientResourceLimits
            return endpointAndGlobal.global().using();
         }
 
+        @Override
         public String toString()
         {
-            return String.format("InflightEndpointRequestPayload: %d/%d, InflightOverallRequestPayload: %d/%d",
-                                 endpointAndGlobal.endpoint().using(),
-                                 endpointAndGlobal.endpoint().limit(),
-                                 endpointAndGlobal.global().using(),
-                                 endpointAndGlobal.global().limit());
+            return String.format("Using %d/%d bytes of endpoint limit and %d/%d bytes of global limit.",
+                                 endpointAndGlobal.endpoint().using(), endpointAndGlobal.endpoint().limit(),
+                                 endpointAndGlobal.global().using(), endpointAndGlobal.global().limit());
         }
     }
 
     /**
      * Used in protocol V5 and later by the AbstractMessageHandler/CQLMessageHandler hierarchy.
-     * This hides the allocate/tryAllocate/release methods from EndpointResourceLimits and exposes
+     * This hides the allocate/tryAllocate/release methods from {@link ClientResourceLimits} and exposes
      * the endpoint and global limits, along with their corresponding
      * {@link org.apache.cassandra.net.AbstractMessageHandler.WaitQueue} directly.
      * Provided as an interface and single implementation for testing (see CQLConnectionTest)
@@ -234,9 +256,10 @@ public class ClientResourceLimits
         AbstractMessageHandler.WaitQueue globalWaitQueue();
         ResourceLimits.Limit endpointLimit();
         AbstractMessageHandler.WaitQueue endpointWaitQueue();
+        NoWaitRateLimiter requestRateLimiter();
         void release();
 
-        static class Default implements ResourceProvider
+        class Default implements ResourceProvider
         {
             private final Allocator limits;
 
@@ -265,6 +288,11 @@ public class ClientResourceLimits
                 return limits.waitQueue;
             }
 
+            public NoWaitRateLimiter requestRateLimiter()
+            {
+                return GLOBAL_REQUEST_LIMITER;
+            }
+            
             public void release()
             {
                 limits.release();

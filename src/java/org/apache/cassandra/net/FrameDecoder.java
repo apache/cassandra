@@ -190,6 +190,11 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
     abstract void decode(Collection<Frame> into, ShareableBytes bytes);
     abstract void addLastTo(ChannelPipeline pipeline);
 
+    public boolean isActive()
+    {
+        return isActive;
+    }
+    
     /**
      * For use by InboundMessageHandler (or other upstream handlers) that want to start receiving frames.
      */
@@ -208,7 +213,7 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
      * For use by InboundMessageHandler (or other upstream handlers) that want to resume
      * receiving frames after previously indicating that processing should be paused.
      */
-    void reactivate() throws IOException
+    public void reactivate() throws IOException
     {
         if (isActive)
             throw new IllegalStateException("Tried to reactivate an already active FrameDecoder");
@@ -282,7 +287,8 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
     {
         decode(frames, bytes);
 
-        if (isActive) isActive = deliver(processor);
+        if (isActive)
+            isActive = deliver(processor);
     }
 
     @Override
