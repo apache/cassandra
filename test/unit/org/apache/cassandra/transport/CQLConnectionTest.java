@@ -765,6 +765,7 @@ public class CQLConnectionTest
         }
     }
 
+    // TODO: Add request limit items here...
     static class AllocationObserver
     {
         volatile InstrumentedLimit endpoint;

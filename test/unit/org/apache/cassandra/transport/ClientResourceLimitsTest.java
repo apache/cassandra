@@ -53,10 +53,10 @@ import static org.junit.Assert.fail;
 
 public class ClientResourceLimitsTest extends CQLTester
 {
-
     private static final long LOW_LIMIT = 600L;
     private static final long HIGH_LIMIT = 5000000000L;
 
+    // TODO: Parameterize this test to look at V4 and V5?
     private static final QueryOptions V5_DEFAULT_OPTIONS = QueryOptions.create(
         QueryOptions.DEFAULT.getConsistency(),
         QueryOptions.DEFAULT.getValues(),
@@ -73,6 +73,7 @@ public class ClientResourceLimitsTest extends CQLTester
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(LOW_LIMIT);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(LOW_LIMIT);
+        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsPerSecond(Double.MAX_VALUE);
         requireNetwork();
     }
 
@@ -81,6 +82,7 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(3000000000L);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(HIGH_LIMIT);
+        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsPerSecond(Double.MAX_VALUE);
     }
 
     @Before
@@ -88,6 +90,7 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         ClientResourceLimits.setGlobalLimit(LOW_LIMIT);
         ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
+        ClientResourceLimits.setGlobalRequestsPerSecond(Double.MAX_VALUE);
     }
 
     @After
@@ -139,18 +142,18 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testQueryExecutionWithThrowOnOverload() throws Throwable
+    public void testQueryExecutionWithThrowOnOverload()
     {
         testQueryExecution(true);
     }
 
     @Test
-    public void testQueryExecutionWithoutThrowOnOverload() throws Throwable
+    public void testQueryExecutionWithoutThrowOnOverload()
     {
         testQueryExecution(false);
     }
 
-    private void testQueryExecution(boolean throwOnOverload) throws Throwable
+    private void testQueryExecution(boolean throwOnOverload)
     {
         try (SimpleClient client = client(throwOnOverload))
         {
@@ -179,6 +182,8 @@ public class ClientResourceLimitsTest extends CQLTester
         backPressureTest(() -> ClientResourceLimits.setEndpointLimit(HIGH_LIMIT),
                          (provider) -> provider.endpointWaitQueue().signal());
     }
+
+    // TODO: Add request limit tests here...
 
     private void backPressureTest(Runnable limitLifter, Consumer<ClientResourceLimits.ResourceProvider> signaller)
     throws Throwable
@@ -239,7 +244,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitExceeded() throws Throwable
+    public void testOverloadedExceptionWhenGlobalLimitExceeded()
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
@@ -247,7 +252,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitExceeded() throws Throwable
+    public void testOverloadedExceptionWhenEndpointLimitExceeded()
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
@@ -255,7 +260,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage() throws Throwable
+    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage()
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
@@ -263,7 +268,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage() throws Throwable
+    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage()
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
@@ -365,7 +370,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testChangingLimitsAtRuntime() throws Throwable
+    public void testChangingLimitsAtRuntime()
     {
         SimpleClient client = client(true);
         try

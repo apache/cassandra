@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +42,9 @@ public class ClientResourceLimits
     private static final ResourceLimits.Concurrent GLOBAL_LIMIT = new ResourceLimits.Concurrent(getGlobalLimit());
     private static final AbstractMessageHandler.WaitQueue GLOBAL_QUEUE = AbstractMessageHandler.WaitQueue.global(GLOBAL_LIMIT);
     private static final ConcurrentMap<InetAddress, Allocator> PER_ENDPOINT_ALLOCATORS = new ConcurrentHashMap<>();
+
+    @SuppressWarnings("UnstableApiUsage")
+    public static final RateLimiter GLOBAL_REQUEST_LIMITER = RateLimiter.create(getGlobalMaxRequestsPerSecond());
 
     public static Allocator getAllocatorForEndpoint(InetAddress endpoint)
     {
@@ -93,6 +97,20 @@ public class ClientResourceLimits
             histogram.update(allocator.endpointAndGlobal.endpoint().using());
         }
         return histogram.getSnapshot();
+    }
+
+    public static double getGlobalMaxRequestsPerSecond()
+    {
+        return DatabaseDescriptor.getNativeTransportMaxConcurrentRequestsPerSecond();
+    }
+
+    @SuppressWarnings("UnstableApiUsage")
+    public static void setGlobalRequestsPerSecond(double newPerSecond)
+    {
+        double existingPerSecond = getGlobalMaxRequestsPerSecond();
+        DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsPerSecond(newPerSecond);
+        GLOBAL_REQUEST_LIMITER.setRate(newPerSecond);
+        logger.info("Changed native_transport_max_concurrent_requests_per_second from {} to {}", existingPerSecond, newPerSecond);
     }
 
     /**
@@ -166,8 +184,8 @@ public class ClientResourceLimits
          *
          * @param amount number permits to allocate
          * @return outcome SUCCESS if the allocation was successful. In the case of failure,
-         * either INSUFFICIENT_GLOBAL or INSUFFICIENT_ENPOINT to indicate which reserve rejected
-         * the allocation request.
+         * either INSUFFICIENT_GLOBAL or INSUFFICIENT_ENDPOINT to indicate which 
+         * reserve rejected the allocation request.
          */
         ResourceLimits.Outcome tryAllocate(long amount)
         {
@@ -223,7 +241,7 @@ public class ClientResourceLimits
 
     /**
      * Used in protocol V5 and later by the AbstractMessageHandler/CQLMessageHandler hierarchy.
-     * This hides the allocate/tryAllocate/release methods from EndpointResourceLimits and exposes
+     * This hides the allocate/tryAllocate/release methods from {@link ClientResourceLimits} and exposes
      * the endpoint and global limits, along with their corresponding
      * {@link org.apache.cassandra.net.AbstractMessageHandler.WaitQueue} directly.
      * Provided as an interface and single implementation for testing (see CQLConnectionTest)
@@ -236,7 +254,7 @@ public class ClientResourceLimits
         AbstractMessageHandler.WaitQueue endpointWaitQueue();
         void release();
 
-        static class Default implements ResourceProvider
+        class Default implements ResourceProvider
         {
             private final Allocator limits;
 

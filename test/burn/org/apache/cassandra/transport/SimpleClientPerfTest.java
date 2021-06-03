@@ -212,7 +212,7 @@ public class SimpleClientPerfTest
                             lock.lock();
                             try
                             {
-                                stats.addValue(TimeUnit.MICROSECONDS.toMillis(diff));
+                                stats.addValue(TimeUnit.NANOSECONDS.toMicros(diff));
                             }
                             finally
                             {
@@ -240,12 +240,16 @@ public class SimpleClientPerfTest
 
         System.out.println("requestSize = " + requestSize);
         System.out.println("responseSize = " + responseSize);
+        
+        System.out.println("Latencies (in microseconds)");
         System.out.println("Mean:     " + stats.getMean());
         System.out.println("Variance: " + stats.getVariance());
         System.out.println("Median:   " + stats.getPercentile(0.5));
         System.out.println("90p:      " + stats.getPercentile(0.90));
         System.out.println("95p:      " + stats.getPercentile(0.95));
         System.out.println("99p:      " + stats.getPercentile(0.99));
+
+        // TODO: Add request limit items here...rate limiting observations?
 
         server.stop();
     }

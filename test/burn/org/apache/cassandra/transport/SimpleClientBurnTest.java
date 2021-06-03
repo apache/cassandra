@@ -206,6 +206,7 @@ public class SimpleClientBurnTest
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
 
+        // TODO: Add request limit items here...
         assertThat(allocationObserver.endpointAllocationTotal()).isEqualTo(allocationObserver.endpointReleaseTotal());
         assertThat(allocationObserver.globalAllocationTotal()).isEqualTo(allocationObserver.globalReleaseTotal());
 

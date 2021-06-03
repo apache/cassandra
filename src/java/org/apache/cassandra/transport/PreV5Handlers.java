@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.transport.ClientResourceLimits.GLOBAL_REQUEST_LIMITER;
 import static org.apache.cassandra.transport.Message.logger;
 
 public class PreV5Handlers
@@ -64,6 +65,7 @@ public class PreV5Handlers
          */
         private long channelPayloadBytesInFlight;
         private boolean paused;
+        private long unpauseAt = Long.MIN_VALUE;
 
         LegacyDispatchHandler(Dispatcher dispatcher, ClientResourceLimits.Allocator endpointPayloadTracker)
         {
@@ -71,7 +73,7 @@ public class PreV5Handlers
             this.endpointPayloadTracker = endpointPayloadTracker;
         }
 
-        protected void channelRead0(ChannelHandlerContext ctx, Message.Request request) throws Exception
+        protected void channelRead0(ChannelHandlerContext ctx, Message.Request request)
         {
             // if we decide to handle this message, process it outside of the netty event loop
             if (shouldHandleRequest(ctx, request))
@@ -107,7 +109,7 @@ public class PreV5Handlers
             // paused ever set to true. In pipelines configured for V5 or later, backpressure and control
             // over the inbound pipeline's autoread status are handled by the FrameDecoder/FrameProcessor.
             ChannelConfig config = item.channel.config();
-            if (paused && (channelPayloadBytesInFlight == 0 || endpointGlobalReleaseOutcome == ResourceLimits.Outcome.BELOW_LIMIT))
+            if (paused && (channelPayloadBytesInFlight == 0 || (endpointGlobalReleaseOutcome == ResourceLimits.Outcome.BELOW_LIMIT && System.nanoTime() >= unpauseAt)))
             {
                 paused = false;
                 ClientMetrics.instance.unpauseConnection();
@@ -129,7 +131,7 @@ public class PreV5Handlers
             long requestSize = request.getSource().header.bodySizeInBytes;
 
             // check for overloaded state by trying to allocate the message size from inflight payload trackers
-            if (endpointPayloadTracker.tryAllocate(requestSize) != ResourceLimits.Outcome.SUCCESS)
+            if (!tryAcquireResources(requestSize))
             {
                 if (request.connection.isThrowOnOverload())
                 {
@@ -138,7 +140,7 @@ public class PreV5Handlers
                     logger.trace("Discarded request of size: {}. InflightChannelRequestPayload: {}, {}, Request: {}",
                                  requestSize,
                                  channelPayloadBytesInFlight,
-                                 endpointPayloadTracker.toString(),
+                                 endpointPayloadTracker,
                                  request);
                     throw ErrorMessage.wrap(new OverloadedException("Server is in overloaded state. Cannot accept more requests at this point"),
                                             request.getSource().header.streamId);
@@ -147,6 +149,13 @@ public class PreV5Handlers
                 {
                     // set backpressure on the channel, and handle the request
                     endpointPayloadTracker.allocate(requestSize);
+
+                    // TODO: This should return the time (past, or future) corresponding to the permit taken, so
+                    // the caller can make a decision about when we might be able to unpause connections, etc.
+                    // Right now it's the wait time from RateLimiter...
+                    long nanosToWait = (long) (GLOBAL_REQUEST_LIMITER.acquire() * TimeUnit.SECONDS.toNanos(1));
+                    unpauseAt = System.nanoTime() + nanosToWait;
+                    
                     ctx.channel().config().setAutoRead(false);
                     ClientMetrics.instance.pauseConnection();
                     paused = true;
@@ -155,6 +164,23 @@ public class PreV5Handlers
 
             channelPayloadBytesInFlight += requestSize;
             return true;
+        }
+
+        @SuppressWarnings("UnstableApiUsage")
+        private boolean tryAcquireResources(long requestSize) {
+            ResourceLimits.Outcome outcome = endpointPayloadTracker.tryAllocate(requestSize);
+            if (outcome != ResourceLimits.Outcome.SUCCESS)
+            {
+                return false;
+            }
+
+            if (GLOBAL_REQUEST_LIMITER.tryAcquire())
+            {
+                return true;
+            }
+
+            endpointPayloadTracker.release(requestSize);
+            return false;
         }
 
 

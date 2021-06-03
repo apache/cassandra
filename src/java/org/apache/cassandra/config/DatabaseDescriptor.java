@@ -2314,6 +2314,16 @@ public class DatabaseDescriptor
         conf.native_transport_max_concurrent_requests_in_bytes = maxConcurrentRequestsInBytes;
     }
 
+    public static double getNativeTransportMaxConcurrentRequestsPerSecond()
+    {
+        return conf.native_transport_max_concurrent_requests_per_second;
+    }
+
+    public static void setNativeTransportMaxConcurrentRequestsPerSecond(double perSecond)
+    {
+        conf.native_transport_max_concurrent_requests_per_second = perSecond;
+    }
+
     public static int getCommitLogSyncPeriod()
     {
         return conf.commitlog_sync_period_in_ms;

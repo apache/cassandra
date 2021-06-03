@@ -135,8 +135,7 @@ import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapter implements FrameProcessor
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractMessageHandler.class);
-    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1L, TimeUnit.SECONDS);
-
+    
     protected final FrameDecoder decoder;
 
     protected final Channel channel;
@@ -304,8 +303,8 @@ public abstract class AbstractMessageHandler extends ChannelInboundHandlerAdapte
         try
         {
             /*
-             * Process up to one message using supplied overriden reserves - one of them pre-allocated,
-             * and guaranteed to be enough for one message - then, if no obstacles enountered, reactivate
+             * Process up to one message using supplied overridden reserves - one of them pre-allocated,
+             * and guaranteed to be enough for one message - then, if no obstacles encountered, reactivate
              * the frame decoder using normal reserve capacities.
              */
             if (processUpToOneMessage(endpointReserve, globalReserve))
