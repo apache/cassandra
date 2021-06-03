@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.regex.Pattern;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -37,6 +39,7 @@ import static org.junit.Assert.assertThat;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class StatusTest extends CQLTester
 {
+    private static final Pattern PATTERN = Pattern.compile("\\R");
     private static String localHostId;
     private static String token;
 
@@ -80,17 +83,17 @@ public class StatusTest extends CQLTester
 
         ToolRunner.ToolResult nodetool = ToolRunner.invokeNodetool("status");
         nodetool.assertOnCleanExit();
-        String[] lines = nodetool.getStdout().split("\\R");
+        String[] lines = PATTERN.split(nodetool.getStdout());
 
         String hostStatus = lines[lines.length-3].trim();
         assertThat(hostStatus, startsWith("UN"));
         assertThat(hostStatus, containsString(FBUtilities.getJustLocalAddress().getHostAddress()));
-        assertThat(hostStatus, matchesPattern(".*\\d+\\.\\d+ KiB.*"));
+        assertThat(hostStatus, matchesPattern(".*\\d+\\.?\\d+ KiB.*"));
         assertThat(hostStatus, containsString(localHostId));
         assertThat(hostStatus, containsString(token));
         assertThat(hostStatus, endsWith(SimpleSnitch.RACK_NAME));
 
-        String bootstrappingWarn = lines[lines.length-1].trim();;
+        String bootstrappingWarn = lines[lines.length-1].trim();
         assertThat(bootstrappingWarn, containsString("probably still bootstrapping. Effective ownership information is meaningless."));
     }
 
@@ -106,12 +109,12 @@ public class StatusTest extends CQLTester
          --  Address    Load       Owns (effective)  Host ID                               Token                Rack
          UN  localhost  45.71 KiB  100.0%            0b1b5e91-ad3b-444e-9c24-50578486978a  1849950853373272258  rack1
          */
-        String[] lines = nodetool.getStdout().split("\\R");
+        String[] lines = PATTERN.split(nodetool.getStdout());
         assertThat(lines[0].trim(), endsWith(SimpleSnitch.DATA_CENTER_NAME));
         String hostStatus = lines[lines.length-1].trim();
         assertThat(hostStatus, startsWith("UN"));
         assertThat(hostStatus, containsString(hostForm));
-        assertThat(hostStatus, matchesPattern(".*\\d+\\.\\d+ KiB.*"));
+        assertThat(hostStatus, matchesPattern(".*\\d+\\.?\\d+ KiB.*"));
         assertThat(hostStatus, matchesPattern(".*\\d+\\.\\d+%.*"));
         assertThat(hostStatus, containsString(localHostId));
         assertThat(hostStatus, containsString(token));
