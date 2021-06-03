@@ -1462,8 +1462,10 @@ public class DeleteTest extends CQLTester
         flush();
 
         assertRows(execute("SELECT * FROM %s WHERE pk=1"), row(1, 1, null, 1, 1));
-        assertRows(execute("SELECT s1, s2 FROM %s WHERE pk=1"), row((Integer) null, 1));
+        assertRows(execute("SELECT s1, s2 FROM %s WHERE pk=1"), row(null, 1));
         assertRows(execute("SELECT s1 FROM %s WHERE pk=1"), row((Integer) null));
+        assertRows(execute("SELECT DISTINCT s1, s2 FROM %s WHERE pk=1"), row(null, 1));
+        assertRows(execute("SELECT DISTINCT s1 FROM %s WHERE pk=1"), row((Integer) null));
     }
 
     /**

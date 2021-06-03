@@ -126,7 +126,7 @@ public class CompactTableTest extends CQLTester
         flush();
 
         assertRows(execute("SELECT * FROM %s WHERE pk=1"), row(1, null, 1));
-        assertRows(execute("SELECT v1, v2 FROM %s WHERE pk=1"), row((Integer) null, 1));
-        assertRows(execute("SELECT v1 FROM %s WHERE pk=1"), row((Integer) null)); // <-fail
+        assertRows(execute("SELECT v1, v2 FROM %s WHERE pk=1"), row(null, 1));
+        assertRows(execute("SELECT v1 FROM %s WHERE pk=1"), row((Integer) null));
     }
 }

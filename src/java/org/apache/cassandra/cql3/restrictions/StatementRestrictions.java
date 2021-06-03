@@ -849,16 +849,17 @@ public final class StatementRestrictions
      * Determines if the query should return the static content when a partition without rows is returned (as a
      * result set row with null for all other regular columns.)
      *
-     * @return {@code true} if the query should return the static content when a partition without rows is returned, {@code false} otherwise.
+     * @return {@code true} if the query should return the static content when a partition without rows is returned,
+     * {@code false} otherwise.
      */
     public boolean returnStaticContentOnPartitionWithNoRows()
     {
         if (table.isStaticCompactTable())
             return true;
 
-        // The general rational is that if some rows are specifically selected by the query (have clustering or
-        // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
-        // query, then we include that content.
+        // The general rationale is that if some rows are specifically selected by the query (have clustering or
+        // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's
+        // a full partition query, then we include that content.
         return queriesFullPartitions();
     }
     

@@ -53,11 +53,11 @@ import org.apache.cassandra.utils.CassandraVersion;
  *
  * Note that in practice:
  *   - the _queried_ columns set is always included in the _fetched_ one.
- *   - whenever those sets are different, the _fetched_ columns can contains either all the regular columns and
- *     the static columns queried by the user or all the regular and static queries. If the query is a partition level
+ *   - whenever those sets are different, the _fetched_ columns can contain either all the regular columns and
+ *     the static columns queried by the user or all the regular and static columns. If the query is a partition level
  *     query (no restrictions on clustering or regular columns) all the static columns will need to be fetched as
  *     some data will need to be returned to the user if the partition has no row but some static data. For all the
- *     other scenarios only the all the regular columns are required.
+ *     other scenarios only the regular columns are required.
  *   - in the special case of a {@code SELECT *} query, we want to query all columns, and _fetched_ == _queried.
  *     As this is a common case, we special case it by using a specific subclass for it.
  *
@@ -83,7 +83,7 @@ public abstract class ColumnFilter
         /**
          * This strategy will fetch all the regular and static columns.
          *
-         * <p>According to the CQL semantic a partition exist if has at least one row or one of its static columns not null.
+         * <p>According to the CQL semantic a partition exists if it has at least one row or one of its static columns is not null.
          * For queries that have no restrictions on the clustering or regular columns, C* returns will return some data for
          * the partition even if it does not contains any row as long as one of the static columns contains data.
          * To be able to ensure those queries all columns need to be fetched.</p>
@@ -110,7 +110,7 @@ public abstract class ColumnFilter
         /**
          * This strategy will fetch all the regular and selected static columns.
          *
-         * <p>According to the CQL semantic a row exist if has at least one of its columns is not null.
+         * <p>According to the CQL semantic a row exists if at least one of its columns is not null.
          * To ensure that we need to fetch all regular columns.</p>
          */
         ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS
@@ -185,7 +185,7 @@ public abstract class ColumnFilter
     /**
      * Returns {@code true} if there are 4.0 pre-release nodes in the cluster (e.g. 4.0-rc1), {@code false} otherwise.
      *
-     * <p>ColumnFilters from 4.0 release before RC2 wrongly assumed that fetching all regular columns and not the all
+     * <p>ColumnFilters from 4.0 releases before RC2 wrongly assumed that fetching all regular columns and not
      * the static columns was enough. That was not the case for queries that needed to return rows for empty partitions.
      * See CASSANDRA-16686 for more details.</p>
      */
@@ -260,10 +260,7 @@ public abstract class ColumnFilter
      */
     public static ColumnFilter selection(RegularAndStaticColumns columns)
     {
-        return SelectionColumnFilter.newInstance(FetchingStrategy.ONLY_QUERIED_COLUMNS,
-                                                 (TableMetadata) null,
-                                                 columns,
-                                                 null);
+        return SelectionColumnFilter.newInstance(FetchingStrategy.ONLY_QUERIED_COLUMNS, null, columns, null);
     }
 
     /**
@@ -271,8 +268,8 @@ public abstract class ColumnFilter
      * only the queried ones.
      */
     public static ColumnFilter selection(TableMetadata metadata,
-                                          RegularAndStaticColumns queried,
-                                          boolean returnStaticContentOnPartitionWithNoRows)
+                                         RegularAndStaticColumns queried,
+                                         boolean returnStaticContentOnPartitionWithNoRows)
     {
         // pre CASSANDRA-10657 (3.4-), when fetchAll is enabled, queried columns are not considered at all, and it
         // is assumed that all columns are queried.
@@ -287,9 +284,9 @@ public abstract class ColumnFilter
             return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_COLUMNS, metadata, queried, null);
         }
 
-        // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
-        // for some queries
-        if (isUpgradingFromVersionLowerThan40RC2() || !returnStaticContentOnPartitionWithNoRows)
+        // pre CASSANDRA-16686 (4.0-RC2-) static columns were not fetched unless queried which led to some wrong
+        // results for some queries
+        if (!returnStaticContentOnPartitionWithNoRows || isUpgradingFromVersionLowerThan40RC2())
         {
             return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, metadata, queried, null);
         }
@@ -375,6 +372,7 @@ public abstract class ColumnFilter
      * @return the created tester or {@code null} if all the cells from the provided column
      * are queried.
      */
+    @Nullable
     public abstract Tester newTester(ColumnMetadata column);
 
     /**
@@ -626,7 +624,7 @@ public abstract class ColumnFilter
     /**
      * {@code ColumnFilter} sub-class for wildcard queries.
      *
-     * <p>The class  does not rely on TableMetadata and expect a fix set of columns to prevent issues
+     * <p>The class does not rely on TableMetadata and expects a fix set of columns to prevent issues
      * with Schema race propagation. See CASSANDRA-15899.</p>
      */
     public static class WildCardColumnFilter extends ColumnFilter
@@ -639,7 +637,7 @@ public abstract class ColumnFilter
         /**
          * Creates a {@code ColumnFilter} for wildcard queries.
          *
-         * <p>The class  does not rely on TableMetadata and expect a fix set of columns to prevent issues
+         * <p>The class does not rely on TableMetadata and expects a fix set of columns to prevent issues
          * with Schema race propagation. See CASSANDRA-15899.</p>
          *
          * @param fetchedAndQueried the fetched and queried columns
@@ -874,7 +872,7 @@ public abstract class ColumnFilter
             if (tester == null)
                 return cells;
 
-            return Iterators.filter(cells, cell -> tester.fetchedCellIsQueried(cell.path()));
+            return Iterators.filter(cells, cell -> cell != null && tester.fetchedCellIsQueried(cell.path()));
         }
 
         @Override
@@ -937,6 +935,7 @@ public abstract class ColumnFilter
             return prefix + toString(queried.selectOrderIterator(), false);
         }
 
+        @Override
         public String toCQLString()
         {
             return queried.isEmpty() ? "*" : toString(queried.selectOrderIterator(), true);
