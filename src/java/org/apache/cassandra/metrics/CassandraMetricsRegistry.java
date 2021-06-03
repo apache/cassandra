@@ -388,8 +388,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return metric.getSnapshot().getValues();
         }
 
+        /**
+         * Returns a histogram describing the values recorded since the last time this method was called.
+         *
+         * ex. If the counts are [0, 1, 2, 1] at the time the first caller arrives, but change to [1, 2, 3, 2] by the 
+         * time a second caller arrives, the second caller will receive [1, 1, 1, 1].
+         *
+         * @return a histogram whose bucket offsets are assumed to be in nanoseconds
+         */
         @Override
-        public long[] getRecentValues()
+        public synchronized long[] getRecentValues()
         {
             long[] now = metric.getSnapshot().getValues();
             long[] delta = delta(now, last);
@@ -605,8 +613,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return metric.getSnapshot().getValues();
         }
 
+        /**
+         * Returns a histogram describing the values recorded since the last time this method was called.
+         * 
+         * ex. If the counts are [0, 1, 2, 1] at the time the first caller arrives, but change to [1, 2, 3, 2] by the 
+         * time a second caller arrives, the second caller will receive [1, 1, 1, 1].
+         * 
+         * @return a histogram whose bucket offsets are assumed to be in nanoseconds
+         */
         @Override
-        public long[] getRecentValues()
+        public synchronized long[] getRecentValues()
         {
             long[] now = metric.getSnapshot().getValues();
             long[] delta = delta(now, last);
