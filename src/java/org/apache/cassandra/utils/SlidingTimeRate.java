@@ -30,6 +30,9 @@ import com.google.common.base.Preconditions;
 
 /**
  * Concurrent rate computation over a sliding time window.
+ *
+ * Currently not used in the Cassandra 4.0 code base. If you decide to use it, please check CASSANDRA-16713.
+ * There still might be a bug, flaky test to be fixed before using it again.
  */
 public class SlidingTimeRate
 {
