@@ -8,6 +8,7 @@
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
+ * Invalidate prepared statements on DROP COMPACT (CASSANDRA-16712)
  * Failure to execute queries should emit a KPI other than read timeout/unavailable so it can be alerted/tracked (CASSANDRA-16581)
  * Don't wait on schema versions from replacement target when replacing a node (CASSANDRA-16692)
  * StandaloneVerifier does not fail when unable to verify SSTables, it only fails if Corruption is thrown (CASSANDRA-16683)
