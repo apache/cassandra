@@ -33,7 +33,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 
-/* This class been split into multiple ones bc of timeout issues CASSANDRA-16670
+/* InsertUpdateIfConditionCollectionsTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes
  * - InsertUpdateIfConditionStaticsTest
  * - InsertUpdateIfConditionCollectionsTest
