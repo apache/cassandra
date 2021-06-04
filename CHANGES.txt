@@ -1,4 +1,5 @@
 3.0.25:
+ * Invalidate prepared statements on DROP COMPACT (CASSANDRA-16712)
  * Failure to execute queries should emit a KPI other than read timeout/unavailable so it can be alerted/tracked (CASSANDRA-16581)
  * Don't wait on schema versions from replacement target when replacing (CASSANDRA-16692)
  * StandaloneVerifier does not fail when unable to verify SSTables, it only fails if Corruption is thrown (CASSANDRA-16683)
