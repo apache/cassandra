@@ -964,6 +964,7 @@ public final class CFMetaData
         isCompound = cfm.isCompound;
         isSuper = cfm.isSuper;
 
+        changeAffectsStatements |= !flags.equals(cfm.flags);
         flags = cfm.flags;
 
         rebuild();
