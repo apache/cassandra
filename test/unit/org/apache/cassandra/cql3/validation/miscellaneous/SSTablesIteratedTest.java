@@ -217,7 +217,7 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND ck = 51", 1, row(1, 51));
 
         execute("ALTER TABLE %s DROP COMPACT STORAGE");
-        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND ck = 51", 1, row(1, 51));
+        executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND ck = 51", 1, row(1, 51, null));
     }
 
     @Test
