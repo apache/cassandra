@@ -73,6 +73,7 @@ public class ViewTest extends CQLTester
     {
         requireNetwork();
     }
+
     @Before
     public void begin()
     {

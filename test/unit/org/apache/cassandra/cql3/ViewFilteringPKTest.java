@@ -34,10 +34,11 @@ import org.junit.runners.Parameterized;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-/* This class been split into multiple ones bc of timeout issues CASSANDRA-16670
+/* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
- * - ViewFilteringClusteringTest
+ * - ViewFilteringClustering1Test
+ * - ViewFilteringClustering2Test
  * - ViewFilteringTest
  */
 @RunWith(Parameterized.class)

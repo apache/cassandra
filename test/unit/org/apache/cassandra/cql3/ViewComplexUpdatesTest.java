@@ -37,12 +37,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.cql3.ViewComplexTest.createView;
 import static org.apache.cassandra.cql3.ViewComplexTest.updateView;
 
-/* This class been split into multiple ones bc of timeout issues CASSANDRA-16670
+/* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes:
  * - ViewComplexUpdatesTest
  * - ViewComplexDeletionsTest
  * - ViewComplexTTLTest
  * - ViewComplexTest
+ * - ViewComplexLivenessTest
  */
 @RunWith(Parameterized.class)
 public class ViewComplexUpdatesTest extends CQLTester
