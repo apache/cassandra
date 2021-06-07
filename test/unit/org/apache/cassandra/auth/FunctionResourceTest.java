@@ -87,10 +87,7 @@ public class FunctionResourceTest
         assertEquals(expected.getKeyspace(), actual.getKeyspace());
 
         String error = "functions/fr_ks/concat is not a valid function resource name. It must end with \"[]\"";
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> FunctionResource.fromName(String.format("%s/%s/%s",
-                                                                                                                           func,
-                                                                                                                           ks,
-                                                                                                                           name)))
+        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> FunctionResource.fromName(String.format("%s/%s/%s",func,ks,name)))
                                                                  .withMessage(error);
     }
 
@@ -98,20 +95,17 @@ public class FunctionResourceTest
     public void testInvalidFunctionName()
     {
         String expected = "functions_test is not a valid function resource name";
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> FunctionResource.fromName("functions_test"))
-                                                                 .withMessage(expected);
+        assertThatExceptionOfType(IllegalArgumentException.class)
+            .describedAs(expected)
+            .isThrownBy(() -> FunctionResource.fromName("functions_test"));
     }
 
     @Test
     public void testFunctionWithInvalidInput()
     {
         String expected = String.format("%s/%s/%s[%s]/test is not a valid function resource name", func, ks, name, varType);
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> FunctionResource.fromName(String.format("%s/%s/%s[%s]/test",
-                                                                                                                           func,
-                                                                                                                           ks,
-                                                                                                                           name,
-                                                                                                                           varType)))
-                                                                 .withMessage(expected);
-        ;
+        assertThatExceptionOfType(IllegalArgumentException.class)
+            .describedAs(expected)
+            .isThrownBy(() -> FunctionResource.fromName(String.format("%s/%s/%s[%s]/test", func, ks, name, varType)));
     }
 }
