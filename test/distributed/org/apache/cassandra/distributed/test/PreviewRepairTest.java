@@ -417,11 +417,11 @@ public class PreviewRepairTest extends TestBaseImpl
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
             if(shouldBeEmpty)
             {
-                assertTrue(cfs.getSnapshotDetails().isEmpty());
+                assertTrue(cfs.listSnapshots().isEmpty());
             }
             else
             {
-                while (cfs.getSnapshotDetails().isEmpty())
+                while (cfs.listSnapshots().isEmpty())
                     Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
             }
         }));

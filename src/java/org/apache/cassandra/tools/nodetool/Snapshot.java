@@ -32,6 +32,7 @@ import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.config.Duration;
 
 @Command(name = "snapshot", description = "Take a snapshot of specified keyspaces or a snapshot of the specified table")
 public class Snapshot extends NodeToolCmd
@@ -51,6 +52,9 @@ public class Snapshot extends NodeToolCmd
     @Option(title = "skip-flush", name = {"-sf", "--skip-flush"}, description = "Do not flush memtables before snapshotting (snapshot will not contain unflushed data)")
     private boolean skipFlush = false;
 
+    @Option(title = "ttl", name = {"--ttl"}, description = "Specify a TTL of created snapshot")
+    private String ttl = null;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -63,6 +67,10 @@ public class Snapshot extends NodeToolCmd
 
             Map<String, String> options = new HashMap<String,String>();
             options.put("skipFlush", Boolean.toString(skipFlush));
+            if (null != ttl) {
+                Duration d = new Duration(ttl);
+                options.put("ttl", d.toString());
+            }
 
             // Create a separate path for kclist to avoid breaking of already existing scripts
             if (null != ktList && !ktList.isEmpty())
