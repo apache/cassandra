@@ -415,6 +415,20 @@ public class KeyspaceTest extends CQLTester
     }
 
     @Test
+    public void testSnapshotCreation() throws Throwable {
+        createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", "0", 0, 0);
+
+        Keyspace ks = Keyspace.open(KEYSPACE_PER_TEST);
+        String table = getCurrentColumnFamilyStore().name;
+        ks.snapshot("test", table);
+
+        assertTrue(ks.snapshotExists("test"));
+        assertEquals(1, ks.getAllSnapshots().count());
+    }
+
+    @Test
     public void testLimitSSTables() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b))");
