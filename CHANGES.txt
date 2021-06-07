@@ -1,4 +1,5 @@
 4.1
+ * Add TTL support to nodetool snapshots (CASSANDRA-16789)
  * allow blocking IPs from updating metrics about traffic (CASSANDRA-16859)
  * Request-Based Native Transport Rate-Limiting (CASSANDRA-16663)
  * Implement nodetool getauditlog command (CASSANDRA-16725)
