@@ -1,3 +1,9 @@
+4.0.1
+ * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
+
+4.0.0
+ * Obfuscate passwords for DCL audit and fql log statements (CASSANDRA-16669)
+
 4.0-rc2
  * Fix queries on empty partitions with static data (CASSANDRA-16686)
  * Keep python driver in artifacts (CASSANDRA-16700)
