@@ -135,7 +135,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             builder.setType(AuditLogEntryType.REQUEST_FAILURE);
         }
 
-        builder.appendToOperation(e.getMessage());
+        builder.appendToOperation(QueryEvents.instance.getObfuscator().obfuscate(e.getMessage()));
 
         log(builder.build());
     }

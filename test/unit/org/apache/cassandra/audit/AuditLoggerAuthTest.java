@@ -38,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
@@ -80,8 +81,8 @@ public class AuditLoggerAuthTest
         embedded.start();
 
         executeWithCredentials(
-        Arrays.asList(getCreateRoleCql(TEST_USER, true, false),
-                      getCreateRoleCql("testuser_nologin", false, false),
+        Arrays.asList(getCreateRoleCql(TEST_USER, true, false, false),
+                      getCreateRoleCql("testuser_nologin", false, false, false),
                       "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
                       "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
         "cassandra", "cassandra", null);
@@ -135,7 +136,7 @@ public class AuditLoggerAuthTest
         executeWithCredentials(Arrays.asList(cql), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS);
         assertTrue(getInMemAuditLogger().size() > 0);
         AuditLogEntry logEntry = getInMemAuditLogger().poll();
-        assertLogEntry(logEntry, AuditLogEntryType.ALTER_ROLE, cql, CASS_USER);
+        assertLogEntry(logEntry, AuditLogEntryType.ALTER_ROLE, "ALTER ROLE " + TEST_ROLE + " WITH PASSWORD" + PasswordObfuscator.OBFUSCATION_TOKEN, CASS_USER);
         assertEquals(0, getInMemAuditLogger().size());
     }
 
@@ -274,19 +275,19 @@ public class AuditLoggerAuthTest
             assertEquals(username, logEntry.getUser());
     }
 
-    private static String getCreateRoleCql(String role, boolean login, boolean superUser)
+    private static String getCreateRoleCql(String role, boolean login, boolean superUser, boolean isPasswordObfuscated)
     {
-        return String.format("CREATE ROLE IF NOT EXISTS %s WITH LOGIN = %s AND SUPERUSER = %s AND PASSWORD = '%s'",
-                             role, login, superUser, TEST_PW);
+        String baseQueryString = String.format("CREATE ROLE IF NOT EXISTS %s WITH LOGIN = %s AND SUPERUSER = %s AND PASSWORD", role, login, superUser);
+        return isPasswordObfuscated ? baseQueryString + PasswordObfuscator.OBFUSCATION_TOKEN : baseQueryString + String.format(" = '%s'", TEST_PW);
     }
 
     private static void createTestRole()
     {
-        String createTestRoleCQL = getCreateRoleCql(TEST_ROLE, true, false);
+        String createTestRoleCQL = getCreateRoleCql(TEST_ROLE, true, false, false);
         executeWithCredentials(Arrays.asList(createTestRoleCQL), CASS_USER, CASS_PW, AuditLogEntryType.LOGIN_SUCCESS);
         assertTrue(getInMemAuditLogger().size() > 0);
         AuditLogEntry logEntry = getInMemAuditLogger().poll();
-        assertLogEntry(logEntry, AuditLogEntryType.CREATE_ROLE, createTestRoleCQL, CASS_USER);
+        assertLogEntry(logEntry, AuditLogEntryType.CREATE_ROLE, getCreateRoleCql(TEST_ROLE, true, false, true), CASS_USER);
         assertEquals(0, getInMemAuditLogger().size());
     }
 }
