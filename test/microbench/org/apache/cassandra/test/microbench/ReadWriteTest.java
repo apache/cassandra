@@ -25,6 +25,7 @@ import java.util.concurrent.*;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.openjdk.jmh.annotations.*;
 
 @BenchmarkMode(Mode.Throughput)
@@ -65,6 +66,7 @@ public class ReadWriteTest extends CQLTester
     @TearDown(Level.Trial)
     public void teardown() throws IOException, ExecutionException, InterruptedException
     {
+        CommitLog.instance.shutdownBlocking();
         CQLTester.cleanup();
     }
 
