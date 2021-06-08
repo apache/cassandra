@@ -18,12 +18,14 @@
 package org.apache.cassandra.transport.messages;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Compressor;
@@ -73,6 +75,7 @@ public class OptionsMessage extends Message.Request
         supported.put(StartupMessage.CQL_VERSION, cqlVersions);
         supported.put(StartupMessage.COMPRESSION, compressions);
         supported.put(StartupMessage.PROTOCOL_VERSIONS, ProtocolVersion.supportedVersions());
+        supported.put(StartupMessage.EMULATE_DBAAS_DEFAULTS, Collections.singletonList(String.valueOf(DatabaseDescriptor.isEmulateDbaasDefaults())));
 
         return new SupportedMessage(supported);
     }

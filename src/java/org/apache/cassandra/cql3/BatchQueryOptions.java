@@ -69,9 +69,9 @@ public abstract class BatchQueryOptions
         return wrapped.getKeyspace();
     }
 
-    public ConsistencyLevel getSerialConsistency()
+    public ConsistencyLevel getSerialConsistency(QueryState state)
     {
-        return wrapped.getSerialConsistency();
+        return wrapped.getSerialConsistency(state);
     }
 
     public List<Object> getQueryOrIdList()

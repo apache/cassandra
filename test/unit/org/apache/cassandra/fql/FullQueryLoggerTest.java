@@ -678,7 +678,7 @@ public class FullQueryLoggerTest extends CQLTester
         assertEquals(a.getConsistency(), b.getConsistency());
         assertEquals(a.getPagingState(), b.getPagingState());
         assertEquals(a.getValues(), b.getValues());
-        assertEquals(a.getSerialConsistency(), b.getSerialConsistency());
+        assertEquals(a.getSerialConsistency(null), b.getSerialConsistency(null));
     }
 
     private void configureFQL() throws Exception

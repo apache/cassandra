@@ -772,17 +772,17 @@ public class SecondaryIndexTest extends CQLTester
         // (the non-conditional batch doesn't hit this because
         // BatchStatement::executeLocally skips the size check but CAS
         // path does not)
-        long batchSizeThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
+        int batchSizeThreshold = DatabaseDescriptor.getGuardrailsConfig().batch_size_fail_threshold_in_kb;
         try
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
+            DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB((TOO_BIG / 1024) * 2);
             succeedInsert("BEGIN BATCH\n" +
                           "INSERT INTO %s (a, b, c) VALUES (1, 1, ?) IF NOT EXISTS;\n" +
                           "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
         }
         finally
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB((int) (batchSizeThreshold / 1024));
+            DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB(batchSizeThreshold);
         }
     }
 
@@ -825,17 +825,20 @@ public class SecondaryIndexTest extends CQLTester
         // (the non-conditional batch doesn't hit this because
         // BatchStatement::executeLocally skips the size check but CAS
         // path does not)
-        long batchSizeThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
+        int batchSizeThreshold = DatabaseDescriptor.getGuardrailsConfig().batch_size_fail_threshold_in_kb;
+        int diskUsageThreshold = DatabaseDescriptor.getGuardrailsConfig().disk_usage_percentage_failure_threshold;
         try
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
+            DatabaseDescriptor.getGuardrailsConfig().disk_usage_percentage_failure_threshold = -1;
+            DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
             succeedInsert("BEGIN BATCH\n" +
                           "INSERT INTO %s (a, b, c) VALUES (1, 1, ?) IF NOT EXISTS;\n" +
                           "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
         }
         finally
         {
-            DatabaseDescriptor.setBatchSizeFailThresholdInKB((int)(batchSizeThreshold / 1024));
+            DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB(batchSizeThreshold);
+            DatabaseDescriptor.getGuardrailsConfig().disk_usage_percentage_failure_threshold = diskUsageThreshold;
         }
     }
 

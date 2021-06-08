@@ -140,7 +140,7 @@ public class MessagePayloadTest extends CQLTester
                   QueryOptions.DEFAULT.skipMetadata(),
                   QueryOptions.DEFAULT.getPageSize(),
                   QueryOptions.DEFAULT.getPagingState(),
-                  QueryOptions.DEFAULT.getSerialConsistency(),
+                  QueryOptions.DEFAULT.getSerialConsistency(null),
                   ProtocolVersion.V5,
                   KEYSPACE);
                 QueryMessage queryMessage = new QueryMessage("CREATE TABLE atable (pk int PRIMARY KEY, v text)",

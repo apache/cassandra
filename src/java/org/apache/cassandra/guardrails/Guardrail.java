@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.guardrails;
 
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -38,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.units.SizeUnit;
 import org.apache.cassandra.utils.units.Units;
@@ -59,64 +59,55 @@ public abstract class Guardrail
 {
     private static final NoSpamLogger logger = NoSpamLogger.getLogger(LoggerFactory.getLogger(Guardrail.class),
                                                                       10, TimeUnit.MINUTES);
-
     private static final String REDACTED = "<redacted>";
 
+    /** A name identifying the guardrail (mainly for shipping with Insights events). */
     public final String name;
 
-    /**
-     * whether to throw {@link InvalidRequestException} on {@link this#fail(String)}
-     */
+    /** whether to throw {@link InvalidRequestException} on {@link this#fail(String)} */
     private boolean throwOnFailure = true;
 
-    /**
-     * minimum logging and triggering interval to avoid spamming downstream
-     */
+    /** minimum logging and triggering interval to avoid spamming downstream*/
     private long minNotifyIntervalInMs = 0;
 
-    /**
-     * time of last warning in milliseconds
-     */
+    /** time of last warning in milliseconds */
     private volatile long lastWarnInMs = 0;
 
-    /**
-     * time of last failure in milliseconds
-     */
+    /** time of last failure in milliseconds */
     private volatile long lastFailInMs = 0;
 
-    protected Guardrail(String name)
+    Guardrail(String name)
     {
         this.name = name;
     }
 
-    protected void warn(String message)
-    {
-        warn(message, message);
-    }
-
     protected void warn(String fullMessage, String redactedMessage)
     {
-        if (skipNotifyingOnWarning())
+        if (skipNotifying(true))
             return;
 
         logger.warn(fullMessage);
         // Note that ClientWarn will simply ignore the message if we're not running this as part of a user query
         // (the internal "state" will be null)
         ClientWarn.instance.warn(fullMessage);
+        // Similarly, tracing will also ignore the message if we're not running tracing on the current thread.
+        Tracing.trace(fullMessage);
         for (Guardrails.Listener listener : Guardrails.listeners)
             listener.onWarningTriggered(name, redactedMessage);
     }
 
-    protected void fail(String message)
+    protected void warn(String fullMessage)
     {
-        fail(message, message);
+        warn(fullMessage, fullMessage);
     }
 
     protected void fail(String fullMessage, String redactedMessage)
     {
-        if (!skipNotifyingOnFailure())
+        if (!skipNotifying(false))
         {
             logger.error(fullMessage);
+            // Tracing will ignore the message if we're not running tracing on the current thread.
+            Tracing.trace(fullMessage);
             for (Guardrails.Listener listener : Guardrails.listeners)
                 listener.onFailureTriggered(name, redactedMessage);
         }
@@ -125,9 +116,14 @@ public abstract class Guardrail
             throw new InvalidRequestException(fullMessage);
     }
 
+    protected void fail(String message)
+    {
+        fail(message, message);
+    }
+
     /**
      * do no throw {@link InvalidRequestException} if guardrail failure is triggered.
-     * <p>
+     *
      * Note: this method is not thread safe and should only be used during guardrail initialization
      *
      * @return current guardrail
@@ -164,42 +160,25 @@ public abstract class Guardrail
     }
 
     /**
-     * @return true if guardrail should not log message and trigger listeners; otherwise, update lastFailInMs respectively.
+     * @return true if guardrail should not log message and trigger listeners; otherwise, update lastWarnInMs or
+     * lastFailInMs respectively.
      */
-    private boolean skipNotifyingOnFailure()
+    private boolean skipNotifying(boolean isWarn)
     {
         if (minNotifyIntervalInMs == 0)
             return false;
 
         long nowInMs = System.currentTimeMillis();
-        long timeElapsedInMs = nowInMs - lastFailInMs;
+        long timeElapsedInMs = nowInMs - (isWarn ? lastWarnInMs : lastFailInMs);
 
         boolean skip = timeElapsedInMs < minNotifyIntervalInMs;
 
         if (!skip)
         {
-            lastFailInMs = nowInMs;
-        }
-
-        return skip;
-    }
-
-    /**
-     * @return true if guardrail should not log message and trigger listeners; otherwise, update lastWarnInMs respectively.
-     */
-    private boolean skipNotifyingOnWarning()
-    {
-        if (minNotifyIntervalInMs == 0)
-            return false;
-
-        long nowInMs = System.currentTimeMillis();
-        long timeElapsedInMs = nowInMs - lastWarnInMs;
-
-        boolean skip = timeElapsedInMs < minNotifyIntervalInMs;
-
-        if (!skip)
-        {
-            lastWarnInMs = nowInMs;
+            if (isWarn)
+                lastWarnInMs = nowInMs;
+            else
+                lastFailInMs = nowInMs;
         }
 
         return skip;
@@ -215,7 +194,7 @@ public abstract class Guardrail
      */
     public boolean enabled(@Nullable QueryState queryState)
     {
-        return Guardrails.enabled() && Guardrails.ready() && (null == queryState || queryState.isOrdinaryUser());
+        return Guardrails.ready() && (queryState == null || queryState.isOrdinaryUser());
     }
 
     /**
@@ -228,6 +207,11 @@ public abstract class Guardrail
      */
     public static class Threshold extends Guardrail
     {
+        /**
+         * A {@link Threshold} with both failure and warning thresholds disabled, so that cannot ever be triggered.
+         */
+        public static final Threshold NEVER_TRIGGERED = new Threshold("never_triggered", () -> -1L, () -> -1L, null);
+
         /**
          * A function used to build the error message of a triggered {@link Threshold} guardrail.
          */
@@ -242,7 +226,7 @@ public abstract class Guardrail
              * @param valueString     the value that triggered the guardrail (as a string).
              * @param thresholdString the threshold that was passed to trigger the guardrail (as a string).
              */
-            public String createMessage(boolean isWarning, String what, String valueString, String thresholdString);
+            String createMessage(boolean isWarning, String what, String valueString, String thresholdString);
         }
 
         final LongSupplier warnThreshold;
@@ -300,17 +284,6 @@ public abstract class Guardrail
         }
 
         /**
-         * Checks whether this guardrail is enabled or not. This will be enabled if guardrails are globally enabled
-         * ({@link Guardrails#enabled()}), and if any of the thresholds is positive.
-         *
-         * @return {@code true} if this guardrail is enabled, {@code false} otherwise.
-         */
-        public boolean enabled()
-        {
-            return super.enabled(null) && (failThreshold.getAsLong() >= 0 || warnThreshold.getAsLong() >= 0);
-        }
-
-        /**
          * Checks whether this guardrail is enabled or not. This will be enabled if guardrails are
          * ({@link Guardrails#ready()} ()}), the keyspace (if specified) is not an internal one, and if any of the
          * thresholds is positive.
@@ -331,25 +304,11 @@ public abstract class Guardrail
          * argument to {@link #guard} is expensive to build to save doing so in the common case (of the guardrail
          * not being triggered).
          *
-         * @param value the value to test.
-         * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail, {@code false} otherwise.
-         */
-        public boolean triggersOn(long value)
-        {
-            return enabled(null) && (value > Math.min(failValue(), warnValue()));
-        }
-
-        /**
-         * Checks whether the provided value would trigger a warning or failure if passed to {@link #guard}.
-         *
-         * <p>This method is optional (does not have to be called) but can be used in the case where the "what"
-         * argument to {@link #guard} is expensive to build to save doing so in the common case (of the guardrail
-         * not being triggered).
-         *
          * @param value      the value to test.
          * @param queryState the queryState, used to skip the check if the query is internal or is done by a superuser.
          *                   A {@code null} value means that the check should be done regardless of the query.
-         * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail, {@code false} otherwise.
+         * @return {@code true} if {@code value} is above the warning or failure thresholds of this guardrail,
+         * {@code false otherwise}.
          */
         public boolean triggersOn(long value, @Nullable QueryState queryState)
         {
@@ -359,21 +318,6 @@ public abstract class Guardrail
         /**
          * Apply the guardrail to the provided value, triggering a warning or failure if appropriate.
          *
-         * @param value the value to check.
-         * @param what  a string describing what {@code value} is a value of used in the error message if the
-         *              guardrail is triggered (for instance, say the guardrail guards the size of column values, then this
-         *              argument must describe which column of which row is triggering the guardrail for convenience). Note that
-         *              this is only used if the guardrail triggers, so if it is expensive to build, you can put the call to
-         *              this method behind a {@link #triggersOn} call.
-         */
-        public void guard(long value, String what)
-        {
-            guard(value, what, false);
-        }
-
-        /**
-         * Apply the guardrail to the provided value, triggering a warning or failure if appropriate.
-         *
          * @param value            the value to check.
          * @param what             a string describing what {@code value} is a value of used in the error message if the
          *                         guardrail is triggered (for instance, say the guardrail guards the size of column values, then this
@@ -382,43 +326,10 @@ public abstract class Guardrail
          *                         this method behind a {@link #triggersOn} call.
          * @param containsUserData a boolean describing if {@code what} contains user data. If this is the case,
          *                         {@code what} will only be included in the log messages and client warning. It will not be included in the
-         *                         error messages that are passed to listeners and exceptions. We have to exclude the user data from exceptions
-         *                         because they will be sent as Diagnostic Events in the future.
-         */
-        public void guard(long value, String what, boolean containsUserData)
-        {
-            guard(value, what, containsUserData, null);
-        }
-
-        /**
-         * Apply the guardrail to the provided value, triggering a warning or failure if appropriate.
-         *
-         * @param value            the value to check.
-         * @param what             a string describing what {@code value} is a value of used in the error message if the
-         *                         guardrail is triggered (for instance, say the guardrail guards the size of column values, then this
-         *                         argument must describe which column of which row is triggering the guardrail for convenience). Note that
-         *                         this is only used if the guardrail triggers, so if it is expensive to build, you can put the call to
-         *                         this method behind a {@link #triggersOn} call.
-         * @param queryState       the queryState, used to skip the check if the query is internal or is done by a superuser.
-         */
-        public void guard(long value, String what, @Nullable QueryState queryState)
-        {
-            guard(value, what, false, queryState);
-        }
-
-        /**
-         * Apply the guardrail to the provided value, triggering a warning or failure if appropriate.
-         *
-         * @param value            the value to check.
-         * @param what             a string describing what {@code value} is a value of used in the error message if the
-         *                         guardrail is triggered (for instance, say the guardrail guards the size of column values, then this
-         *                         argument must describe which column of which row is triggering the guardrail for convenience). Note that
-         *                         this is only used if the guardrail triggers, so if it is expensive to build, you can put the call to
-         *                         this method behind a {@link #triggersOn} call.
-         * @param containsUserData a boolean describing if {@code what} contains user data. If this is the case,
-         *                         {@code what} will only be included in the log messages and client warning. It will not be included in the
-         *                         error messages that are passed to listeners and exceptions.
-         * @param queryState       the queryState, used to skip the check if the query is internal or is done by a superuser.
+         *                         error messages that are passed to listeners and exceptions. We have to exclude the user data from
+         *                         exceptions because they are sent to Insights.
+         * @param queryState       the query state, used to skip the check if the query is internal or is done by a superuser.
+         *                         A {@code null} value means that the check should be done regardless of the query.
          */
         public void guard(long value, String what, boolean containsUserData, @Nullable QueryState queryState)
         {
@@ -428,17 +339,110 @@ public abstract class Guardrail
             long failValue = failValue();
             if (value > failValue)
             {
-                String fullMsg = errMsg(false, what, value, failValue);
-                fail(fullMsg, containsUserData ? redactedErrMsg(false, value, failValue) : fullMsg);
+                triggerFail(value, failValue, what, containsUserData);
+                return;
             }
-            else
+
+            long warnValue = warnValue();
+            if (value > warnValue)
+                triggerWarn(value, warnValue, what, containsUserData);
+        }
+
+        private void triggerFail(long value, long failValue, String what, boolean containsUserData)
+        {
+            String fullMsg = errMsg(false, what, value, failValue);
+            fail(fullMsg, containsUserData ? redactedErrMsg(false, value, failValue) : fullMsg);
+        }
+
+        private void triggerWarn(long value, long warnValue, String what, boolean containsUserData)
+        {
+            String fullMsg = errMsg(true, what, value, warnValue);
+            warn(fullMsg, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMsg);
+        }
+
+        /**
+         * Creates a new {@link GuardedCounter} guarded by this threshold guardrail.
+         *
+         * @param whatFct          a function called when either a warning or failure is triggered by the created counter to
+         *                         describe the value. This is equivalent to the {@code what} argument of {@link #guard} but is a function to
+         *                         allow the output string to be compute lazily (only if a failure/warn ends up being triggered).
+         * @param containsUserData if a warning or failure is triggered by the created counter and the {@code whatFct}
+         *                         is called, indicates whether the create string contains user data. This is the exact equivalent to the
+         *                         similarly named argument of {@link #guard}.
+         * @param queryState       the query state, used to skip the check if the query is internal or is done by a superuser.
+         *                         A {@code null} value means that the check should be done regardless of the query.
+         * @return the newly created guarded counter.
+         */
+        public GuardedCounter newCounter(Supplier<String> whatFct, boolean containsUserData, @Nullable QueryState queryState)
+        {
+            Threshold threshold = enabled(queryState) ? this : NEVER_TRIGGERED;
+            return threshold.new GuardedCounter(whatFct, containsUserData);
+        }
+
+        /**
+         * A facility for when the value to guard is built incrementally, but we want to trigger failures as soon
+         * as the failure threshold is reached, but only trigger the warning on the final value (and so only if the
+         * failure threshold hasn't also been reached).
+         * <p>
+         * Note that instances are neither thread safe nor reusable.
+         */
+        public class GuardedCounter
+        {
+            private final long warnValue;
+            private final long failValue;
+            private final Supplier<String> what;
+            private final boolean containsUserData;
+
+            private long accumulated;
+
+            private GuardedCounter(Supplier<String> what, boolean containsUserData)
             {
-                long warnValue = warnValue();
-                if (value > warnValue)
+                // We capture the warn and fail value at the time of the counter construction to ensure we use
+                // stable value during the counter lifetime (and reading a final field is possibly at tad faster).
+                this.warnValue = warnValue();
+                this.failValue = failValue();
+                this.what = what;
+                this.containsUserData = containsUserData;
+            }
+
+            /**
+             * The currently accumulated value of the counter.
+             */
+            public long get()
+            {
+                return accumulated;
+            }
+
+            /**
+             * Add the provided increment to the counter, triggering a failure if the counter after this addition
+             * crosses the failure threshold.
+             *
+             * @param increment the increment to add.
+             */
+            public void add(long increment)
+            {
+                accumulated += increment;
+                if (accumulated > failValue)
+                    triggerFail(accumulated, failValue, what.get(), containsUserData);
+            }
+
+            /**
+             * Trigger the warn if the currently accumulated counter value crosses warning threshold and the failure
+             * has not been triggered yet.
+             * <p>
+             * This is generally meant to be called when the guarded value is complete.
+             *
+             * @return {@code true} and trigger a warning if the current counter value is greater than the warning
+             * threshold and less than or equal to the failure threshold, {@code false} otherwise.
+             */
+            public boolean checkAndTriggerWarning()
+            {
+                if (accumulated > warnValue && accumulated <= failValue)
                 {
-                    String fullMsg = errMsg(true, what, value, warnValue);
-                    warn(fullMsg, containsUserData ? redactedErrMsg(true, value, warnValue) : fullMsg);
+                    triggerWarn(accumulated, warnValue, what.get(), containsUserData);
+                    return true;
                 }
+                return false;
             }
         }
     }
@@ -536,14 +540,6 @@ public abstract class Guardrail
          *
          * <p>This must be called when the feature guarded by this guardrail is used to ensure such use is in fact
          * allowed.
-         */
-        public void ensureEnabled()
-        {
-            ensureEnabled(what, QueryState.forInternalCalls());
-        }
-
-        /**
-         * Triggers a failure if this guardrail is disabled.
          *
          * <p>This must be called when the feature guarded by this guardrail is used to ensure such use is in fact
          * allowed.

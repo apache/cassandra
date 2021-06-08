@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.guardrails;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -38,11 +38,9 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 public class GuardrailConsistencyTest extends GuardrailTester
 {
-    private static final Set<String> DISALLOWED_WRITE_CLS = new LinkedHashSet<>(Arrays.asList(
+    private static Set<String> disallowedConsistencyLevels = ImmutableSet.of(
     ConsistencyLevel.ANY.toString(),
     ConsistencyLevel.ONE.toString(),
     ConsistencyLevel.TWO.toString(),
@@ -50,14 +48,12 @@ public class GuardrailConsistencyTest extends GuardrailTester
     ConsistencyLevel.QUORUM.toString(),
     ConsistencyLevel.ALL.toString(),
     ConsistencyLevel.EACH_QUORUM.toString(),
-    ConsistencyLevel.LOCAL_ONE.toString()));
-
-    private static final Set<String> SERIAL_CLS = new LinkedHashSet<>(Arrays.asList(
+    ConsistencyLevel.LOCAL_ONE.toString()
+    );
+    private static Set<String> serialConsistencyLevels = ImmutableSet.of(
     ConsistencyLevel.SERIAL.toString(),
     ConsistencyLevel.LOCAL_SERIAL.toString()
-    ));
-    private static final Set<String> SERIAL_ONLY = new LinkedHashSet<>(Collections.singletonList(ConsistencyLevel.SERIAL.toString()));
-    private static final LinkedHashSet<String> LOCAL_SERIAL_ONLY = new LinkedHashSet<>(Collections.singletonList(ConsistencyLevel.LOCAL_SERIAL.toString()));
+    );
 
     private static Set<String> defaultDisallowedWriteConsistencyLevels;
     private Supplier<QueryState> queryState;
@@ -79,12 +75,24 @@ public class GuardrailConsistencyTest extends GuardrailTester
     {
         createTable("CREATE TABLE IF NOT EXISTS %s (k INT, c INT, v TEXT, PRIMARY KEY(k, c))");
         queryState = this::userQueryState;
-        disableConsistencyLevels(DISALLOWED_WRITE_CLS);
+        disableConsistencyLevels(disallowedConsistencyLevels);
     }
 
     private void disableConsistencyLevels(Set<String> consistencyLevels)
     {
-        DatabaseDescriptor.getGuardrailsConfig().write_consistency_levels_disallowed = consistencyLevels;
+        DatabaseDescriptor.getGuardrailsConfig().write_consistency_levels_disallowed = ImmutableSet.copyOf(consistencyLevels);
+    }
+
+    private QueryOptions queryOptions(ConsistencyLevel cl, ConsistencyLevel serialCl)
+    {
+        return QueryOptions.create(cl,
+                                   Collections.emptyList(),
+                                   false,
+                                   1,
+                                   null,
+                                   serialCl,
+                                   ProtocolVersion.CURRENT,
+                                   KEYSPACE);
     }
 
     private void executeWithConsistency(String query, ConsistencyLevel cl, ConsistencyLevel serialCl)
@@ -105,30 +113,24 @@ public class GuardrailConsistencyTest extends GuardrailTester
         executeWithConsistency("INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') IF NOT EXISTS", cl, serialCl);
     }
 
-    @Test
+    @Test(expected = InvalidRequestException.class)
     public void testInsertWithDisallowedConsistency()
     {
-        assertThatThrownBy(() -> insert(ConsistencyLevel.ONE))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value ONE is not allowed for Consistency Level (disallowed values are: [ANY, ONE, TWO, THREE, QUORUM, ALL, EACH_QUORUM, LOCAL_ONE])");
+        insert(ConsistencyLevel.ONE);
     }
 
-    @Test
+    @Test(expected = InvalidRequestException.class)
     public void testLWTInsertWithDisallowedConsistency1()
     {
-        disableConsistencyLevels(SERIAL_ONLY);
-        assertThatThrownBy(() -> lwtInsert(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL])");
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtInsert(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
     }
 
-    @Test
+    @Test(expected = InvalidRequestException.class)
     public void testLWTInsertWithDisallowedConsistency2()
     {
-        disableConsistencyLevels(SERIAL_CLS);
-        assertThatThrownBy(() -> lwtInsert(ConsistencyLevel.LOCAL_QUORUM, null))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL, LOCAL_SERIAL])");
+        disableConsistencyLevels(serialConsistencyLevels);
+        lwtInsert(ConsistencyLevel.LOCAL_QUORUM, null);
     }
 
     @Test
@@ -137,149 +139,13 @@ public class GuardrailConsistencyTest extends GuardrailTester
         // test that it does not throw
         insert(ConsistencyLevel.LOCAL_QUORUM);
 
-        disableConsistencyLevels(SERIAL_ONLY);
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
         lwtInsert(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
+        lwtInsert(ConsistencyLevel.LOCAL_QUORUM, null);
 
-        disableConsistencyLevels(LOCAL_SERIAL_ONLY);
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.LOCAL_SERIAL.toString()));
         lwtInsert(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
-    }
-
-    @Test
-    public void testLWTUpdateWithDisallowedConsistency()
-    {
-        disableConsistencyLevels(SERIAL_ONLY);
-        assertThatThrownBy(() -> lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL])");
-    }
-
-    @Test
-    public void testLWTUpdateWithDisallowedConsistency1()
-    {
-        disableConsistencyLevels(SERIAL_ONLY);
-        assertThatThrownBy(() -> lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL])");
-    }
-
-    @Test
-    public void testLWTUpdateWithDisallowedConsistency2()
-    {
-        disableConsistencyLevels(SERIAL_CLS);
-        assertThatThrownBy(() -> lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, null))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL, LOCAL_SERIAL])");
-    }
-
-    @Test
-    public void testUpdateWithAllowedConsistency()
-    {
-        // test that it does not throw
-        update(ConsistencyLevel.LOCAL_QUORUM);
-
-        disableConsistencyLevels(SERIAL_ONLY);
-        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
-
-        disableConsistencyLevels(LOCAL_SERIAL_ONLY);
-        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
-    }
-
-    @Test
-    public void testUpdateWithDisallowedConsistency()
-    {
-        assertThatThrownBy(() -> update(ConsistencyLevel.ONE))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value ONE is not allowed for Consistency Level (disallowed values are: [ANY, ONE, TWO, THREE, QUORUM, ALL, EACH_QUORUM, LOCAL_ONE])");
-    }
-
-    @Test
-    public void testDeleteWithDisallowedConsistency()
-    {
-        assertThatThrownBy(() -> delete(ConsistencyLevel.ONE))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value ONE is not allowed for Consistency Level (disallowed values are: [ANY, ONE, TWO, THREE, QUORUM, ALL, EACH_QUORUM, LOCAL_ONE])");
-    }
-
-    @Test
-    public void testLWTDeleteWithAllowedConsistency1()
-    {
-        disableConsistencyLevels(SERIAL_ONLY);
-        assertThatThrownBy(() -> lwtDelete(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL])");
-    }
-
-    @Test
-    public void testLWTDeleteWithAllowedConsistency2()
-    {
-        disableConsistencyLevels(SERIAL_CLS);
-        assertThatThrownBy(() -> lwtDelete(ConsistencyLevel.LOCAL_QUORUM, null))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL, LOCAL_SERIAL])");
-    }
-
-    @Test
-    public void testDeleteWithAllowedConsistency()
-    {
-        // test that it does not throw
-        delete(ConsistencyLevel.LOCAL_QUORUM);
-
-        disableConsistencyLevels(SERIAL_ONLY);
-        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
-
-        disableConsistencyLevels(LOCAL_SERIAL_ONLY);
-        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
-    }
-
-    @Test
-    public void testLWTBatchWithDisallowedConsistency1()
-    {
-        disableConsistencyLevels(SERIAL_ONLY);
-        assertThatThrownBy(() -> lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL])");
-    }
-
-    @Test
-    public void testLWTBatchWithDisallowedConsistency2()
-    {
-        disableConsistencyLevels(SERIAL_CLS);
-        assertThatThrownBy(() -> lwtBatch(ConsistencyLevel.LOCAL_QUORUM, null))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value SERIAL is not allowed for Consistency Level (disallowed values are: [SERIAL, LOCAL_SERIAL])");
-    }
-
-    @Test
-    public void testBatchWithAllowedConsistency()
-    {
-        // test that it does not throw
-        batch(ConsistencyLevel.LOCAL_QUORUM);
-
-        disableConsistencyLevels(SERIAL_ONLY);
-        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
-
-        disableConsistencyLevels(LOCAL_SERIAL_ONLY);
-        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
-    }
-
-    @Test
-    public void testBatchWithDisallowedConsistency()
-    {
-        assertThatThrownBy(() -> batch(ConsistencyLevel.ONE))
-        .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Provided value ONE is not allowed for Consistency Level (disallowed values are: [ANY, ONE, TWO, THREE, QUORUM, ALL, EACH_QUORUM, LOCAL_ONE])");
-    }
-
-    private QueryOptions queryOptions(ConsistencyLevel cl, ConsistencyLevel serialCl)
-    {
-        return QueryOptions.create(cl,
-                                   Collections.emptyList(),
-                                   false,
-                                   1,
-                                   null,
-                                   serialCl,
-                                   ProtocolVersion.CURRENT,
-                                   KEYSPACE);
+        lwtInsert(ConsistencyLevel.LOCAL_QUORUM, null);
     }
 
     private void update(ConsistencyLevel cl)
@@ -292,6 +158,41 @@ public class GuardrailConsistencyTest extends GuardrailTester
         executeWithConsistency("UPDATE %s SET v = 'val2' WHERE k = 1 and c = 2 IF EXISTS", cl, serialCl);
     }
 
+    @Test(expected = InvalidRequestException.class)
+    public void testUpdateWithDisallowedConsistency()
+    {
+        update(ConsistencyLevel.ONE);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testLWTUpdateWithDisallowedConsistency1()
+    {
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testLWTUpdateWithDisallowedConsistency2()
+    {
+        disableConsistencyLevels(serialConsistencyLevels);
+        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, null);
+    }
+
+    @Test
+    public void testUpdateWithAllowedConsistency()
+    {
+        // test that it does not throw
+        update(ConsistencyLevel.LOCAL_QUORUM);
+
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
+        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, null);
+
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.LOCAL_SERIAL.toString()));
+        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
+        lwtUpdate(ConsistencyLevel.LOCAL_QUORUM, null);
+    }
+
     private void delete(ConsistencyLevel cl)
     {
         executeWithConsistency("DELETE FROM %s WHERE k=1", cl, null);
@@ -300,6 +201,41 @@ public class GuardrailConsistencyTest extends GuardrailTester
     private void lwtDelete(ConsistencyLevel cl, ConsistencyLevel serialCl)
     {
         executeWithConsistency("DELETE FROM %s WHERE k=1 AND c=2 IF EXISTS", cl, serialCl);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDeleteWithDisallowedConsistency()
+    {
+        delete(ConsistencyLevel.ONE);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testLWTDeleteWithAllowedConsistency1()
+    {
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testLWTDeleteWithAllowedConsistency2()
+    {
+        disableConsistencyLevels(serialConsistencyLevels);
+        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, null);
+    }
+
+    @Test
+    public void testDeleteWithAllowedConsistency()
+    {
+        // test that it does not throw
+        delete(ConsistencyLevel.LOCAL_QUORUM);
+
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
+        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, null);
+
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.LOCAL_SERIAL.toString()));
+        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
+        lwtDelete(ConsistencyLevel.LOCAL_QUORUM, null);
     }
 
     private void batch(ConsistencyLevel cl)
@@ -314,6 +250,40 @@ public class GuardrailConsistencyTest extends GuardrailTester
         executeWithConsistency("BEGIN BATCH " +
                                "INSERT INTO %s (k, c, v) VALUES (1, 2, 'val') IF NOT EXISTS " +
                                "APPLY BATCH", cl, serialCl);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testBatchWithDisallowedConsistency()
+    {
+        batch(ConsistencyLevel.ONE);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testLWTBatchWithDisallowedConsistency1()
+    {
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testLWTBatchWithDisallowedConsistency2()
+    {
+        disableConsistencyLevels(serialConsistencyLevels);
+        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, null);
+    }
+    @Test
+    public void testBatchWithAllowedConsistency()
+    {
+        // test that it does not throw
+        batch(ConsistencyLevel.LOCAL_QUORUM);
+
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.SERIAL.toString()));
+        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
+        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, null);
+
+        disableConsistencyLevels(ImmutableSet.of(ConsistencyLevel.LOCAL_SERIAL.toString()));
+        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
+        lwtBatch(ConsistencyLevel.LOCAL_QUORUM, null);
     }
 
     @Test
@@ -332,6 +302,7 @@ public class GuardrailConsistencyTest extends GuardrailTester
 
     private void testExcludedUser()
     {
+        disableConsistencyLevels(Sets.union(defaultDisallowedWriteConsistencyLevels, serialConsistencyLevels));
         insert(ConsistencyLevel.ONE);
         insert(ConsistencyLevel.LOCAL_QUORUM);
         lwtInsert(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.SERIAL);
@@ -353,4 +324,3 @@ public class GuardrailConsistencyTest extends GuardrailTester
         lwtBatch(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_SERIAL);
     }
 }
-

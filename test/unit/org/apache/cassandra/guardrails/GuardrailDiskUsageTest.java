@@ -336,8 +336,11 @@ public class GuardrailDiskUsageTest extends GuardrailTester
             executeNet(batchStatement);
         };
 
+        // delay needed after grant permissions
+        Thread.sleep(1000);
+
         // default state, write request works fine
-        assertTrue(Guardrails.enabled());
+        assertTrue(Guardrails.ready());
         assertValid(select);
         assertValid(insert);
         assertValid(batch);
