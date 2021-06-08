@@ -75,7 +75,7 @@ public class DiskUsageMonitor
         // start the scheduler regardless guardrail is enabled, so we can enable it later without a restart
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
 
-            if (!Guardrails.localDiskUsage.enabled())
+            if (!Guardrails.localDiskUsage.enabled(null))
                 return;
 
             updateLocalState(getDiskUsage(), notifier);
@@ -90,7 +90,7 @@ public class DiskUsageMonitor
 
         DiskUsageState state = getState(percentageCeiling);
 
-        Guardrails.localDiskUsage.guard(percentageCeiling, state.toString(), false);
+        Guardrails.localDiskUsage.guard(percentageCeiling, state.toString(), false, null);
 
         // if state remains unchanged, no need to notify peers
         if (state == localState)

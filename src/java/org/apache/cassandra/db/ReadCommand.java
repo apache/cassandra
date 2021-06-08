@@ -33,8 +33,10 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.guardrails.Guardrail;
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -60,7 +62,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -469,6 +470,17 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     /**
+     * Whether tombstone guardrail ({@link Guardrails#scannedTombstones} should be respected for this query.
+     *
+     * @return {@code true} if the tombstone thresholds should be respected for the query. If {@code false}, no
+     * tombstone warning will ever be logged, and the query will never fail due to tombstones.
+     */
+    protected boolean shouldRespectTombstoneThresholds()
+    {
+        return !SchemaConstants.isLocalSystemKeyspace(ReadCommand.this.metadata().keyspace);
+    }
+
+    /**
      * Wraps the provided iterator so that metrics on what is scanned by the command are recorded.
      * This also log warning/trow TombstoneOverwhelmingException if appropriate.
      */
@@ -476,16 +488,20 @@ public abstract class ReadCommand extends AbstractReadQuery
     {
         class MetricRecording extends Transformation<UnfilteredRowIterator>
         {
-            private final int failureThreshold = DatabaseDescriptor.getTombstoneFailureThreshold();
-            private final int warningThreshold = DatabaseDescriptor.getTombstoneWarnThreshold();
-
-            private final boolean respectTombstoneThresholds = !SchemaConstants.isLocalSystemKeyspace(ReadCommand.this.metadata().keyspace);
             private final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
             private int liveRows = 0;
-            private int tombstones = 0;
+            private final Guardrail.Threshold.GuardedCounter tombstones = createTombstoneCounter();
 
             private DecoratedKey currentKey;
+
+            private Guardrail.Threshold.GuardedCounter createTombstoneCounter()
+            {
+                Guardrail.Threshold guardrail = shouldRespectTombstoneThresholds()
+                                                ? Guardrails.scannedTombstones
+                                                : Guardrail.Threshold.NEVER_TRIGGERED;
+                return guardrail.newCounter(ReadCommand.this::toCQLString, true, null);
+            }
 
             @Override
             public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
@@ -535,13 +551,18 @@ public abstract class ReadCommand extends AbstractReadQuery
 
             private void countTombstone(ClusteringPrefix<?> clustering)
             {
-                ++tombstones;
-                if (tombstones > failureThreshold && respectTombstoneThresholds)
+                try
                 {
-                    String query = ReadCommand.this.toCQLString();
-                    Tracing.trace("Scanned over {} tombstones for query {}; query aborted (see tombstone_failure_threshold)", failureThreshold, query);
+                    tombstones.add(1);
+                }
+                catch (InvalidRequestException e)
+                {
                     metric.tombstoneFailures.inc();
-                    throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
+                    throw new TombstoneOverwhelmingException(tombstones.get(),
+                                                             ReadCommand.this.toCQLString(),
+                                                             ReadCommand.this.metadata(),
+                                                             currentKey,
+                                                             clustering);
                 }
             }
 
@@ -550,27 +571,13 @@ public abstract class ReadCommand extends AbstractReadQuery
             {
                 recordLatency(metric, System.nanoTime() - startTimeNanos);
 
-                metric.tombstoneScannedHistogram.update(tombstones);
+                metric.tombstoneScannedHistogram.update(tombstones.get());
                 metric.liveScannedHistogram.update(liveRows);
 
-                boolean warnTombstones = tombstones > warningThreshold && respectTombstoneThresholds;
-                if (warnTombstones)
-                {
-                    String msg = String.format(
-                            "Read %d live rows and %d tombstone cells for query %1.512s; token %s (see tombstone_warn_threshold)",
-                            liveRows, tombstones, ReadCommand.this.toCQLString(), currentKey.getToken());
-                    ClientWarn.instance.warn(msg);
-                    if (tombstones < failureThreshold)
-                    {
-                        metric.tombstoneWarnings.inc();
-                    }
+                if (tombstones.checkAndTriggerWarning())
+                    metric.tombstoneWarnings.inc();
 
-                    logger.warn(msg);
-                }
-
-                Tracing.trace("Read {} live rows and {} tombstone cells{}",
-                        liveRows, tombstones,
-                        (warnTombstones ? " (see tombstone_warn_threshold)" : ""));
+                Tracing.trace("Read {} live rows and {} tombstone ones", liveRows, tombstones.get());
             }
         }
 
