@@ -55,6 +55,8 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -1851,6 +1853,11 @@ public class NodeProbe implements AutoCloseable
     public FullQueryLoggerOptions getFullQueryLoggerOptions()
     {
         return FullQueryLoggerOptionsCompositeData.fromCompositeData(ssProxy.getFullQueryLoggerOptions());
+    }
+
+    public AuditLogOptions getAuditLogOptions()
+    {
+        return AuditLogOptionsCompositeData.fromCompositeData(ssProxy.getAuditLogOptions());
     }
 }
 

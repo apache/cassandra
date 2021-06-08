@@ -3113,7 +3113,7 @@ public class DatabaseDescriptor
     
     public static AuditLogOptions getAuditLoggingOptions()
     {
-        return conf.audit_logging_options;
+        return AuditLogOptions.validate(AuditLogOptions.Builder.sanitise(conf.audit_logging_options));
     }
 
     public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions)

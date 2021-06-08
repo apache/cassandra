@@ -827,6 +827,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     CompositeData getFullQueryLoggerOptions();
 
+    /**
+     * Returns the current state of Audit Log framework.
+     */
+    CompositeData getAuditLogOptions();
+
     /** Sets the initial allocation size of backing arrays for new RangeTombstoneList objects */
     public void setInitialRangeTombstoneListAllocationSize(int size);
 
