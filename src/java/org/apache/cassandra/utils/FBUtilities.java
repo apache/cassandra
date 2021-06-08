@@ -678,29 +678,13 @@ public class FBUtilities
 
         try
         {
-            Class<?> auditLoggerClass = Class.forName(className);
+            Class<?> auditLoggerClass = FBUtilities.classForName(className, "Audit logger");
             return (IAuditLogger) auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
         }
         catch (Exception ex)
         {
             throw new ConfigurationException("Unable to create instance of IAuditLogger.", ex);
         }
-    }
-
-    public static boolean isAuditLoggerClassExists(String className)
-    {
-        if (!className.contains("."))
-            className = "org.apache.cassandra.audit." + className;
-
-        try
-        {
-            FBUtilities.classForName(className, "Audit logger");
-        }
-        catch (ConfigurationException e)
-        {
-            return false;
-        }
-        return true;
     }
 
     /**
