@@ -122,7 +122,7 @@ public class NativeAllocatorTest
             canClean.countDown();
             try
             {
-                isClean.await(10L, TimeUnit.MILLISECONDS);
+                Assert.assertTrue(isClean.await(10L, TimeUnit.SECONDS));
             }
             catch (InterruptedException e)
             {
