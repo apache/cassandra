@@ -144,7 +144,7 @@ public class UpdateParameters
     public void addTombstone(ColumnMetadata column, CellPath path) throws InvalidRequestException
     {
         if (path != null && column.type.isMultiCell())
-            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), state);
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, state);
 
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
@@ -156,10 +156,10 @@ public class UpdateParameters
 
     public Cell addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
-        Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), state);
+        Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, state);
 
         if (path != null && column.type.isMultiCell())
-            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), state);
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, state);
 
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)

@@ -21,16 +21,16 @@ package org.apache.cassandra.distributed.test;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 
 public class ReadFailureTest extends TestBaseImpl
 {
@@ -49,7 +49,13 @@ public class ReadFailureTest extends TestBaseImpl
     @Test
     public void testSpecExecRace() throws Throwable
     {
-        try (Cluster cluster = init(Cluster.build().withNodes(2).withConfig(config -> config.set("tombstone_failure_threshold", TOMBSTONE_FAIL_THRESHOLD)).start()))
+        try (Cluster cluster = init(Cluster.build()
+                                           .withNodes(2)
+                                           .withConfig(config -> {
+                                               config.set("tombstone_warn_threshold", -1L);
+                                               config.set("tombstone_failure_threshold", TOMBSTONE_FAIL_THRESHOLD);
+                                           })
+                                           .start()))
         {
             // Create a table with the spec exec policy set to a low percentile so it's more likely to produce a spec exec racing with the local request.
             // Not using 'Always' because that actually uses a different class/mechanism and doesn't exercise the bug

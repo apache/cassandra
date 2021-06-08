@@ -236,8 +236,8 @@ public class BatchMessage extends Message.Request
         ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
         if (options.getConsistency() != null)
             builder.put("consistency_level", options.getConsistency().name());
-        if (options.getSerialConsistency() != null)
-            builder.put("serial_consistency_level", options.getSerialConsistency().name());
+        if (options.getSerialConsistency(state) != null)
+            builder.put("serial_consistency_level", options.getSerialConsistency(state).name());
 
         // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
         Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), builder.build());

@@ -522,7 +522,7 @@ public class SelectStatement implements CQLStatement
         if (keys.isEmpty())
             return ReadQuery.empty(table);
 
-        Guardrails.partitionKeysInSelectQuery.guard(keys.size(), "Select query", queryState);
+        Guardrails.partitionKeysInSelectQuery.guard(keys.size(), "Select query", false, queryState);
 
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter, queryState);
         if (filter == null || filter.isEmpty(table.comparator))

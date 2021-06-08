@@ -313,15 +313,15 @@ public class DatabaseDescriptorTest
 
         try
         {
-            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(-1);
-            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = -1");
+            DatabaseDescriptor.getGuardrailsConfig().setBatchSizeWarnThresholdInKB(-2);
+            fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = -2");
         }
         catch (ConfigurationException ignored) { }
-        Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
+        Assert.assertEquals(65536, DatabaseDescriptor.getGuardrailsConfig().getBatchSizeWarnThreshold());
 
         try
         {
-            DatabaseDescriptor.setBatchSizeWarnThresholdInKB(2 * 1024 * 1024);
+            DatabaseDescriptor.getGuardrailsConfig().setBatchSizeWarnThresholdInKB(2 * 1024 * 1024);
             fail("Should have received a ConfigurationException batch_size_warn_threshold_in_kb = 2GiB");
         }
         catch (ConfigurationException ignored) { }

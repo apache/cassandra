@@ -214,12 +214,28 @@ public class Config
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public int column_index_size_in_kb = 64;
     public volatile int column_index_cache_size_in_kb = 2;
-    public volatile int batch_size_warn_threshold_in_kb = 5;
-    public volatile int batch_size_fail_threshold_in_kb = 50;
-    public Integer unlogged_batch_across_partitions_warn_threshold = 10;
+    /**
+     * @deprecated Migrated to 'guardrails.batch_size_warn_threshold_in_kb'
+     */
+    @Deprecated
+    public int batch_size_warn_threshold_in_kb = 0;
+    /**
+     * @deprecated Migrated to 'guardrails.batch_size_fail_threshold_in_kb'
+     */
+    @Deprecated
+    public int batch_size_fail_threshold_in_kb = 0;
+    /**
+     * @deprecated Migrated to 'guardrails.unlogged_batch_across_partitions_warn_threshold'
+     */
+    @Deprecated
+    public Integer unlogged_batch_across_partitions_warn_threshold = 0;
     public volatile Integer concurrent_compactors;
     public volatile int compaction_throughput_mb_per_sec = 16;
-    public volatile int compaction_large_partition_warning_threshold_mb = 100;
+    /**
+     * @deprecated Migrated to 'guardrails.compaction_large_partition_warning_threshold_mb'
+     */
+    @Deprecated
+    public int compaction_large_partition_warning_threshold_mb = 0;
     public int min_free_space_per_drive_in_mb = 50;
 
     public volatile int concurrent_materialized_view_builders = 1;
@@ -344,8 +360,16 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.offheap_objects;
 
-    public volatile int tombstone_warn_threshold = 1000;
-    public volatile int tombstone_failure_threshold = 100000;
+    /**
+     * @deprecated Migrated to 'guardrails.tombstone_warn_threshold'
+     */
+    @Deprecated
+    public int tombstone_warn_threshold = 0;
+    /**
+     * @deprecated Migrated to 'guardrails.tombstone_failure_threshold'
+     */
+    @Deprecated
+    public int tombstone_failure_threshold = 0;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
@@ -508,7 +532,8 @@ public class Config
      */
     public volatile int validation_preview_purge_head_start_in_sec = 60 * 60;
 
-    public boolean apply_dbaas_defaults = false;
+    public boolean emulate_dbaas_defaults = false;
+    
     public GuardrailsConfig guardrails = new GuardrailsConfig();
 
     /**

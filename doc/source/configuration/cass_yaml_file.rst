@@ -1861,13 +1861,14 @@ Log WARN on any batches not of type LOGGED than span across more partitions than
 
 *Default Value:* 10
 
-``compaction_large_partition_warning_threshold_mb``
+``partition_size_warn_threshold_in_mb``
 ---------------------------------------------------
 
 Log a warning when compacting partitions larger than this value
 
 *Default Value:* 100
 
+`
 ``gc_log_threshold_in_ms``
 --------------------------
 *This option is commented out by default.*

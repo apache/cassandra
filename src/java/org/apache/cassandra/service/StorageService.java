@@ -5669,23 +5669,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getTombstoneWarnThreshold()
     {
-        return DatabaseDescriptor.getTombstoneWarnThreshold();
+        return DatabaseDescriptor.getGuardrailsConfig().tombstone_warn_threshold;
     }
 
     public void setTombstoneWarnThreshold(int threshold)
     {
-        DatabaseDescriptor.setTombstoneWarnThreshold(threshold);
+        DatabaseDescriptor.getGuardrailsConfig().setTombstoneWarnThreshold(threshold);
         logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
     public int getTombstoneFailureThreshold()
     {
-        return DatabaseDescriptor.getTombstoneFailureThreshold();
+        return DatabaseDescriptor.getGuardrailsConfig().tombstone_failure_threshold;
     }
 
     public void setTombstoneFailureThreshold(int threshold)
     {
-        DatabaseDescriptor.setTombstoneFailureThreshold(threshold);
+        DatabaseDescriptor.getGuardrailsConfig().setTombstoneFailureThreshold(threshold);
         logger.info("updated tombstone_failure_threshold to {}", threshold);
     }
 
@@ -5724,23 +5724,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int getBatchSizeFailureThreshold()
     {
-        return DatabaseDescriptor.getBatchSizeFailThresholdInKB();
+        return DatabaseDescriptor.getGuardrailsConfig().batch_size_fail_threshold_in_kb;
     }
 
     public void setBatchSizeFailureThreshold(int threshold)
     {
-        DatabaseDescriptor.setBatchSizeFailThresholdInKB(threshold);
+        DatabaseDescriptor.getGuardrailsConfig().setBatchSizeFailThresholdInKB(threshold);
         logger.info("updated batch_size_fail_threshold_in_kb to {}", threshold);
     }
 
     public int getBatchSizeWarnThreshold()
     {
-        return DatabaseDescriptor.getBatchSizeWarnThresholdInKB();
+        return DatabaseDescriptor.getGuardrailsConfig().batch_size_warn_threshold_in_kb;
     }
 
     public void setBatchSizeWarnThreshold(int threshold)
     {
-        DatabaseDescriptor.setBatchSizeWarnThresholdInKB(threshold);
+        DatabaseDescriptor.getGuardrailsConfig().setBatchSizeWarnThresholdInKB(threshold);
         logger.info("Updated batch_size_warn_threshold_in_kb to {}", threshold);
     }
 

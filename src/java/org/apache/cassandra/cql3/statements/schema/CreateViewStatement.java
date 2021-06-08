@@ -160,6 +160,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
                                                         .collect(Collectors.toCollection(HashSet::new));
         Guardrails.materializedViewsPerTable.guard(baseTableViews.size() + 1,
                                                    String.format("%s on table %s", viewName, table.name),
+                                                   false,
                                                    state);
 
         if (table.params.gcGraceSeconds == 0)

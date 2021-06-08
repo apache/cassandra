@@ -198,7 +198,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             TableMetadata tableMetadata = tableBuilder.build();
             tableMetadata.validate();
 
-            Guardrails.columnsPerTable.guard(tableBuilder.numColumns(), tableName, queryState);
+            Guardrails.columnsPerTable.guard(tableBuilder.numColumns(), tableName, false, queryState);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(tableMetadata))
                            .withSwapped(viewsBuilder.build());

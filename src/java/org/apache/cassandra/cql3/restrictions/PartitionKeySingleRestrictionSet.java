@@ -82,11 +82,11 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
             SingleRestriction r = restrictions.get(i);
             r.appendTo(builder, options);
 
+            if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(queryState))
+                Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "IN Select", false, queryState);
+
             if (builder.hasMissingElements())
                 break;
-
-            if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(queryState))
-                Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "IN Select", queryState);
         }
         return builder.buildSerializedPartitionKeys();
     }
