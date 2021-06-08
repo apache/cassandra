@@ -40,6 +40,8 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -50,6 +52,8 @@ import org.openjdk.jmh.annotations.*;
 @State(Scope.Benchmark)
 public class WriteTest extends CQLTester
 {
+    private final static Logger logger = LoggerFactory.getLogger(WriteTest.class);
+
     static String keyspace;
     String table;
     ColumnFamilyStore cfs;
@@ -63,8 +67,8 @@ public class WriteTest extends CQLTester
         INMEM, TRUNCATE, FLUSH
     }
 
-    @Param({"1000000"})
-    int count = 1_000_000;
+    @Param({"100000"})
+    int count = 100_000;
 
     @Param({"INMEM", "TRUNCATE", "FLUSH"})
     EndOp flush = EndOp.INMEM;
@@ -87,10 +91,9 @@ public class WriteTest extends CQLTester
     {
         rand = new Random(1);
         executorService = Executors.newFixedThreadPool(threadCount);
-        CQLTester.setUpClass();
-        CQLTester.prepareServer();
         DatabaseDescriptor.setAutoSnapshot(false);
-        System.err.println("setupClass done.");
+        CQLTester.setUpClass();
+        logger.info("setupClass done.");
         String memtableSetup = "";
         if (!memtableClass.isEmpty())
             memtableSetup = String.format(" AND memtable = { 'class': '%s' }", memtableClass);
@@ -106,8 +109,8 @@ public class WriteTest extends CQLTester
             executeNet(getDefaultVersion(), "use " + keyspace + ";");
         }
         writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
-        System.err.println("Prepared, batch " + BATCH + " threads " + threadCount + " flush " + flush);
-        System.err.println("Disk access mode " + DatabaseDescriptor.getDiskAccessMode() +
+        logger.info("Prepared, batch " + BATCH + " threads " + threadCount + " flush " + flush);
+        logger.info("Disk access mode " + DatabaseDescriptor.getDiskAccessMode() +
                            " index " + DatabaseDescriptor.getIndexAccessMode());
 
         cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
@@ -233,7 +236,7 @@ public class WriteTest extends CQLTester
         executorService.awaitTermination(15, TimeUnit.SECONDS);
         Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
         Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
-        System.err.format("\n%s in %s mode: %d ops, %s serialized bytes, %s\n",
+        logger.info("\n{} in {} mode: {} ops, {} serialized bytes, {}\n",
                           memtable.getClass().getSimpleName(),
                           DatabaseDescriptor.getMemtableAllocationType(),
                           memtable.getOperations(),
