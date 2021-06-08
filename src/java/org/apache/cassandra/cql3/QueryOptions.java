@@ -38,6 +38,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import javax.annotation.Nullable;
+
 /**
  * Options for a query.
  */
@@ -188,9 +190,10 @@ public abstract class QueryOptions
     }
 
     /**  Serial consistency for conditional updates. */
-    public ConsistencyLevel getSerialConsistency()
+    public ConsistencyLevel getSerialConsistency(@Nullable QueryState state)
     {
-        return getSpecificOptions().serialConsistency;
+        ConsistencyLevel cl = getSpecificOptions().serialConsistency;
+        return cl != null ? cl : ConsistencyLevel.defaultSerialConsistency(state);
     }
 
     public long getTimestamp(QueryState state)
@@ -395,7 +398,7 @@ public abstract class QueryOptions
         {
             this.pageSize = pageSize;
             this.state = state;
-            this.serialConsistency = serialConsistency == null ? ConsistencyLevel.SERIAL : serialConsistency;
+            this.serialConsistency = serialConsistency;
             this.timestamp = timestamp;
             this.keyspace = keyspace;
             this.nowInSeconds = nowInSeconds;
@@ -471,7 +474,7 @@ public abstract class QueryOptions
             {
                 int pageSize = flags.contains(Flag.PAGE_SIZE) ? body.readInt() : -1;
                 PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValueNoCopy(body), version) : null;
-                ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
+                ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : null;
                 long timestamp = Long.MIN_VALUE;
                 if (flags.contains(Flag.TIMESTAMP))
                 {
@@ -506,7 +509,7 @@ public abstract class QueryOptions
             if (flags.contains(Flag.PAGING_STATE))
                 CBUtil.writeValue(options.getPagingState().serialize(version), dest);
             if (flags.contains(Flag.SERIAL_CONSISTENCY))
-                CBUtil.writeConsistencyLevel(options.getSerialConsistency(), dest);
+                CBUtil.writeConsistencyLevel(options.getSerialConsistency(null), dest);
             if (flags.contains(Flag.TIMESTAMP))
                 dest.writeLong(options.getSpecificOptions().timestamp);
             if (flags.contains(Flag.KEYSPACE))
@@ -535,7 +538,7 @@ public abstract class QueryOptions
             if (flags.contains(Flag.PAGING_STATE))
                 size += CBUtil.sizeOfValue(options.getPagingState().serializedSize(version));
             if (flags.contains(Flag.SERIAL_CONSISTENCY))
-                size += CBUtil.sizeOfConsistencyLevel(options.getSerialConsistency());
+                size += CBUtil.sizeOfConsistencyLevel(options.getSerialConsistency(null));
             if (flags.contains(Flag.TIMESTAMP))
                 size += 8;
             if (flags.contains(Flag.KEYSPACE))
@@ -557,7 +560,7 @@ public abstract class QueryOptions
                 flags.add(Flag.PAGE_SIZE);
             if (options.getPagingState() != null)
                 flags.add(Flag.PAGING_STATE);
-            if (options.getSerialConsistency() != ConsistencyLevel.SERIAL)
+            if (options.getSpecificOptions().serialConsistency != null)
                 flags.add(Flag.SERIAL_CONSISTENCY);
             if (options.getSpecificOptions().timestamp != Long.MIN_VALUE)
                 flags.add(Flag.TIMESTAMP);

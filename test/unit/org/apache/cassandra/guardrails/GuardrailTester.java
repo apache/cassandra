@@ -18,18 +18,19 @@
 
 package org.apache.cassandra.guardrails;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -50,7 +51,6 @@ public abstract class GuardrailTester extends CQLTester
     static final String USERNAME = "guardrail_user";
     static final String PASSWORD = "guardrail_password";
 
-    private static boolean guardRailsEnabled;
     private static Set<String> tablePropertiesDisallowed;
 
     protected TestListener listener;
@@ -58,11 +58,8 @@ public abstract class GuardrailTester extends CQLTester
     @BeforeClass
     public static void setupGuardrailTester()
     {
-        guardRailsEnabled = DatabaseDescriptor.getGuardrailsConfig().enabled;
-        DatabaseDescriptor.getGuardrailsConfig().enabled = true;
-
         tablePropertiesDisallowed = DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed;
-        DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed = Collections.emptySet();
+        DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed = ImmutableSet.of();
 
         requireAuthentication();
         requireNetwork();
@@ -72,7 +69,6 @@ public abstract class GuardrailTester extends CQLTester
     @AfterClass
     public static void tearDownGuardrailTester()
     {
-        DatabaseDescriptor.getGuardrailsConfig().enabled = guardRailsEnabled;
         DatabaseDescriptor.getGuardrailsConfig().table_properties_disallowed = tablePropertiesDisallowed;
     }
 
@@ -85,6 +81,7 @@ public abstract class GuardrailTester extends CQLTester
         useSuperUser();
         executeNet(format("CREATE USER IF NOT EXISTS %s WITH PASSWORD '%s'", USERNAME, PASSWORD));
         executeNet(format("GRANT ALL ON KEYSPACE %s TO %s", KEYSPACE, USERNAME));
+
         useUser(USERNAME, PASSWORD);
 
         listener = new TestListener(null);
@@ -235,6 +232,11 @@ public abstract class GuardrailTester extends CQLTester
     protected void assertValid(String query, Object... args) throws Throwable
     {
         assertValid(() -> executeNet(query, args));
+    }
+
+    protected void assertValid(Statement query) throws Throwable
+    {
+        assertValid(() -> executeNet(query));
     }
 
     protected void assertWarns(CheckedFunction function, String... messages) throws Throwable

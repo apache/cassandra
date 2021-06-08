@@ -123,7 +123,7 @@ public class QueryState
      */
     public boolean isOrdinaryUser()
     {
-        AuthenticatedUser user = this.getClientState().getUser();
-        return null != user && !user.isSystem() && !user.isSuper();
+        AuthenticatedUser user = getClientState().getUser();
+        return !getClientState().isInternal && null != user && !user.isSystem() && !user.isSuper();
     }
 }

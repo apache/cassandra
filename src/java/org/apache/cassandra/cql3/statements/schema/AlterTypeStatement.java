@@ -138,7 +138,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
             List<AbstractType<?>> fieldTypes = new ArrayList<>(userType.fieldTypes()); fieldTypes.add(fieldType);
 
             int newSize = userType.size() + 1;
-            Guardrails.fieldsPerUDT.guard(newSize, userType.getNameAsString(), state);
+            Guardrails.fieldsPerUDT.guard(newSize, userType.getNameAsString(), false, state);
 
             return new UserType(keyspaceName, userType.name, fieldNames, fieldTypes, true);
         }

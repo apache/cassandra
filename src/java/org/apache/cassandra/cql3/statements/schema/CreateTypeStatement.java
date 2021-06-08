@@ -70,7 +70,7 @@ public final class CreateTypeStatement extends AlterSchemaStatement
     {
         super.validate(state);
 
-        Guardrails.fieldsPerUDT.guard(fieldNames.size(), typeName, state);
+        Guardrails.fieldsPerUDT.guard(fieldNames.size(), typeName, false, state);
     }
 
     public Keyspaces apply(Keyspaces schema)

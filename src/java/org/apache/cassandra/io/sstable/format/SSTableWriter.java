@@ -436,7 +436,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         if (!unfiltered.isRow() || SchemaConstants.isInternalKeyspace(partition.metadata().keyspace))
             return;
 
-        if (!Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled())
+        if (!Guardrails.collectionSize.enabled(null) && !Guardrails.itemsPerCollection.enabled(null))
             return;
 
         Row row = (Row) unfiltered;
@@ -456,8 +456,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             int cellsSize = liveCells.dataSize();
             int cellsCount = liveCells.cellsCount();
 
-            if (!Guardrails.collectionSize.triggersOn(cellsSize) &&
-                !Guardrails.itemsPerCollection.triggersOn(cellsCount))
+            if (!Guardrails.collectionSize.triggersOn(cellsSize, null) &&
+                !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
                 continue;
 
             TableMetadata metadata = partition.metadata();
@@ -467,8 +467,8 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        column.name.toString(),
                                        keyString,
                                        metadata);
-            Guardrails.collectionSize.guard(cellsSize, msg, true);
-            Guardrails.itemsPerCollection.guard(cellsCount, msg, true);
+            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
+            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
         }
     }
 
@@ -494,16 +494,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         if (SchemaConstants.isInternalKeyspace(metadata().keyspace))
             return;
 
-        if (Guardrails.partitionSize.triggersOn(rowSize))
+        if (Guardrails.partitionSize.triggersOn(rowSize, null))
         {
             String keyString = metadata().partitionKeyAsCQLLiteral(key.getKey());
-            Guardrails.partitionSize.guard(rowSize, String.format("%s in %s", keyString, metadata), true);
-        }
-
-        if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
-        {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing large partition {}/{}:{} ({}) to sstable {}", metadata.keyspace, metadata.name, keyString, FBUtilities.prettyPrintMemory(rowSize), getFilename());
+            Guardrails.partitionSize.guard(rowSize, String.format("%s in %s", keyString, metadata), true, null);
         }
     }
 }
