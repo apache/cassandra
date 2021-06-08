@@ -596,7 +596,7 @@ public abstract class ColumnFilter
 
                 // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
                 // for some queries
-                if (isUpgradingFromVersionLowerThan40RC2() || !returnStaticContentOnPartitionWithNoRows)
+                if (!returnStaticContentOnPartitionWithNoRows || isUpgradingFromVersionLowerThan40RC2())
                 {
                     return SelectionColumnFilter.newInstance(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, metadata, queried, s);
                 }
@@ -1074,7 +1074,7 @@ public abstract class ColumnFilter
 
                 // pre CASSANDRA-16686 (4.0-RC2-) static columns where not fetched unless queried witch lead to some wrong results
                 // for some queries
-                if (isUpgradingFromVersionLowerThan40RC2() || !isFetchAllStatics)
+                if (!isFetchAllStatics || isUpgradingFromVersionLowerThan40RC2())
                 {
                     return new SelectionColumnFilter(FetchingStrategy.ALL_REGULARS_AND_QUERIED_STATICS_COLUMNS, queried, fetched, subSelections);
                 }

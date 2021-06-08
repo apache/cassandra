@@ -64,7 +64,8 @@ abstract class ColumnFilterFactory
      * @param factories the {@code SelectorFactories}
      * @param orderingColumns the columns used for ordering
      * @param nonPKRestrictedColumns the non primary key columns that have been restricted in the WHERE clause
-     * @param returnStaticContentOnPartitionWithNoRows {@code true} if the query will return the static content when the partition has no rows, {@code false} otherwise.
+     * @param returnStaticContentOnPartitionWithNoRows {@code true} if the query will return the static content when the 
+     * partition has no rows, {@code false} otherwise.
      * @return a new {@code ColumnFilterFactory} instance
      */
     public static ColumnFilterFactory fromSelectorFactories(TableMetadata table,
@@ -117,7 +118,9 @@ abstract class ColumnFilterFactory
         private final Set<ColumnMetadata> nonPKRestrictedColumns;
         private final boolean returnStaticContentOnPartitionWithNoRows;
 
-        public OnRequestColumnFilterFactory(TableMetadata table, Set<ColumnMetadata> nonPKRestrictedColumns, boolean returnStaticContentOnPartitionWithNoRows)
+        public OnRequestColumnFilterFactory(TableMetadata table,
+                                            Set<ColumnMetadata> nonPKRestrictedColumns,
+                                            boolean returnStaticContentOnPartitionWithNoRows)
         {
             this.table = table;
             this.nonPKRestrictedColumns = nonPKRestrictedColumns;
