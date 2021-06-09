@@ -22,7 +22,6 @@ import java.util.*;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Iterators;
 import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 
@@ -31,7 +30,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -355,16 +353,6 @@ public abstract class ColumnFilter
      * to use the {@link #fetches} method.
      */
     public abstract boolean fetchedCellIsQueried(ColumnMetadata column, CellPath path);
-
-    /**
-     * Given an iterator on the cell of a complex column, returns an iterator that only include the cells selected by
-     * this filter.
-     *
-     * @param column the (complex) column for which the cells are.
-     * @param cells the cells to filter.
-     * @return a filtered iterator that only include the cells from {@code cells} that are included by this filter.
-     */
-    public abstract Iterator<Cell<?>> filterComplexCells(ColumnMetadata column, Iterator<Cell<?>> cells);
 
     /**
      * Creates a new {@code Tester} to efficiently test the inclusion of cells of complex column
@@ -692,12 +680,6 @@ public abstract class ColumnFilter
         }
 
         @Override
-        public Iterator<Cell<?>> filterComplexCells(ColumnMetadata column, Iterator<Cell<?>> cells)
-        {
-            return cells;
-        }
-
-        @Override
         public Tester newTester(ColumnMetadata column)
         {
             return null;
@@ -874,16 +856,6 @@ public abstract class ColumnFilter
                     return true;
 
             return false;
-        }
-
-        @Override
-        public Iterator<Cell<?>> filterComplexCells(ColumnMetadata column, Iterator<Cell<?>> cells)
-        {
-            Tester tester = newTester(column);
-            if (tester == null)
-                return cells;
-
-            return Iterators.filter(cells, cell -> cell != null && tester.fetchedCellIsQueried(cell.path()));
         }
 
         @Override
