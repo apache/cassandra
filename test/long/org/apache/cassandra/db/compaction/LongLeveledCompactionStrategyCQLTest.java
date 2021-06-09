@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Hex;
 
@@ -70,7 +71,7 @@ public class LongLeveledCompactionStrategyCQLTest extends CQLTester
                             throw new RuntimeException(throwable);
                         }
                     }
-                    getCurrentColumnFamilyStore().forceBlockingFlush();
+                    getCurrentColumnFamilyStore().forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
                     Uninterruptibles.sleepUninterruptibly(r.nextInt(200), TimeUnit.MILLISECONDS);
                 }
             });

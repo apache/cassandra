@@ -162,7 +162,7 @@ public class CorruptedSSTablesCompactionsTest
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
                 inserted.add(key);
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
             assertEquals(inserted.toString(), inserted.size(), Util.getAll(Util.cmd(cfs).build()).size());
         }

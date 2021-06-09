@@ -70,7 +70,7 @@ public class ColumnFamilyMetricTest
         {
             applyMutation(cfs.metadata(), String.valueOf(j), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros());
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         long size = 0;
         for (SSTableReader reader : sstables)
@@ -152,7 +152,7 @@ public class ColumnFamilyMetricTest
             applyMutation(store.metadata(), "1", bytes(1), FBUtilities.timestampMicros());
 
             // Flushing first SSTable
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             long[] estimatedColumnCountHistogram = store.metric.estimatedColumnCountHistogram.getValue();
             assertNumberOfNonZeroValue(estimatedColumnCountHistogram, 1);
@@ -165,7 +165,7 @@ public class ColumnFamilyMetricTest
             applyMutation(store.metadata(), "2", bytes(2), FBUtilities.timestampMicros());
 
             // Flushing second SSTable
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             estimatedColumnCountHistogram = store.metric.estimatedColumnCountHistogram.getValue();
             assertNumberOfNonZeroValue(estimatedColumnCountHistogram, 1);

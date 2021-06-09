@@ -44,7 +44,7 @@ public class MemtableTrieWriteBench
     @Param({"8"})
     int keyLength = 8;
 
-    final static MemtableTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> x;
+    final static MemtableTrie.UpsertTransformer<Byte, Byte> resolver = (x, y) -> y;
 
     @Benchmark
     public void putSequential() throws MemtableTrie.SpaceExhaustedException

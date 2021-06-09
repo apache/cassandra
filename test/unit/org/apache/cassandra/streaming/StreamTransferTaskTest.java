@@ -84,7 +84,7 @@ public class StreamTransferTaskTest
         for (int i = 0; i < 2; i++)
         {
             SchemaLoader.insertData(KEYSPACE1, CF_STANDARD, i, 1);
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
         // create streaming task that streams those two sstables
@@ -135,7 +135,7 @@ public class StreamTransferTaskTest
         for (int i = 0; i < 2; i++)
         {
             SchemaLoader.insertData(KEYSPACE1, CF_STANDARD, i, 1);
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
         // create streaming task that streams those two sstables

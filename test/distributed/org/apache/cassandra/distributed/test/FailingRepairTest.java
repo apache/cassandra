@@ -111,7 +111,7 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         return () -> {
             String cfName = getCfName(type, parallelism, withTracing);
             ColumnFamilyStore cf = Keyspace.open(KEYSPACE).getColumnFamilyStore(cfName);
-            cf.forceBlockingFlush();
+            cf.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
             Set<SSTableReader> remove = cf.getLiveSSTables();
             Set<SSTableReader> replace = new HashSet<>();
             if (type == Verb.VALIDATION_REQ)

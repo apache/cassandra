@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.cql3.ViewComplexTest.createView;
 import static org.apache.cassandra.cql3.ViewComplexTest.updateView;
 import static org.apache.cassandra.cql3.ViewComplexTest.updateViewWithFlush;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
@@ -181,8 +182,8 @@ public class ViewComplexLivenessTest extends CQLTester
         }
         if (flush)
         {
-            ks.getColumnFamilyStore("mv1").forceBlockingFlush();
-            ks.getColumnFamilyStore("mv2").forceBlockingFlush();
+            ks.getColumnFamilyStore("mv1").forceBlockingFlush(UNIT_TESTS);
+            ks.getColumnFamilyStore("mv2").forceBlockingFlush(UNIT_TESTS);
         }
 
         for (String view : Arrays.asList("mv1", "mv2"))
@@ -224,7 +225,7 @@ public class ViewComplexLivenessTest extends CQLTester
         assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from mv"), row(1, 1, 1));
 
         updateView("Update %s set v1 = null WHERE p = 1", version, this);
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from mv"));
 
         cfs.forceMajorCompaction(); // before gc grace second, strict-liveness tombstoned dead row remains
@@ -237,7 +238,7 @@ public class ViewComplexLivenessTest extends CQLTester
         assertEquals(0, cfs.getLiveSSTables().size());
 
         updateView("Update %s using ttl 5 set v1 = 1 WHERE p = 1", version, this);
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from mv"), row(1, 1, 1));
 
         cfs.forceMajorCompaction(); // before ttl+gc_grace_second, strict-liveness ttled dead row remains

@@ -195,7 +195,7 @@ public class CompactionAwareWriterTest extends CQLTester
                 execute(String.format("INSERT INTO %s.%s(k, t, v) VALUES (?, ?, ?)", KEYSPACE, TABLE), i, j, b);
 
         ColumnFamilyStore cfs = getColumnFamilyStore();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         if (cfs.getLiveSSTables().size() > 1)
         {
             // we want just one big sstable to avoid doing actual compaction in compact() above

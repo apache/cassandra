@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 
@@ -58,7 +59,7 @@ public class ViewRangesTest extends ViewAbstractTest
         updateView("DELETE FROM %s USING TIMESTAMP 10 WHERE k1 = 1 and c1=1");
 
         if (flush)
-            Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+            Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         String table = KEYSPACE + "." + currentTable();
         updateView("BEGIN BATCH " +

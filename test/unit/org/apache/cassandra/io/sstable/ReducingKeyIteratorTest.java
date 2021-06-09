@@ -87,7 +87,7 @@ public class ReducingKeyIteratorTest
                 .build()
                 .applyUnsafe();
             }
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
 
         Set<SSTableReader> sstables = store.getLiveSSTables();

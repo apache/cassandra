@@ -61,7 +61,6 @@ import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.RegularAndStaticColumns;
@@ -71,6 +70,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -350,7 +350,7 @@ public class StorageAttachedIndex implements Index
         // In case of offline scrub, there is no live memtables.
         if (!baseCfs.getTracker().getView().liveMemtables.isEmpty())
         {
-            baseCfs.forceBlockingFlush();
+            baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_STARTED);
         }
 
         // It is now safe to flush indexes directly from flushing Memtables.
@@ -611,7 +611,7 @@ public class StorageAttachedIndex implements Index
 
         void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
         {
-            mt.allocateExtraOnHeap(additionalSpace, opGroup);
+            mt.markExtraOnHeapUsed(additionalSpace, opGroup);
         }
     }
 

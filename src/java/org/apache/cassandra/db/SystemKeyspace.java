@@ -830,7 +830,9 @@ public final class SystemKeyspace
 
             for (String cfname : cfnames)
             {
-                futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(cfname).forceFlush());
+                futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME)
+                                    .getColumnFamilyStore(cfname)
+                                    .forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED));
             }
             FBUtilities.waitOnFutures(futures);
         }

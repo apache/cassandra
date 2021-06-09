@@ -112,7 +112,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
 
         // flush and generate 1 sstable
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         cfs.disableAutoCompaction();
         cfs.forceMajorCompaction();
 
@@ -147,7 +147,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
 
         // flush and generate 1 sstable
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         cfs.disableAutoCompaction();
         cfs.forceMajorCompaction();
 
@@ -205,7 +205,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
 
         // flush and generate 1 sstable
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         cfs.disableAutoCompaction();
         cfs.forceMajorCompaction();
 
@@ -623,7 +623,7 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
 
         new RowUpdateBuilder(cfs.metadata(), 1, key).addRangeTombstone(10, 22).build().applyUnsafe();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         builder = UpdateBuilder.create(cfs.metadata(), key).withTimestamp(2);
         for (int i = 1; i < 40; i += 2)

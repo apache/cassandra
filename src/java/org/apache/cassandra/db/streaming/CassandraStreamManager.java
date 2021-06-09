@@ -81,6 +81,7 @@ public class CassandraStreamManager implements TableStreamManager
         return new CassandraStreamReceiver(cfs, session, totalStreams);
     }
 
+    @SuppressWarnings("resource")   // references placed onto returned collection or closed on error
     @Override
     public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, UUID pendingRepair, PreviewKind previewKind)
     {
@@ -126,6 +127,8 @@ public class CassandraStreamManager implements TableStreamManager
                 return sstables;
             }).refs);
 
+            // Persistent memtables will not flush, make an sstable with their data.
+            cfs.writeAndAddMemtableRanges(session.getPendingRepair(), () -> Range.normalize(keyRanges), refs);
 
             List<Range<Token>> normalizedFullRanges = Range.normalize(replicas.onlyFull().ranges());
             List<Range<Token>> normalizedAllRanges = Range.normalize(replicas.ranges());

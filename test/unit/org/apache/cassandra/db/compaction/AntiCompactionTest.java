@@ -299,7 +299,7 @@ public class AntiCompactionTest
                     .build()
                     .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     @Test
@@ -442,7 +442,7 @@ public class AntiCompactionTest
                 .build()
                 .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         return store;
     }
 

@@ -96,7 +96,7 @@ public class DiskSpaceMetricsTest extends CQLTester
             execute("INSERT INTO %s (pk) VALUES (?)", base + i);
 
         // flush to write the sstable
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
 
     private void assertDiskSpaceEqual(ColumnFamilyStore cfs)

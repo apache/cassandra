@@ -165,9 +165,9 @@ public class SizeTieredCompactionStrategyTest
             new RowUpdateBuilder(cfs.metadata(), 0, key)
                 .clustering("column").add("val", value)
                 .build().applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
         Pair<List<SSTableReader>, Double> bucket;

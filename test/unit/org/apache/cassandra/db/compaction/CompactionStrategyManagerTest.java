@@ -511,7 +511,7 @@ public class CompactionStrategyManagerTest
         .build()
         .applyUnsafe();
         Set<SSTableReader> before = cfs.getLiveSSTables();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         Set<SSTableReader> after = cfs.getLiveSSTables();
         return Iterables.getOnlyElement(Sets.difference(after, before));
     }

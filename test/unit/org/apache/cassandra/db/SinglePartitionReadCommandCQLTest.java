@@ -31,10 +31,10 @@ public class SinglePartitionReadCommandCQLTest extends CQLTester
     {
         createTable("CREATE TABLE %s (bucket_id TEXT,name TEXT,data TEXT,PRIMARY KEY (bucket_id, name))");
         execute("insert into %s (bucket_id, name, data) values ('8772618c9009cf8f5a5e0c18', 'test', 'hello')");
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        flush();
         execute("insert into %s (bucket_id, name, data) values ('8772618c9009cf8f5a5e0c19', 'test2', 'hello');");
         execute("delete from %s where bucket_id = '8772618c9009cf8f5a5e0c18'");
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        flush();
         UntypedResultSet res = execute("select * from %s where bucket_id = '8772618c9009cf8f5a5e0c18' and name = 'test'");
         assertTrue(res.isEmpty());
     }

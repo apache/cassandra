@@ -279,7 +279,7 @@ public class TTLTest extends CQLTester
         // Maybe Flush
         Keyspace ks = Keyspace.open(keyspace());
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(ColumnFamilyStore.FlushReason.UNIT_TESTS));
 
         // Verify data
         verifyData(simple);
