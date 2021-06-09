@@ -100,7 +100,7 @@ public class PostingsWriter implements Closeable
     private long totalPostings;
 
     @VisibleForTesting
-    PostingsWriter(IndexComponents components, boolean segmented) throws IOException
+    public PostingsWriter(IndexComponents components, boolean segmented) throws IOException
     {
         this(components, BLOCK_SIZE, segmented);
     }
