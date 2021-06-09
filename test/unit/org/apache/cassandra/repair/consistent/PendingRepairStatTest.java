@@ -49,6 +49,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.FAILED;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.FINALIZED;
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.PREPARING;
@@ -114,7 +115,7 @@ public class PendingRepairStatTest extends AbstractRepairTest
             int key = startKey + i;
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?)", cfm.keyspace, cfm.name), key, key);
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         return Iterables.getOnlyElement(Sets.difference(cfs.getLiveSSTables(), existing));
     }
 

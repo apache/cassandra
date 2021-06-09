@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 public class DeletePartitionTest
 {
@@ -75,7 +76,7 @@ public class DeletePartitionTest
         assertTrue(r.getCell(column).value().equals(ByteBufferUtil.bytes("asdf")));
 
         if (flushBeforeRemove)
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(UNIT_TESTS);
 
         // delete the partition
         new Mutation.PartitionUpdateCollector(KEYSPACE1, key)
@@ -84,7 +85,7 @@ public class DeletePartitionTest
                 .applyUnsafe();
 
         if (flushAfterRemove)
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(UNIT_TESTS);
 
         // validate removal
         ImmutableBTreePartition partitionUnfiltered = Util.getOnlyPartitionUnfiltered(Util.cmd(store, key).build());

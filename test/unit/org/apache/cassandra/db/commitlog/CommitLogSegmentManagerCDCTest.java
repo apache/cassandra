@@ -31,12 +31,15 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.CDCState;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
+
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 public class CommitLogSegmentManagerCDCTest extends CQLTester
 {
@@ -95,7 +98,9 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
             execute("INSERT INTO %s (idx, data) VALUES (1, '1');");
 
             // Confirm that, on flush+recyle, we see files show up in cdc_raw
-            Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+            Keyspace.open(keyspace())
+                    .getColumnFamilyStore(currentTable())
+                    .forceBlockingFlush(UNIT_TESTS);
             CommitLog.instance.forceRecycleAllSegments();
             cdcMgr.awaitManagementTasksCompletion();
             Assert.assertTrue("Expected files to be moved to overflow.", getCDCRawCount() > 0);

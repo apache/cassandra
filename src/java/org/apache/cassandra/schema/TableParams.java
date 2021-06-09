@@ -46,6 +46,7 @@ public final class TableParams
         COMMENT,
         COMPACTION,
         COMPRESSION,
+        MEMTABLE,
         DEFAULT_TIME_TO_LIVE,
         EXTENSIONS,
         GC_GRACE_SECONDS,
@@ -78,6 +79,7 @@ public final class TableParams
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
+    public final MemtableParams memtable;
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
@@ -99,6 +101,7 @@ public final class TableParams
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
+        memtable = builder.memtable;
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
@@ -116,6 +119,7 @@ public final class TableParams
                             .comment(params.comment)
                             .compaction(params.compaction)
                             .compression(params.compression)
+                            .memtable(params.memtable)
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
                             .gcGraceSeconds(params.gcGraceSeconds)
@@ -178,6 +182,9 @@ public final class TableParams
 
         if (memtableFlushPeriodInMs < 0)
             fail("%s must be greater than or equal to 0 (got %s)", Option.MEMTABLE_FLUSH_PERIOD_IN_MS, memtableFlushPeriodInMs);
+
+        if (cdc && memtable.factory.writesShouldSkipCommitLog())
+            fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
     }
 
     private static void fail(String format, Object... args)
@@ -208,6 +215,7 @@ public final class TableParams
             && caching.equals(p.caching)
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
+            && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
             && readRepair == p.readRepair;
@@ -228,6 +236,7 @@ public final class TableParams
                                 caching,
                                 compaction,
                                 compression,
+                                memtable,
                                 extensions,
                                 cdc,
                                 readRepair);
@@ -249,6 +258,7 @@ public final class TableParams
                           .add(Option.CACHING.toString(), caching)
                           .add(Option.COMPACTION.toString(), compaction)
                           .add(Option.COMPRESSION.toString(), compression)
+                          .add(Option.MEMTABLE.toString(), memtable)
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
@@ -271,6 +281,8 @@ public final class TableParams
                .append("AND compaction = ").append(compaction.asMap())
                .newLine()
                .append("AND compression = ").append(compression.asMap())
+               .newLine()
+               .append("AND memtable = ").append(memtable.asMap())
                .newLine()
                .append("AND crc_check_chance = ").append(crcCheckChance)
                .newLine();
@@ -315,6 +327,7 @@ public final class TableParams
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
+        private MemtableParams memtable = MemtableParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
@@ -397,6 +410,12 @@ public final class TableParams
         public Builder compaction(CompactionParams val)
         {
             compaction = val;
+            return this;
+        }
+
+        public Builder memtable(MemtableParams val)
+        {
+            memtable = val;
             return this;
         }
 

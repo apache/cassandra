@@ -95,12 +95,6 @@ public class CommitLogPosition implements Comparable<CommitLogPosition>
                ')';
     }
 
-    public CommitLogPosition clone()
-    {
-        return new CommitLogPosition(segmentId, position);
-    }
-
-
     public static class CommitLogPositionSerializer implements ISerializer<CommitLogPosition>
     {
         public void serialize(CommitLogPosition clsp, DataOutputPlus out) throws IOException

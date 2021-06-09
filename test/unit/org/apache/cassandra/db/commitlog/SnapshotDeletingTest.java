@@ -21,6 +21,8 @@ package org.apache.cassandra.db.commitlog;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.*;
 
 import org.apache.cassandra.SchemaLoader;
@@ -76,7 +78,7 @@ public class SnapshotDeletingTest
 
         // Compact the cf and confirm that the executor's after hook calls rescheduleDeletion
         populate(20000);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
         store.forceMajorCompaction();
 
         long start = System.currentTimeMillis();

@@ -34,6 +34,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 
 public class CrcCheckChanceTest extends CQLTester
 {
@@ -68,7 +70,7 @@ public class CrcCheckChanceTest extends CQLTester
 
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         Assert.assertEquals(0.99, cfs.getCrcCheckChance(), 0.0);
         Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCrcCheckChance(), 0.0);
@@ -96,19 +98,19 @@ public class CrcCheckChanceTest extends CQLTester
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         cfs.forceMajorCompaction();
 
         //Now let's change via JMX
@@ -182,7 +184,7 @@ public class CrcCheckChanceTest extends CQLTester
             execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
             execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         DatabaseDescriptor.setCompactionThroughputMbPerSec(1);

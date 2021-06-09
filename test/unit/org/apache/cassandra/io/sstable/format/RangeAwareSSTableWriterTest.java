@@ -69,7 +69,7 @@ public class RangeAwareSSTableWriterTest
     {
 
         SchemaLoader.insertData(KEYSPACE1, CF_STANDARD, 0, 1);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 

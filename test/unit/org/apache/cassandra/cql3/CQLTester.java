@@ -151,6 +151,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
 import static junit.framework.Assert.assertNotNull;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 /**
  * Base class for CQL tests.
@@ -643,7 +644,7 @@ public abstract class CQLTester
     {
         ColumnFamilyStore store = getColumnFamilyStore(keyspace, table);
         if (store != null)
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(UNIT_TESTS);
     }
 
     public void disableCompaction(String keyspace)

@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
+import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.io.Files;
 import org.junit.After;
@@ -61,7 +62,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.MutationExceededMaxSizeException;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -73,6 +73,8 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -97,6 +99,7 @@ import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.SYNC_MARKER_SIZE;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -916,7 +919,7 @@ public abstract class CommitLogTest
                 {
                     try (Closeable c = Util.markDirectoriesUnwriteable(cfs))
                     {
-                        cfs.forceBlockingFlush();
+                        cfs.forceBlockingFlush(UNIT_TESTS);
                     }
                     catch (Throwable t)
                     {
@@ -926,7 +929,7 @@ public abstract class CommitLogTest
                     }
                 }
                 else
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(UNIT_TESTS);
             }
         }
         finally
@@ -958,7 +961,7 @@ public abstract class CommitLogTest
 
             Memtable current = cfs.getTracker().getView().getCurrentMemtable();
             if (i == 2)
-                current.makeUnflushable();
+                ((AbstractAllocatorMemtable) current).makeUnflushable();
 
             flushAction.accept(cfs, current);
         }
@@ -981,7 +984,7 @@ public abstract class CommitLogTest
     {
         try
         {
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
         catch (Throwable t)
         {
@@ -989,7 +992,7 @@ public abstract class CommitLogTest
             while (!(t instanceof FSWriteError))
                 t = t.getCause();
             // Wait for started flushes to complete.
-            cfs.switchMemtableIfCurrent(current);
+            waitForStartedFlushes(cfs, current);
         }
     };
 
@@ -1001,8 +1004,20 @@ public abstract class CommitLogTest
         CommitLog.instance.forceRecycleAllSegments();
 
         // Wait for started flushes to complete.
-        cfs.switchMemtableIfCurrent(current);
+        waitForStartedFlushes(cfs, current);
     };
+
+    private void waitForStartedFlushes(ColumnFamilyStore cfs, Memtable current)
+    {
+        try
+        {
+            cfs.switchMemtableIfCurrent(current, UNIT_TESTS).get();
+        }
+        catch (InterruptedException|ExecutionException e)
+        {
+            throw Throwables.propagate(e);
+        }
+    }
 
     @Test
     public void testOutOfOrderFlushRecovery() throws ExecutionException, InterruptedException, IOException

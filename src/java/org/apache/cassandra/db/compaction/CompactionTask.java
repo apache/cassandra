@@ -117,7 +117,7 @@ public class CompactionTask extends AbstractCompactionTask
         CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
 
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
-            cfs.snapshotWithoutFlush(System.currentTimeMillis() + "-compact-" + cfs.name);
+            cfs.snapshotWithoutMemtable(System.currentTimeMillis() + "-compact-" + cfs.name);
 
         try (CompactionController controller = getCompactionController(transaction.originals()))
         {

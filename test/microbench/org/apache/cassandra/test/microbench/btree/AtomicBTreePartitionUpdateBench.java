@@ -53,6 +53,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AtomicBTreePartition;
+import org.apache.cassandra.db.partitions.BTreePartitionData;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
@@ -343,7 +344,7 @@ public class AtomicBTreePartitionUpdateBench
                         {
                             if (invalidateOn > 0 && --invalidateOn == 0)
                             {
-                                AbstractBTreePartition.Holder holder = update.unsafeGetHolder();
+                                BTreePartitionData holder = update.unsafeGetHolder();
                                 if (!BTree.isEmpty(holder.tree))
                                     update.unsafeSetHolder(AbstractBTreePartition.unsafeConstructHolder(
                                         holder.columns, Arrays.copyOf(holder.tree, holder.tree.length), holder.deletionInfo, holder.staticRow, holder.stats));
@@ -397,7 +398,7 @@ public class AtomicBTreePartitionUpdateBench
                         ThreadLocalRandom.current().nextLong();
                 }
                 invokeBefore.accept(this);
-                update.addAllWithSizeDelta(insert[index], cloner, NO_ORDER.getCurrent(), UpdateTransaction.NO_OP);
+                update.addAll(insert[index], cloner, NO_ORDER.getCurrent(), UpdateTransaction.NO_OP);
                 return true;
             }
             finally

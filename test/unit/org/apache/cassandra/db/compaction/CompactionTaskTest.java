@@ -44,6 +44,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 public class CompactionTaskTest
 {
     private static TableMetadata cfm;
@@ -71,10 +73,10 @@ public class CompactionTaskTest
         cfs.getCompactionStrategyManager().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
 
         Assert.assertEquals(2, sstables.size());
@@ -111,13 +113,13 @@ public class CompactionTaskTest
     {
         cfs.getCompactionStrategyManager().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         Assert.assertEquals(4, sstables.size());
@@ -160,13 +162,13 @@ public class CompactionTaskTest
     {
         cfs.getCompactionStrategyManager().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (3, 3);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (4, 4);");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         Assert.assertEquals(4, sstables.size());

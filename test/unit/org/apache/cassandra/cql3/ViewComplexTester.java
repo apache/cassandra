@@ -32,8 +32,11 @@ import org.junit.runners.Parameterized;
 
 import com.datastax.driver.core.exceptions.OperationTimedOutException;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
+
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
@@ -127,6 +130,6 @@ public abstract class ViewComplexTester extends CQLTester
             Thread.sleep(1);
         }
         if (flush)
-            Keyspace.open(keyspace()).flush();
+            Keyspace.open(keyspace()).flush(UNIT_TESTS);
     }
 }

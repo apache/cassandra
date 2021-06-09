@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import static junit.framework.Assert.fail;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 import java.io.Closeable;
 import java.util.concurrent.ExecutionException;
@@ -28,6 +29,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.Keyspace;
@@ -115,7 +117,10 @@ public class OutOfSpaceTest extends CQLTester
     {
         try
         {
-            Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable()).forceFlush().get();
+            Keyspace.open(KEYSPACE)
+                    .getColumnFamilyStore(currentTable())
+                    .forceFlush(UNIT_TESTS)
+                    .get();
             fail("FSWriteError expected.");
         }
         catch (ExecutionException e)

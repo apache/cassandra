@@ -21,14 +21,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.SkipListMemtable;
+import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -38,6 +43,7 @@ import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
@@ -53,6 +59,7 @@ import static org.apache.cassandra.cql3.Duration.NANOS_PER_MILLI;
 import static org.apache.cassandra.cql3.Duration.NANOS_PER_MINUTE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -570,6 +577,129 @@ public class CreateTest extends CQLTester
 
         for (String stmt : stmts)
             assertInvalidSyntaxMessage("no viable alternative at input 'WITH'", stmt);
+    }
+
+    public static class TestMemtableFactory
+    {
+        public static Memtable.Factory factory(Map<String, String> options)
+        {
+            String skiplist = options.remove("skiplist");
+            if (!options.isEmpty())
+                throw new ConfigurationException("Options " + options + " not expected.");
+            if (Boolean.parseBoolean(skiplist))
+                return SkipListMemtable.FACTORY;
+            else
+                return TrieMemtable.FACTORY;
+        }
+    }
+
+    public static class InvalidMemtableFactoryMethod
+    {
+        public static String factory(Map<String, String> options)
+        {
+            return "invalid";
+        }
+    }
+
+    public static class InvalidMemtableFactoryField
+    {
+        public static String FACTORY = "invalid";
+    }
+
+    @Test
+    public void testCreateTableWithMemtable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
+        assertSame(MemtableParams.DEFAULT.factory, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map()));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = { 'class' : 'SkipListMemtable' };");
+        assertSame(SkipListMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("class", "SkipListMemtable")));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = { 'class' : 'org.apache.cassandra.db.memtable.TrieMemtable' };");
+        assertSame(TrieMemtable.FACTORY, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof TrieMemtable);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("class", "org.apache.cassandra.db.memtable.TrieMemtable")));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = { 'class' : '" + TestMemtableFactory.class.getName() + "' };");
+        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof TrieMemtable);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("class", TestMemtableFactory.class.getName())));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = { 'class' : '" + TestMemtableFactory.class.getName() + "', 'skiplist' : 'true' };");
+        Assert.assertTrue(getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable() instanceof SkipListMemtable);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map("class", TestMemtableFactory.class.getName(),
+                           "skiplist", "true")));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                    + " WITH memtable = {  };");
+        assertSame(MemtableParams.DEFAULT.factory, getCurrentColumnFamilyStore().metadata().params.memtable.factory);
+
+        assertRows(execute(format("SELECT memtable FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
+                                  SchemaKeyspaceTables.TABLES),
+                           KEYSPACE,
+                           currentTable()),
+                   row(map()));
+
+        assertThrowsConfigurationException("The 'class' option must not be empty. To use default implementation, remove option.",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'class' : '' };");
+
+        assertThrowsConfigurationException("Memtable class org.apache.cassandra.db.memtable.TrieMemtable does not accept any futher parameters, but {invalid=throw} were given.",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'class' : 'TrieMemtable', 'invalid' : 'throw' };");
+
+        assertThrowsConfigurationException("Could not create memtable factory for type org.apache.cassandra.db.memtable.NotExisting and options {}",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'class' : 'NotExisting'};");
+
+        assertThrowsConfigurationException("Options {invalid=throw} not expected.",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'class' : '" + TestMemtableFactory.class.getName() + "', 'invalid' : 'throw' };");
+
+        assertThrowsConfigurationException("Could not create memtable factory for type " + InvalidMemtableFactoryMethod.class.getName() +  " and options {}",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'class' : '" + InvalidMemtableFactoryMethod.class.getName() + "' };");
+
+        assertThrowsConfigurationException("Could not create memtable factory for type " + InvalidMemtableFactoryField.class.getName() +  " and options {}",
+                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
+                                           + " WITH memtable = { 'class' : '" + InvalidMemtableFactoryField.class.getName() + "' };");
     }
 
     @Test

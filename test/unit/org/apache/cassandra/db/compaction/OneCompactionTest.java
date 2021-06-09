@@ -34,6 +34,7 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 
 
@@ -71,7 +72,7 @@ public class OneCompactionTest
                 .applyUnsafe();
 
             inserted.add(key);
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(UNIT_TESTS);
             assertEquals(inserted.size(), Util.getAll(Util.cmd(store).build()).size());
         }
         CompactionManager.instance.performMaximal(store, false);

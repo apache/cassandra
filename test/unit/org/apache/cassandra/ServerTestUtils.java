@@ -175,7 +175,8 @@ public final class ServerTestUtils
 
     private static void cleanupDirectory(String dirName)
     {
-        cleanupDirectory(new File(dirName));
+        if (dirName != null)
+            cleanupDirectory(new File(dirName));
     }
 
     /**

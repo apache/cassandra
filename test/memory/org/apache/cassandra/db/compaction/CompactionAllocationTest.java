@@ -65,6 +65,8 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 public class CompactionAllocationTest
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionAllocationTest.class);
@@ -487,7 +489,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(UNIT_TESTS);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -602,7 +604,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(UNIT_TESTS);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());
@@ -702,7 +704,7 @@ public class CompactionAllocationTest
                             reads.add(() -> runQuery(query, cfs.metadata.get()));
                         }
                     }
-                    cfs.forceBlockingFlush();
+                    cfs.forceBlockingFlush(UNIT_TESTS);
                 }
 
                 Assert.assertEquals(numSSTable, cfs.getLiveSSTables().size());

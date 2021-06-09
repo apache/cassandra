@@ -449,11 +449,11 @@ public class GcCompactionTest extends CQLTester
         createTable("create table %s (k int, c1 int, primary key (k, c1)) with compaction = {'class': 'SizeTieredCompactionStrategy', 'provide_overlapping_tombstones':'row'}");
         execute("delete from %s where k = 1");
         Set<SSTableReader> readers = new HashSet<>(getCurrentColumnFamilyStore().getLiveSSTables());
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        flush();
         SSTableReader oldSSTable = getNewTable(readers);
         Thread.sleep(2000);
         execute("delete from %s where k = 1");
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        flush();
         SSTableReader newTable = getNewTable(readers);
 
         CompactionManager.instance.forceUserDefinedCompaction(oldSSTable.getFilename());

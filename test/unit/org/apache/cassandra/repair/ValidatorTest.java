@@ -58,6 +58,7 @@ import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -186,7 +187,7 @@ public class ValidatorTest
 
         CompactionsTest.populate(keyspace, columnFamily, 0, n, 0); //ttl=3s
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
@@ -243,7 +244,7 @@ public class ValidatorTest
         // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
         CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction
@@ -302,7 +303,7 @@ public class ValidatorTest
         // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
         CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         assertEquals(1, cfs.getLiveSSTables().size());
 
         // wait enough to force single compaction

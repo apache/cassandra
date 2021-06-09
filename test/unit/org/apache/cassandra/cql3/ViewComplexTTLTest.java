@@ -24,6 +24,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertTrue;
 
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
@@ -68,7 +69,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("UPDATE %s SET a = 1 WHERE k = 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, 1, null));
         assertRows(execute("SELECT * from " + mv), row(1, 1, null));
@@ -76,7 +77,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("DELETE a FROM %s WHERE k = 1");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"));
         assertEmpty(execute("SELECT * from " + mv));
@@ -84,7 +85,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("INSERT INTO %s (k) VALUES (1);");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, null, null));
         assertEmpty(execute("SELECT * from " + mv));
@@ -92,7 +93,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("UPDATE %s USING TTL 5 SET a = 10 WHERE k = 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, 10, null));
         assertRows(execute("SELECT * from " + mv), row(10, 1, null));
@@ -100,7 +101,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("UPDATE %s SET b = 100 WHERE k = 1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, 10, 100));
         assertRows(execute("SELECT * from " + mv), row(10, 1, 100));
@@ -115,7 +116,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("DELETE b FROM %s WHERE k=1");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRows(execute("SELECT * from %s"), row(1, null, null));
         assertEmpty(execute("SELECT * from " + mv));
@@ -123,7 +124,7 @@ public class ViewComplexTTLTest extends ViewComplexTester
         updateView("DELETE FROM %s WHERE k=1;");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertEmpty(execute("SELECT * from %s"));
         assertEmpty(execute("SELECT * from " + mv));
@@ -204,11 +205,11 @@ public class ViewComplexTTLTest extends ViewComplexTester
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) using timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) USING TTL 3 and timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         Thread.sleep(4000);
 
@@ -219,11 +220,11 @@ public class ViewComplexTTLTest extends ViewComplexTester
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) USING TTL 3 and timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         updateView("INSERT INTO %s (p, c, v) VALUES (0, 0, 0) USING timestamp 1;");
 
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         Thread.sleep(4000);
 

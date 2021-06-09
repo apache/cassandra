@@ -54,6 +54,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -190,7 +191,7 @@ public class JVMStabilityInspectorThrowableTest extends TestBaseImpl
     {
         node.runOnInstance(() -> {
             ColumnFamilyStore cf = Keyspace.open(keyspace).getColumnFamilyStore(table);
-            cf.forceBlockingFlush();
+            cf.forceBlockingFlush(UNIT_TESTS);
 
             Set<SSTableReader> remove = cf.getLiveSSTables();
             Set<SSTableReader> replace = new HashSet<>();

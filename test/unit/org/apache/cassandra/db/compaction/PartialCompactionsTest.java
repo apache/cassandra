@@ -37,6 +37,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -144,7 +145,7 @@ public class PartialCompactionsTest extends SchemaLoader
             .build()
             .applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
     }
 
     private static void createTombstonesSSTable(ColumnFamilyStore cfs, int firstKey, int endKey)
@@ -153,7 +154,7 @@ public class PartialCompactionsTest extends SchemaLoader
         {
             RowUpdateBuilder.deleteRow(cfs.metadata(), 1, "key1", String.valueOf(i)).applyUnsafe();
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
     }
 
     private static class LimitableDataDirectory extends Directories.DataDirectory

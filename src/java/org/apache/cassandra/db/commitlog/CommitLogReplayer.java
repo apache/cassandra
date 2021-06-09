@@ -130,7 +130,16 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
             }
 
-            IntervalSet<CommitLogPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt, localHostId);
+            IntervalSet<CommitLogPosition> filter;
+            if (!cfs.memtableWritesAreDurable())
+            {
+                filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt, localHostId);
+            }
+            else
+            {
+                // everything is persisted and restored by the memtable itself
+                filter = new IntervalSet<>(CommitLogPosition.NONE, CommitLog.instance.getCurrentPosition());
+            }
             cfPersisted.put(cfs.metadata.id, filter);
         }
         CommitLogPosition globalPosition = firstNotCovered(cfPersisted.values());
@@ -212,12 +221,14 @@ public class CommitLogReplayer implements CommitLogReadHandler
             if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 flushingSystem = true;
 
-            futures.addAll(keyspace.flush());
+            futures.addAll(keyspace.flush(ColumnFamilyStore.FlushReason.STARTUP));
         }
 
         // also flush batchlog incase of any MV updates
         if (!flushingSystem)
-            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
+            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME)
+                                .getColumnFamilyStore(SystemKeyspace.BATCHES)
+                                .forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED));
 
         FBUtilities.waitOnFutures(futures);
 

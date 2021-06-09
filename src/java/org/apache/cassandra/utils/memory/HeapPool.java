@@ -39,9 +39,6 @@ public class HeapPool extends MemtablePool
     @VisibleForTesting
     public static class Allocator extends MemtableBufferAllocator
     {
-        private static final EnsureOnHeap ENSURE_NOOP = new EnsureOnHeap.NoOp();
-
-        @VisibleForTesting
         public Allocator(HeapPool pool)
         {
             super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
@@ -55,7 +52,7 @@ public class HeapPool extends MemtablePool
 
         public EnsureOnHeap ensureOnHeap()
         {
-            return ENSURE_NOOP;
+            return EnsureOnHeap.NOOP;
         }
 
         public Cloner cloner(OpOrder.Group opGroup)

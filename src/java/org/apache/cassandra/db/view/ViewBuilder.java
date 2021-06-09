@@ -96,7 +96,7 @@ class ViewBuilder
 
             logger.debug("Starting build of view({}.{}). Flushing base table {}.{}",
                          ksName, view.name, ksName, baseCfs.name);
-            baseCfs.forceBlockingFlush();
+            baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VIEW_BUILD_STARTED);
 
             loadStatusAndBuild();
         }

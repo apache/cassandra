@@ -68,6 +68,7 @@ import static org.apache.cassandra.SchemaLoader.counterCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -702,7 +703,7 @@ public class VerifyTest
         Batch bogus = Batch.createLocal(UUID.randomUUID(), 0, Collections.emptyList());
         BatchlogManager.store(bogus);
         ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("batches");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
 
@@ -760,7 +761,7 @@ public class VerifyTest
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
     }
 
     protected void fillCounterCF(ColumnFamilyStore cfs, int partitionsPerSSTable) throws WriteTimeoutException
@@ -772,7 +773,7 @@ public class VerifyTest
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
     }
 
     protected long simpleFullChecksum(String filename) throws IOException

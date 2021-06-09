@@ -38,10 +38,10 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
@@ -293,7 +293,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
         opOrder.start();
         UpdateTransaction indexer = UpdateTransaction.NO_OP;
 
-        MemtablePool memtablePool = Memtable.createMemtableAllocatorPoolInternal(allocationType,
+        MemtablePool memtablePool = AbstractAllocatorMemtable.createMemtableAllocatorPool(allocationType,
                                                                                  HEAP_LIMIT, OFF_HEAP_LIMIT, MEMTABLE_CLEANUP_THRESHOLD, DUMMY_CLEANER);
         MemtableAllocator allocator = memtablePool.newAllocator();
         MemtableAllocator recreatedAllocator = memtablePool.newAllocator();
@@ -322,7 +322,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
 
                 OpOrder.Group writeOp = opOrder.getCurrent();
                 Cloner cloner = allocator.cloner(writeOp);
-                partition.addAllWithSizeDelta(update, cloner, writeOp, indexer);
+                partition.addAll(update, cloner, writeOp, indexer);
                 opOrder.newBarrier().issue();
 
                 assertThat(allocator.onHeap().owns()).isGreaterThanOrEqualTo(0L);
@@ -339,7 +339,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
                 opOrder.newBarrier().issue();
                 OpOrder.Group writeOp = opOrder.getCurrent();
                 Cloner cloner = recreatedAllocator.cloner(writeOp);
-                recreated.addAllWithSizeDelta(update, cloner, writeOp, indexer);
+                recreated.addAll(update, cloner, writeOp, indexer);
             }
 
             // offheap allocators don't release on heap memory, so expect the same

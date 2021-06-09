@@ -31,6 +31,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -84,7 +85,7 @@ public class NameSortTest
             rub.build().applyUnsafe();
         }
         validateNameSort(cfs);
-        keyspace.getColumnFamilyStore("Standard1").forceBlockingFlush();
+        keyspace.getColumnFamilyStore("Standard1").forceBlockingFlush(UNIT_TESTS);
         validateNameSort(cfs);
     }
 
