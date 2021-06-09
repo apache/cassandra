@@ -719,7 +719,7 @@ public class SimpleClient implements Closeable
                     if (bufferSize + messageSize >= MAX_FRAMED_PAYLOAD_SIZE)
                     {
                         combiner.add(flushBuffer(ctx, buffer, bufferSize));
-                        buffer.clear();
+                        buffer = new ArrayList<>();
                         bufferSize = 0;
                     }
                     buffer.add(f);
