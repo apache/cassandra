@@ -32,6 +32,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -72,13 +73,13 @@ public class NeverPurgeTest extends CQLTester
             {
                 execute("INSERT INTO %s (a, b, c) VALUES (" + j + ", 2, '3')");
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         execute("UPDATE %s SET c = null WHERE a=1 AND b=2");
         execute("DELETE FROM %s WHERE a=2 AND b=2");
         execute("DELETE FROM %s WHERE a=3");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         cfs.enableAutoCompaction();
         while (cfs.getLiveSSTables().size() > 1 || !cfs.getTracker().getCompacting().isEmpty())
             Thread.sleep(100);
@@ -92,7 +93,7 @@ public class NeverPurgeTest extends CQLTester
         execute("INSERT INTO %s (a, b, c) VALUES (1, 2, '3')");
         execute(deletionStatement);
         Thread.sleep(1000);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         cfs.forceMajorCompaction();
         verifyContainsTombstones(cfs.getLiveSSTables(), 1);
     }

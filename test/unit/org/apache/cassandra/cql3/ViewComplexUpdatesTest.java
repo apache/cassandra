@@ -25,6 +25,8 @@ import org.junit.Test;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
  * - ViewComplexUpdatesTest
@@ -66,7 +68,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("UPDATE %s USING TIMESTAMP 0 SET v1 = 1 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0, 1, null));
         assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
@@ -74,7 +76,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("DELETE v1 FROM %s USING TIMESTAMP 1 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertEmpty(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0));
         assertEmpty(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0));
@@ -83,7 +85,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("UPDATE %s USING TIMESTAMP 1 SET v1 = 1 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertEmpty(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0));
         assertEmpty(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0));
@@ -91,7 +93,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("UPDATE %s USING TIMESTAMP 2 SET v2 = 1 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
@@ -99,7 +101,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("DELETE v1 FROM %s USING TIMESTAMP 3 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
@@ -107,7 +109,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("DELETE v2 FROM %s USING TIMESTAMP 4 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertEmpty(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0));
         assertEmpty(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0));
@@ -115,7 +117,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("UPDATE %s USING TTL 3 SET v2 = 1 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
@@ -128,7 +130,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         updateView("UPDATE %s SET v2 = 1 WHERE p = 0 AND c = 0");
 
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * from %s WHERE c = ? AND p = ?", 0, 0), row(0, 0, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * from " + mv + " WHERE c = ? AND p = ?", 0, 0), row(0, 0));
@@ -166,23 +168,23 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
 
         updateView("UPDATE %s SET l=l+[1,2,3] WHERE k = 1 AND c = 1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRows(execute("SELECT * from " + mv), row(1, 1, null, null));
 
         updateView("UPDATE %s SET l=l-[1,2] WHERE k = 1 AND c = 1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRows(execute("SELECT * from " + mv), row(1, 1, null, null));
 
         updateView("UPDATE %s SET b=3 WHERE k=1 AND c=1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRows(execute("SELECT * from " + mv), row(1, 1, null, 3));
 
         updateView("UPDATE %s SET b=null, l=l-[3], s=s-{3} WHERE k = 1 AND c = 1");
         if (flush)
         {
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
             ks.getColumnFamilyStore(mv).forceMajorCompaction();
         }
         assertRowsIgnoringOrder(execute("SELECT k,c,a,b from %s"));
@@ -190,7 +192,7 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
 
         updateView("UPDATE %s SET m=m+{3:3}, l=l-[1], s=s-{2} WHERE k = 1 AND c = 1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT k,c,a,b from %s"), row(1, 1, null, null));
         assertRowsIgnoringOrder(execute("SELECT * from " + mv), row(1, 1, null, null));
 
@@ -230,23 +232,23 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         // reset value
         updateView("Insert into %s (p, v1, v2) values (3, 1, 3) using timestamp 6;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, 3, 6L));
         // increase pk's timestamp to 20
         updateView("Insert into %s (p) values (3) using timestamp 20;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, 3, 6L));
         // change v1's to 2 and remove existing view row with ts7
         updateView("UPdate %s using timestamp 7 set v1 = 2 where p = 3;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(2, 3, 3, 6L));
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv + " limit 1"), row(2, 3, 3, 6L));
         // change v1's to 1 and remove existing view row with ts8
         updateView("UPdate %s using timestamp 8 set v1 = 1 where p = 3;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT v1, p, v2, WRITETIME(v2) from " + mv), row(1, 3, 3, 6L));
     }
 
@@ -278,41 +280,41 @@ public class ViewComplexUpdatesTest extends ViewComplexTester
         ks.getColumnFamilyStore(mv).disableAutoCompaction();
         updateView("DELETE FROM %s USING TIMESTAMP 0 WHERE k = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         // sstable-1, Set initial values TS=1
         updateView("INSERT INTO %s(k, a, b) VALUES (1, 1, 1) USING TIMESTAMP 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 1, 1));
         updateView("UPDATE %s USING TIMESTAMP 10 SET b = 2 WHERE k = 1;");
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 1, 2));
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 1, 2));
         updateView("UPDATE %s USING TIMESTAMP 2 SET a = 2 WHERE k = 1;");
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 2, 2));
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         ks.getColumnFamilyStore(mv).forceMajorCompaction();
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 2, 2));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv + " limit 1"), row(1, 2, 2));
         updateView("UPDATE %s USING TIMESTAMP 11 SET a = 1 WHERE k = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 1, 2));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from %s"), row(1, 1, 2));
 
         // set non-key base column as tombstone, view row is removed with shadowable
         updateView("UPDATE %s USING TIMESTAMP 12 SET a = null WHERE k = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from %s"), row(1, null, 2));
 
         // column b should be alive
         updateView("UPDATE %s USING TIMESTAMP 13 SET a = 1 WHERE k = 1;");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from " + mv), row(1, 1, 2));
         assertRowsIgnoringOrder(execute("SELECT k,a,b from %s"), row(1, 1, 2));
 

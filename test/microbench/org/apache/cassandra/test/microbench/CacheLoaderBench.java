@@ -52,6 +52,8 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 @SuppressWarnings("unused")
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -97,7 +99,7 @@ public class CacheLoaderBench extends CQLTester
                 RowUpdateBuilder rowBuilder = new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis() + random.nextInt(), "key");
                 rowBuilder.add(colDef, "val1");
                 rowBuilder.build().apply();
-                cfs.forceBlockingFlush();
+                cfs.forceBlockingFlush(UNIT_TESTS);
             }
 
             Assert.assertEquals(numSSTables, cfs.getLiveSSTables().size());

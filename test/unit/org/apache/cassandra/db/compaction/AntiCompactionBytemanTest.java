@@ -67,7 +67,7 @@ public class AntiCompactionBytemanTest extends CQLTester
         execute("insert into %s (id, i) values (1, 1)");
         execute("insert into %s (id, i) values (2, 1)");
         execute("insert into %s (id, i) values (3, 1)");
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        flush();
         UntypedResultSet res = execute("select token(id) as tok from %s");
         Iterator<UntypedResultSet.Row> it = res.iterator();
         List<Long> tokens = new ArrayList<>();

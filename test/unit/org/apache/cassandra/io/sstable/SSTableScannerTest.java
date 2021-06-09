@@ -49,6 +49,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.dht.AbstractBounds.isEmpty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -215,7 +216,7 @@ public class SSTableScannerTest
 
         for (int i = 2; i < 10; i++)
             insertRowWithKey(store.metadata(), i);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
@@ -321,7 +322,7 @@ public class SSTableScannerTest
         for (int i = 0; i < 3; i++)
             for (int j = 2; j < 10; j++)
                 insertRowWithKey(store.metadata(), i * 100 + j);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
@@ -441,7 +442,7 @@ public class SSTableScannerTest
         store.disableAutoCompaction();
 
         insertRowWithKey(store.metadata(), 205);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
 
         assertEquals(1, store.getLiveSSTables().size());
         SSTableReader sstable = store.getLiveSSTables().iterator().next();

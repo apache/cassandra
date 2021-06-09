@@ -32,6 +32,8 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 /* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
  * - ViewFilteringPKTest
@@ -98,7 +100,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) using timestamp 0", 1, 1, 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         // views should be updated.
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"), row(1, 1, 1, 1));
@@ -110,7 +112,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("UPDATE %s using timestamp 1 set c = ? WHERE a=?", 0, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM mv_test1"), 0);
         assertRowCount(execute("SELECT * FROM mv_test2"), 0);
@@ -121,7 +123,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("UPDATE %s using timestamp 2 set c = ? WHERE a=?", 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         // row should be back in views.
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"), row(1, 1, 1, 1));
@@ -133,7 +135,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("UPDATE %s using timestamp 3 set d = ? WHERE a=?", 0, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"), row(1, 1, 1, 0));
         assertRowCount(execute("SELECT * FROM mv_test2"), 0);
@@ -144,7 +146,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("UPDATE %s using timestamp 4 set c = ? WHERE a=?", 0, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM mv_test1"), 0);
         assertRowCount(execute("SELECT * FROM mv_test2"), 0);
@@ -155,7 +157,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("UPDATE %s using timestamp 5 set d = ? WHERE a=?", 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         // should not update as c=0
         assertRowCount(execute("SELECT * FROM mv_test1"), 0);
@@ -178,7 +180,7 @@ public class ViewFilteringTest extends ViewFilteringTester
         updateView("UPDATE %s using timestamp 7 set b = ? WHERE a=?", 2, 1);
         if (flush)
         {
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
             for (String view : views)
                 ks.getColumnFamilyStore(view).forceMajorCompaction();
         }
@@ -192,7 +194,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("DELETE b, c FROM %s using timestamp 6 WHERE a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM %s"), row(1, 2, null, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"));
@@ -204,7 +206,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("DELETE FROM %s using timestamp 8 where a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM mv_test1"), 0);
         assertRowCount(execute("SELECT * FROM mv_test2"), 0);
@@ -215,7 +217,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("UPDATE %s using timestamp 9 set b = ?,c = ? where a=?", 1, 1, 1); // upsert
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"), row(1, 1, 1, null));
         assertRows(execute("SELECT * FROM mv_test2"));
@@ -226,7 +228,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("DELETE FROM %s using timestamp 10 where a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM mv_test1"), 0);
         assertRowCount(execute("SELECT * FROM mv_test2"), 0);
@@ -237,7 +239,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) using timestamp 11", 1, 1, 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         // row should be back in views.
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"), row(1, 1, 1, 1));
@@ -249,7 +251,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         updateView("DELETE FROM %s using timestamp 12 where a=?", 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowCount(execute("SELECT * FROM mv_test1"), 0);
         assertRowCount(execute("SELECT * FROM mv_test2"), 0);
@@ -310,7 +312,7 @@ public class ViewFilteringTest extends ViewFilteringTester
                 list(1, 1, 2),
                 set(1, 2),
                 map(1, 1, 2, 2));
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test2"), row(1, 1));
@@ -318,7 +320,7 @@ public class ViewFilteringTest extends ViewFilteringTester
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test4"), row(1, 1));
 
         execute("UPDATE %s SET l=l-[1] WHERE a = 1 AND b = 1" );
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"));
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test2"));
@@ -326,7 +328,7 @@ public class ViewFilteringTest extends ViewFilteringTester
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test4"), row(1, 1));
 
         execute("UPDATE %s SET s=s-{2}, m=m-{2} WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT a,b,c FROM %s"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"));
@@ -335,7 +337,7 @@ public class ViewFilteringTest extends ViewFilteringTester
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test4"), row(1, 1));
 
         execute("UPDATE %s SET  m=m-{1} WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT a,b,c FROM %s"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"));
@@ -345,7 +347,7 @@ public class ViewFilteringTest extends ViewFilteringTester
 
         // filter conditions result not changed
         execute("UPDATE %s SET  l=l+[2], s=s-{0}, m=m+{3:3} WHERE a = 1 AND b = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT a,b,c FROM %s"), row(1, 1, 1));
         assertRowsIgnoringOrder(execute("SELECT * FROM mv_test1"));
@@ -525,5 +527,5 @@ public class ViewFilteringTest extends ViewFilteringTester
                    row(1, 0, 2),
                    row(1, 1, 3)
         );
-    } 
+    }
 }

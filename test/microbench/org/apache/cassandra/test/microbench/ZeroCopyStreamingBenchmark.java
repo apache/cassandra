@@ -202,7 +202,7 @@ public class ZeroCopyStreamingBenchmark
                 .build()
                 .applyUnsafe();
             }
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
             CompactionManager.instance.performMaximal(store, false);
         }
 

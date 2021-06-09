@@ -28,6 +28,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
@@ -109,6 +110,9 @@ public final class TableAttributes extends PropertyDefinitions
             }
             builder.compression(CompressionParams.fromMap(getMap(Option.COMPRESSION)));
         }
+
+        if (hasOption(Option.MEMTABLE))
+            builder.memtable(MemtableParams.fromMap(getMap(Option.MEMTABLE)));
 
         if (hasOption(Option.DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(Option.DEFAULT_TIME_TO_LIVE));

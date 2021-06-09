@@ -51,6 +51,11 @@ public interface Partition
     public boolean isEmpty();
 
     /**
+     * Whether the partition object has rows. This may be true but partition still be non-empty if it has a deletion.
+     */
+    boolean hasRows();
+
+    /**
      * Returns the row corresponding to the provided clustering, or null if there is not such row.
      *
      * @param clustering clustering key to search

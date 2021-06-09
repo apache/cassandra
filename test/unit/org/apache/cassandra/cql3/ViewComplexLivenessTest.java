@@ -24,6 +24,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
@@ -109,7 +110,7 @@ public class ViewComplexLivenessTest extends ViewComplexTester
         assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name), row(1, 1, 1));
 
         updateView("Update %s set v1 = null WHERE p = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name));
 
         cfs.forceMajorCompaction(); // before gc grace second, strict-liveness tombstoned dead row remains
@@ -122,7 +123,7 @@ public class ViewComplexLivenessTest extends ViewComplexTester
         assertEquals(0, cfs.getLiveSSTables().size());
 
         updateView("Update %s using ttl 5 set v1 = 1 WHERE p = 1");
-        FBUtilities.waitOnFutures(ks.flush());
+        FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRowsIgnoringOrder(execute("SELECT p, v1, v2 from " + name), row(1, 1, 1));
 
         cfs.forceMajorCompaction(); // before ttl+gc_grace_second, strict-liveness ttled dead row remains

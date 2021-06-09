@@ -49,6 +49,7 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.db.repair.CassandraValidationIterator.getSSTablesToValidate;
 
 /**
@@ -93,7 +94,7 @@ public class CompactionManagerGetSSTablesForValidationTest
         for (int i=0; i<3; i++)
         {
             QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (k, v) VALUES(?, ?)", ks, tbl), i, i);
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
         Assert.assertEquals(3, cfs.getLiveSSTables().size());
 
