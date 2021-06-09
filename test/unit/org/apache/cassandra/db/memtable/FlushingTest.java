@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.memtable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +32,9 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -48,7 +51,7 @@ import static org.junit.Assert.assertNull;
 
 @RunWith(BMUnitRunner.class)
 @BMUnitConfig(debug = true)
-public class MemtableTest extends CQLTester
+public class FlushingTest extends CQLTester
 {
     List<PartitionPosition> ranges;
     List<Directories.DataDirectory> locations;
@@ -69,7 +72,8 @@ public class MemtableTest extends CQLTester
         memtable = cfs.getTracker().getView().getCurrentMemtable();
 
         OpOrder.Barrier barrier = cfs.keyspace.writeOrder.newBarrier();
-        memtable.setDiscarding(barrier, new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
+        Memtable.LastCommitLogPosition position = new Memtable.LastCommitLogPosition(CommitLog.instance.getCurrentPosition());
+        memtable.switchOut(barrier, new AtomicReference<>(position));
         barrier.issue();
 
         ranges = new ArrayList<>();
@@ -94,17 +98,17 @@ public class MemtableTest extends CQLTester
         // abort without starting
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
         {
-            List<Memtable.FlushRunnable> flushRunnables = memtable.createFlushRunnables(ranges, locations, txn);
+            List<Flushing.FlushRunnable> flushRunnables = Flushing.flushRunnables(cfs, memtable, ranges, locations, txn);
             assertNotNull(flushRunnables);
 
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
-                assertEquals(Memtable.FlushRunnableWriterState.IDLE, flushRunnable.state());
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
+                assertEquals(Flushing.FlushRunnableWriterState.IDLE, flushRunnable.state());
 
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
                 assertNull(flushRunnable.abort(null));
 
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
-                assertEquals(Memtable.FlushRunnableWriterState.ABORTED, flushRunnable.state());
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
+                assertEquals(Flushing.FlushRunnableWriterState.ABORTED, flushRunnable.state());
         }
     }
 
@@ -122,16 +126,16 @@ public class MemtableTest extends CQLTester
 
     @Test
     @BMRule(name = "Wait before loop",
-    targetClass = "Memtable$FlushRunnable",
+    targetClass = "Flushing$FlushRunnable",
     targetMethod = "writeSortedContents",
-    targetLocation = "AT INVOKE Logger.isTraceEnabled()",
-    action = "org.apache.cassandra.db.MemtableTest.stopAndWait()")
+    targetLocation = "AT ENTRY",
+    action = "org.apache.cassandra.db.memtable.FlushingTest.stopAndWait()")
     public void testAbortingFlushRunnablesAfterStarting() throws Throwable
     {
         // abort after starting
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
         {
-            List<Memtable.FlushRunnable> flushRunnables = memtable.createFlushRunnables(ranges, locations, txn);
+            List<Flushing.FlushRunnable> flushRunnables = Flushing.flushRunnables(cfs, memtable, ranges, locations, txn);
 
             stopSignal = new Semaphore(0);
             continueSignal = new Semaphore(0);
@@ -139,14 +143,14 @@ public class MemtableTest extends CQLTester
             List<Future<SSTableMultiWriter>> futures = flushRunnables.stream().map(executor::submit).collect(Collectors.toList());
 
             stopSignal.acquire(nThreads);
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
                 assertNull(flushRunnable.abort(null));
             continueSignal.release(flushRunnables.size());  // release all, including the ones that have not started yet
 
             FBUtilities.waitOnFutures(futures);
 
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
-                assertEquals(Memtable.FlushRunnableWriterState.ABORTED, flushRunnable.state());
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
+                assertEquals(Flushing.FlushRunnableWriterState.ABORTED, flushRunnable.state());
         }
     }
 
@@ -156,17 +160,17 @@ public class MemtableTest extends CQLTester
         // abort before starting
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
         {
-            List<Memtable.FlushRunnable> flushRunnables = memtable.createFlushRunnables(ranges, locations, txn);
+            List<Flushing.FlushRunnable> flushRunnables = Flushing.flushRunnables(cfs, memtable, ranges, locations, txn);
 
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
                 assertNull(flushRunnable.abort(null));
 
             List<Future<SSTableMultiWriter>> futures = flushRunnables.stream().map(executor::submit).collect(Collectors.toList());
 
             FBUtilities.waitOnFutures(futures);
 
-            for (Memtable.FlushRunnable flushRunnable : flushRunnables)
-                assertEquals(Memtable.FlushRunnableWriterState.ABORTED, flushRunnable.state());
+            for (Flushing.FlushRunnable flushRunnable : flushRunnables)
+                assertEquals(Flushing.FlushRunnableWriterState.ABORTED, flushRunnable.state());
         }
     }
 }

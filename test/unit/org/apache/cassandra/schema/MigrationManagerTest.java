@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -176,7 +177,7 @@ public class MigrationManagerTest
         // flush to exercise more than just hitting the memtable
         ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(tableName);
         assertNotNull(cfs);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         // and make sure we get out what we put in
         UntypedResultSet rows = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", ksName, tableName));
@@ -199,7 +200,7 @@ public class MigrationManagerTest
                                            "dropCf", "col" + i, "anyvalue");
         ColumnFamilyStore store = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(store);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
         assertTrue(store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
         SchemaTestUtil.announceTableDrop(ks.name, cfm.name);
@@ -248,10 +249,60 @@ public class MigrationManagerTest
                                        "key0", "col0", "val0");
         ColumnFamilyStore store = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
         assertNotNull(store);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
 
         UntypedResultSet rows = QueryProcessor.executeInternal("SELECT * FROM newkeyspace1.newstandard1");
         assertRows(rows, row("key0", "col0", "val0"));
+    }
+
+    @Test
+    public void dropKS() throws ConfigurationException
+    {
+        // sanity
+        final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
+        assertNotNull(ks);
+        final TableMetadata cfm = ks.tables.getNullable(TABLE2);
+        assertNotNull(cfm);
+
+        // write some data, force a flush, then verify that files exist on disk.
+        for (int i = 0; i < 100; i++)
+            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
+                                                         KEYSPACE1, TABLE2),
+                                           "dropKs", "col" + i, "anyvalue");
+        ColumnFamilyStore cfs = Keyspace.open(cfm.keyspace).getColumnFamilyStore(cfm.name);
+        assertNotNull(cfs);
+        cfs.forceBlockingFlush(UNIT_TESTS);
+        assertTrue(!cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
+
+        SchemaTestUtil.announceKeyspaceDrop(ks.name);
+
+        assertNull(Schema.instance.getKeyspaceMetadata(ks.name));
+
+        // write should fail.
+        boolean success = true;
+        try
+        {
+            QueryProcessor.executeInternal(String.format("INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)",
+                                                         KEYSPACE1, TABLE2),
+                                           "dropKs", "col0", "anyvalue");
+        }
+        catch (Throwable th)
+        {
+            success = false;
+        }
+        assertFalse("This mutation should have failed since the KS no longer exists.", success);
+
+        // reads should fail too.
+        boolean threw = false;
+        try
+        {
+            Keyspace.open(ks.name);
+        }
+        catch (Throwable th)
+        {
+            threw = true;
+        }
+        assertTrue(threw);
     }
 
     @Test
@@ -301,7 +352,7 @@ public class MigrationManagerTest
 
         ColumnFamilyStore cfs = Keyspace.open(newKs.name).getColumnFamilyStore(newCf.name);
         assertNotNull(cfs);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         UntypedResultSet rows = QueryProcessor.executeInternal(String.format("SELECT * FROM %s.%s", EMPTY_KEYSPACE, tableName));
         assertRows(rows, row("key0", "col0", "val0"));
@@ -456,7 +507,7 @@ public class MigrationManagerTest
                                                     TABLE1i),
                                        "key0", "col0", 1L, 1L);
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         ColumnFamilyStore indexCfs = cfs.indexManager.getIndexByName(indexName)
                                                      .getBackingTable()
                                                      .orElseThrow(throwAssert("Cannot access index cfs"));

@@ -59,6 +59,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 import static org.apache.cassandra.SchemaLoader.compositeIndexCFMD;
 import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -174,7 +175,7 @@ public class StreamingTransferTest
         long timestamp = 1234;
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         assertEquals(1, cfs.getLiveSSTables().size());
 
@@ -362,7 +363,7 @@ public class StreamingTransferTest
                 .build()
                 .apply();
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         cfs.clearUnsafe();
@@ -554,7 +555,7 @@ public class StreamingTransferTest
         // write a lot more data so the data is spread in more than 1 chunk.
         for (int i = 1; i <= 6000; i++)
             mutator.mutate("key" + i, "col" + i, System.currentTimeMillis());
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         cfs.clearUnsafe();

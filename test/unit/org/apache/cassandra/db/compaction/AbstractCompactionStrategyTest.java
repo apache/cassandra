@@ -39,6 +39,8 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 public class AbstractCompactionStrategyTest
 {
     private static final String KEYSPACE1 = "Keyspace1";
@@ -139,6 +141,6 @@ public class AbstractCompactionStrategyTest
         .add("val", "val")
         .build()
         .applyUnsafe();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
     }
 }

@@ -68,6 +68,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static com.google.common.collect.ImmutableMap.of;
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.Util.assertOnDiskState;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.DOWNSAMPLE_THESHOLD;
 import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.UPSAMPLE_THRESHOLD;
@@ -201,7 +202,7 @@ public class IndexSummaryManagerTest
                     .build()
                     .applyUnsafe();
             }
-            futures.add(cfs.forceFlush());
+            futures.add(cfs.forceFlush(UNIT_TESTS));
         }
         for (Future future : futures)
         {
@@ -526,7 +527,7 @@ public class IndexSummaryManagerTest
             .applyUnsafe();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
@@ -591,7 +592,7 @@ public class IndexSummaryManagerTest
                 .build()
                 .applyUnsafe();
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         assertTrue(manager.getAverageIndexInterval() >= cfs.metadata().params.minIndexInterval);

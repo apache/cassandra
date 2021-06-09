@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -217,6 +218,6 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
                          .apply();
         }
 
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
     }
 }

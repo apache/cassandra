@@ -40,6 +40,8 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 
 public class LongCompactionsTest
@@ -165,7 +167,7 @@ public class LongCompactionsTest
 
                 inserted.add(key);
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
             CompactionsTest.assertMaxTimestamp(cfs, maxTimestampExpected);
 
             assertEquals(inserted.toString(), inserted.size(), Util.getAll(Util.cmd(cfs).build()).size());

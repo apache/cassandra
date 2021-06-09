@@ -62,6 +62,7 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -102,7 +103,7 @@ public class CassandraEntireSSTableStreamWriterTest
             .build()
             .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();

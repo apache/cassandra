@@ -46,7 +46,6 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -55,6 +54,7 @@ import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
@@ -246,7 +246,7 @@ public class ColumnContext
     public MemtableIndex getPendingMemtableIndex(LifecycleNewTracker tracker)
     {
         return liveMemtables.keySet().stream()
-                            .filter(m -> tracker.equals(m.tracker()))
+                            .filter(m -> tracker.equals(m.getFlushTransaction()))
                             .findFirst()
                             .map(liveMemtables::get)
                             .orElse(null);

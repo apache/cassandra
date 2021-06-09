@@ -31,6 +31,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -42,7 +43,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         createTable("create table %s (id int primary key, t text) with compaction = {'class':'LeveledCompactionStrategy','single_sstable_uplevel':true}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         execute("insert into %s (id, t) values (1, 'meep')");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.COMPACTION))
@@ -95,7 +96,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
                 execute("insert into %s (id, id2, t) values (?, ?, ?)", i, j, value);
             }
             if (i % 100 == 0)
-                cfs.forceBlockingFlush();
+                cfs.forceBlockingFlush(UNIT_TESTS);
         }
         // now we have a bunch of data in L0, first compaction will be a normal one, containing all sstables:
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
@@ -123,7 +124,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         createTable("create table %s (id int primary key, t text) with compaction = {'class':'LeveledCompactionStrategy','single_sstable_uplevel':true}");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         execute("insert into %s (id, t) values (1, 'meep')");
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
         String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);

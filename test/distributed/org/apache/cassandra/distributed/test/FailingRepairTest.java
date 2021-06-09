@@ -74,6 +74,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 @RunWith(Parameterized.class)
 public class FailingRepairTest extends TestBaseImpl implements Serializable
 {
@@ -111,7 +113,7 @@ public class FailingRepairTest extends TestBaseImpl implements Serializable
         return () -> {
             String cfName = getCfName(type, parallelism, withTracing);
             ColumnFamilyStore cf = Keyspace.open(KEYSPACE).getColumnFamilyStore(cfName);
-            cf.forceBlockingFlush();
+            cf.forceBlockingFlush(UNIT_TESTS);
             Set<SSTableReader> remove = cf.getLiveSSTables();
             Set<SSTableReader> replace = new HashSet<>();
             if (type == Verb.VALIDATION_REQ)

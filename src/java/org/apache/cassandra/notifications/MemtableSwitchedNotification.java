@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.notifications;
 
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.memtable.Memtable;
 
 public class MemtableSwitchedNotification implements INotification
 {

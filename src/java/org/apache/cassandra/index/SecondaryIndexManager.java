@@ -77,7 +77,6 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.MutableDeletionInfo;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -89,6 +88,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
@@ -468,7 +468,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
         // Once we are tracking new writes, flush any memtable contents to not miss them from the sstable-based rebuild
         if (needsFlush)
-            baseCfs.forceBlockingFlush();
+            baseCfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_STARTED);
 
         // Now that we are tracking new writes and we haven't left untracked contents on the memtables, we are ready to
         // index the sstables
@@ -939,7 +939,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             indexes.forEach(index ->
                             index.getBackingTable()
-                                 .map(cfs -> wait.add(cfs.forceFlush()))
+                                 .map(cfs -> wait.add(cfs.forceFlush(ColumnFamilyStore.FlushReason.INDEX_BUILD_COMPLETED)))
                                  .orElseGet(() -> nonCfsIndexes.add(index)));
         }
 

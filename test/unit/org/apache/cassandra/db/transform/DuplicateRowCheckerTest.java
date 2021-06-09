@@ -65,7 +65,7 @@ public class DuplicateRowCheckerTest extends CQLTester
         createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY (pk, ck1, ck2))");
         for (int i = 0; i < 10; i++)
             execute("insert into %s (pk, ck1, ck2, v) values (?, ?, ?, ?)", "key", i, i, i);
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        flush();
 
         metadata = getCurrentColumnFamilyStore().metadata();
         cfs = getCurrentColumnFamilyStore();

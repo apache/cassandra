@@ -32,6 +32,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -51,6 +52,7 @@ import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
@@ -96,9 +98,12 @@ import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -217,7 +222,7 @@ public class Util
             rm.applyUnsafe();
 
         ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(tableId);
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
         return store;
     }
 
@@ -1140,6 +1145,12 @@ public class Util
         Preconditions.checkArgument(path.toPath().getNameCount() >= components);
         Path relative = path.toPath().subpath(path.toPath().getNameCount() - components, path.toPath().getNameCount());
         return targetBasePath.toPath().resolve(relative).toFile();
+    }
+
+    public static void assertSSTableIds(SSTableId v1, SSTableId v2, IntFunction<Boolean> predicate)
+    {
+        Assertions.assertThat(Pair.create(v1, v2))
+                  .matches(p -> predicate.apply(SSTableIdFactory.COMPARATOR.compare(p.left, p.right)));
     }
 
     private static TimeUnit getSupportedMTimeGranularity() {

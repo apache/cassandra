@@ -34,6 +34,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -116,7 +117,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
             executeFormattedQuery(formatQuery("INSERT INTO %s (id, val) VALUES (?, ?)"), "mockData" + i, "mockData" + i);
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         sstableFileName = sstables.iterator().next().getFilename();

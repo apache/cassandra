@@ -404,8 +404,17 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         FileUtils.createHardLinkWithoutConfirm(tmpdesc.filenameFor(Component.SUMMARY), newdesc.filenameFor(Component.SUMMARY));
     }
 
+    public interface SSTableSizeParameters
+    {
+        long partitionCount();
+        long partitionKeySize();
+        long dataSize();
+    }
+
     public static abstract class Factory
     {
+        public abstract long estimateSize(SSTableSizeParameters parameters);
+
         public abstract SSTableWriter open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,

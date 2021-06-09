@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -79,7 +80,7 @@ public class CassandraOutgoingFileTest
             .build()
             .applyUnsafe();
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
         CompactionManager.instance.performMaximal(store, false);
 
         sstable = store.getLiveSSTables().iterator().next();

@@ -30,7 +30,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -51,6 +50,7 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
@@ -128,6 +128,7 @@ public class IndexViewManagerTest extends SAITester
         Path tmpDir = Files.createTempDirectory("IndexViewManagerTest");
         store.disableAutoCompaction();
 
+        List<Descriptor> descriptors = new ArrayList<>();
         // create sstable 1 from flush
         execute("INSERT INTO %s(k, v) VALUES (1, 10)");
         execute("INSERT INTO %s(k, v) VALUES (2, 20)");
@@ -141,6 +142,7 @@ public class IndexViewManagerTest extends SAITester
         // save sstables 1 and 2 and create sstable 3 from compaction
         assertEquals(2, store.getLiveSSTables().size());
         store.getLiveSSTables().forEach(reader -> copySSTable(reader, tmpDir));
+        getCurrentColumnFamilyStore().getLiveSSTables().stream().map(t -> t.descriptor).forEach(descriptors::add);
         CompactionManager.instance.performMaximal(store, false);
 
         // create sstable 4 from flush
@@ -150,11 +152,13 @@ public class IndexViewManagerTest extends SAITester
 
         // save sstables 3 and 4
         store.getLiveSSTables().forEach(reader -> copySSTable(reader, tmpDir));
+        getCurrentColumnFamilyStore().getLiveSSTables().stream().map(t -> t.descriptor).forEach(descriptors::add);
 
-        List<SSTableReader> sstables = IntStream.rangeClosed(1, 4)
-                                                .mapToObj(i -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, new SequenceBasedSSTableId(i)))
+        List<SSTableReader> sstables = descriptors.stream()
+                                                .map(desc -> new Descriptor(tmpDir.toFile(), KEYSPACE, tableName, desc.id))
                                                 .map(SSTableReader::open)
                                                 .collect(Collectors.toList());
+        assertThat(sstables).hasSize(4);
 
         List<SSTableReader> none = Collections.emptyList();
         List<SSTableReader> initial = sstables.stream().limit(2).collect(Collectors.toList());
@@ -206,6 +210,7 @@ public class IndexViewManagerTest extends SAITester
             compacted.forEach(group -> assertTrue(group.isCleanedUp()));
             flushed.forEach(group -> assertTrue(group.isCleanedUp()));
         }
+        sstables.forEach(sstable -> sstable.selfRef().release());
         executor.shutdown();
         executor.awaitTermination(1, TimeUnit.MINUTES);
     }

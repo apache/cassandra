@@ -80,7 +80,7 @@ public class RemoveWithoutDroppingTest
         executeInternal(String.format("INSERT INTO %s.%s (id, v) VALUES (?, ?)", ks, tab), 1, 2);
         executeInternal(String.format("INSERT INTO %s.%s (id, v) VALUES (?, ?)", ks, tab), 3, 4);
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(ks, tab);
-        cfs.forceFlush().get();
+        cfs.forceFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS).get();
 
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(ks);
         TableMetadata tm = Schema.instance.getTableMetadata(ks, tab);

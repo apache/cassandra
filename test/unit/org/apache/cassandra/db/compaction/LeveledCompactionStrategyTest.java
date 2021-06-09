@@ -69,6 +69,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.Collections.singleton;
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -137,7 +138,7 @@ public class LeveledCompactionStrategyTest
             for (int c = 0; c < columns; c++)
                 update.newRow("column" + c).add("val", value);
             update.applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         waitForLeveling(cfs);
@@ -192,7 +193,7 @@ public class LeveledCompactionStrategyTest
             for (int c = 0; c < columns; c++)
                 update.newRow("column" + c).add("val", value);
             update.applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         waitForLeveling(cfs);
@@ -266,7 +267,7 @@ public class LeveledCompactionStrategyTest
             for (int c = 0; c < columns; c++)
                 update.newRow("column" + c).add("val", value);
             update.applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         waitForLeveling(cfs);
@@ -303,9 +304,9 @@ public class LeveledCompactionStrategyTest
             for (int c = 0; c < columns; c++)
                 update.newRow("column" + c).add("val", value);
             update.applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getStrategies().get(1).get(0);
         cfs.forceMajorCompaction();
 
@@ -344,7 +345,7 @@ public class LeveledCompactionStrategyTest
             for (int c = 0; c < columns; c++)
                 update.newRow("column" + c).add("val", value);
             update.applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
         waitForLeveling(cfs);
         cfs.disableAutoCompaction();
@@ -419,7 +420,7 @@ public class LeveledCompactionStrategyTest
                     update.newRow("column" + c).add("val", value);
                 update.applyUnsafe();
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         // create 20 more sstables with 10 containing data for key1 and other 10 containing data for key2
@@ -429,7 +430,7 @@ public class LeveledCompactionStrategyTest
                 for (int c = 0; c < columns; c++)
                     update.newRow("column" + c).add("val", value);
                 update.applyUnsafe();
-                cfs.forceBlockingFlush();
+                cfs.forceBlockingFlush(UNIT_TESTS);
             }
         }
 
@@ -474,7 +475,7 @@ public class LeveledCompactionStrategyTest
                     update.newRow("column" + c).add("val", value);
                 update.applyUnsafe();
             }
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
         // create 20 more sstables with 10 containing data for key1 and other 10 containing data for key2
@@ -486,7 +487,7 @@ public class LeveledCompactionStrategyTest
                 for (int c = 0; c < columns; c++)
                     update.newRow("column" + c).add("val", value);
                 update.applyUnsafe();
-                cfs.forceBlockingFlush();
+                cfs.forceBlockingFlush(UNIT_TESTS);
             }
         }
 
@@ -532,7 +533,7 @@ public class LeveledCompactionStrategyTest
             for (int c = 0; c < columns; c++)
                 update.newRow("column" + c).add("val", value);
             update.applyUnsafe();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
         }
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) (cfs.getCompactionStrategyManager()).getStrategies().get(1).get(0);
         // get readers for level 0 sstables

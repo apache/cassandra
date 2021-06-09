@@ -26,6 +26,8 @@ import org.junit.Test;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
  * - ViewComplexUpdatesTest
@@ -54,17 +56,17 @@ public class ViewComplexDeletionsPartialTest extends ViewComplexTester
 
         updateView("UPDATE %s USING TIMESTAMP 10 SET b=1 WHERE k=1 AND c=1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRows(execute("SELECT * from %s"), row(1, 1, null, 1));
         assertRows(execute("SELECT * from " + mv), row(1, 1));
         updateView("DELETE b FROM %s USING TIMESTAMP 11 WHERE k=1 AND c=1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertEmpty(execute("SELECT * from %s"));
         assertEmpty(execute("SELECT * from " + mv));
         updateView("UPDATE %s USING TIMESTAMP 1 SET a=1 WHERE k=1 AND c=1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
         assertRows(execute("SELECT * from %s"), row(1, 1, 1, null));
         assertRows(execute("SELECT * from " + mv), row(1, 1));
 
@@ -200,27 +202,27 @@ public class ViewComplexDeletionsPartialTest extends ViewComplexTester
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) using timestamp 0", 1, 1, 1, 1);
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv), row(1, 1, 1, 1));
 
         // remove view row
         updateView("UPDATE %s using timestamp 1 set b = null WHERE a=1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv));
         // remove base row, no view updated generated.
         updateView("DELETE FROM %s using timestamp 2 where a=1");
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv));
 
         // restor view row with b,c column. d is still tombstone
         updateView("UPDATE %s using timestamp 3 set b = 1,c = 1 where a=1"); // upsert
         if (flush)
-            FBUtilities.waitOnFutures(ks.flush());
+            FBUtilities.waitOnFutures(ks.flush(UNIT_TESTS));
 
         assertRowsIgnoringOrder(execute("SELECT * FROM " + mv), row(1, 1, 1, null));
     }

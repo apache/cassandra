@@ -18,19 +18,27 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.List;
+
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
+@RunWith(Parameterized.class)
 public class MemtableSizeTest extends CQLTester
 {
     static String keyspace;
@@ -42,6 +50,16 @@ public class MemtableSizeTest extends CQLTester
 
     int deletedPartitions = 10_000;
     int deletedRows = 5_000;
+
+    @Parameterized.Parameter()
+    public String memtableClass;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static List<Object> parameters()
+    {
+        return ImmutableList.of("SkipListMemtable",
+                                "TrieMemtable");
+    }
 
     // must be within 50 bytes per partition of the actual size
     final int MAX_DIFFERENCE = (partitions + deletedPartitions + deletedRows) * 50;
@@ -66,14 +84,16 @@ public class MemtableSizeTest extends CQLTester
         try
         {
             keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
-            table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid)) with compression = {'enabled': false}");
+            table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
+                                      " with compression = {'enabled': false}" +
+                                      " and memtable = { 'class': '" + memtableClass + "'}");
             execute("use " + keyspace + ';');
 
             String writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
 
             cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
             cfs.disableAutoCompaction();
-            cfs.forceBlockingFlush();
+            cfs.forceBlockingFlush(UNIT_TESTS);
 
             long deepSizeBefore = ObjectSizes.measureDeep(cfs.getTracker().getView().getCurrentMemtable());
             System.out.printf("Memtable deep size before %s\n%n",
@@ -108,15 +128,13 @@ public class MemtableSizeTest extends CQLTester
                 System.out.println("Warning: " + cfs.getLiveSSTables().size() + " sstables created.");
 
             Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
-            long actualHeap = memtable.getAllocator().onHeap().owns();
-            System.out.printf("Memtable in %s mode: %d ops, %s serialized bytes, %s (%.0f%%) on heap, %s (%.0f%%) off-heap%n",
+            Memtable.MemoryUsage usage = Memtable.getMemoryUsage(memtable);
+        long actualHeap = usage.ownsOnHeap;
+            System.out.printf("Memtable in %s mode: %d ops, %s serialized bytes, %s %n",
                               DatabaseDescriptor.getMemtableAllocationType(),
                               memtable.getOperations(),
                               FBUtilities.prettyPrintMemory(memtable.getLiveDataSize()),
-                              FBUtilities.prettyPrintMemory(actualHeap),
-                              100 * memtable.getAllocator().onHeap().ownershipRatio(),
-                              FBUtilities.prettyPrintMemory(memtable.getAllocator().offHeap().owns()),
-                              100 * memtable.getAllocator().offHeap().ownershipRatio());
+                              usage);
 
             long deepSizeAfter = ObjectSizes.measureDeep(memtable);
             System.out.printf("Memtable deep size %s\n%n",

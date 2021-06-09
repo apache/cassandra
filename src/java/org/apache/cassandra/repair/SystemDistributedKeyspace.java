@@ -42,6 +42,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
@@ -353,7 +354,7 @@ public final class SystemDistributedKeyspace
     {
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
         QueryProcessor.executeInternal(format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
-        forceBlockingFlush(VIEW_BUILD_STATUS);
+        forceBlockingFlush(VIEW_BUILD_STATUS, ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
     }
 
     private static void processSilent(String fmtQry, String... values)
@@ -373,10 +374,12 @@ public final class SystemDistributedKeyspace
         }
     }
 
-    public static void forceBlockingFlush(String table)
+    public static void forceBlockingFlush(String table, ColumnFamilyStore.FlushReason reason)
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
-            FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(table).forceFlush());
+            FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
+                                             .getColumnFamilyStore(table)
+                                             .forceFlush(reason));
     }
 
     private enum RepairState

@@ -27,6 +27,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
@@ -39,6 +40,8 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
+
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
 public class CommitLogReaderTest extends CQLTester
 {
@@ -261,7 +264,9 @@ public class CommitLogReaderTest extends CQLTester
         for (int i = midpoint; i < entryCount; i++)
             execute("INSERT INTO %s (idx, data) VALUES (?, ?)", i, Integer.toString(i));
 
-        Keyspace.open(keyspace()).getColumnFamilyStore(currentTable()).forceBlockingFlush();
+        Keyspace.open(keyspace())
+                .getColumnFamilyStore(currentTable())
+                .forceBlockingFlush(UNIT_TESTS);
         return result;
     }
 }

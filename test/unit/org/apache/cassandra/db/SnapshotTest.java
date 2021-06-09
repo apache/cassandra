@@ -28,6 +28,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 public class SnapshotTest extends CQLTester
 {
     @Test
@@ -35,7 +37,7 @@ public class SnapshotTest extends CQLTester
     {
         createTable("create table %s (id int primary key, k int)");
         execute("insert into %s (id, k) values (1,1)");
-        getCurrentColumnFamilyStore().forceBlockingFlush();
+        getCurrentColumnFamilyStore().forceBlockingFlush(UNIT_TESTS);
         for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
         {
             File toc = new File(sstable.descriptor.filenameFor(Component.TOC));

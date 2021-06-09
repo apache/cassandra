@@ -47,6 +47,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.*;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -117,7 +118,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
                    .add("reg2", ByteBuffer.wrap(reg2));
             writer.append(builder.build().unfilteredIterator());
         }
-        cfs.forceBlockingFlush();
+        cfs.forceBlockingFlush(UNIT_TESTS);
 
         ssTableReader = writer.finish(true);
         txn.update(ssTableReader, false);

@@ -26,7 +26,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;

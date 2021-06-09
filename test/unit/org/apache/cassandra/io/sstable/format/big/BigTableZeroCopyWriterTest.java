@@ -58,6 +58,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -116,7 +117,7 @@ public class BigTableZeroCopyWriterTest
             .applyUnsafe();
             expectedRowCount++;
         }
-        store.forceBlockingFlush();
+        store.forceBlockingFlush(UNIT_TESTS);
 
         sstable = store.getLiveSSTables().iterator().next();
     }

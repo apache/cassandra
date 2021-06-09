@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.transport.ProtocolVersion;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
 
 public class ViewBuilderTaskTest extends CQLTester
@@ -84,8 +85,8 @@ public class ViewBuilderTaskTest extends CQLTester
                               int expectedRowsInView) throws Throwable
             {
                 // Truncate the materialized view (not the base table)
-                cfs.viewManager.forceBlockingFlush();
-                cfs.viewManager.truncateBlocking(cfs.forceBlockingFlush(), System.currentTimeMillis());
+                cfs.viewManager.forceBlockingFlush(UNIT_TESTS);
+                cfs.viewManager.truncateBlocking(cfs.forceBlockingFlush(UNIT_TESTS), System.currentTimeMillis());
                 assertRowCount(execute("SELECT * FROM " + viewName), 0);
 
                 // Get the tokens from the referenced inserted rows

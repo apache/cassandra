@@ -36,6 +36,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+
 public class ReducingKeyIteratorTest
 {
     public static final String KEYSPACE1 = "ReducingKeyIteratorTest";
@@ -87,7 +89,7 @@ public class ReducingKeyIteratorTest
                 .build()
                 .applyUnsafe();
             }
-            store.forceBlockingFlush();
+            store.forceBlockingFlush(UNIT_TESTS);
         }
 
         Set<SSTableReader> sstables = store.getLiveSSTables();

@@ -143,6 +143,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "memtable frozen<map<text, text>>,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
@@ -210,6 +211,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "memtable frozen<map<text, text>>,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
               + "default_time_to_live int,"
@@ -364,7 +366,7 @@ public final class SchemaKeyspace
     private static void flush()
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
-            ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush()));
+            ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED)));
     }
 
     /**
@@ -585,6 +587,7 @@ public final class SchemaKeyspace
                .add("caching", params.caching.asMap())
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
+               .add("memtable", params.memtable.asMap())
                .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions);
 
@@ -989,6 +992,7 @@ public final class SchemaKeyspace
                           .comment(row.getString("comment"))
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                           .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
+                          .memtable(MemtableParams.fromMap(row.getFrozenTextMap("memtable")))
                           .defaultTimeToLive(row.getInt("default_time_to_live"))
                           .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
                           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
