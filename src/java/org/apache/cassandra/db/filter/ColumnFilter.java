@@ -838,6 +838,14 @@ public abstract class ColumnFilter
             return fetchingStrategy.fetchesAllColumns(column.isStatic()) || fetched.contains(column);
         }
 
+        /**
+         * Whether the provided complex cell (identified by its column and path), which is assumed to be _fetched_ by
+         * this filter, is also _queried_ by the user.
+         *
+         * !WARNING! please be sure to understand the difference between _fetched_ and _queried_
+         * columns that this class made before using this method. If unsure, you probably want
+         * to use the {@link #fetches} method.
+         */
         @Override
         public boolean fetchedColumnIsQueried(ColumnMetadata column)
         {
