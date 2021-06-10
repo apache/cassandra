@@ -57,21 +57,21 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
     public void testSelectNoColumns() throws Throwable
     {
         testWithFilter(tableMetadata ->
-                       ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.builder().build()));
+                       ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.builder().build(), false));
     }
 
     @Test
     public void testSelectEmptyColumn() throws Throwable
     {
         testWithFilter(tableMetadata ->
-                       ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("e", false)))));
+                       ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("e", false))), false));
     }
 
     @Test
     public void testSelectNonEmptyColumn() throws Throwable
     {
         testWithFilter(tableMetadata ->
-                       ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("v1", false)))));
+                       ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("v1", false))), false));
     }
 
     @Test
@@ -82,7 +82,8 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
                                               RegularAndStaticColumns.builder()
                                                                      .add(tableMetadata.getColumn(ColumnIdentifier.getInterned("v1", false)))
                                                                      .add(tableMetadata.getColumn(ColumnIdentifier.getInterned("v2", false)))
-                                                                     .build()));
+                                                                     .build(),
+                                              false));
     }
 
     @Test
@@ -106,6 +107,39 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
                                                                                CellPath.create(Int32Type.instance.decompose(5))).build());
     }
 
+    @Test
+    public void testSelectRegularColumnOnPartitionWithOnlyStaticData() throws Throwable
+    {
+        testWithFilterAndStaticColumnsOnly(tableMetadata ->
+                                           ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("v", false))), false));
+        testWithFilterAndStaticColumnsOnly(tableMetadata ->
+                                           ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("v", false))), true));
+    }
+
+    @Test
+    public void testSelectStaticColumnOnPartitionWithOnlyStaticData() throws Throwable
+    {
+        testWithFilterAndStaticColumnsOnly(tableMetadata ->
+                                           ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("s2", false))), false));
+        testWithFilterAndStaticColumnsOnly(tableMetadata ->
+                                           ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("s2", false))), true));
+    }
+
+    @Test
+    public void testSelectNullStaticColumnOnPartitionWithOnlyStaticData() throws Throwable
+    {
+        testWithFilterAndStaticColumnsOnly(tableMetadata ->
+                                           ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("s1", false))), false));
+        testWithFilterAndStaticColumnsOnly(tableMetadata ->
+                                           ColumnFilter.selection(tableMetadata, RegularAndStaticColumns.of(tableMetadata.getColumn(ColumnIdentifier.getInterned("s1", false))), true));
+    }
+
+    @Test
+    public void testSelectAllColumnsOnPartitionWithOnlyStaticData() throws Throwable
+    {
+        testWithFilterAndStaticColumnsOnly(tableMetadata -> ColumnFilter.all(tableMetadata));
+    }
+
     private void testWithFilter(Function<TableMetadata, ColumnFilter> filterFactory) throws Throwable
     {
         Map<Integer, Integer> m = new HashMap<>();
@@ -114,19 +148,40 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
         execute("INSERT INTO %s (k, v1, v2, m) values (?, ?, ?, ?) USING TIMESTAMP ?", 1, 2, 3, m, writeTime);
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        ColumnFilter filter = filterFactory.apply(cfs.metadata());
-        String digest1 = getDigest(filter);
+        assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()), Clustering.EMPTY);
+    }
+
+    private void testWithFilterAndStaticColumnsOnly(Function<TableMetadata, ColumnFilter> filterFactory) throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s1 int static, s2 int static, v int, PRIMARY KEY(pk, ck))");
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
+        assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()));
+
+        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
+        assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()));
+
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
+        assertDigestsAreEqualsBeforeAndAfterFlush(filterFactory.apply(cfs.metadata()));
+    }
+
+    private void assertDigestsAreEqualsBeforeAndAfterFlush(ColumnFilter filter, Clustering<?>... clusterings)
+    {
+        String digest1 = getDigest(filter, clusterings);
         flush();
-        String digest2 = getDigest(filter);
+        String digest2 = getDigest(filter, clusterings);
 
         assertEquals(digest1, digest2);
     }
 
-    private String getDigest(ColumnFilter filter)
+    private String getDigest(ColumnFilter filter, Clustering<?>... clusterings)
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        NavigableSet<Clustering<?>> clusterings = Sets.newTreeSet(new ClusteringComparator());
-        clusterings.add(Clustering.EMPTY);
+        NavigableSet<Clustering<?>> clusteringSet = Sets.newTreeSet(new ClusteringComparator());
+        for (Clustering<?> clustering : clusterings)
+            clusteringSet.add(clustering);
         BufferDecoratedKey key = new BufferDecoratedKey(DatabaseDescriptor.getPartitioner().getToken(Int32Type.instance.decompose(1)),
                                                         Int32Type.instance.decompose(1));
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand
@@ -134,7 +189,7 @@ public class SSTableAndMemTableDigestMatchTest extends CQLTester
                                                  (int) (System.currentTimeMillis() / 1000),
                                                  key,
                                                  filter,
-                                                 new ClusteringIndexNamesFilter(clusterings, false)).copyAsDigestQuery();
+                                                 new ClusteringIndexNamesFilter(clusteringSet, false)).copyAsDigestQuery();
         cmd.setDigestVersion(MessagingService.current_version);
         ReadResponse resp;
         try (ReadExecutionController ctrl = ReadExecutionController.forCommand(cmd); UnfilteredRowIterator iterator = cmd.queryMemtableAndDisk(cfs, ctrl))

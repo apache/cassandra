@@ -23,8 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.commons.lang3.StringUtils;
-
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -33,7 +31,6 @@ import org.apache.cassandra.db.Keyspace;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
-import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -1423,6 +1420,53 @@ public class DeleteTest extends CQLTester
         execute("DELETE FROM %s WHERE k = ? AND a >= ? AND a < ?", "a", 0, 2);
     }
 
+    @Test
+    public void testStaticColumnDeletionWithMultipleStaticColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s1 int static, s2 int static, v int, PRIMARY KEY(pk, ck))");
+
+        execute("INSERT INTO %s (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000");
+        flush();
+        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
+        flush();
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE pk=1"), row(1, null, null, 1, null));
+        assertRows(execute("SELECT pk, s1, s2 FROM %s WHERE pk=1"), row(1, (Integer) null, 1));
+        assertRows(execute("SELECT s1, s2 FROM %s WHERE pk=1"), row((Integer) null, 1));
+        assertRows(execute("SELECT pk, s1 FROM %s WHERE pk=1"), row(1, (Integer) null));
+        assertRows(execute("SELECT s1 FROM %s WHERE pk=1"), row((Integer) null));
+        assertRows(execute("SELECT pk, s2 FROM %s WHERE pk=1"), row(1, 1));
+        assertRows(execute("SELECT s2 FROM %s WHERE pk=1"), row(1));
+        assertRows(execute("SELECT pk, ck FROM %s WHERE pk=1"), row(1, null));
+        assertRows(execute("SELECT ck FROM %s WHERE pk=1"), row((Integer) null));
+        assertRows(execute("SELECT DISTINCT pk, s1, s2 FROM %s WHERE pk=1"), row(1, (Integer) null, 1));
+        assertRows(execute("SELECT DISTINCT s1, s2 FROM %s WHERE pk=1"), row((Integer) null, 1));
+        assertRows(execute("SELECT DISTINCT pk, s1 FROM %s WHERE pk=1"), row(1, (Integer) null));
+        assertRows(execute("SELECT DISTINCT pk, s2 FROM %s WHERE pk=1"), row(1, 1));
+        assertRows(execute("SELECT DISTINCT s1 FROM %s WHERE pk=1"), row((Integer) null));
+        assertRows(execute("SELECT DISTINCT s2 FROM %s WHERE pk=1"), row(1));
+    }
+
+    @Test
+    public void testStaticColumnDeletionWithMultipleStaticColumnsAndRegularColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s1 int static, s2 int static, v int, PRIMARY KEY(pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, v, s2) VALUES (1, 1, 1, 1) USING TIMESTAMP 1000");
+        flush();
+        execute("INSERT INTO %s (pk, s1) VALUES (1, 2) USING TIMESTAMP 2000");
+        flush();
+        execute("DELETE s1 FROM %s USING TIMESTAMP 3000 WHERE pk = 1");
+        flush();
+
+        assertRows(execute("SELECT * FROM %s WHERE pk=1"), row(1, 1, null, 1, 1));
+        assertRows(execute("SELECT s1, s2 FROM %s WHERE pk=1"), row(null, 1));
+        assertRows(execute("SELECT s1 FROM %s WHERE pk=1"), row((Integer) null));
+        assertRows(execute("SELECT DISTINCT s1, s2 FROM %s WHERE pk=1"), row(null, 1));
+        assertRows(execute("SELECT DISTINCT s1 FROM %s WHERE pk=1"), row((Integer) null));
+    }
 
     /**
      * Checks if the memtable is empty or not
