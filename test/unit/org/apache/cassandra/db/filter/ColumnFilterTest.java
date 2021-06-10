@@ -34,6 +34,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.RegularAndStaticColumns;
+
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.CellPath;
@@ -85,7 +86,7 @@ public class ColumnFilterTest
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
-        return Arrays.asList(new Object[]{ "3.0" }, new Object[]{ "3.11" }, new Object[]{ "4.0" });
+        return Arrays.asList(new Object[]{ "3.0" }, new Object[]{ "3.11" }, new Object[]{ "4.0-rc1" }, new Object[]{ "4.0" });
     }
 
     @BeforeClass
@@ -117,7 +118,8 @@ public class ColumnFilterTest
         };
 
         check.accept(ColumnFilter.all(metadata));
-        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata).build());
+        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata, false).build());
+        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata, true).build());
     }
 
     // Selections
@@ -321,6 +323,17 @@ public class ColumnFilterTest
     @Test
     public void testSelectSimpleColumnWithMetadata()
     {
+        testSelectSimpleColumnWithMetadata(false);
+    }
+
+    @Test
+    public void testSelectSimpleColumnWithMetadataAndReturnStaticContentOnPartitionWithNoRows()
+    {
+        testSelectSimpleColumnWithMetadata(true);
+    }
+
+    private void testSelectSimpleColumnWithMetadata(boolean returnStaticContentOnPartitionWithNoRows)
+    {
         Consumer<ColumnFilter> check = filter -> {
             testRoundTrips(filter);
             assertFetchedQueried(true, true, filter, v1);
@@ -332,7 +345,7 @@ public class ColumnFilterTest
                 assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
                 assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
             }
-            else if ("3.11".equals(clusterMinVersion))
+            else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
             {
                 assertEquals("*/[v1]", filter.toString());
                 assertEquals("v1", filter.toCQLString());
@@ -351,12 +364,23 @@ public class ColumnFilterTest
             }
         };
 
-        check.accept(ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(v1).build()));
-        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata).add(v1).build());
+        check.accept(ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(v1).build(), returnStaticContentOnPartitionWithNoRows));
+        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata, returnStaticContentOnPartitionWithNoRows).add(v1).build());
     }
 
     @Test
     public void testSelectStaticColumnWithMetadata()
+    {
+        testSelectStaticColumnWithMetadata(false);
+    }
+
+    @Test
+    public void testSelectStaticColumnWithMetadataAndReturnStaticContentOnPartitionWithNoRows()
+    {
+        testSelectStaticColumnWithMetadata(true);
+    }
+
+    private void testSelectStaticColumnWithMetadata(boolean returnStaticContentOnPartitionWithNoRows)
     {
         Consumer<ColumnFilter> check = filter -> {
             testRoundTrips(filter);
@@ -369,7 +393,7 @@ public class ColumnFilterTest
                 assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
                 assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
             }
-            else if ("3.11".equals(clusterMinVersion))
+            else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
             {
                 assertEquals("*/[s1]", filter.toString());
                 assertEquals("s1", filter.toCQLString());
@@ -388,14 +412,27 @@ public class ColumnFilterTest
             }
         };
 
-        check.accept(ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(s1).build()));
-        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata).add(s1).build());
+        check.accept(ColumnFilter.selection(metadata, RegularAndStaticColumns.builder().add(s1).build(), returnStaticContentOnPartitionWithNoRows));
+        check.accept(ColumnFilter.allRegularColumnsBuilder(metadata, returnStaticContentOnPartitionWithNoRows).add(s1).build());
     }
 
     @Test
     public void testSelectCellWithMetadata()
     {
-        ColumnFilter filter = ColumnFilter.allRegularColumnsBuilder(metadata).select(v2, path1).build();
+        testSelectCellWithMetadata(false);
+    }
+
+    @Test
+    public void testSelectCellWithMetadataAndReturnStaticContentOnPartitionWithNoRows()
+    {
+        testSelectCellWithMetadata(true);
+    }
+
+    private void testSelectCellWithMetadata(boolean returnStaticContentOnPartitionWithNoRows)
+    {
+        ColumnFilter filter = ColumnFilter.allRegularColumnsBuilder(metadata, returnStaticContentOnPartitionWithNoRows)
+                                          .select(v2, path1)
+                                          .build();
         testRoundTrips(filter);
         assertFetchedQueried(true, true, filter, v2);
         if ("3.0".equals(clusterMinVersion))
@@ -403,11 +440,10 @@ public class ColumnFilterTest
             assertEquals("*/*", filter.toString());
             assertEquals("*", filter.toCQLString());
             assertFetchedQueried(true, true, filter, s1, s2, v1);
-            assertCellFetchedQueried(true, true, filter, v2, path1);
-            assertCellFetchedQueried(true, false, filter, v2, path0, path2, path3, path4);
+            assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
             assertCellFetchedQueried(true, true, filter, s2, path0, path1, path2, path3, path4);
         }
-        else if ("3.11".equals(clusterMinVersion))
+        else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
         {
             assertEquals("*/[v2[1]]", filter.toString());
             assertEquals("v2[1]", filter.toCQLString());
@@ -431,7 +467,20 @@ public class ColumnFilterTest
     @Test
     public void testSelectStaticColumnCellWithMetadata()
     {
-        ColumnFilter filter = ColumnFilter.allRegularColumnsBuilder(metadata).select(s2, path1).build();
+        testSelectStaticColumnCellWithMetadata(false);
+    }
+
+    @Test
+    public void testSelectStaticColumnCellWithMetadataAndReturnStaticContentOnPartitionWithNoRows()
+    {
+        testSelectStaticColumnCellWithMetadata(true);
+    }
+
+    private void testSelectStaticColumnCellWithMetadata(boolean returnStaticContentOnPartitionWithNoRows)
+    {
+        ColumnFilter filter = ColumnFilter.allRegularColumnsBuilder(metadata, returnStaticContentOnPartitionWithNoRows)
+                                          .select(s2, path1)
+                                          .build();
         testRoundTrips(filter);
         assertFetchedQueried(true, true, filter, s2);
         if ("3.0".equals(clusterMinVersion))
@@ -440,10 +489,9 @@ public class ColumnFilterTest
             assertEquals("*", filter.toCQLString());
             assertFetchedQueried(true, true, filter, v1, v2, s1);
             assertCellFetchedQueried(true, true, filter, v2, path0, path1, path2, path3, path4);
-            assertCellFetchedQueried(true, true, filter, s2, path1);
-            assertCellFetchedQueried(true, false, filter, s2, path0, path2, path3, path4);  // TODO ???
+            assertCellFetchedQueried(true, true, filter, s2, path1, path0, path2, path3, path4);
         }
-        else if ("3.11".equals(clusterMinVersion))
+        else if ("3.11".equals(clusterMinVersion) || (returnStaticContentOnPartitionWithNoRows && "4.0".equals(clusterMinVersion)))
         {
             assertEquals("*/[s2[1]]", filter.toString());
             assertEquals("s2[1]", filter.toCQLString());
@@ -481,13 +529,13 @@ public class ColumnFilterTest
             DataInputPlus input = new DataInputBuffer(output.buffer(), false);
             ColumnFilter deserialized = serializer.deserialize(input, version, metadata);
 
-            if (!clusterMinVersion.equals("4.0") || version != MessagingService.VERSION_30 || !columnFilter.fetchAllRegulars)
+            if (version == MessagingService.VERSION_30 && columnFilter.fetchesAllColumns(false))
             {
-                Assert.assertEquals(deserialized, columnFilter);
+                Assert.assertEquals(metadata.regularAndStaticColumns(), deserialized.fetchedColumns());
             }
             else
             {
-                Assert.assertEquals(deserialized.fetched, metadata.regularAndStaticColumns());
+                Assert.assertEquals(deserialized, columnFilter);
             }
         }
         catch (IOException e)
