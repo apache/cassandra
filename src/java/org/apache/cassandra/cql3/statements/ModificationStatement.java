@@ -593,7 +593,7 @@ public abstract class ModificationStatement implements CQLStatement
         Selection selection;
         if (columnsWithConditions == null)
         {
-            selection = Selection.wildcard(metadata, false);
+            selection = Selection.wildcard(metadata, false, false);
         }
         else
         {
@@ -605,7 +605,7 @@ public abstract class ModificationStatement implements CQLStatement
             if (isBatch)
                 Iterables.addAll(defs, metadata.primaryKeyColumns());
             Iterables.addAll(defs, columnsWithConditions);
-            selection = Selection.forColumns(metadata, new ArrayList<>(defs));
+            selection = Selection.forColumns(metadata, new ArrayList<>(defs), false);
 
         }
 
