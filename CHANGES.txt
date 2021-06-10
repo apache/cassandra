@@ -3,6 +3,9 @@
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
+
+4.0-rc2
+ * Fix queries on empty partitions with static data (CASSANDRA-16686)
  * Keep python driver in artifacts (CASSANDRA-16700)
  * Improve AuditLogging documentation and logback.xml(CASSANDRA-16682)
  * Spin up SEPWorker threads whenever we grow the number of work permits(CASSANDRA-16668)
