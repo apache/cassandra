@@ -66,6 +66,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.sstable.format.big.BigTableScanner;
+import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexScanner;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedRegions;
 import org.apache.cassandra.schema.CachingParams;
@@ -83,10 +85,12 @@ import org.apache.cassandra.utils.PageAware;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.io.sstable.format.SSTableReader.selectOnlyBigTableReaders;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -95,6 +99,7 @@ public class SSTableReaderTest
     public static final String KEYSPACE1 = "SSTableReaderTest";
     public static final String CF_STANDARD = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
+    public static final String CF_STANDARD3 = "Standard3";
     public static final String CF_COMPRESSED = "Compressed";
     public static final String CF_INDEXED = "Indexed1";
     public static final String CF_STANDARD_LOW_INDEX_INTERVAL = "StandardLowIndexInterval";
@@ -118,6 +123,7 @@ public class SSTableReaderTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2)
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(8),  // ensure close key count estimation
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD3),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_COMPRESSED).compression(CompressionParams.DEFAULT),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE1, CF_INDEXED, true),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD_LOW_INDEX_INTERVAL)
@@ -668,7 +674,7 @@ public class SSTableReaderTest
     public void testGetScannerForNoIntersectingRanges() throws Exception
     {
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD3);
         partitioner = store.getPartitioner();
 
         new RowUpdateBuilder(store.metadata(), 0, "k1")
@@ -678,19 +684,15 @@ public class SSTableReaderTest
             .applyUnsafe();
 
         store.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-        boolean foundScanner = false;
-        for (SSTableReader s : store.getLiveSSTables())
-        {
-            try (ISSTableScanner scanner = s.getScanner(new Range<>(t(0), t(1))))
-            {
-                if (scanner.hasNext())
-                {
-                    scanner.next(); // throws exception pre 5407
-                    foundScanner = true;
-                }
-            }
-        }
-        assertTrue(foundScanner);
+
+        Set<SSTableReader> liveSSTables = store.getLiveSSTables();
+        assertEquals("The table should have only one sstable", 1, liveSSTables.size());
+
+        ISSTableScanner scanner = liveSSTables.iterator().next().getScanner(new Range<>(t(0), t(1)));
+        if (SSTableFormat.Type.current() == SSTableFormat.Type.BIG)
+            assertThat(scanner, instanceOf(BigTableScanner.EmptySSTableScanner.class));
+        else
+            assertThat(scanner, instanceOf(TrieIndexScanner.EmptySSTableScanner.class));
     }
 
     @Test
