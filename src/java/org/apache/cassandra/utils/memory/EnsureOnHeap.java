@@ -57,8 +57,9 @@ public abstract class EnsureOnHeap extends Transformation
 
         public Row applyToRow(Row row)
         {
-            if (row == null)
-                return null;
+            // If current "row" is Rows.EMPTY_STATIC_ROW, don't copy it again, as "copied_empty_static_row" != EMPTY_STATIC_ROW
+            if (row == null || row == Rows.EMPTY_STATIC_ROW)
+                return row;
             return Rows.copy(row, HeapAllocator.instance.cloningBTreeRowBuilder()).build();
         }
 
