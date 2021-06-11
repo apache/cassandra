@@ -31,7 +31,6 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
@@ -89,6 +88,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private final List<TestVersions> upgrade = new ArrayList<>();
         private int nodeCount = 3;
         private RunOnCluster setup;
+        private RunOnClusterAndNode runBeforeNodeRestart;
         private RunOnClusterAndNode runAfterNodeUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
         private final Set<Integer> nodesToUpgrade = new HashSet<>();
@@ -131,6 +131,12 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase runBeforeNodeRestart(RunOnClusterAndNode runBeforeNodeRestart)
+        {
+            this.runBeforeNodeRestart = runBeforeNodeRestart;
+            return this;
+        }
+
         public TestCase runAfterNodeUpgrade(RunOnClusterAndNode runAfterNodeUpgrade)
         {
             this.runAfterNodeUpgrade = runAfterNodeUpgrade;
@@ -157,6 +163,8 @@ public class UpgradeTestBase extends DistributedTestBase
                 throw new AssertionError();
             if (runAfterClusterUpgrade == null && runAfterNodeUpgrade == null)
                 throw new AssertionError();
+            if (runBeforeNodeRestart == null)
+                runBeforeNodeRestart = (c, n) -> {};
             if (runAfterClusterUpgrade == null)
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
@@ -177,6 +185,7 @@ public class UpgradeTestBase extends DistributedTestBase
                         {
                             cluster.get(n).shutdown().get();
                             cluster.get(n).setVersion(version);
+                            runBeforeNodeRestart.run(cluster, n);
                             cluster.get(n).startup();
                             runAfterNodeUpgrade.run(cluster, n);
                         }
