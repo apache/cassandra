@@ -24,18 +24,14 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.base.Splitter;
-import org.apache.commons.lang.CharRange;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.VersionNumber;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.Generate;
 import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.Constraint;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertThat;

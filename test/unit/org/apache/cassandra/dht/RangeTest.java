@@ -33,8 +33,6 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.commons.collections.CollectionUtils;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
@@ -355,8 +353,7 @@ public class RangeTest
             expected.add(makeRange(tokens[i], tokens[i+1]));
         }
 
-        assert CollectionUtils.isEqualCollection(result, expected);
-
+        assertEquals(result, expected);
     }
 
     @Test
