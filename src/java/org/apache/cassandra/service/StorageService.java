@@ -4207,8 +4207,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Iterables.addAll(option.getRanges(), getLocalReplicas(keyspace).onlyFull().ranges());
             }
         }
-        if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().allReplicas < 2)
+        if (option.getRanges().isEmpty() || Keyspace.open(keyspace).getReplicationStrategy().getReplicationFactor().allReplicas < 2
+            || tokenMetadata.getAllEndpoints().size() < 2)
+        {
             return Pair.create(0, Futures.immediateFuture(null));
+        }
 
         int cmd = nextRepairCommand.incrementAndGet();
         return Pair.create(cmd, ActiveRepairService.repairCommandExecutor().submit(createRepairTask(cmd, keyspace, option, listeners)));

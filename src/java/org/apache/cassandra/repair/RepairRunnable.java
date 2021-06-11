@@ -326,6 +326,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             EndpointsForRange neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range,
                                                                            options.getDataCenters(),
                                                                            options.getHosts());
+            // local RF = 1 or given range is not part of local range, neighbors would be empty.
             if (neighbors.isEmpty())
             {
                 if (options.ignoreUnreplicatedKeyspaces())
