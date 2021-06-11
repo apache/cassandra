@@ -40,6 +40,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static java.lang.String.format;
 
+
 public class MixedModeAvailabilityTestBase extends UpgradeTestBase
 {
     private static final int NUM_NODES = 3;
@@ -49,7 +50,12 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
                                                               new Tester(ALL, ONE));
 
 
-    protected static void testAvailability(Versions.Major initial, Versions.Major... upgrade) throws Throwable
+    protected static void testAvailability(Versions.Major initial) throws Throwable
+    {
+        testAvailability(initial, UpgradeTestBase.CURRENT);
+    }
+
+    protected static void testAvailability(Versions.Major initial, Versions.Major upgrade) throws Throwable
     {
         testAvailability(true, initial, upgrade);
         testAvailability(false, initial, upgrade);
@@ -57,12 +63,12 @@ public class MixedModeAvailabilityTestBase extends UpgradeTestBase
 
     private static void testAvailability(boolean upgradedCoordinator,
                                          Versions.Major initial,
-                                         Versions.Major... upgrade) throws Throwable
+                                         Versions.Major upgrade) throws Throwable
     {
         new TestCase()
         .nodes(NUM_NODES)
         .nodesToUpgrade(upgradedCoordinator ? 1 : 2)
-        .upgrade(initial, upgrade)
+        .upgrades(initial, upgrade)
         .withConfig(config -> config.set("read_request_timeout_in_ms", SECONDS.toMillis(2))
                                     .set("write_request_timeout_in_ms", SECONDS.toMillis(2)))
         .setup(c -> c.schemaChange(withKeyspace("CREATE TABLE %s.t (k uuid, c int, v int, PRIMARY KEY (k, c))")))

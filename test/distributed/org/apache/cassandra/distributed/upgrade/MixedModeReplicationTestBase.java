@@ -32,6 +32,11 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
  */
 public class MixedModeReplicationTestBase extends UpgradeTestBase
 {
+    protected void testSimpleStrategy(Versions.Major from) throws Throwable
+    {
+        testSimpleStrategy(from, UpgradeTestBase.CURRENT);
+    }
+
     protected void testSimpleStrategy(Versions.Major from, Versions.Major to) throws Throwable
     {
         String insert = "INSERT INTO test_simple.names (key, name) VALUES (?, ?)";
@@ -40,7 +45,7 @@ public class MixedModeReplicationTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1, 2)
-        .upgrade(from, to)
+        .upgrades(from, to)
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");

@@ -286,13 +286,13 @@ public class InstanceConfig implements IInstanceConfig
 
     public InstanceConfig forVersion(Versions.Major major)
     {
-        switch (major)
-        {
-            case v4: return this;
-            default: return new InstanceConfig(this)
+        // Versions before 4.0 need to set 'seed_provider' without specifying the port
+        if (Versions.Major.v40.compareTo(major) <= 0)
+            return this;
+        else
+            return new InstanceConfig(this)
                             .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                                                                          Collections.singletonMap("seeds", "127.0.0.1")));
-        }
     }
 
     public String toString()
