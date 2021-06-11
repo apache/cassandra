@@ -19,15 +19,22 @@ package org.apache.cassandra.cql3.functions;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.Date;
+import java.util.List;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.OperationExecutionException;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimestampSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class OperationFctsTest extends CQLTester
 {
@@ -828,6 +835,18 @@ public class OperationFctsTest extends CQLTester
                              "SELECT time / 10m FROM %s WHERE pk = 1");
         assertInvalidMessage("the operation 'date - duration' failed: The duration must have a day precision. Was: 10m",
                              "SELECT * FROM %s WHERE pk = 1 AND time > ? - 10m", toDate("2016-10-04"));
+    }
+
+    /*
+     * CASSANDRA-15269 Make sure an OEE goes to the user as a FEE
+     */
+    @Test(expected = FunctionExecutionException.class)
+    public void testOperationExecutionExceptionSubclassOfFunctionExecutionException()
+    {
+        List<ByteBuffer> params = ImmutableList.of(IntegerType.instance.fromString("1"), IntegerType.instance.fromString("1"));
+        NativeScalarFunction function = OperationFcts.getOperationFunctionTestClass();
+
+        function.execute(getDefaultVersion(), params);
     }
 
     private Date toTimestamp(String timestampAsString)

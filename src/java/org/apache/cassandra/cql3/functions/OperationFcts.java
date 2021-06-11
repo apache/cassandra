@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.OperationExecutionException;
@@ -267,6 +269,22 @@ public final class OperationFcts
     public static FunctionName getFunctionNameFromOperator(char operator)
     {
         return FunctionName.nativeFunction(OPERATION.fromSymbol(operator).functionName);
+    }
+
+    /**
+     * Used only for testing
+     */
+    @VisibleForTesting
+    public static OperationFunction getOperationFunctionTestClass()
+    {
+        return new OperationFunction(IntegerType.instance, IntegerType.instance, OPERATION.ADDITION, IntegerType.instance)
+        {
+            @Override
+            protected ByteBuffer doExecute(ByteBuffer left, OPERATION operation, ByteBuffer right)
+            {
+                throw new ArithmeticException("Test arithmetic exception");
+            }
+        };
     }
 
     /**
