@@ -322,6 +322,8 @@ public class Config
 
     public boolean enable_materialized_views = true;
 
+    public volatile boolean enable_drop_compact_storage = true;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!
