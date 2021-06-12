@@ -8,6 +8,7 @@
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
+ * CQL shell should prefer newer TLS version by default (CASSANDRA-16695)
  * Ensure that existing empty rows are properly returned (CASSANDRA-16671)
  * Invalidate prepared statements on DROP COMPACT (CASSANDRA-16712)
  * Failure to execute queries should emit a KPI other than read timeout/unavailable so it can be alerted/tracked (CASSANDRA-16581)
