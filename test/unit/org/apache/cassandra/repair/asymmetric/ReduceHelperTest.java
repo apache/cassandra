@@ -20,6 +20,7 @@ package org.apache.cassandra.repair.asymmetric;
 
 
 import java.net.UnknownHostException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,7 +37,6 @@ import java.util.TreeSet;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import org.apache.commons.collections.keyvalue.AbstractMapEntry;
 import org.junit.Test;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -414,7 +414,7 @@ public class ReduceHelperTest
 
     static Map.Entry<Range<Token>, StreamFromOptions> rangeEntry(long t, long t2)
     {
-        return new AbstractMapEntry(range(t, t2), new StreamFromOptions(null, null)) {};
+        return new AbstractMap.SimpleEntry<>(range(t, t2), new StreamFromOptions(null, null));
     }
 
     @Test
