@@ -584,8 +584,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
          *      Also, if tracking repaired data then we skip this optimization so we can collate the repaired sstables
          *      and generate a digest over their merge, which procludes an early return.
          */
-        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && !queriesMulticellType() && !isTrackingRepairedStatus())
+        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter
+                && !metadata().isCounter()
+                && !queriesMulticellType()
+                && !isTrackingRepairedStatus())
+        {
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter());
+        }
 
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
@@ -771,9 +776,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
     private boolean queriesMulticellType()
     {
-        for (ColumnMetadata column : columnFilter().fetchedColumns())
+        for (ColumnMetadata column : columnFilter().queriedColumns())
         {
-            if (column.type.isMultiCell() || column.type.isCounter())
+            if (column.type.isMultiCell())
                 return true;
         }
         return false;
@@ -930,7 +935,15 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (result == null)
             return filter;
 
-        RegularAndStaticColumns columns = columnFilter().fetchedColumns();
+        // According to the CQL semantics a row exists if at least one of its columns is not null (including the primary key columns).
+        // Having the queried columns not null is unfortunately not enough to prove that a row exists has some column deletion
+        // for the queried columns can exist on another node.
+        // For CQL tables it is enough to have the primary key liveness and the queried columns as the primary key liveness prove that
+        // the row exists even if all the other columns are deleted.
+        // COMPACT tables do not have primary key liveness by consequence we are forced to get  all the fetched columns to ensure that
+        // we can return the correct result if the queried columns are deleted on another node but one of the non-queried columns is not.
+        RegularAndStaticColumns columns = metadata().isCompactTable() ? columnFilter().fetchedColumns() : columnFilter().queriedColumns();
+
         NavigableSet<Clustering<?>> clusterings = filter.requestedRows();
 
         // We want to remove rows for which we have values for all requested columns. We have to deal with both static and regular rows.
