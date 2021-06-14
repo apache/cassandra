@@ -66,10 +66,10 @@ public class SSTableReaderBench extends AbstractSSTableBench
 {
     private final static Logger logger = LoggerFactory.getLogger(SSTableReaderBench.class);
 
-    int KEY_SIZE = 8;
-    int P_KEYS = 2 << 14;
-    int C_KEYS = 2 << 10;
-    int VAL_SIZE = 1;
+    public final static int KEY_SIZE = 8;
+    public final static int P_KEYS = 2 << 10;
+    public final static int C_KEYS = 2 << 10;
+    public final static int VAL_SIZE = 1;
 
     public ByteBuffer[] ckeys;
     public DecoratedKey[] pkeys;

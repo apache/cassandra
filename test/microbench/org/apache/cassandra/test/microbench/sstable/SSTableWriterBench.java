@@ -60,10 +60,10 @@ public class SSTableWriterBench extends AbstractSSTableBench
     @Param({ "BIG", "BTI" })
     public String formatName;
 
-    int KEY_SIZE = 8;
-    int P_KEYS = 1000;
-    int C_KEYS = 1000;
-    int VAL_SIZE = 1;
+    public final static int KEY_SIZE = 8;
+    public final static int P_KEYS = 1000;
+    public final static int C_KEYS = 1000;
+    public final static int VAL_SIZE = 1;
 
     public ByteBuffer[] ckeys = new ByteBuffer[C_KEYS];
     public DecoratedKey[] pkeys = new DecoratedKey[P_KEYS];
