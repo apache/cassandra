@@ -692,7 +692,7 @@ public class SinglePartitionReadCommand extends ReadCommand
          *      we can't guarantee an older sstable won't have some elements that weren't in the most recent sstables,
          *      and counters are intrinsically a collection of shards and so have the same problem).
          */
-        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && !queriesMulticellType())
+        if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && !metadata().isCounter() && !queriesMulticellType())
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter());
 
         Tracing.trace("Acquiring sstable references");
@@ -870,9 +870,9 @@ public class SinglePartitionReadCommand extends ReadCommand
 
     private boolean queriesMulticellType()
     {
-        for (ColumnDefinition column : columnFilter().fetchedColumns())
+        for (ColumnDefinition column : columnFilter().queriedColumns())
         {
-            if (column.type.isMultiCell() || column.type.isCounter())
+            if (column.type.isMultiCell())
                 return true;
         }
         return false;
@@ -1033,7 +1033,15 @@ public class SinglePartitionReadCommand extends ReadCommand
 
         SearchIterator<Clustering, Row> searchIter = result.searchIterator(columnFilter(), false);
 
-        PartitionColumns columns = columnFilter().fetchedColumns();
+        // According to the CQL semantics a row exists if at least one of its columns is not null (including the primary key columns).
+        // Having the queried columns not null is unfortunately not enough to prove that a row exists has some column deletion
+        // for the queried columns can exist on another node.
+        // For CQL tables it is enough to have the primary key liveness and the queried columns as the primary key liveness prove that
+        // the row exists even if all the other columns are deleted.
+        // COMPACT tables do not have primary key liveness by consequence we are forced to get  all the fetched columns to ensure that
+        // we can return the correct result if the queried columns are deleted on another node but one of the non-queried columns is not.
+        PartitionColumns columns = metadata().isCompactTable() ? columnFilter().fetchedColumns() : columnFilter().queriedColumns();
+
         NavigableSet<Clustering> clusterings = filter.requestedRows();
 
         // We want to remove rows for which we have values for all requested columns. We have to deal with both static and regular rows.

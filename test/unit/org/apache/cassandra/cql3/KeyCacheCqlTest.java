@@ -262,7 +262,7 @@ public class KeyCacheCqlTest extends CQLTester
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
         assertEquals(0, hits);
-        assertEquals(210, requests);
+        assertEquals(206, requests);
 
         for (int i = 0; i < 10; i++)
         {
@@ -277,7 +277,7 @@ public class KeyCacheCqlTest extends CQLTester
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
         assertEquals(200, hits);
-        assertEquals(420, requests);
+        assertEquals(412, requests);
 
         CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
 
@@ -352,7 +352,7 @@ public class KeyCacheCqlTest extends CQLTester
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
         assertEquals(0, hits);
-        assertEquals(210, requests);
+        assertEquals(206, requests);
 
         //
 
@@ -369,7 +369,7 @@ public class KeyCacheCqlTest extends CQLTester
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
         assertEquals(200, hits);
-        assertEquals(420, requests);
+        assertEquals(412, requests);
 
         dropTable("DROP TABLE %s");
 
@@ -434,7 +434,7 @@ public class KeyCacheCqlTest extends CQLTester
         hits = metrics.hits.getCount();
         requests = metrics.requests.getCount();
         assertEquals(10, hits);
-        assertEquals(120, requests);
+        assertEquals(116, requests);
     }
 
     @Test
