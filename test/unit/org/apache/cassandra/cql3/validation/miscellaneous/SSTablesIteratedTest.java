@@ -842,12 +842,12 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 2", 3, row(1, 2, 3, null));
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 3", 3, row(1, 3, 3, null));
 
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 3));
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 2", 3, row(2, 3));
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 1, row(1, 3));
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 2", 2, row(2, 3));
         executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 3", 3, row(3, 3));
 
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(3));
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 2", 3, row(3));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 1, row(3));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 2", 2, row(3));
         executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 3", 3, row(3));
 
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 1", 3, row(3, (Integer) null));
@@ -881,11 +881,13 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 2", 3, row(1, 2, 3, 1));
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 3", 3, row(1, 3, 3, 1));
 
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 3));
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 2", 3, row(2, 3));
+        // As we have the primary key liveness and all the queried columns in the first SSTable we can stop at this point
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 1, row(1, 3));
+        // As we have the primary key liveness and all the queried columns in the second SSTable we can stop at this point
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 2", 2, row(2, 3));
 
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(3));
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 2", 3, row(3));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 1, row(3));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 2", 2, row(3));
 
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 1", 3, row(3, 1));
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1 AND c = 2", 3, row(3, 1));
@@ -917,7 +919,8 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 1 AND c = 1", 3, row(null, 3));
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 2 AND c = 1", 2, row(1, 3));
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 3 AND c = 3", 3, row(3, 1));
-        executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 3, row(3));
+        // As we have the primary key liveness and all the queried columns in the first SSTable we can stop at this point
+        executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 1, row(3));
         executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 2, row(3));
         executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 3, row(1));
         executeAndCheck("SELECT s FROM %s WHERE pk = 1", 3, row((Integer) null));
@@ -973,8 +976,8 @@ public class SSTablesIteratedTest extends CQLTester
         execute("UPDATE %s USING TIMESTAMP 3001 SET v1 = ?, s = ? WHERE pk = ? AND c = ?", 3, set(3, 4), 1, 2);
         flush();
 
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 3));
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(3));
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 1, row(1, 3));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 1, row(3));
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 1, set(3, 4), 3, null));
         executeAndCheck("SELECT c, s FROM %s WHERE pk = 1 AND c = 1", 3, row(1, set(3, 4)));
 
@@ -982,6 +985,26 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 2", 3, row(3));
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 2", 3, row(1, 2, set(3, 4), 3, null));
         executeAndCheck("SELECT c, s FROM %s WHERE pk = 1 AND c = 2", 3, row(2, set(3, 4)));
+    }
+
+    @Test
+    public void testCompactAndNonCompactTableWithCounter() throws Throwable
+    {
+        for (String with : new String[]{"", " WITH COMPACT STORAGE"})
+        {
+            createTable("CREATE TABLE %s (pk int, c int, count counter, PRIMARY KEY(pk, c))" + with);
+
+            execute("UPDATE %s SET count = count + 1 WHERE pk = 1 AND c = 1");
+            flush();
+            execute("UPDATE %s SET count = count + 1 WHERE pk = 1 AND c = 1");
+            flush();
+            execute("UPDATE %s SET count = count + 1 WHERE pk = 1 AND c = 1");
+            flush();
+
+            executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 1, 3L));
+            executeAndCheck("SELECT pk, c FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 1));
+            executeAndCheck("SELECT count FROM %s WHERE pk = 1 AND c = 1", 3, row(3L));
+        }
     }
 
     @Test
@@ -1258,8 +1281,9 @@ public class SSTablesIteratedTest extends CQLTester
         flush();
 
         executeAndCheck("SELECT * FROM %s WHERE pk = 1 AND c = 1", 3, row(1, 1, null, 1));
-        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 3, row(1, null));
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 3, row((Integer) null));
+        // As we have the primary key liveness and all the queried columns in the second SSTable we can stop at this point
+        executeAndCheck("SELECT c, v1 FROM %s WHERE pk = 1 AND c = 1", 2, row(1, null));
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1 AND c = 1", 2, row((Integer) null));
 
         executeAndCheck("SELECT * FROM %s WHERE pk = 2 AND c = 1", 2, row(2, 1, 3, null));
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 2 AND c = 1", 2, row(3, null));
@@ -1333,7 +1357,9 @@ public class SSTablesIteratedTest extends CQLTester
 
         executeAndCheck("SELECT * FROM %s WHERE pk = 1", 3, row(1, null, 1));
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 1", 3, row((Integer) null, 1));
-        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1", 3, row((Integer) null));
+        // As the primary key liveness is found on the second SSTable, we can stop there as it it enough to ensure
+        // that we know that the row exist
+        executeAndCheck("SELECT v1 FROM %s WHERE pk = 1", 2, row((Integer) null));
 
         executeAndCheck("SELECT * FROM %s WHERE pk = 2", 2, row(2, 3, null));
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 2", 2, row(3, null));
@@ -1403,5 +1429,51 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE pk = 4", 3, row(4, null, 3, null, null));
         executeAndCheck("SELECT v1, v2 FROM %s WHERE pk = 4", 3, row(3, null));
         executeAndCheck("SELECT v2 FROM %s WHERE pk = 4", 3, row((Integer) null));
+    }
+
+    @Test
+    public void testNonCompactTableWithAlterTableStatement() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v1 int, PRIMARY KEY(pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 1, 1);
+        flush();
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?) USING TIMESTAMP 2000", 1, 1, 2);
+        flush();
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?) USING TIMESTAMP 3000", 1, 1, 3);
+        flush();
+
+        executeAndCheck("SELECT pk, ck, v1 FROM %s WHERE pk = 1 AND ck = 1", 1, row(1, 1, 3));
+
+        execute("ALTER TABLE %s ADD v2 int");
+
+        executeAndCheck("SELECT pk, ck, v1 FROM %s WHERE pk = 1 AND ck = 1", 1, row(1, 1, 3));
+
+        execute("ALTER TABLE %s ADD s int static");
+
+        executeAndCheck("SELECT pk, ck, v1 FROM %s WHERE pk = 1 AND ck = 1", 1, row(1, 1, 3));
+    }
+
+    @Test
+    public void testNonCompactTableWithAlterTableStatementAndStaticColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, s1 int static, v1 int, PRIMARY KEY(pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?) USING TIMESTAMP 1000", 1, 1, 1);
+        flush();
+        execute("INSERT INTO %s (pk, ck, v1) VALUES (?, ?, ?) USING TIMESTAMP 2000", 1, 1, 2);
+        flush();
+        execute("INSERT INTO %s (pk, s1) VALUES (?, ?) USING TIMESTAMP 3000", 1, 3);
+        flush();
+
+        executeAndCheck("SELECT pk, s1 FROM %s WHERE pk = 1", 3, row(1, 3));
+        executeAndCheck("SELECT DISTINCT pk, s1 FROM %s WHERE pk = 1", 3, row(1, 3));
+        executeAndCheck("SELECT s1 FROM %s WHERE pk = 1", 3, row(3));
+
+        execute("ALTER TABLE %s ADD s2 int static");
+
+        executeAndCheck("SELECT pk, s1 FROM %s WHERE pk = 1", 3, row(1, 3));
+        executeAndCheck("SELECT DISTINCT pk, s1 FROM %s WHERE pk = 1", 3, row(1, 3));
+        executeAndCheck("SELECT s1 FROM %s WHERE pk = 1", 3, row(3));
     }
 }
