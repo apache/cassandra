@@ -991,7 +991,7 @@ enable_materialized_views: true
 
 # Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
-enable_drop_compact_storage: true
+enable_drop_compact_storage: false
 
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
