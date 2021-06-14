@@ -25,6 +25,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -47,10 +48,7 @@ public class AlibabaCloudSnitchTest
     {
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
-        mkdirs();
-        cleanup();
+        ServerTestUtils.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
         StorageService.instance.initServer(0);
     }

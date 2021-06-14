@@ -140,6 +140,7 @@ public final class ServerTestUtils
         mkdirs(); // Creates the directories if they does not exists
         cleanup(); // Ensure that the directories are all empty
         CommitLog.instance.restartUnsafe();
+        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
     }
 
     /**
