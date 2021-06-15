@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.statements.AuthenticationStatement;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
@@ -47,10 +48,18 @@ public class QueryEvents
 
     private final Set<Listener> listeners = new CopyOnWriteArraySet<>();
 
+    private final PasswordObfuscator passwordObfuscator = new PasswordObfuscator();
+
     @VisibleForTesting
     public int listenerCount()
     {
         return listeners.size();
+    }
+
+    @VisibleForTesting
+    public PasswordObfuscator getObfuscator()
+    {
+        return passwordObfuscator;
     }
 
     public void registerListener(Listener listener)
@@ -72,8 +81,9 @@ public class QueryEvents
     {
         try
         {
+            final String possiblyObfuscatedQuery = listeners.size() > 0 ? possiblyObfuscateQuery(statement, query) : query;
             for (Listener listener : listeners)
-                listener.querySuccess(statement, query, options, state, queryTime, response);
+                listener.querySuccess(statement, possiblyObfuscatedQuery, options, state, queryTime, response);
         }
         catch (Throwable t)
         {
@@ -90,8 +100,9 @@ public class QueryEvents
     {
         try
         {
+            final String possiblyObfuscatedQuery = listeners.size() > 0 ? possiblyObfuscateQuery(statement, query) : query;
             for (Listener listener : listeners)
-                listener.queryFailure(statement, query, options, state, cause);
+                listener.queryFailure(statement, possiblyObfuscatedQuery, options, state, cause);
         }
         catch (Throwable t)
         {
@@ -109,8 +120,9 @@ public class QueryEvents
     {
         try
         {
+            final String possiblyObfuscatedQuery = listeners.size() > 0 ? possiblyObfuscateQuery(statement, query) : query;
             for (Listener listener : listeners)
-                listener.executeSuccess(statement, query, options, state, queryTime, response);
+                listener.executeSuccess(statement, possiblyObfuscatedQuery, options, state, queryTime, response);
         }
         catch (Throwable t)
         {
@@ -128,8 +140,9 @@ public class QueryEvents
         String query = prepared != null ? prepared.rawCQLStatement : null;
         try
         {
+            final String possiblyObfuscatedQuery = listeners.size() > 0 ? possiblyObfuscateQuery(statement, query) : query;
             for (Listener listener : listeners)
-                listener.executeFailure(statement, query, options, state, cause);
+                listener.executeFailure(statement, possiblyObfuscatedQuery, options, state, cause);
         }
         catch (Throwable t)
         {
@@ -204,8 +217,9 @@ public class QueryEvents
             {
                 try
                 {
+                    final String possiblyObfuscatedQuery = listeners.size() > 0 ? possiblyObfuscateQuery(prepared.statement, query) : query;
                     for (Listener listener : listeners)
-                        listener.prepareSuccess(prepared.statement, query, state, queryTime, response);
+                        listener.prepareSuccess(prepared.statement, possiblyObfuscatedQuery, state, queryTime, response);
                 }
                 catch (Throwable t)
                 {
@@ -225,14 +239,21 @@ public class QueryEvents
     {
         try
         {
+            final String possiblyObfuscatedQuery = listeners.size() > 0 ? possiblyObfuscateQuery(statement, query) : query;
             for (Listener listener : listeners)
-                listener.prepareFailure(statement, query, state, cause);
+                listener.prepareFailure(statement, possiblyObfuscatedQuery, state, cause);
         }
         catch (Throwable t)
         {
             noSpam1m.error("Failed notifying listeners", t);
             JVMStabilityInspector.inspectThrowable(t);
         }
+    }
+
+    private String possiblyObfuscateQuery(CQLStatement statement, String query)
+    {
+        // Statement might be null as side-effect of failed parsing, originates from QueryMessage#execute
+        return null == statement || statement instanceof AuthenticationStatement ? passwordObfuscator.obfuscate(query) : query;
     }
 
     public boolean hasListeners()
