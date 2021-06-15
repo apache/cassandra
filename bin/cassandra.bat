@@ -16,16 +16,18 @@
 
 @echo off
 if "%OS%" == "Windows_NT" setlocal
-
+REM ---- Usage:  cassandra.bat [LEGACY|PS] [INSTALL|UNINSTALL]
+REM - Note1:  Does not work if any argument contains the ! or & char
+REM - Note2:  Any extra spaces in between arguments will NOT be removed
 set ARG=%1
-set INSTALL="INSTALL"
-set UNINSTALL="UNINSTALL"
+set ARG2=%2
 
 pushd %~dp0..
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%CD%
 popd
 
 if /i "%ARG%" == "LEGACY" goto runLegacy
+if /i "%ARG%" == "PS" goto runPowerShell
 REM -----------------------------------------------------------------------------
 REM See if we have access to run unsigned powershell scripts
 for /F "delims=" %%i in ('powershell Get-ExecutionPolicy') do set PERMISSION=%%i
@@ -36,7 +38,11 @@ REM ----------------------------------------------------------------------------
 :runPowerShell
 echo Detected powershell execution permissions.  Running with enhanced startup scripts.
 set errorlevel=
-powershell /file "%CASSANDRA_HOME%\bin\cassandra.ps1" %*
+setlocal ENABLEDELAYEDEXPANSION
+  set "_args=%*"
+  set "_args=!_args:*%1 =!"
+endlocal
+powershell /file "%CASSANDRA_HOME%\bin\cassandra.ps1" %_args%
 exit /b %errorlevel%
 
 REM -----------------------------------------------------------------------------
@@ -117,8 +123,8 @@ set CASSANDRA_PARAMS=-Dcassandra -Dcassandra-foreground=yes
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.logdir="%CASSANDRA_HOME%\logs"
 set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.storagedir="%CASSANDRA_HOME%\data"
 
-if /i "%ARG%" == "INSTALL" goto doInstallOperation
-if /i "%ARG%" == "UNINSTALL" goto doInstallOperation
+if /i "%ARG2%" == "INSTALL" goto doInstallOperation
+if /i "%ARG2%" == "UNINSTALL" goto doInstallOperation
 
 echo Starting Cassandra Server
 "%JAVA_HOME%\bin\java" %JAVA_OPTS% %CASSANDRA_PARAMS% -cp %CASSANDRA_CLASSPATH% "%CASSANDRA_MAIN%"
@@ -137,7 +143,7 @@ if "%PRUNSRV%" == "" set PRUNSRV=%PATH_PRUNSRV%prunsrv
 echo trying to delete service if it has been created already
 "%PRUNSRV%" //DS//%SERVICE_JVM%
 rem quit if we're just going to uninstall
-if /i "%ARG%" == "UNINSTALL" goto finally
+if /i "%ARG2%" == "UNINSTALL" goto finally
 
 echo Installing %SERVICE_JVM%. If you get registry warnings, re-run as an Administrator
 "%PRUNSRV%" //IS//%SERVICE_JVM%
