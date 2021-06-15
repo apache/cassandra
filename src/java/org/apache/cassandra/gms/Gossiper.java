@@ -169,6 +169,17 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private volatile boolean upgradeInProgressPossible = true;
 
+    public void clearUnsafe()
+    {
+        unreachableEndpoints.clear();
+        liveEndpoints.clear();
+        justRemovedEndpoints.clear();
+        expireTimeEndpointMap.clear();
+        endpointStateMap.clear();
+        endpointShadowStateMap.clear();
+        seedsInShadowRound.clear();
+    }
+
     final Supplier<ExpiringMemoizingSupplier.ReturnValue<CassandraVersion>> upgradeFromVersionSupplier = () ->
     {
         // Once there are no prior version nodes we don't need to keep rechecking
