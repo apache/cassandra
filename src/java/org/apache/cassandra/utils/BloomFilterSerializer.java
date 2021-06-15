@@ -20,40 +20,61 @@ package org.apache.cassandra.utils;
 import java.io.DataInputStream;
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
+import org.apache.cassandra.utils.obs.MemoryLimiter;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
+
+import static org.apache.cassandra.utils.FilterFactory.AlwaysPresent;
 
 public final class BloomFilterSerializer
 {
-    private BloomFilterSerializer()
+    private final static Logger logger = LoggerFactory.getLogger(BloomFilterSerializer.class);
+
+    private final MemoryLimiter memoryLimiter;
+
+    public BloomFilterSerializer(MemoryLimiter memoryLimiter)
     {
+        this.memoryLimiter = memoryLimiter;
     }
 
-    public static void serialize(BloomFilter bf, DataOutputPlus out) throws IOException
+    public void serialize(BloomFilter bf, DataOutputPlus out) throws IOException
     {
         out.writeInt(bf.hashCount);
         bf.bitset.serialize(out);
     }
 
     @SuppressWarnings("resource")
-    public static BloomFilter deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
+    public IFilter deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
     {
         int hashes = in.readInt();
-        IBitSet bs = OffHeapBitSet.deserialize(in, oldBfFormat);
-
+        IBitSet bs;
+        try
+        {
+            bs = OffHeapBitSet.deserialize(in, oldBfFormat, memoryLimiter);
+        }
+        catch (MemoryLimiter.ReachedMemoryLimitException | OutOfMemoryError e)
+        {
+            logger.error("Failed to create Bloom filter during deserialization: ({}) - " +
+                         "continuing but this will have severe performance implications, consider increasing FP chance or" +
+                         "lowering number of sstables through compaction", e.getMessage());
+            return AlwaysPresent;
+        }
         return new BloomFilter(hashes, bs);
     }
 
     /**
      * Calculates a serialized size of the given Bloom Filter
-     * @param bf Bloom filter to calculate serialized size
-     * @see org.apache.cassandra.io.ISerializer#serialize(Object, org.apache.cassandra.io.util.DataOutputPlus)
      *
+     * @param bf Bloom filter to calculate serialized size
      * @return serialized size of the given bloom filter
+     * @see org.apache.cassandra.io.ISerializer#serialize(Object, org.apache.cassandra.io.util.DataOutputPlus)
      */
-    public static long serializedSize(BloomFilter bf)
+    public long serializedSize(BloomFilter bf)
     {
         int size = TypeSizes.sizeof(bf.hashCount); // hash count
         size += bf.bitset.serializedSize();
