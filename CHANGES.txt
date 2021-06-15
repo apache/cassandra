@@ -3,6 +3,7 @@
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 
 4.0-rc2
+ * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
  * Fix queries on empty partitions with static data (CASSANDRA-16686)
  * Keep python driver in artifacts (CASSANDRA-16700)
  * Improve AuditLogging documentation and logback.xml(CASSANDRA-16682)
