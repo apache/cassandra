@@ -25,7 +25,7 @@ To avoid having the sstable files to be loaded compacted while reading them, pla
 
 ref: https://issues.apache.org/jira/browse/CASSANDRA-1278
 
-Cassandra must be stopped before this tool is executed, or unexpected results will occur. Note: the script does not verify that Cassandra is stopped.
+If loading directly from a source cluster, Cassandra must be stopped on the source cluster before this tool is executed, or unexpected results will occur. Note: the script does not verify that Cassandra is stopped.
 
 Usage
 ^^^^^
