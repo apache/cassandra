@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.utils.obs;
 
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -37,18 +35,25 @@ import org.apache.cassandra.utils.concurrent.Ref;
  */
 public class OffHeapBitSet implements IBitSet
 {
+    /**
+     * The maximum memory that can be used by bloom filters, in megabytes, overall.
+     * The default is unlimited, a limit should only be set as a last resort measure.
+     */
+    @VisibleForTesting
     private final Memory bytes;
+    private final MemoryLimiter memoryLimiter;
 
-    public OffHeapBitSet(long numBits)
+    public OffHeapBitSet(long numBits, MemoryLimiter memoryLimiter) throws MemoryLimiter.ReachedMemoryLimitException
     {
-        /** returns the number of 64 bit words it would take to hold numBits */
+        this.memoryLimiter = memoryLimiter;
+        // returns the number of 64 bit words it would take to hold numBits
         long wordCount = (((numBits - 1) >>> 6) + 1);
         if (wordCount > Integer.MAX_VALUE)
             throw new UnsupportedOperationException("Bloom filter size is > 16GB, reduce the bloom_filter_fp_chance");
         try
         {
             long byteCount = wordCount * 8L;
-            bytes = Memory.allocate(byteCount);
+            bytes = allocate(byteCount, memoryLimiter);
         }
         catch (OutOfMemoryError e)
         {
@@ -58,9 +63,31 @@ public class OffHeapBitSet implements IBitSet
         clear();
     }
 
-    private OffHeapBitSet(Memory bytes)
+    private OffHeapBitSet(Memory bytes, MemoryLimiter memoryLimiter)
     {
+        this.memoryLimiter = memoryLimiter;
         this.bytes = bytes;
+    }
+
+    private static Memory allocate(long byteCount, MemoryLimiter memoryLimiter) throws MemoryLimiter.ReachedMemoryLimitException
+    {
+        memoryLimiter.increment(byteCount);
+        try
+        {
+            return Memory.allocate(byteCount);
+        }
+        catch (OutOfMemoryError e)
+        {
+            memoryLimiter.decrement(byteCount);
+            throw e;
+        }
+    }
+
+    private static void release(Memory memory, MemoryLimiter memoryLimiter)
+    {
+        long size = memory.size();
+        memory.free();
+        memoryLimiter.decrement(size);
     }
 
     public long capacity()
@@ -145,10 +172,10 @@ public class OffHeapBitSet implements IBitSet
     }
 
     @SuppressWarnings("resource")
-    public static OffHeapBitSet deserialize(DataInputStream in, boolean oldBfFormat) throws IOException
+    public static OffHeapBitSet deserialize(DataInputStream in, boolean oldBfFormat, MemoryLimiter memoryLimiter) throws IOException, MemoryLimiter.ReachedMemoryLimitException
     {
         long byteCount = in.readInt() * 8L;
-        Memory memory = Memory.allocate(byteCount);
+        Memory memory = allocate(byteCount, memoryLimiter);
         if (oldBfFormat)
         {
             for (long i = 0; i < byteCount; )
@@ -168,12 +195,12 @@ public class OffHeapBitSet implements IBitSet
         {
             FBUtilities.copy(in, new MemoryOutputStream(memory), byteCount);
         }
-        return new OffHeapBitSet(memory);
+        return new OffHeapBitSet(memory, memoryLimiter);
     }
 
     public void close()
     {
-        bytes.free();
+        release(bytes, memoryLimiter);
     }
 
     @Override
@@ -192,7 +219,7 @@ public class OffHeapBitSet implements IBitSet
     {
         // Similar to open bitset.
         long h = 0;
-        for (long i = bytes.size(); --i >= 0;)
+        for (long i = bytes.size(); --i >= 0; )
         {
             h ^= bytes.getByte(i);
             h = (h << 1) | (h >>> 63); // rotate left
@@ -202,6 +229,6 @@ public class OffHeapBitSet implements IBitSet
 
     public String toString()
     {
-        return "[OffHeapBitSet]";
+        return String.format("[OffHeapBitSet %s]", FBUtilities.prettyPrintMemory(serializedSize()));
     }
 }

@@ -20,14 +20,14 @@ package org.apache.cassandra.utils.obs;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
-import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -36,6 +36,7 @@ import static org.junit.Assert.fail;
 public class OffHeapBitSetTest
 {
     private static final Random random = new Random();
+    private static final MemoryLimiter memoryLimiter = new MemoryLimiter(1L << 30, "Allocating %s for bloom filter would reach max of %s (current %s)");
 
     static void compare(IBitSet bs, IBitSet newbs)
     {
@@ -44,9 +45,9 @@ public class OffHeapBitSetTest
             Assert.assertEquals(bs.get(i), newbs.get(i));
     }
 
-    private void testOffHeapSerialization(boolean oldBfFormat) throws IOException
+    private void testOffHeapSerialization(boolean oldBfFormat) throws Exception
     {
-        try (OffHeapBitSet bs = new OffHeapBitSet(100000))
+        try (OffHeapBitSet bs = new OffHeapBitSet(100000, memoryLimiter))
         {
             for (long i = 0; i < bs.capacity(); i++)
                 if (random.nextBoolean())
@@ -59,7 +60,7 @@ public class OffHeapBitSetTest
                 bs.serialize(out);
 
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.getData()));
-            try (OffHeapBitSet newbs = OffHeapBitSet.deserialize(in, oldBfFormat))
+            try (OffHeapBitSet newbs = OffHeapBitSet.deserialize(in, oldBfFormat, memoryLimiter))
             {
                 compare(bs, newbs);
             }
@@ -67,17 +68,17 @@ public class OffHeapBitSetTest
     }
 
     @Test
-    public void testSerialization() throws IOException
+    public void testSerialization() throws Exception
     {
         testOffHeapSerialization(true);
         testOffHeapSerialization(false);
     }
 
     @Test
-    public void testBitSetGetClear()
+    public void testBitSetGetClear() throws Exception
     {
         int size = Integer.MAX_VALUE / 4000;
-        try (OffHeapBitSet bs = new OffHeapBitSet(size))
+        try (OffHeapBitSet bs = new OffHeapBitSet(size, memoryLimiter))
         {
             List<Integer> randomBits = Lists.newArrayList();
             for (int i = 0; i < 10; i++)
@@ -98,16 +99,16 @@ public class OffHeapBitSetTest
     }
 
     @Test(expected = UnsupportedOperationException.class)
-    public void testUnsupportedLargeSize()
+    public void testUnsupportedLargeSize() throws Exception
     {
         long size = 64L * Integer.MAX_VALUE + 1; // Max size 16G * 8 bits
-        OffHeapBitSet bs = new OffHeapBitSet(size);
+        OffHeapBitSet bs = new OffHeapBitSet(size, memoryLimiter);
     }
 
     @Test
-    public void testInvalidIndex()
+    public void testInvalidIndex() throws Exception
     {
-        OffHeapBitSet bs = new OffHeapBitSet(10);
+        OffHeapBitSet bs = new OffHeapBitSet(10, memoryLimiter);
         int invalidIdx[] = {-1, 64, 1000};
 
         for (int i : invalidIdx)
