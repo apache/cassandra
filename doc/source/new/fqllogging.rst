@@ -38,6 +38,10 @@ Some of the features of FQL are:
 FQL logs all successful Cassandra Query Language (CQL) requests, both events that modify the data and those that query. 
 While audit logs also include CQL requests, FQL logs only the CQL request. This difference means that FQL can be used to replay or compare logs, which audit logging cannot. FQL is useful for debugging, performance benchmarking, testing and auditing CQL queries, while audit logs are useful for compliance.
 
+Currently DCL statements containing passwords are logged for informational purposes but for security reasons they are not available for replay.
+Replay of those statements will be unsuccessful operation because everything after the word password in a DCL statement
+will be obfuscated as *******.
+
 In performance testing, FQL appears to have little or no overhead in ``WRITE`` only workloads, and a minor overhead in ``MIXED`` workload.
 
 Query information logged
