@@ -100,7 +100,8 @@ public class StubIndex implements Index
                               RegularAndStaticColumns columns,
                               int nowInSec,
                               WriteContext ctx,
-                              IndexTransaction.Type transactionType)
+                              IndexTransaction.Type transactionType,
+                              Memtable memtable)
     {
         return new Indexer()
         {
@@ -206,10 +207,5 @@ public class StubIndex implements Index
     public Searcher searcherFor(final ReadCommand command)
     {
         return (controller) -> Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, controller);
-    }
-
-    public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand readCommand)
-    {
-        return (iter, command) -> iter;
     }
 }

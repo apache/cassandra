@@ -197,7 +197,7 @@ public abstract class AbstractStrategyHolder
                                                                 boolean isTransient,
                                                                 MetadataCollector collector,
                                                                 SerializationHeader header,
-                                                                Collection<Index> indexes,
+                                                                Collection<Index.Group> indexGroups,
                                                                 LifecycleNewTracker lifecycleNewTracker);
 
     /**

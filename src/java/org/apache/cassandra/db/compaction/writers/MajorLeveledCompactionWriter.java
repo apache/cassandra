@@ -100,7 +100,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                 cfs.metadata,
                 new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
                 SerializationHeader.make(cfs.metadata(), txn.originals()),
-                cfs.indexManager.listIndexes(),
+                cfs.indexManager.listIndexGroups(),
                 txn));
         partitionsWritten = 0;
         sstablesWritten = 0;

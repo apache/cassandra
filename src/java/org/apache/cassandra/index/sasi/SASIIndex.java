@@ -30,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -46,7 +47,7 @@ import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.conf.IndexMode;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
 import org.apache.cassandra.index.sasi.disk.PerSSTableIndexWriter;
-import org.apache.cassandra.index.sasi.plan.QueryPlan;
+import org.apache.cassandra.index.sasi.plan.SASIIndexSearcher;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
@@ -70,7 +71,8 @@ public class SASIIndex implements Index, INotificationConsumer
     {
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs,
                                                        Set<Index> indexes,
-                                                       Collection<SSTableReader> sstablesToRebuild)
+                                                       Collection<SSTableReader> sstablesToRebuild,
+                                                       boolean isFullRebuild)
         {
             NavigableMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> sstables = new TreeMap<>((a, b) -> {
                 return Integer.compare(a.descriptor.generation, b.descriptor.generation);
@@ -165,9 +167,10 @@ public class SASIIndex implements Index, INotificationConsumer
         return Collections.emptyMap();
     }
 
+    @Override
     public void register(IndexRegistry registry)
     {
-        registry.registerIndex(this);
+        registry.registerIndex(this, this, () -> new SASIIndexGroup(this));
     }
 
     public IndexMetadata getIndexMetadata()
@@ -250,12 +253,7 @@ public class SASIIndex implements Index, INotificationConsumer
     {}
 
     @Override
-    public boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
-    {
-        return false;
-    }
-
-    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext context, IndexTransaction.Type transactionType)
+    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext context, IndexTransaction.Type transactionType, Memtable memtable)
     {
         return new Indexer()
         {
@@ -303,17 +301,12 @@ public class SASIIndex implements Index, INotificationConsumer
     {
         TableMetadata config = command.metadata();
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(config.id);
-        return controller -> new QueryPlan(cfs, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller);
+        return new SASIIndexSearcher(cfs, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS));
     }
 
-    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, OperationType opType)
+    public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker)
     {
-        return newWriter(baseCfs.metadata().partitionKeyType, descriptor, Collections.singletonMap(index.getDefinition(), index), opType);
-    }
-
-    public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand command)
-    {
-        return (partitionIterator, readCommand) -> partitionIterator;
+        return newWriter(baseCfs.metadata().partitionKeyType, descriptor, Collections.singletonMap(index.getDefinition(), index), tracker.opType());
     }
 
     public IndexBuildingSupport getBuildTaskSupport()

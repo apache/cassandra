@@ -18,8 +18,10 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -88,10 +90,11 @@ public class BigFormat implements SSTableFormat
                                   MetadataCollector metadataCollector,
                                   SerializationHeader header,
                                   Collection<SSTableFlushObserver> observers,
-                                  LifecycleNewTracker lifecycleNewTracker)
+                                  LifecycleNewTracker lifecycleNewTracker,
+                                  Set<Component> indexComponents)
         {
             SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
-            return new BigTableWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, lifecycleNewTracker);
+            return new BigTableWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, lifecycleNewTracker, indexComponents);
         }
     }
 

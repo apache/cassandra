@@ -25,20 +25,31 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -46,17 +57,11 @@ import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-
-import org.junit.Assert;
-
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 public class SSTableFlushObserverTest
 {
@@ -102,7 +107,8 @@ public class SSTableFlushObserverTest
                                                    new MetadataCollector(cfm.comparator).sstableLevel(0),
                                                    new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS),
                                                    Collections.singletonList(observer),
-                                                   transaction);
+                                                   transaction,
+                                                   Collections.emptySet());
 
         SSTableReader reader = null;
         Multimap<ByteBuffer, Cell<?>> expected = ArrayListMultimap.create();
@@ -202,7 +208,19 @@ public class SSTableFlushObserverTest
         }
 
         @Override
-        public void nextUnfilteredCluster(Unfiltered row)
+        public void partitionLevelDeletion(DeletionTime deletionTime, long position)
+        {
+
+        }
+
+        @Override
+        public void staticRow(Row staticRow, long position)
+        {
+
+        }
+
+        @Override
+        public void nextUnfilteredCluster(Unfiltered row, long position)
         {
             if (row.isRow())
                 ((Row) row).forEach((c) -> rows.put(currentKey, (Cell<?>) c));

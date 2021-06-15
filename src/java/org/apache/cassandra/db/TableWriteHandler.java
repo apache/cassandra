@@ -23,5 +23,5 @@ import org.apache.cassandra.index.transactions.UpdateTransaction;
 
 public interface TableWriteHandler
 {
-    void write(PartitionUpdate update, WriteContext context, UpdateTransaction updateTransaction);
+    void write(PartitionUpdate update, WriteContext context, boolean updateIndexes);
 }
