@@ -19,13 +19,13 @@ package org.apache.cassandra;
  *
  */
 
-import java.io.Closeable;
-import java.io.EOFException;
-import java.io.File;
-import java.io.IOError;
+import java.io.*;
+import java.lang.reflect.Field;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.file.*;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
@@ -112,6 +112,8 @@ public class Util
     private static final Logger logger = LoggerFactory.getLogger(Util.class);
 
     private static List<UUID> hostIdPool = new ArrayList<>();
+
+    public final static TimeUnit supportedMTimeGranularity = getSupportedMTimeGranularity();
 
     public static IPartitioner testPartitioner()
     {
@@ -360,7 +362,7 @@ public class Util
             return getAllUnfiltered(command, controller);
         }
     }
-    
+
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command, ReadExecutionController controller)
     {
         List<ImmutableBTreePartition> results = new ArrayList<>();
@@ -384,7 +386,7 @@ public class Util
             return getAll(command, controller);
         }
     }
-    
+
     public static List<FilteredPartition> getAll(ReadCommand command, ReadExecutionController controller)
     {
         List<FilteredPartition> results = new ArrayList<>();
@@ -443,7 +445,7 @@ public class Util
             return getOnlyPartitionUnfiltered(cmd, controller);
         }
     }
-    
+
     public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd, ReadExecutionController controller)
     {
         try (UnfilteredPartitionIterator iterator = cmd.executeLocally(controller))
@@ -461,7 +463,7 @@ public class Util
     {
         return getOnlyPartition(cmd, false);
     }
-    
+
     public static FilteredPartition getOnlyPartition(ReadCommand cmd, boolean trackRepairedStatus)
     {
         try (ReadExecutionController executionController = cmd.executionController(trackRepairedStatus);
@@ -948,4 +950,19 @@ public class Util
         return targetBasePath.toPath().resolve(relative).toFile();
     }
 
+    private static TimeUnit getSupportedMTimeGranularity() {
+        try
+        {
+            Path p = Files.createTempFile(Util.class.getSimpleName(), "dummy-file");
+            FileTime ft = Files.getLastModifiedTime(p);
+            Files.deleteIfExists(p);
+            Field f = FileTime.class.getDeclaredField("unit");
+            f.setAccessible(true);
+            return (TimeUnit) f.get(ft);
+        }
+        catch (IOException |  NoSuchFieldException | IllegalAccessException e)
+        {
+            throw new AssertionError("Failed to read supported file modification time granularity");
+        }
+    }
 }

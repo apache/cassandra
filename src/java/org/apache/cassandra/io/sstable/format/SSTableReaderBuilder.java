@@ -25,6 +25,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -43,9 +44,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.ImmutableMap;
 
 public abstract class SSTableReaderBuilder
 {
@@ -88,30 +92,6 @@ public abstract class SSTableReaderBuilder
     }
 
     public abstract SSTableReader build();
-
-    public SSTableReaderBuilder dfile(FileHandle dfile)
-    {
-        this.dfile = dfile;
-        return this;
-    }
-
-    public SSTableReaderBuilder ifile(FileHandle ifile)
-    {
-        this.ifile = ifile;
-        return this;
-    }
-
-    public SSTableReaderBuilder bf(IFilter bf)
-    {
-        this.bf = bf;
-        return this;
-    }
-
-    public SSTableReaderBuilder summary(IndexSummary summary)
-    {
-        this.summary = summary;
-        return this;
-    }
 
     /**
      * Load index summary, first key and last key from Summary.db file if it exists.
@@ -226,17 +206,29 @@ public abstract class SSTableReaderBuilder
         }
     }
 
-    /**
-     * Load bloom filter from Filter.db file.
-     *
-     * @throws IOException
-     */
-    IFilter loadBloomFilter() throws IOException
+    public static IFilter loadBloomFilter(Path path, boolean oldFormat)
     {
-        try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(Paths.get(descriptor.filenameFor(Component.FILTER))))))
+        if (Files.exists(path))
         {
-            return BloomFilterSerializer.deserialize(stream, descriptor.version.hasOldBfFormat());
+            IFilter filter = null;
+            try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(path))))
+            {
+                filter = BloomFilter.serializer.deserialize(stream, oldFormat);
+                return filter;
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                logger.error("Failed to deserialize Bloom filter: {}", t.getMessage());
+                if (filter != null)
+                    filter.close();
+            }
         }
+        else
+        {
+            logger.error("Bloom filter {} not found", path);
+        }
+        return null;
     }
 
     public static class ForWriter extends SSTableReaderBuilder
@@ -250,6 +242,30 @@ public abstract class SSTableReaderBuilder
                          SerializationHeader header)
         {
             super(descriptor, metadataRef, maxDataAge, components, statsMetadata, openReason, header);
+        }
+
+        public SSTableReaderBuilder.ForWriter dfile(FileHandle dfile)
+        {
+            this.dfile = dfile;
+            return this;
+        }
+
+        public SSTableReaderBuilder.ForWriter ifile(FileHandle ifile)
+        {
+            this.ifile = ifile;
+            return this;
+        }
+
+        public SSTableReaderBuilder.ForWriter bf(IFilter bf)
+        {
+            this.bf = bf;
+            return this;
+        }
+
+        public SSTableReaderBuilder.ForWriter summary(IndexSummary summary)
+        {
+            this.summary = summary;
+            return this;
         }
 
         @Override
@@ -276,6 +292,7 @@ public abstract class SSTableReaderBuilder
         @Override
         public SSTableReader build()
         {
+            assert dfile == null && ifile == null && summary == null && bf == null;
             String dataFilePath = descriptor.filenameFor(Component.DATA);
             long fileLength = new File(dataFilePath).length();
             logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
@@ -346,6 +363,7 @@ public abstract class SSTableReaderBuilder
         @Override
         public SSTableReader build()
         {
+            assert dfile == null && ifile == null && summary == null && bf == null;
             String dataFilePath = descriptor.filenameFor(Component.DATA);
             long fileLength = new File(dataFilePath).length();
             logger.info("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
@@ -381,11 +399,10 @@ public abstract class SSTableReaderBuilder
                           DiskOptimizationStrategy optimizationStrategy,
                           StatsMetadata statsMetadata) throws IOException
         {
-            if (metadata.params.bloomFilterFpChance == 1.0)
+            if (!BloomFilter.shouldUseBloomFilter(metadata.params.bloomFilterFpChance))
             {
                 // bf is disabled.
                 load(false, !isOffline, optimizationStrategy, statsMetadata, components);
-                bf = FilterFactory.AlwaysPresent;
             }
             else if (!components.contains(Component.PRIMARY_INDEX)) // What happens if filter component and primary index is missing?
             {
@@ -397,15 +414,21 @@ public abstract class SSTableReaderBuilder
             {
                 // bf is enabled, but filter component is missing.
                 load(!isOffline, !isOffline, optimizationStrategy, statsMetadata, components);
-                if (isOffline)
-                    bf = FilterFactory.AlwaysPresent;
+            }
+            else if (!BloomFilter.isFPChanceDiffNeglectable(metadata.params.bloomFilterFpChance, validationMetadata.bloomFilterFPChance) && BloomFilter.recreateOnFPChanceChange)
+            {
+                // bf is enabled, but fp chance changed
+                load(!isOffline, !isOffline, optimizationStrategy, statsMetadata, components);
             }
             else
             {
                 // bf is enabled and fp chance matches the currently configured value.
-                load(false, !isOffline, optimizationStrategy, statsMetadata, components);
-                bf = loadBloomFilter();
+                bf = loadBloomFilter(Paths.get(descriptor.filenameFor(Component.FILTER)), descriptor.version.hasOldBfFormat());
+                load(bf == null, !isOffline, optimizationStrategy, statsMetadata, components);
             }
+            // if the filter was neither loaded nor created, or we encountered some problems, we fallback to pass-through filter
+            if (bf == null)
+                bf = FilterFactory.AlwaysPresent;
         }
 
         /**
@@ -448,7 +471,11 @@ public abstract class SSTableReaderBuilder
                     if (saveSummaryIfCreated)
                         SSTableReader.saveSummary(descriptor, first, last, summary);
                     if (recreateBloomFilter)
+                    {
                         SSTableReader.saveBloomFilter(descriptor, bf);
+                        ValidationMetadata updatedValidationMetadata = new ValidationMetadata(validationMetadata.partitioner, metadata.params.bloomFilterFpChance);
+                        descriptor.getMetadataSerializer().updateSSTableMetadata(descriptor, ImmutableMap.of(MetadataType.VALIDATION, updatedValidationMetadata));
+                    }
                 }
             }
             catch (Throwable t)
@@ -461,6 +488,12 @@ public abstract class SSTableReaderBuilder
                 if (dfile != null)
                 {
                     dfile.close();
+                }
+
+                if (bf != null)
+                {
+                    bf.close();
+                    bf = null;
                 }
 
                 if (summary != null)
