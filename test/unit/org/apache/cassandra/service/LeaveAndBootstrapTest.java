@@ -87,6 +87,7 @@ public class LeaveAndBootstrapTest
 
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+        Gossiper.instance.clearUnsafe();
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
@@ -158,6 +159,7 @@ public class LeaveAndBootstrapTest
         final int RING_SIZE = 10;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+        Gossiper.instance.clearUnsafe();
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
@@ -461,6 +463,7 @@ public class LeaveAndBootstrapTest
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+        Gossiper.instance.clearUnsafe();
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
@@ -538,6 +541,7 @@ public class LeaveAndBootstrapTest
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+        Gossiper.instance.clearUnsafe();
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
@@ -580,6 +584,7 @@ public class LeaveAndBootstrapTest
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+        Gossiper.instance.clearUnsafe();
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
@@ -630,6 +635,7 @@ public class LeaveAndBootstrapTest
         StorageService ss = StorageService.instance;
         TokenMetadata tmd = ss.getTokenMetadata();
         tmd.clearUnsafe();
+        Gossiper.instance.clearUnsafe();
         IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
