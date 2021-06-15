@@ -279,4 +279,12 @@ public class MetadataSerializer implements IMetadataSerializer
         FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
 
     }
+
+    public void updateSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> updatedComponents) throws IOException
+    {
+        Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
+        currentComponents.putAll(updatedComponents);
+        rewriteSSTableMetadata(descriptor, currentComponents);
+    }
+
 }

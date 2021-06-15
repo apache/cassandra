@@ -100,4 +100,11 @@ public interface IMetadataSerializer
      * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.
      */
     void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException;
+
+    /**
+     * Updates the sstable metadata components (works similarly to {@link #rewriteSSTableMetadata(Descriptor, Map)} but
+     * only updates the provided components rather than replacing the whole metadata map).
+     */
+    void updateSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> updatedComponents) throws IOException;
+
 }

@@ -740,7 +740,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         File filterFile = new File(descriptor.filenameFor(Component.FILTER));
         try (DataOutputStreamPlus stream = new BufferedDataOutputStreamPlus(new FileOutputStream(filterFile)))
         {
-            BloomFilterSerializer.serialize((BloomFilter) filter, stream);
+            BloomFilter.serializer.serialize((BloomFilter) filter, stream);
             stream.flush();
         }
         catch (IOException e)
