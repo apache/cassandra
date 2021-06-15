@@ -228,6 +228,7 @@ have nodetool && have cqlsh &&
                         ;;
                 esac
             fi
+
         elif [[ $COMP_CWORD -eq 3 ]] ; then
             case "${COMP_WORDS[1]}" in
                 cleanup|compact|flush|garbagecollect|getcompactionthreshold|getendpoints|getsstables|rebuild_index|refresh|relocatesstables|repair|scrub|setcompactionthreshold|tablehistograms|toppartitions|verify)
