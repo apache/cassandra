@@ -120,7 +120,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
         new TestCase()
                 .nodes(2)
                 .upgrade(Versions.Major.v22, Versions.Major.v30)
-                .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
+                .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
                 .setup(cluster -> {
                     cluster.schemaChange(String.format(
                             "CREATE TABLE %s.%s (key int, c1 int, c2 int, c3 int, PRIMARY KEY (key, c1, c2)) WITH COMPACT STORAGE",
@@ -164,6 +164,10 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
                                     KEYSPACE, table, partitions - 8, rowsPerPartition - 3),
 
                     });
+
+                }).runBeforeNodeRestart((cluster, node) ->
+                {
+                    cluster.get(node).config().set("enable_drop_compact_storage", true);
 
                 }).runAfterClusterUpgrade(cluster ->
                 {
