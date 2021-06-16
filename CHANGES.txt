@@ -1,6 +1,8 @@
 4.0.1
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
+Merged from 3.0:
+ * Clean transaction log leftovers at the beginning of sstablelevelreset and sstableofflinerelevel (CASSANDRA-12519)
 
 4.0-rc2
  * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
