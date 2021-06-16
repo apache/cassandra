@@ -255,10 +255,13 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 continue;
             }
 
-            DecoratedKey newStart = latest.firstKeyBeyond(lowerbound);
-            assert newStart != null;
-            SSTableReader replacement = latest.cloneWithNewStart(newStart, runOnClose);
-            transaction.update(replacement, true);
+            if (!transaction.isObsolete(latest))
+            {
+                DecoratedKey newStart = latest.firstKeyBeyond(lowerbound);
+                assert newStart != null;
+                SSTableReader replacement = latest.cloneWithNewStart(newStart, runOnClose);
+                transaction.update(replacement, true);
+            }
         }
     }
 
@@ -310,6 +313,8 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             return;
         }
 
+        // Open fully completed sstables early. This is also required for the final sstable in a set (where newWriter
+        // is null) to permit the compilation of a canonical set of sstables (see View.select).
         if (preemptiveOpenInterval != Long.MAX_VALUE)
         {
             // we leave it as a tmp file, but we open it and add it to the Tracker

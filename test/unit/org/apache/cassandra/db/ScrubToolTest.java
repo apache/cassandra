@@ -37,6 +37,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 
@@ -67,6 +68,7 @@ public class ScrubToolTest
 
     String ksName;
     Keyspace keyspace;
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -101,7 +103,7 @@ public class ScrubToolTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
         tool.assertOnCleanExit();
@@ -121,10 +123,10 @@ public class ScrubToolTest
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"), (byte) 0x7A);
 
         // with skipCorrupted == true, the corrupt rows will be skipped
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-s", ksName, COUNTER_CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-s", ksName, COUNTER_CF);
         Assertions.assertThat(tool.getStdout()).contains("0 empty");
         Assertions.assertThat(tool.getStdout()).contains("partitions that were skipped");
         tool.assertOnCleanExit();
@@ -143,7 +145,9 @@ public class ScrubToolTest
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+        //use 0x00 instead of the usual 0x7A because if by any chance it's able to iterate over the corrupt
+        //section, then we get many out-of-order errors, which we don't want
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"), (byte) 0x0);
 
         // with skipCorrupted == false, the scrub is expected to fail
         try
@@ -151,7 +155,8 @@ public class ScrubToolTest
             ToolRunner.invokeClass(StandaloneScrubber.class, ksName, COUNTER_CF);
             fail("Expected a CorruptSSTableException to be thrown");
         }
-        catch (IOError err) {
+        catch (IOError err)
+        {
             assertTrue(err.getCause() instanceof CorruptSSTableException);
         }
     }
@@ -165,7 +170,7 @@ public class ScrubToolTest
         fillCF(cfs, 10);
         assertOrderedAll(cfs, 10);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-n", ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-n", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("10 partitions in new sstable and 0 empty");
         tool.assertOnCleanExit();
@@ -182,7 +187,7 @@ public class ScrubToolTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate_only", ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate_only", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Not continuing with scrub, since '--header-fix validate-only' was specified.");
         tool.assertOnCleanExit();
         assertOrderedAll(cfs, 1);
@@ -196,7 +201,7 @@ public class ScrubToolTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate", ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "validate", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
         tool.assertOnCleanExit();
@@ -211,7 +216,7 @@ public class ScrubToolTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix-only", ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix-only", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Not continuing with scrub, since '--header-fix fix-only' was specified.");
         tool.assertOnCleanExit();
         assertOrderedAll(cfs, 1);
@@ -225,7 +230,7 @@ public class ScrubToolTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix", ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "fix", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
         tool.assertOnCleanExit();
@@ -240,7 +245,7 @@ public class ScrubToolTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "off", ksName, CF);
+        ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-e", "off", ksName, CF);
         Assertions.assertThat(tool.getStdout()).contains("Pre-scrub sstables snapshotted into");
         Assertions.assertThat(tool.getStdout()).contains("1 partitions in new sstable and 0 empty");
         tool.assertOnCleanExit();
