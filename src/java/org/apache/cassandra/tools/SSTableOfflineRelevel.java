@@ -31,6 +31,7 @@ import java.util.Set;
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
@@ -93,8 +94,11 @@ public class SSTableOfflineRelevel
                     keyspace,
                     columnfamily));
 
+        // remove any leftovers in the transaction log
         Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnfamily);
+        LifecycleTransaction.removeUnfinishedLeftovers(cfs.metadata);
+
         Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
         Set<SSTableReader> sstables = new HashSet<>();
         for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())
