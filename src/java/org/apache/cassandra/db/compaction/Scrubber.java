@@ -175,12 +175,23 @@ public class Scrubber implements Closeable
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge);
              Refs<SSTableReader> refs = Refs.ref(Collections.singleton(sstable)))
         {
-            nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
-            if (indexAvailable())
+            try
             {
-                // throw away variable so we don't have a side effect in the assert
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
+                nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
+                if (indexAvailable())
+                {
+                    // throw away variable so we don't have a side effect in the assert
+                    long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
+                    assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
+                }
+            }
+            catch (Throwable ex)
+            {
+                throwIfFatal(ex);
+                nextIndexKey = null;
+                nextPartitionPositionFromIndex = dataFile.length();
+                if (indexFile != null)
+                    indexFile.seek(indexFile.length());
             }
 
             StatsMetadata metadata = sstable.getSSTableMetadata();
@@ -210,17 +221,21 @@ public class Scrubber implements Closeable
                     // check for null key below
                 }
 
-                updateIndexKey();
-
-                long dataStart = dataFile.getFilePointer();
-
                 long dataStartFromIndex = -1;
                 long dataSizeFromIndex = -1;
-                if (currentIndexKey != null)
+
+                updateIndexKey();
+
+                if (indexAvailable())
                 {
-                    dataStartFromIndex = currentPartitionPositionFromIndex + 2 + currentIndexKey.remaining();
-                    dataSizeFromIndex = nextPartitionPositionFromIndex - dataStartFromIndex;
+                    if (currentIndexKey != null)
+                    {
+                        dataStartFromIndex = currentPartitionPositionFromIndex + 2 + currentIndexKey.remaining();
+                        dataSizeFromIndex = nextPartitionPositionFromIndex - dataStartFromIndex;
+                    }
                 }
+
+                long dataStart = dataFile.getFilePointer();
 
                 String keyName = key == null ? "(unreadable key)" : keyString(key);
                 outputHandler.debug(String.format("partition %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSizeFromIndex)));
@@ -308,11 +323,8 @@ public class Scrubber implements Closeable
             }
 
             // finish obsoletes the old sstable
+            transaction.obsoleteOriginals();
             finished.addAll(writer.setRepairedAt(badPartitions > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt).finish());
-        }
-        catch (IOException e)
-        {
-            throw Throwables.propagate(e);
         }
         finally
         {
@@ -400,6 +412,8 @@ public class Scrubber implements Closeable
             outputHandler.warn("Error reading index file", th);
             nextIndexKey = null;
             nextPartitionPositionFromIndex = dataFile.length();
+            if (indexFile != null)
+                indexFile.seek(indexFile.length());
         }
     }
 
