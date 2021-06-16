@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -75,10 +76,14 @@ public class SSTableLevelResetter
                 System.exit(1);
             }
 
+            // remove any leftovers in the transaction log
             Keyspace keyspace = Keyspace.openWithoutSSTables(keyspaceName);
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnfamily);
+            LifecycleTransaction.removeUnfinishedLeftovers(cfs.metadata);
+
+            Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
             boolean foundSSTable = false;
-            for (Map.Entry<Descriptor, Set<Component>> sstable : cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW).list().entrySet())
+            for (Map.Entry<Descriptor, Set<Component>> sstable : lister.list().entrySet())
             {
                 if (sstable.getValue().contains(Component.STATS))
                 {
