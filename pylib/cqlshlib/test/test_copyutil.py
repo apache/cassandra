@@ -20,10 +20,14 @@
 
 import unittest
 
-from cassandra.metadata import MIN_LONG, Murmur3Token, TokenMap
+from cassandra.metadata import MIN_LONG, Murmur3Token
 from cassandra.policies import SimpleConvictionPolicy
 from cassandra.pool import Host
-from unittest.mock import Mock
+
+try:
+    from unittest.mock import Mock
+except ImportError:
+    from mock import Mock
 
 from cqlshlib.copyutil import ExportTask
 
@@ -44,7 +48,9 @@ class CopyTaskTest(unittest.TestCase):
             Host('10.0.0.2', SimpleConvictionPolicy, 9000),
             Host('10.0.0.3', SimpleConvictionPolicy, 9000),
             Host('10.0.0.4', SimpleConvictionPolicy, 9000)
-    ]
+        ]
+        for h in self.hosts:
+            h.host_id = h.address
 
     def mock_shell(self):
         """
@@ -75,42 +81,39 @@ class TestExportTask(CopyTaskTest):
         }
         # merge override options with standard options
         overridden_opts = dict(self.opts)
-        for k,v in opts.items():
+        for k, v in opts.items():
             overridden_opts[k] = v
         export_task = ExportTask(shell, self.ks, self.table, self.columns, self.fname, overridden_opts, self.protocol_version, self.config_file)
-        assert export_task.get_ranges() == expected_ranges
+        export_ranges = export_task.get_ranges()
+        assert export_ranges == expected_ranges,\
+            "Expected: {e}\n Actual:{a}".format(e=expected_ranges, a=export_ranges)
 
-    def test_get_ranges_murmur3(self):
-        """
-        Test behavior of ExportTask internal get_ranges function
-        """
-
+    def test_murmur3_get_ranges_invalid_input(self):
         # return empty dict and print error if begin_token < min_token
         self._test_get_ranges_murmur3_base({'begintoken': MIN_LONG - 1}, {})
-
-        # return empty dict and print error if begin_token < min_token
         self._test_get_ranges_murmur3_base({'begintoken': 1, 'endtoken': -1}, {})
 
-        # simple case of a single range
-        expected_ranges = {(1,2): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}}
+    def test_get_ranges_murmur3_single_range(self):
+        expected_ranges = {(1, 2): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}}
         self._test_get_ranges_murmur3_base({'begintoken': 1, 'endtoken': 2}, expected_ranges)
 
-        # simple case of two contiguous ranges
+    def test_get_ranges_murmur3_two_continuous_ranges(self):
         expected_ranges = {
-            (-4611686018427387903,0): {'hosts': ('10.0.0.3', '10.0.0.4', '10.0.0.1'), 'attempts': 0, 'rows': 0, 'workerno': -1},
-            (0,1): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}
+            (-4611686018427387903, 0): {'hosts': ('10.0.0.3', '10.0.0.4', '10.0.0.1'), 'attempts': 0, 'rows': 0, 'workerno': -1},
+            (0, 1): {'hosts': ('10.0.0.4', '10.0.0.1', '10.0.0.2'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'begintoken': -4611686018427387903, 'endtoken': 1}, expected_ranges)
 
+    def test_get_ranges_murmur3_begin_token_only(self):
         # specify a begintoken only (endtoken defaults to None)
         expected_ranges = {
-            (4611686018427387905,None): {'hosts': ('10.0.0.1', '10.0.0.2', '10.0.0.3'), 'attempts': 0, 'rows': 0, 'workerno': -1}
+            (4611686018427387905, None): {'hosts': ('10.0.0.1', '10.0.0.2', '10.0.0.3'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'begintoken': 4611686018427387905}, expected_ranges)
 
+    def test_get_ranges_murmur3_end_token_only(self):
         # specify an endtoken only (begintoken defaults to None)
         expected_ranges = {
             (None, MIN_LONG + 1): {'hosts': ('10.0.0.2', '10.0.0.3', '10.0.0.4'), 'attempts': 0, 'rows': 0, 'workerno': -1}
         }
         self._test_get_ranges_murmur3_base({'endtoken': MIN_LONG + 1}, expected_ranges)
-
