@@ -523,7 +523,7 @@
           <dependency groupId="com.boundary" artifactId="high-scale-lib" version="1.0.6"/>
           <dependency groupId="com.github.jbellis" artifactId="jamm" version="${jamm.version}"/>
           <dependency groupId="org.yaml" artifactId="snakeyaml" version="1.26"/>
-          <dependency groupId="junit" artifactId="junit" version="4.12" scope="test">
+          <dependency groupId="junit" artifactId="junit" version="4.13" scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
