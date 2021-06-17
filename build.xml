@@ -1806,7 +1806,7 @@
   </target>
 
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="build-test" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,maven-ant-tasks-retrieve-build,gen-cql3-grammar,createVersionPropFile" description="Generate IDEA files">
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea">
