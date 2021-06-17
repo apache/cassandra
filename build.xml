@@ -528,7 +528,9 @@
           </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.26" scope="test"/>
-          <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test"/>
+          <dependency groupId="com.google.code.java-allocation-instrumenter" artifactId="java-allocation-instrumenter" version="${allocation-instrumenter.version}" scope="test">
+            <exclusion groupId="com.google.guava" artifactId="guava"/>
+          </dependency>
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
@@ -1606,7 +1608,7 @@
   <target name="test-memory" depends="build-test" description="Execute functional tests">
       <testmacro inputdir="${test.memory.src}"
                  timeout="${test.memory.timeout}">
-          <jvmarg value="-javaagent:${build.dir}/lib/jars/java-allocation-instrumenter-${allocation-instrumenter.version}.jar"/>
+          <jvmarg value="-javaagent:${build.dir}/test/lib/jars/java-allocation-instrumenter-${allocation-instrumenter.version}.jar"/>
       </testmacro>
   </target>
 
@@ -1940,7 +1942,7 @@
   </target>
 
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="build-test" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,maven-ant-tasks-init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea" overwrite="true">
