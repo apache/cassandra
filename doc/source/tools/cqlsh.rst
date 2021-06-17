@@ -386,7 +386,7 @@ CSV data from stdin.
 
 See :ref:`shared-copy-options` for options that apply to both ``COPY TO`` and ``COPY FROM``.
 
-Options for ``COPY TO``
+Options for ``COPY FROM``
 ```````````````````````
 
 ``INGESTRATE``
