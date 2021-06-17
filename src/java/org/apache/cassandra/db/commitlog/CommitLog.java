@@ -230,10 +230,10 @@ public class CommitLog implements CommitLogMBean
         return replayer.blockForWrites();
     }
 
-    public void recoverPath(String path) throws IOException
+    public void recoverPath(String path, boolean tolerateTruncation) throws IOException
     {
         CommitLogReplayer replayer = CommitLogReplayer.construct(this, getLocalHostId());
-        replayer.replayPath(new File(path), false);
+        replayer.replayPath(new File(path), tolerateTruncation);
         replayer.blockForWrites();
     }
 
@@ -247,7 +247,7 @@ public class CommitLog implements CommitLogMBean
      */
     public void recover(String path) throws IOException
     {
-        recoverPath(path);
+        recoverPath(path, false);
     }
 
     /**
