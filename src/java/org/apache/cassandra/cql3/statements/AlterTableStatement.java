@@ -300,6 +300,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
                 break;
             case DROP_COMPACT_STORAGE:
+
+                if (!DatabaseDescriptor.enableDropCompactStorage())
+                    throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
+
                 if (!meta.isCompactTable())
                     throw new InvalidRequestException("Cannot DROP COMPACT STORAGE on table without COMPACT STORAGE");
 

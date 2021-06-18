@@ -2522,6 +2522,17 @@ public class DatabaseDescriptor
         conf.enable_sasi_indexes = enableSASIIndexes;
     }
 
+    public static boolean enableDropCompactStorage()
+    {
+        return conf.enable_drop_compact_storage;
+    }
+
+    @VisibleForTesting
+    public static void setEnableDropCompactStorage(boolean enableDropCompactStorage)
+    {
+        conf.enable_drop_compact_storage = enableDropCompactStorage;
+    }
+
     public static long getUserDefinedFunctionFailTimeout()
     {
         return conf.user_defined_function_fail_timeout;
