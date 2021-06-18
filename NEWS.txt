@@ -42,6 +42,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.0.25
+======
+
+ALTER ... DROP COMPACT STORAGE
+------------------------------
+   - Following a discussion regarding concerns about the safety of the 'ALTER ... DROP COMPACT STORAGE' statement, 
+     the C* development community does not recommend its use in production and considers it experimental
+     (see https://www.mail-archive.com/dev@cassandra.apache.org/msg16789.html).
+   - An 'enable_drop_compact_storage' flag has been added to cassandra.yaml to allow operators to prevent its use.
+
 3.0.24
 ======
 
@@ -139,7 +149,8 @@ Upgrading
 
 Compact Storage
 ---------------
-    - Starting version 4.0, Thrift and COMPACT STORAGE is no longer supported.
+    - Starting version 4.0, Thrift is no longer supported.
+      Starting version 5.0, COMPACT STORAGE will no longer be supported.
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
       on exposed internal structure under: 
