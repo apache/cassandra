@@ -298,6 +298,13 @@ Deprecation
       and will be removed in a subsequent major version.
     - cqlsh support of 2.7 is deprecated and will warn when running with Python 2.7.
 
+ALTER ... DROP COMPACT STORAGE
+------------------------------
+   - Following a discussion regarding concerns about the safety of the 'ALTER ... DROP COMPACT STORAGE' statement,
+     the C* development community does not recommend its use in production and considers it experimental
+     (see https://www.mail-archive.com/dev@cassandra.apache.org/msg16789.html).
+   - An 'enable_drop_compact_storage' flag has been added to cassandra.yaml to allow operators to prevent its use.
+
 Materialized Views
 -------------------
     - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
@@ -314,7 +321,6 @@ Windows Support Removed
     - Due to the lack of maintenance and testing, Windows support is removed from this version onward. The developers
       who use Windows 10 still can run Apache Cassandra locally using WSL2 (Windows Subsystem for Linux version 2),
       Docker for Windows, or virtualization platform like Hyper-V and VirtualBox.
-
 
 3.11.10
 ======
@@ -421,7 +427,8 @@ Upgrading
 
 Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
 ---------------
-    - Starting version 4.0, Thrift and COMPACT STORAGE is no longer supported.
+    - Starting version 4.0, Thrift is no longer supported.
+      Starting version 5.0, COMPACT STORAGE will no longer be supported.
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
       on exposed internal structure under: 
