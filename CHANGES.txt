@@ -8,6 +8,7 @@
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
+ * Add flag to disable ALTER...DROP COMPACT STORAGE statements (CASSANDRA-16733)
  * Clean transaction log leftovers at the beginning of sstablelevelreset and sstableofflinerelevel (CASSANDRA-12519)
  * CQL shell should prefer newer TLS version by default (CASSANDRA-16695)
  * Ensure that existing empty rows are properly returned (CASSANDRA-16671)
