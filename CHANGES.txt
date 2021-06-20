@@ -1,6 +1,7 @@
 4.1
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
+ * DiagnosticEventService.publish was logging logs events without an overridden toString, fixed to use toMap() in logs (CASSANDRA-16749)
 Merged from 4.0:
  * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
  * Cleanup dependency scopes (CASSANDRA-16704)
