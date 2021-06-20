@@ -1,4 +1,5 @@
 4.0.1
+ * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.0:
