@@ -322,7 +322,7 @@ public class Config
 
     public boolean enable_materialized_views = true;
 
-    public volatile boolean enable_drop_compact_storage = true;
+    public volatile boolean enable_drop_compact_storage = false;
 
     /**
      * Optionally disable asynchronous UDF execution.
