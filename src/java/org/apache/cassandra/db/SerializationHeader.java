@@ -426,8 +426,8 @@ public class SerializationHeader
             Columns statics, regulars;
             if (selection == null)
             {
-                statics = hasStatic ? Columns.serializer.deserializeStatics(in, metadata) : Columns.NONE;
-                regulars = Columns.serializer.deserializeRegulars(in, metadata);
+                statics = hasStatic ? Columns.serializer.deserialize(in, metadata) : Columns.NONE;
+                regulars = Columns.serializer.deserialize(in, metadata);
             }
             else
             {

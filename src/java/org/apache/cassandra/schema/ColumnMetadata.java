@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.github.jamm.Unmetered;
 
 @Unmetered
-public class ColumnMetadata extends ColumnSpecification implements Selectable, Comparable<ColumnMetadata>
+public final class ColumnMetadata extends ColumnSpecification implements Selectable, Comparable<ColumnMetadata>
 {
     public static final Comparator<Object> asymmetricColumnDataComparator =
         (a, b) -> ((ColumnData) a).column().compareTo((ColumnMetadata) b);
@@ -200,29 +200,6 @@ public class ColumnMetadata extends ColumnSpecification implements Selectable, C
             assert path1.size() == 1 && path2.size() == 1;
             return nameComparator.compare(path1.get(0), path2.get(0));
         };
-    }
-
-    private static class Placeholder extends ColumnMetadata
-    {
-        Placeholder(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position, Kind kind)
-        {
-            super(table, name, type, position, kind);
-        }
-
-        public boolean isPlaceholder()
-        {
-            return true;
-        }
-    }
-
-    public static ColumnMetadata placeholder(TableMetadata table, ByteBuffer name, boolean isStatic)
-    {
-        return new Placeholder(table, name, EmptyType.instance, NO_POSITION, isStatic ? Kind.STATIC : Kind.REGULAR);
-    }
-
-    public boolean isPlaceholder()
-    {
-        return false;
     }
 
     public ColumnMetadata copy()
