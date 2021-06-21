@@ -29,6 +29,7 @@ Merged from 3.11:
  * Nodetool garbagecollect should retain SSTableLevel for LCS (CASSANDRA-16634)
  * Ignore stale acks received in the shadow round (CASSANDRA-16588)
 Merged from 3.0:
+ * Adding columns via ALTER TABLE can generate corrupt sstables (CASSANDRA-16735)
  * Add flag to disable ALTER...DROP COMPACT STORAGE statements (CASSANDRA-16733)
  * CQL shell should prefer newer TLS version by default (CASSANDRA-16695)
  * Ensure that existing empty rows are properly returned (CASSANDRA-16671)

@@ -446,7 +446,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
             return size;
         }
 
-        private Columns deserialize(DataInputPlus in, TableMetadata metadata, boolean isStatic) throws IOException
+        public Columns deserialize(DataInputPlus in, TableMetadata metadata) throws IOException
         {
             int length = (int)in.readUnsignedVInt();
             BTree.Builder<ColumnMetadata> builder = BTree.builder(Comparator.naturalOrder());
@@ -462,26 +462,12 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumn(name);
 
-                    // If there's no dropped column, it may be for a column we haven't received a schema update for yet
-                    // so we create a placeholder column. If this is a read, the placeholder column will let the response
-                    // serializer know we're not serializing all requested columns when it writes the row flags, but it
-                    // will cause mutations that try to write values for this column to fail.
                     if (column == null)
-                        column = ColumnMetadata.placeholder(metadata, name, isStatic);
+                        throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                 }
                 builder.add(column);
             }
             return new Columns(builder.build());
-        }
-
-        public Columns deserializeStatics(DataInputPlus in, TableMetadata metadata) throws IOException
-        {
-            return deserialize(in, metadata, true);
-        }
-
-        public Columns deserializeRegulars(DataInputPlus in, TableMetadata metadata) throws IOException
-        {
-            return deserialize(in, metadata, false);
         }
 
         /**

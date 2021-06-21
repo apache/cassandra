@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -31,7 +30,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -659,12 +657,6 @@ public class PartitionUpdate extends AbstractBTreePartition
                     else
                         deletionBuilder.add((RangeTombstoneMarker)unfiltered);
                 }
-            }
-            catch (IOError e)
-            {
-                if (e.getCause() != null && e.getCause() instanceof IncompatibleSchemaException)
-                    throw (IncompatibleSchemaException) e.getCause();
-                throw e;
             }
 
             MutableDeletionInfo deletionInfo = deletionBuilder.build();
