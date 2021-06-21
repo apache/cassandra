@@ -50,6 +50,7 @@ public class GoogleCloudSnitchTest
         System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
         mkdirs();
         cleanup();
         Keyspace.setInitialized();
