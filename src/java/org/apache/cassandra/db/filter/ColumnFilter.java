@@ -1068,8 +1068,8 @@ public abstract class ColumnFilter
         private RegularAndStaticColumns deserializeRegularAndStaticColumns(DataInputPlus in,
                                                                            TableMetadata metadata) throws IOException
         {
-            Columns statics = Columns.serializer.deserializeStatics(in, metadata);
-            Columns regulars = Columns.serializer.deserializeRegulars(in, metadata);
+            Columns statics = Columns.serializer.deserialize(in, metadata);
+            Columns regulars = Columns.serializer.deserialize(in, metadata);
             return new RegularAndStaticColumns(statics, regulars);
         }
 
