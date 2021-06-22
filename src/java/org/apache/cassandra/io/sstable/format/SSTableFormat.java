@@ -21,8 +21,6 @@ import java.util.Set;
 
 import com.google.common.base.CharMatcher;
 
-import org.apache.commons.lang3.StringUtils;
-
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexFormat;
@@ -96,5 +94,10 @@ public interface SSTableFormat
      * Returns all the components of the particular implementation of SSTable format which are suitable for streaming.
      */
     Set<Component> streamingComponents();
+
+    /**
+     * Returns all primary index components required for index iteration and reading keys
+     */
+    Set<Component> primaryIndexComponents();
 
 }

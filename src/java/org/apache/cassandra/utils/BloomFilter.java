@@ -19,6 +19,9 @@ package org.apache.cassandra.utils;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.Config;
@@ -29,6 +32,8 @@ import org.apache.cassandra.utils.obs.MemoryLimiter;
 
 public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
+    private final static Logger logger = LoggerFactory.getLogger(BloomFilter.class);
+
     /**
      * The maximum memory to be used by all loaded bloom filters. If the limit is exceeded, pass-through filter will be
      * used until some filters get unloaded.
@@ -185,7 +190,13 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 
     public static boolean shouldUseBloomFilter(double fpChance)
     {
-        return Math.abs(1 - fpChance) > BloomFilter.fpChanceTolerance;
+        if (Math.abs(1 - fpChance) <= BloomFilter.fpChanceTolerance) {
+            if (logger.isTraceEnabled())
+                logger.trace("Returning pass-through bloom filter, FP chance is equal to 1: {}", fpChance);
+            return false;
+        }
+
+        return true;
     }
 
     public static boolean isFPChanceDiffNeglectable(double fpChance1, double fpChance2)
