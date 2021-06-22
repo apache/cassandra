@@ -239,6 +239,15 @@ public class ScrubTest
         assertOrderedAll(cfs, scrubResult.goodPartitions);
     }
 
+    private String primaryIndexPath(SSTableReader reader)
+    {
+        if (reader.descriptor.getFormat().getType() == SSTableFormat.Type.BIG)
+            return reader.descriptor.filenameFor(Component.PRIMARY_INDEX);
+        if (reader.descriptor.getFormat().getType() == SSTableFormat.Type.BTI)
+            return reader.descriptor.filenameFor(Component.PARTITION_INDEX);
+        else throw new IllegalArgumentException();
+    }
+
     @Test
     public void testScrubCorruptedRowInSmallFile() throws Throwable
     {
@@ -258,7 +267,7 @@ public class ScrubTest
     {
         // overwrite a part of the index with garbage
         testCorruptionInSmallFile((sstable, keys) ->
-                                  overrideWithGarbage(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX),
+                                  overrideWithGarbage(primaryIndexPath(sstable),
                                                       5,
                                                       6,
                                                       (byte) 0x7A),
@@ -271,7 +280,7 @@ public class ScrubTest
     {
         // overwrite the whole index with garbage
         testCorruptionInSmallFile((sstable, keys) ->
-                                  overrideWithGarbage(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX),
+                                  overrideWithGarbage(primaryIndexPath(sstable),
                                                       0,
                                                       60,
                                                       (byte) 0x7A),
@@ -289,7 +298,7 @@ public class ScrubTest
                                                           ByteBufferUtil.bytes(keys[2]),
                                                           ByteBufferUtil.bytes(keys[3]),
                                                           (byte) 0x7A);
-                                      overrideWithGarbage(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX),
+                                      overrideWithGarbage(primaryIndexPath(sstable),
                                                           5,
                                                           6,
                                                           (byte) 0x7A);
@@ -481,7 +490,7 @@ public class ScrubTest
             if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
                 components.add(Component.COMPRESSION_INFO);
             components.add(Component.DATA);
-            components.add(Component.PRIMARY_INDEX);
+            components.addAll(desc.getFormat().primaryIndexComponents());
             components.add(Component.FILTER);
             components.add(Component.STATS);
             components.add(Component.SUMMARY);
