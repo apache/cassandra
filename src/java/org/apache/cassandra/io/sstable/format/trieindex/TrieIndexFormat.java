@@ -84,6 +84,10 @@ public class TrieIndexFormat implements SSTableFormat
                                                                                Component.FILTER,
                                                                                Component.DIGEST,
                                                                                Component.CRC);
+
+    private final static Set<Component> PRIMARY_INDEX_COMPONENTS = ImmutableSet.of(Component.PARTITION_INDEX,
+                                                                                   Component.ROW_INDEX);
+
     public static final TrieIndexFormat instance = new TrieIndexFormat();
     public static final Version latestVersion = new TrieIndexVersion(TrieIndexVersion.current_version);
     static final ReaderFactory readerFactory = new ReaderFactory();
@@ -143,6 +147,13 @@ public class TrieIndexFormat implements SSTableFormat
     {
         return STREAMING_COMPONENTS;
     }
+
+    @Override
+    public Set<Component> primaryIndexComponents()
+    {
+        return PRIMARY_INDEX_COMPONENTS;
+    }
+
     static class WriterFactory extends SSTableWriter.Factory
     {
         @Override
