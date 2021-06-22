@@ -73,6 +73,8 @@ public class BigFormat implements SSTableFormat
                                                                                Component.DIGEST,
                                                                                Component.CRC);
 
+    private final static Set<Component> PRIMARY_INDEX_COMPONENTS = ImmutableSet.of(Component.PRIMARY_INDEX);
+
     private BigFormat()
     {
 
@@ -124,6 +126,12 @@ public class BigFormat implements SSTableFormat
     public Set<Component> streamingComponents()
     {
         return STREAMING_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> primaryIndexComponents()
+    {
+        return PRIMARY_INDEX_COMPONENTS;
     }
 
     static class WriterFactory extends SSTableWriter.Factory
