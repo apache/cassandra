@@ -1051,7 +1051,11 @@ public class SSTableReaderTest
         checkSSTableOpenedWithGivenFPChance(sstable, 1 - BloomFilter.fpChanceTolerance, true, numKeys, true);
 
         // missing primary index file should make BF fail to load and we should install the empty one
-        new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
+        if (sstable.descriptor.getFormat().getType() == SSTableFormat.Type.BIG)
+            new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
+        else
+            new File(sstable.descriptor.filenameFor(Component.PARTITION_INDEX)).delete();
+
         checkSSTableOpenedWithGivenFPChance(sstable, 0.05, false, numKeys, false);
     }
 
@@ -1071,11 +1075,11 @@ public class SSTableReaderTest
             // make sure we wait enough - some JDK implementations use seconds granularity and we need to wait a bit to actually see the change
             Uninterruptibles.sleepUninterruptibly(1, Util.supportedMTimeGranularity);
 
-            target = SSTableReader.open(desc,
-                                        SSTableReader.discoverComponentsFor(desc),
-                                        TableMetadataRef.forOfflineTools(metadata),
-                                        false,
-                                        false);
+            target = desc.getFormat().getReaderFactory().open(desc,
+                                                              SSTableReader.discoverComponentsFor(desc),
+                                                              TableMetadataRef.forOfflineTools(metadata),
+                                                              false,
+                                                              false);
             IFilter bloomFilter = target.getBloomFilter();
             ValidationMetadata validationMetadata = getValidationMetadata(desc);
             Assert.assertNotNull(validationMetadata);

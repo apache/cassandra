@@ -177,7 +177,10 @@ public abstract class SSTableReaderBuilder
                                  ? histogramCount
                                  : SSTable.estimateRowsFromIndex(indexIterator); // statistics is supposed to be optional
             if (recreateBloomFilter)
+            {
+                logger.debug("Recreating bloom filter for {} with fpChance={}", descriptor, metadata.params.bloomFilterFpChance);
                 bf = FilterFactory.getFilter(estimatedKeys, metadata.params.bloomFilterFpChance);
+            }
 
             // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
             try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL))
@@ -217,6 +220,7 @@ public abstract class SSTableReaderBuilder
     {
         if (Files.exists(path))
         {
+            logger.debug("Loading bloom filter from {}", path);
             IFilter filter = null;
             try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(path))))
             {
@@ -347,7 +351,7 @@ public abstract class SSTableReaderBuilder
 
     public static class ForRead extends SSTableReaderBuilder
     {
-        private final ValidationMetadata validationMetadata;
+        private volatile ValidationMetadata validationMetadata;
         private final boolean isOffline;
 
         public ForRead(Descriptor descriptor,
@@ -402,36 +406,22 @@ public abstract class SSTableReaderBuilder
                           DiskOptimizationStrategy optimizationStrategy,
                           StatsMetadata statsMetadata) throws IOException
         {
-            if (!BloomFilter.shouldUseBloomFilter(metadata.params.bloomFilterFpChance))
-            {
-                // bf is disabled.
-                load(false, !isOffline, optimizationStrategy, statsMetadata, components);
-            }
-            else if (!components.contains(Component.PRIMARY_INDEX)) // What happens if filter component and primary index is missing?
-            {
-                // avoid any reading of the missing primary index component.
-                // this should only happen during StandaloneScrubber
-                load(false, !isOffline, optimizationStrategy, statsMetadata, components);
-            }
-            else if (!components.contains(Component.FILTER) || validation == null)
-            {
-                // bf is enabled, but filter component is missing.
-                load(!isOffline, !isOffline, optimizationStrategy, statsMetadata, components);
-            }
-            else if (!BloomFilter.isFPChanceDiffNeglectable(metadata.params.bloomFilterFpChance, validationMetadata.bloomFilterFPChance) && BloomFilter.recreateOnFPChanceChange)
-            {
-                // bf is enabled, but fp chance changed
-                load(!isOffline, !isOffline, optimizationStrategy, statsMetadata, components);
-            }
-            else
-            {
-                // bf is enabled and fp chance matches the currently configured value.
+            double currentFPChance = validation != null ? validation.bloomFilterFPChance : Double.NaN;
+            double desiredFPChance = metadata.params.bloomFilterFpChance;
+
+            if (SSTableReader.shouldLoadBloomFilter(descriptor, components, currentFPChance, desiredFPChance))
                 bf = loadBloomFilter(Paths.get(descriptor.filenameFor(Component.FILTER)), descriptor.version.hasOldBfFormat());
-                load(bf == null, !isOffline, optimizationStrategy, statsMetadata, components);
-            }
+
+            boolean recreateBloomFilter = bf == null && SSTableReader.mayRecreateBloomFilter(descriptor, components, currentFPChance, isOffline, desiredFPChance);
+            load(recreateBloomFilter, !isOffline, optimizationStrategy, statsMetadata, components);
+
             // if the filter was neither loaded nor created, or we encountered some problems, we fallback to pass-through filter
             if (bf == null)
+            {
                 bf = FilterFactory.AlwaysPresent;
+                logger.warn("Could not recreate or deserialize existing bloom filter, continuing with a pass-through " +
+                            "bloom filter but this will significantly impact reads performance");
+            }
         }
 
         /**
@@ -475,6 +465,7 @@ public abstract class SSTableReaderBuilder
                         SSTableReader.saveBloomFilter(descriptor, bf);
                         ValidationMetadata updatedValidationMetadata = new ValidationMetadata(validationMetadata.partitioner, metadata.params.bloomFilterFpChance);
                         descriptor.getMetadataSerializer().updateSSTableMetadata(descriptor, ImmutableMap.of(MetadataType.VALIDATION, updatedValidationMetadata));
+                        validationMetadata = updatedValidationMetadata;
                     }
                 }
             }

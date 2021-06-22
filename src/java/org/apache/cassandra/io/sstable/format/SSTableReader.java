@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collector;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
@@ -129,7 +131,6 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.BloomFilter;
-import org.apache.cassandra.utils.BloomFilterSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -2584,6 +2585,77 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             // Scrub-only case, we just need data file.
             assert components.contains(Component.DATA);
+        }
+    }
+
+    public static @Nonnull boolean shouldLoadBloomFilter(Descriptor desc, Set<Component> components, double currerntFPChance, double desiredFPChance)
+    {
+        if (!BloomFilter.shouldUseBloomFilter(desiredFPChance))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Bloom filter for {} will not be loaded because fpChance={} is neglectable", desc, desiredFPChance);
+
+            return false;
+        }
+        else if (!components.containsAll(desc.getFormat().primaryIndexComponents()))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Bloom filter for {} will not be loaded because there are missing primary index components: {}", desc, Sets.difference(desc.getFormat().primaryIndexComponents(), components));
+
+            return false;
+        }
+        else if (!components.contains(Component.FILTER) || Double.isNaN(currerntFPChance))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Bloom filter for {} will not be loaded because filter component is missing or sstable lacks validation metadata", desc);
+
+            return false;
+        }
+        else if (!BloomFilter.isFPChanceDiffNeglectable(desiredFPChance, currerntFPChance) && BloomFilter.recreateOnFPChanceChange)
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Bloom filter for {} will not be loaded because fpChance has changed from {} to {} and the filter should be recreated", desc, currerntFPChance, desiredFPChance);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    public static boolean mayRecreateBloomFilter(Descriptor desc, Set<Component> components, double currentFPChance, boolean isOffline, double desiredFPChance)
+    {
+        if (!BloomFilter.shouldUseBloomFilter(desiredFPChance))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Bloom filter for {} must not be recreated because fpChance={} is neglectable", desc, desiredFPChance);
+
+            return false;
+        }
+        else if (!components.containsAll(desc.getFormat().primaryIndexComponents()))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Bloom filter for {} must not be recreated because there are missing primary index components: {}", desc, Sets.difference(desc.getFormat().primaryIndexComponents(), components));
+
+            return false;
+        }
+        else if (!components.contains(Component.FILTER) || Double.isNaN(currentFPChance))
+        {
+            if (logger.isTraceEnabled() && isOffline)
+                logger.trace("Bloom filter for {} must not be recreated because sstable has been opened in offline mode", desc);
+
+            return !isOffline;
+        }
+        else if (!BloomFilter.isFPChanceDiffNeglectable(desiredFPChance, currentFPChance) && BloomFilter.recreateOnFPChanceChange)
+        {
+            if (logger.isTraceEnabled() && isOffline)
+                logger.trace("Bloom filter for {} must not be recreated because sstable has been opened in offline mode", desc);
+
+            return !isOffline;
+        }
+        else
+        {
+            // bf is enabled and fp chance matches the currently configured value.
+            return true;
         }
     }
 

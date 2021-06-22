@@ -38,7 +38,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,6 +69,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
@@ -879,8 +880,10 @@ public class TrieIndexSSTableReader extends SSTableReader
         }
     }
 
-    private static IFilter recreateBloomFilter(Descriptor descriptor, TableMetadata metadata, long estimatedKeysCount, Map<MetadataType, MetadataComponent> sstableMetadata, double fpChance)
+    private static IFilter recreateBloomFilter(Descriptor descriptor, TableMetadata metadata, long estimatedKeysCount, double fpChance)
     {
+        logger.debug("Recreating bloom filter for {} with fpChance={}", descriptor, fpChance);
+
         if (estimatedKeysCount <= 0)
         {
             logger.warn("Cannot recreate bloom filter, cannot estimate number of keys");
@@ -915,9 +918,8 @@ public class TrieIndexSSTableReader extends SSTableReader
             }
 
             // Update the sstable metadata to contain the current FP chance
-            ValidationMetadata validation = new ValidationMetadata(metadata.partitioner.getClass().getCanonicalName(), fpChance);
-            sstableMetadata.put(MetadataType.VALIDATION, validation);
-            descriptor.getMetadataSerializer().rewriteSSTableMetadata(descriptor, sstableMetadata);
+            ValidationMetadata updatedValidationMetadata = new ValidationMetadata(metadata.partitioner.getClass().getCanonicalName(), fpChance);
+            descriptor.getMetadataSerializer().updateSSTableMetadata(descriptor, ImmutableMap.of(MetadataType.VALIDATION, updatedValidationMetadata));
             return bf;
         }
         catch (Throwable t)
@@ -942,55 +944,30 @@ public class TrieIndexSSTableReader extends SSTableReader
      * @param fpChance        the current FP chance taken from the table metadata
      */
     @VisibleForTesting
-    static @Nonnull
-    IFilter getBloomFilter(Descriptor descriptor, boolean loadIfNeeded, boolean recreateIfNeeded, TableMetadata metadata, long estimatedKeysCount, Map<MetadataType, MetadataComponent> sstableMetadata, double fpChance)
+    static @Nonnull IFilter getBloomFilter(Descriptor descriptor, Set<Component> components, ValidationMetadata validationMetadata, boolean isOffline, TableMetadata metadata, long estimatedKeysCount)
     {
-        if (Math.abs(1 - fpChance) <= fpChanceTolerance)
-        {
-            if (logger.isTraceEnabled())
-                logger.trace("Returning pass-through bloom filter, FP chance is equal to 1: {}", fpChance);
+        double currentFPChance = validationMetadata != null ? validationMetadata.bloomFilterFPChance : Double.NaN;
+        double desiredFPChance = metadata.params.bloomFilterFpChance;
 
-            return FilterFactory.AlwaysPresent;
+        IFilter bf = null;
+        if (SSTableReader.shouldLoadBloomFilter(descriptor, components, currentFPChance, desiredFPChance))
+            bf = SSTableReaderBuilder.loadBloomFilter(Paths.get(descriptor.filenameFor(Component.FILTER)), descriptor.version.hasOldBfFormat());
+
+        boolean recreateBloomFilter = bf == null && SSTableReader.mayRecreateBloomFilter(descriptor, components, currentFPChance, isOffline, desiredFPChance);
+        if (recreateBloomFilter)
+        {
+            bf = recreateBloomFilter(descriptor, metadata, estimatedKeysCount, desiredFPChance);
         }
 
-        ValidationMetadata validation = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
-        boolean fpChanged = Math.abs(fpChance - validation.bloomFilterFPChance) > fpChanceTolerance;
-
-        if (loadIfNeeded && descriptor.fileFor(Component.FILTER).exists())
+        // if the filter was neither loaded nor created, or we encountered some problems, we fallback to pass-through filter
+        if (bf == null)
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Deserializing bloom filter");
-
-            IFilter bf = deserializeBloomFilter(descriptor, descriptor.version.hasOldBfFormat());
-            if (bf != null)
-                return bf;
+            bf = FilterFactory.AlwaysPresent;
+            logger.warn("Could not recreate or deserialize existing bloom filter, continuing with a pass-through " +
+                        "bloom filter but this will significantly impact reads performance");
         }
 
-        String reason = fpChanged
-                        ? String.format("false positive chance changed from %f to %f", validation.bloomFilterFPChance, fpChance)
-                        : (!descriptor.fileFor(Component.FILTER).exists()
-                           ? "there is no bloom filter file"
-                           : "deserialization failed");
-
-        if (logger.isDebugEnabled())
-            logger.debug("Recreating bloom filter because {}", reason);
-
-        IFilter bf = recreateIfNeeded
-                     ? recreateBloomFilter(descriptor, metadata, estimatedKeysCount, sstableMetadata, fpChance)
-                     : FilterFactory.AlwaysPresent;
-        if (bf != null)
-            return bf;
-
-        logger.warn("Could not recreate or deserialize existing bloom filter, continuing with a pass-through " +
-                    "bloom filter but this will significantly impact reads performance");
-
-        return FilterFactory.AlwaysPresent;
-    }
-
-    public static boolean hasBloomFilter(double fpChance)
-    {
-        Preconditions.checkArgument(fpChance <= 1, "FP chance should be less or equal to 1: " + fpChance);
-        return Math.abs(1 - fpChance) > fpChanceTolerance;
+        return bf;
     }
 
     public static TrieIndexSSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, boolean validate, boolean isOffline)
@@ -1029,19 +1006,14 @@ public class TrieIndexSSTableReader extends SSTableReader
         long fileLength = descriptor.filenameFor(Component.DATA).length();
         logger.debug("Opening {} ({})", descriptor, FBUtilities.prettyPrintMemory(fileLength));
 
-        double fpChance = metadata.get().params.bloomFilterFpChance;
-
         FileHandle dataFH = null;
         FileHandle rowIdxFH = null;
         PartitionIndex partitionIndex = null;
         IFilter bloomFilter = null;
         boolean compressedData = descriptor.fileFor(Component.COMPRESSION_INFO).exists();
 
-        boolean loadBFIfNeeded = components.contains(Component.FILTER);
-        boolean recreatedBFIfNeeded = !isOffline;
-
         try (FileHandle.Builder dataFHBuilder = defaultDataHandleBuilder(descriptor).compressed(compressedData);
-             @Nonnull IFilter bf = getBloomFilter(descriptor, loadBFIfNeeded, recreatedBFIfNeeded, metadata.get(), statsMetadata.totalRows, sstableMetadata, fpChance))
+             @Nonnull IFilter bf = getBloomFilter(descriptor, components, validationMetadata, isOffline, metadata.get(), statsMetadata.totalRows))
         {
             TrieIndexSSTableReader sstable;
             dataFH = dataFHBuilder.complete();
@@ -1053,7 +1025,7 @@ public class TrieIndexSSTableReader extends SSTableReader
                      FileHandle.Builder rowIdxFHBuilder = defaultIndexHandleBuilder(descriptor, Component.ROW_INDEX))
                 {
                     rowIdxFH = rowIdxFHBuilder.complete();
-                    partitionIndex = PartitionIndex.load(partitionIdxFHBuilder, metadata.get().partitioner, loadBFIfNeeded && !hasBloomFilter(fpChance));
+                    partitionIndex = PartitionIndex.load(partitionIdxFHBuilder, metadata.get().partitioner, bloomFilter == FilterFactory.AlwaysPresent);
                     sstable = TrieIndexSSTableReader.internalOpen(descriptor,
                                                                   components,
                                                                   metadata,
