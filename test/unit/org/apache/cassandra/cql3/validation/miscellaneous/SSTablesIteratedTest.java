@@ -1060,7 +1060,7 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 3 AND c = 3", 3, row(3, set(1)));
         executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 3, row(set(3)));
         executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 2, row(set(3)));
-        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 3, row(set(1)));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 1, row(set(1)));
         executeAndCheck("SELECT s FROM %s WHERE pk = 1", 3, row((Integer) null));
         executeAndCheck("SELECT s FROM %s WHERE pk = 2", 2, row(1), row(1));
         executeAndCheck("SELECT DISTINCT s FROM %s WHERE pk = 2", 2, row(1));
