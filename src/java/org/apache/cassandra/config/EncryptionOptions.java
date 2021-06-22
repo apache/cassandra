@@ -17,21 +17,19 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.File;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -167,8 +165,7 @@ public class EncryptionOptions
     {
         ensureConfigNotApplied();
 
-        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
-                                                                     ssl_context_factory.parameters);
+        initializeSslContextFactory();
 
         isEnabled = this.enabled != null && enabled;
 
@@ -179,7 +176,7 @@ public class EncryptionOptions
         // If someone is asking for an _insecure_ connection and not explicitly telling us to refuse
         // encrypted connections AND they have a keystore file, we assume they would like to be able
         // to transition to encrypted connections in the future.
-        else if (sslContextFactoryInstance.hasKeystore(this))
+        else if (sslContextFactoryInstance.hasKeystore())
         {
             isOptional = !isEnabled;
         }
@@ -189,6 +186,42 @@ public class EncryptionOptions
             isOptional = false;
         }
         return this;
+    }
+
+    private void initializeSslContextFactory() {
+        Map<String,Object> sslContextFactoryParameters = new HashMap<>();
+        if ( ssl_context_factory.parameters != null ) {
+            for (Map.Entry<String, String> entry : ssl_context_factory.parameters.entrySet())
+            {
+                sslContextFactoryParameters.put(entry.getKey(),entry.getValue());
+            }
+        }
+
+        /*
+         * Copy all configs to the Map to pass it on to the ISslContextFactory's implementation
+         */
+        putSslContextFactoryParameter(sslContextFactoryParameters, "keystore", this.keystore);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "keystore_password", this.keystore_password);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "truststore", this.truststore);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "truststore_password", this.truststore_password);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "cipher_suites", this.cipher_suites);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "protocol", this.protocol);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "accepted_protocols", this.accepted_protocols);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "algorithm", this.algorithm);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "store_type", this.store_type);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "require_client_auth", this.require_client_auth);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "require_endpoint_verification", this.require_endpoint_verification);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "enabled", this.enabled);
+        putSslContextFactoryParameter(sslContextFactoryParameters, "optional", this.optional);
+
+        sslContextFactoryInstance = FBUtilities.newSslContextFactory(ssl_context_factory.class_name,
+                                                                     sslContextFactoryParameters);
+    }
+
+    private void putSslContextFactoryParameter(Map<String,Object> existingParameters, String key, Object value) {
+        if ( value != null ) {
+            existingParameters.put(key, value);
+        }
     }
 
     private void ensureConfigApplied()
@@ -271,59 +304,15 @@ public class EncryptionOptions
         this.accepted_protocols = accepted_protocols == null ? null : ImmutableList.copyOf(accepted_protocols);
     }
 
-    /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
-     * by extracting it from the default "TLS" SSL Context instance
-     */
-    static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
-
-    /**
-     * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
-     * explicit protocols for the previous catchall default of "TLS"
-     * @return array of protocol names suitable for passing to SslContextBuilder.protocols, or null if the default
-     */
     public List<String> acceptedProtocols()
     {
-        if (accepted_protocols == null)
-        {
-            if (protocol == null)
-            {
-                return null;
-            }
-            // TLS is accepted by SSLContext.getInstance as a shorthand for give me an engine that
-            // can speak some of the TLS protocols.  It is not supported by SSLEngine.setAcceptedProtocols
-            // so substitute if the user hasn't provided an accepted protocol configuration
-            else if (protocol.equalsIgnoreCase("TLS"))
-            {
-                return TLS_PROTOCOL_SUBSTITUTION;
-            }
-            else // the user was trying to limit to a single specific protocol, so try that
-            {
-                return ImmutableList.of(protocol);
-            }
-        }
-
-        if (protocol != null && !protocol.equalsIgnoreCase("TLS") &&
-            accepted_protocols.stream().noneMatch(ap -> ap.equalsIgnoreCase(protocol)))
-        {
-            // If the user provided a non-generic default protocol, append it to accepted_protocols - they wanted
-            // it after all.
-            return ImmutableList.<String>builder().addAll(accepted_protocols).add(protocol).build();
-        }
-        else
-        {
-            return accepted_protocols;
-        }
+        return sslContextFactoryInstance.getAcceptedProtocols();
     }
 
     public String[] acceptedProtocolsArray()
     {
         List<String> ap = acceptedProtocols();
         return ap == null ?  new String[0] : ap.toArray(new String[0]);
-    }
-
-    public String[] cipherSuitesArray()
-    {
-        return cipher_suites == null ? new String[0] : cipher_suites.toArray(new String[0]);
     }
 
     public TlsEncryptionPolicy tlsEncryptionPolicy()

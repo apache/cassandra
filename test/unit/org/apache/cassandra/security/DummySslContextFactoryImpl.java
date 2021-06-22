@@ -18,35 +18,35 @@
 
 package org.apache.cassandra.security;
 
+import java.util.List;
 import java.util.Map;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
-import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * TEST ONLY Class. DON'T use it for anything else.
  */
 public class DummySslContextFactoryImpl implements ISslContextFactory
 {
-    public DummySslContextFactoryImpl(Map<String,String> parameters) {}
+    public DummySslContextFactoryImpl(Map<String,Object> parameters) {}
 
     @Override
-    public SSLContext createJSSESslContext(EncryptionOptions options, boolean buildTruststore) throws SSLException
+    public SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException
     {
         return null;
     }
 
     @Override
-    public SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore, SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws SSLException
+    public SslContext createNettySslContext(boolean buildTruststore, SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws SSLException
     {
         return null;
     }
 
     @Override
-    public void initHotReloading(EncryptionOptions options) throws SSLException
+    public void initHotReloading() throws SSLException
     {
 
     }
@@ -55,5 +55,17 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     public boolean shouldReload()
     {
         return false;
+    }
+
+    @Override
+    public List<String> getAcceptedProtocols()
+    {
+        return null;
+    }
+
+    @Override
+    public List<String> getCipherSuites()
+    {
+        return null;
     }
 }

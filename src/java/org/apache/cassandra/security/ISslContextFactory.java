@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.security;
 
+import java.util.List;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
-import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * The purpose of this interface is to provide pluggable mechanism for creating custom JSSE and Netty SSLContext
@@ -31,8 +31,10 @@ import org.apache.cassandra.config.EncryptionOptions;
  * client_encryption_options}/{@code server_encryption_options} and provide a custom class-name implementing this
  * interface with parameters to be used to plugin a your own way to load the SSLContext.
  *
- * Implementation of this interface must have a constructor with argument of type {@code Map<String,String>} to allow
- * custom parameters, needed by the implementation, to be passed from the yaml configuration.
+ * Implementation of this interface must have a constructor with argument of type {@code Map<String,Object>} to allow
+ * custom parameters, needed by the implementation, to be passed from the yaml configuration. Common SSL
+ * configurations like {@code protocol, algorithm, cipher_suites, accepted_protocols, require_client_auth,
+ * require_endpoint_verification, enabled, optional} will also be passed to that map by Cassanddra.
  *
  * Since on top of Netty, Cassandra is internally using JSSE SSLContext also for certain use-cases- this interface
  * has methods for both.
@@ -52,17 +54,15 @@ public interface ISslContextFactory
     /**
      * Creates JSSE SSLContext.
      *
-     * @param options EncryptionOptions that could be used for the SSL context creation
      * @param buildTruststore {@code true} if the caller requires Truststore; {@code false} otherwise
      * @return
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    SSLContext createJSSESslContext(EncryptionOptions options, boolean buildTruststore) throws SSLException;
+    SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException;
 
     /**
      * Creates Netty's SslContext object.
      *
-     * @param options EncryptionOptions that could be used for the SSL context creation
      * @param buildTruststore {@code true} if the caller requires Truststore; {@code false} otherwise
      * @param socketType {@link SocketType} for Netty's Inbound or Outbound channels
      * @param useOpenSsl {@code true} if openSsl is enabled;{@code false} otherwise
@@ -71,15 +71,14 @@ public interface ISslContextFactory
      * @return
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore, SocketType socketType,
+    SslContext createNettySslContext(boolean buildTruststore, SocketType socketType,
                                      boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws SSLException;
 
     /**
      * Initializes hot reloading of the security keys/certs. The implementation must guarantee this to be thread safe.
-     * @param options Encryption options
      * @throws SSLException
      */
-    void initHotReloading(EncryptionOptions options) throws SSLException;
+    void initHotReloading() throws SSLException;
 
     /**
      * Returns if any changes require the reloading of the SSL context returned by this factory.
@@ -91,12 +90,24 @@ public interface ISslContextFactory
 
     /**
      * Returns if this factory uses private keystore.
-     * @param options Encryption options
      * @return {@code true} by default unless the implementation overrides this
      */
-    default boolean hasKeystore(EncryptionOptions options) {
+    default boolean hasKeystore() {
         return true;
     }
+
+    /**
+     * Returns the prepared list of accepted protocols.
+     * @return array of protocol names suitable for passing to Netty's SslContextBuilder.protocols, or null if the
+     * default
+     */
+    List<String> getAcceptedProtocols();
+
+    /**
+     * Returns the list of cipher suites supported by the implementation.
+     * @return
+     */
+    List<String> getCipherSuites();
 
     /**
      * Indicates if the process holds the inbound/listening end of the socket ({@link SSLFactory.SocketType#SERVER})), or the

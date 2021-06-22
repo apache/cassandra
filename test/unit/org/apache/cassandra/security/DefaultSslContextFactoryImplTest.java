@@ -19,80 +19,106 @@
 package org.apache.cassandra.security;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import javax.net.ssl.TrustManagerFactory;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.EncryptionOptions;
-
 public class DefaultSslContextFactoryImplTest
 {
-
-    private DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl();
-
-    private EncryptionOptions.ServerEncryptionOptions encryptionOptions;
+    private Map<String,Object> commonConfig = new HashMap<>();
 
     @Before
     public void setup()
     {
-        encryptionOptions = new EncryptionOptions.ServerEncryptionOptions()
-                            .withTrustStore("test/conf/cassandra_ssl_test.truststore")
-                            .withTrustStorePassword("cassandra")
-                            .withRequireClientAuth(false)
-                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
-
-        defaultSslContextFactoryImpl.checkedExpiry = false;
+        commonConfig.put("truststore", "test/conf/cassandra_ssl_test.truststore");
+        commonConfig.put("truststore_password", "cassandra");
+        commonConfig.put("require_client_auth", Boolean.FALSE);
+        commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
-    private EncryptionOptions.ServerEncryptionOptions addKeystoreOptions(EncryptionOptions.ServerEncryptionOptions options)
+    private void addKeystoreOptions(Map<String,Object> config)
     {
-        return options.withKeyStore("test/conf/cassandra_ssl_test.keystore")
-                      .withKeyStorePassword("cassandra");
+        config.put("keystore", "test/conf/cassandra_ssl_test.keystore");
+        config.put("keystore_password", "cassandra");
     }
 
     @Test(expected = IOException.class)
     public void buildTrustManagerFactory_NoFile() throws IOException
     {
-        defaultSslContextFactoryImpl.buildTrustManagerFactory(encryptionOptions.withTrustStore("/this/is/probably/not/a/file/on/your/test/machine"));
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        config.put("truststore", "/this/is/probably/not/a/file/on/your/test/machine");
+
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl(config);
+        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.buildTrustManagerFactory();
     }
 
     @Test(expected = IOException.class)
     public void buildTrustManagerFactory_BadPassword() throws IOException
     {
-        defaultSslContextFactoryImpl.buildTrustManagerFactory(encryptionOptions.withTrustStorePassword("HomeOfBadPasswords"));
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        config.put("truststore_password", "HomeOfBadPasswords");
+
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl(config);
+        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.buildTrustManagerFactory();
     }
 
     @Test
     public void buildTrustManagerFactory_HappyPath() throws IOException
     {
-        TrustManagerFactory trustManagerFactory = defaultSslContextFactoryImpl.buildTrustManagerFactory(encryptionOptions);
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl(config);
+        defaultSslContextFactoryImpl.checkedExpiry = false;
+        TrustManagerFactory trustManagerFactory = defaultSslContextFactoryImpl.buildTrustManagerFactory();
         Assert.assertNotNull(trustManagerFactory);
     }
 
     @Test(expected = IOException.class)
     public void buildKeyManagerFactory_NoFile() throws IOException
     {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                    .withKeyStore("/this/is/probably/not/a/file/on/your/test/machine");
-        defaultSslContextFactoryImpl.buildKeyManagerFactory(options);
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        config.put("keystore", "/this/is/probably/not/a/file/on/your/test/machine");
+
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl(config);
+        defaultSslContextFactoryImpl.checkedExpiry = false;
+        defaultSslContextFactoryImpl.buildKeyManagerFactory();
     }
 
     @Test(expected = IOException.class)
     public void buildKeyManagerFactory_BadPassword() throws IOException
     {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions)
-                                    .withKeyStorePassword("HomeOfBadPasswords");
-        defaultSslContextFactoryImpl.buildKeyManagerFactory(options);
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+        addKeystoreOptions(config);
+        config.put("keystore_password", "HomeOfBadPasswords");
+
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl(config);
+        defaultSslContextFactoryImpl.buildKeyManagerFactory();
     }
 
     @Test
     public void buildKeyManagerFactory_HappyPath() throws IOException
     {
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl = new DefaultSslContextFactoryImpl(config);
         Assert.assertFalse(defaultSslContextFactoryImpl.checkedExpiry);
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        defaultSslContextFactoryImpl.buildKeyManagerFactory(options);
-        Assert.assertTrue(defaultSslContextFactoryImpl.checkedExpiry);
+
+        addKeystoreOptions(config);
+        DefaultSslContextFactoryImpl defaultSslContextFactoryImpl2 = new DefaultSslContextFactoryImpl(config);
+        defaultSslContextFactoryImpl2.buildKeyManagerFactory();
+        Assert.assertTrue(defaultSslContextFactoryImpl2.checkedExpiry);
     }
 }

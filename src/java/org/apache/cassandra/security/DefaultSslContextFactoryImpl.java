@@ -45,7 +45,6 @@ import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
-import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * Cassandra's default implementation class for the configuration key {@code ssl_context_factory}. It uses
@@ -63,23 +62,96 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
      */
     private static volatile List<HotReloadableFile> hotReloadableFiles = ImmutableList.of();
 
-    private Map<String,String> parameters;
+    /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
+     * by extracting it from the default "TLS" SSL Context instance
+     */
+    static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
+
+    private Map<String,Object> parameters;
+
+    private final String keystore;
+    private final String keystore_password;
+    private final String truststore;
+    private final String truststore_password;
+    private final List<String> cipher_suites;
+    private String protocol;
+    private List<String> accepted_protocols;
+    private final String algorithm;
+    private final String store_type;
+    private final boolean require_client_auth;
+    private final boolean require_endpoint_verification;
+    // ServerEncryptionOptions does not use the enabled flag at all instead using the existing
+    // internode_encryption option. So we force this private and expose through isEnabled
+    // so users of ServerEncryptionOptions can't accidentally use this when they should use isEnabled
+    // Long term we need to refactor ClientEncryptionOptions and ServerEncyrptionOptions to be separate
+    // classes so we can choose appropriate configuration for each.
+    // See CASSANDRA-15262 and CASSANDRA-15146
+    protected Boolean enabled;
+    protected Boolean optional;
 
     /* For test only */
-    DefaultSslContextFactoryImpl(){}
+    DefaultSslContextFactoryImpl(){
+        keystore = "conf/.keystore";
+        keystore_password = "cassandra";
+        truststore = "conf/.truststore";
+        truststore_password = "cassandra";
+        cipher_suites = null;
+        protocol = null;
+        accepted_protocols = null;
+        algorithm = null;
+        store_type = "JKS";
+        require_client_auth = false;
+        require_endpoint_verification = false;
+        enabled = null;
+        optional = null;
+    }
 
-    public DefaultSslContextFactoryImpl(Map<String,String> parameters) {
+    public DefaultSslContextFactoryImpl(Map<String,Object> parameters) {
         this.parameters = parameters;
+
+        keystore = getString("keystore");
+        keystore_password = getString("keystore_password");
+        truststore = getString("truststore");
+        truststore_password = getString("truststore_password");
+        cipher_suites = getStringList("cipher_suites");
+        protocol = getString("protocol");
+        accepted_protocols = getStringList("accepted_protocols");
+        algorithm = getString("algorithm");
+        store_type = getString("store_type", "JKS");
+        require_client_auth = getBoolean("require_client_auth", false);
+        require_endpoint_verification = getBoolean("require_endpoint_verification", false);
+        enabled = getBoolean("enabled");
+        this.optional = getBoolean("optional");
+    }
+
+    private String getString(String key, String defaultValue) {
+        return this.parameters.get(key) == null ? defaultValue : (String)this.parameters.get(key);
+    }
+
+    private String getString(String key) {
+        return (String)this.parameters.get(key);
+    }
+
+    private List<String> getStringList(String key) {
+        return (List<String>)this.parameters.get(key);
+    }
+
+    private Boolean getBoolean(String key, boolean defaultValue) {
+        return this.parameters.get(key) == null ? defaultValue : (Boolean)this.parameters.get(key);
+    }
+
+    private Boolean getBoolean(String key) {
+        return (Boolean)this.parameters.get(key);
     }
 
     @Override
-    public SSLContext createJSSESslContext(EncryptionOptions options, boolean buildTruststore) throws SSLException
+    public SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException
     {
         TrustManager[] trustManagers = null;
         if (buildTruststore)
-            trustManagers = buildTrustManagerFactory(options).getTrustManagers();
+            trustManagers = buildTrustManagerFactory().getTrustManagers();
 
-        KeyManagerFactory kmf = buildKeyManagerFactory(options);
+        KeyManagerFactory kmf = buildKeyManagerFactory();
 
         try
         {
@@ -94,7 +166,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore, SocketType socketType
+    public SslContext createNettySslContext(boolean buildTruststore, SocketType socketType
     , boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws SSLException
     {
         /*
@@ -105,12 +177,12 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
             {@link SslContextBuilder#forServer(File, File, String)}). However, we are not supporting that now to keep
             the config/yaml API simple.
          */
-        KeyManagerFactory kmf = buildKeyManagerFactory(options);
+        KeyManagerFactory kmf = buildKeyManagerFactory();
         SslContextBuilder builder;
         if (socketType == SocketType.SERVER)
         {
             builder = SslContextBuilder.forServer(kmf);
-            builder.clientAuth(options.require_client_auth ? ClientAuth.REQUIRE : ClientAuth.NONE);
+            builder.clientAuth(this.require_client_auth ? ClientAuth.REQUIRE : ClientAuth.NONE);
         }
         else
         {
@@ -119,15 +191,15 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
 
         builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK);
 
-        builder.protocols(options.acceptedProtocols());
+        builder.protocols(getAcceptedProtocols());
 
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
-        if (options.cipher_suites != null && !options.cipher_suites.isEmpty())
-            builder.ciphers(options.cipher_suites, cipherFilter);
+        if (cipher_suites != null && !cipher_suites.isEmpty())
+            builder.ciphers(cipher_suites, cipherFilter);
 
         if (buildTruststore)
-            builder.trustManager(buildTrustManagerFactory(options));
+            builder.trustManager(buildTrustManagerFactory());
 
         SslContext sslContext;
         try
@@ -142,17 +214,21 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public synchronized void initHotReloading(EncryptionOptions options) throws SSLException {
+    public synchronized void initHotReloading() throws SSLException {
+        boolean hasKeystore = hasKeystore();
+        boolean hasTruststore = hasTruststore();
 
-        List<HotReloadableFile> fileList = new ArrayList<>();
-
-        if (options != null && options.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-        {
-            fileList.add(new HotReloadableFile(options.keystore));
-            fileList.add(new HotReloadableFile(options.truststore));
+        if ( hasKeystore || hasTruststore ) {
+            List<HotReloadableFile> fileList = new ArrayList<>();
+            if ( hasKeystore )
+            {
+                fileList.add(new HotReloadableFile(keystore));
+            }
+            if ( hasTruststore ) {
+                fileList.add(new HotReloadableFile(truststore));
+            }
+            hotReloadableFiles = ImmutableList.copyOf(fileList);
         }
-
-        hotReloadableFiles = ImmutableList.copyOf(fileList);
     }
 
     @Override
@@ -162,8 +238,57 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public boolean hasKeystore(EncryptionOptions options) {
-        return new File(options.keystore).exists();
+    public boolean hasKeystore() {
+        return keystore == null ? false : new File(keystore).exists();
+    }
+
+    private boolean hasTruststore() {
+        return truststore == null ? false : new File(truststore).exists();
+    }
+
+    /**
+     * Combine the pre-4.0 protocol field with the accepted_protocols list, substituting a list of
+     * explicit protocols for the previous catchall default of "TLS"
+     * @return array of protocol names suitable for passing to SslContextBuilder.protocols, or null if the default
+     */
+    @Override
+    public List<String> getAcceptedProtocols()
+    {
+        if (accepted_protocols == null)
+        {
+            if (protocol == null)
+            {
+                return null;
+            }
+            // TLS is accepted by SSLContext.getInstance as a shorthand for give me an engine that
+            // can speak some of the TLS protocols.  It is not supported by SSLEngine.setAcceptedProtocols
+            // so substitute if the user hasn't provided an accepted protocol configuration
+            else if (protocol.equalsIgnoreCase("TLS"))
+            {
+                return TLS_PROTOCOL_SUBSTITUTION;
+            }
+            else // the user was trying to limit to a single specific protocol, so try that
+            {
+                return ImmutableList.of(protocol);
+            }
+        }
+
+        if (protocol != null && !protocol.equalsIgnoreCase("TLS") &&
+            accepted_protocols.stream().noneMatch(ap -> ap.equalsIgnoreCase(protocol)))
+        {
+            // If the user provided a non-generic default protocol, append it to accepted_protocols - they wanted
+            // it after all.
+            return ImmutableList.<String>builder().addAll(accepted_protocols).add(protocol).build();
+        }
+        else
+        {
+            return accepted_protocols;
+        }
+    }
+
+    @Override
+    public List<String> getCipherSuites() {
+        return cipher_suites;
     }
 
     /**
@@ -198,14 +323,14 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         }
     }
 
-    KeyManagerFactory buildKeyManagerFactory(EncryptionOptions options) throws SSLException
+    KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
-        try (InputStream ksf = Files.newInputStream(Paths.get(options.keystore)))
+        try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
         {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(
-            options.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : options.algorithm);
-            KeyStore ks = KeyStore.getInstance(options.store_type);
-            ks.load(ksf, options.keystore_password.toCharArray());
+            algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : algorithm);
+            KeyStore ks = KeyStore.getInstance(store_type);
+            ks.load(ksf, keystore_password.toCharArray());
             if (!checkedExpiry)
             {
                 for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
@@ -220,7 +345,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
                 }
                 checkedExpiry = true;
             }
-            kmf.init(ks, options.keystore_password.toCharArray());
+            kmf.init(ks, keystore_password.toCharArray());
             return kmf;
         }
         catch (Exception e)
@@ -229,14 +354,14 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         }
     }
 
-    TrustManagerFactory buildTrustManagerFactory(EncryptionOptions options) throws SSLException
+    TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
-        try (InputStream tsf = Files.newInputStream(Paths.get(options.truststore)))
+        try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
         {
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(
-            options.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : options.algorithm);
-            KeyStore ts = KeyStore.getInstance(options.store_type);
-            ts.load(tsf, options.truststore_password.toCharArray());
+            algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : algorithm);
+            KeyStore ts = KeyStore.getInstance(store_type);
+            ts.load(tsf, truststore_password.toCharArray());
             tmf.init(ts);
             return tmf;
         }

@@ -688,7 +688,7 @@ public class FBUtilities
         }
     }
 
-    public static ISslContextFactory newSslContextFactory(String className, Map<String,String> parameters) throws ConfigurationException
+    public static ISslContextFactory newSslContextFactory(String className, Map<String,Object> parameters) throws ConfigurationException
     {
         if (!className.contains("."))
             className = "org.apache.cassandra.security." + className;

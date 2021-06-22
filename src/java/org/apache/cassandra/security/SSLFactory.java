@@ -132,7 +132,7 @@ public final class SSLFactory
      */
     public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
     {
-        return options.sslContextFactoryInstance.createJSSESslContext(options, buildTruststore);
+        return options.sslContextFactoryInstance.createJSSESslContext(buildTruststore);
     }
 
     /**
@@ -189,7 +189,7 @@ public final class SSLFactory
         ISslContextFactory.SocketType adaptedSocketType = socketType == SocketType.SERVER ?
                                                           ISslContextFactory.SocketType.SERVER :
                                                           ISslContextFactory.SocketType.CLIENT;
-        return options.sslContextFactoryInstance.createNettySslContext(options, buildTruststore, adaptedSocketType, useOpenSsl,
+        return options.sslContextFactoryInstance.createNettySslContext(buildTruststore, adaptedSocketType, useOpenSsl,
                                                                        cipherFilter);
     }
 
@@ -244,12 +244,12 @@ public final class SSLFactory
 
         logger.debug("Initializing hot reloading SSLContext");
 
-        if ( serverOpts != null ) {
-            serverOpts.sslContextFactoryInstance.initHotReloading(serverOpts);
+        if ( serverOpts != null && serverOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED) {
+            serverOpts.sslContextFactoryInstance.initHotReloading();
         }
 
-        if ( clientOpts != null ) {
-            clientOpts.sslContextFactoryInstance.initHotReloading(clientOpts);
+        if ( clientOpts != null && clientOpts.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED) {
+            clientOpts.sslContextFactoryInstance.initHotReloading();
         }
 
         if (!isHotReloadingInitialized)
