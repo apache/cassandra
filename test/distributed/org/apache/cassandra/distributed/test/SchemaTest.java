@@ -40,7 +40,7 @@ public class SchemaTest extends TestBaseImpl
 
             cluster.get(2).flush(KEYSPACE);
             cluster.get(2).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
-            cluster.get(2).shutdown();
+            cluster.get(2).shutdown().get();
             cluster.get(2).startup();
             cluster.get(2).forceCompact(KEYSPACE, "tbl");
         }
@@ -61,7 +61,7 @@ public class SchemaTest extends TestBaseImpl
             cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2, " + name + ") values (?,1,1,1,[1])", 1);
             cluster.get(2).flush(KEYSPACE);
             cluster.get(2).forceCompact(KEYSPACE, "tbl");
-            cluster.get(2).shutdown();
+            cluster.get(2).shutdown().get();
             cluster.get(2).startup();
             cluster.get(2).forceCompact(KEYSPACE, "tbl");
         }
