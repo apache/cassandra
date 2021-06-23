@@ -215,9 +215,9 @@ public class ClientResourceLimitsTest extends CQLTester
             // When the client attempts to execute the second query, the backpressure
             // mechanism should report the client connection is paused
             assertTrue(started.await(5, TimeUnit.SECONDS));
-            spinAssertEquals("Timed out after waiting 5 seconds for paused " +
+            spinAssertEquals("Timed out after waiting 10 seconds for paused " +
                              "connections metric to increment due to backpressure",
-                             before + 1, pausedConnections::getValue, 5, TimeUnit.SECONDS);
+                             true, () -> pausedConnections.getValue() >= before + 1, 10, TimeUnit.SECONDS);
 
             // verify the request hasn't completed
             assertFalse(complete.await(1, TimeUnit.SECONDS));

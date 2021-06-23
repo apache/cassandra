@@ -113,7 +113,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -288,7 +288,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -383,7 +383,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -492,7 +492,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -615,7 +615,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -710,7 +710,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -805,7 +805,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -901,7 +901,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -997,7 +997,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1093,7 +1093,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1188,7 +1188,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1332,7 +1332,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1455,7 +1455,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1550,7 +1550,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1649,7 +1649,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1726,7 +1726,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1802,7 +1802,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1865,7 +1865,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -1974,7 +1974,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2083,7 +2083,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2182,7 +2182,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2278,7 +2278,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2333,7 +2333,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2509,7 +2509,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2586,7 +2586,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2681,7 +2681,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2791,7 +2791,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2889,7 +2889,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -2984,7 +2984,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3079,7 +3079,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3142,7 +3142,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3251,7 +3251,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3305,7 +3305,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3368,7 +3368,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3466,7 +3466,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3576,7 +3576,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3751,7 +3751,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
@@ -3846,7 +3846,7 @@ jobs:
     - REPEATED_UTEST_CLASS: ClientResourceLimitsTest
     - REPEATED_UTEST_METHODS: testBackPressureWhenEndpointLimitExceeded
     - REPEATED_UTEST_COUNT: 1000
-    - REPEATED_UTEST_STOP_ON_FAILURE: true
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
     - REPEATED_DTEST_NAME: null
     - REPEATED_DTEST_VNODES: false
     - REPEATED_DTEST_COUNT: 100
