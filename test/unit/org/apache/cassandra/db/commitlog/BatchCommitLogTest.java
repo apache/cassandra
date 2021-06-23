@@ -34,6 +34,8 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.security.EncryptionContext;
 
+import static org.junit.Assert.assertEquals;
+
 public class BatchCommitLogTest extends CommitLogTest
 {
     private static final long CL_BATCH_SYNC_WINDOW = 1000; // 1 second
@@ -74,5 +76,23 @@ public class BatchCommitLogTest extends CommitLogTest
         long delta = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano);
         Assert.assertTrue("Expect batch commitlog shutdown immediately, but took " + delta, delta < CL_BATCH_SYNC_WINDOW);
         CommitLog.instance.start();
+    }
+
+    @Test
+    public void testFlushAndWaitingMetrics()
+    {
+        ColumnFamilyStore cfs1 = Keyspace.open(KEYSPACE1).getColumnFamilyStore(STANDARD1);
+        Mutation m = new RowUpdateBuilder(cfs1.metadata.get(), 0, "key").clustering("bytes")
+                                                                        .add("val", ByteBuffer.allocate(10 * 1024))
+                                                                        .build();
+
+        long startingFlushCount = CommitLog.instance.metrics.waitingOnFlush.getCount();
+        long startingWaitCount = CommitLog.instance.metrics.waitingOnCommit.getCount();
+
+        CommitLog.instance.add(m);
+
+        // We should register single new flush and waiting data points.
+        assertEquals(startingFlushCount + 1, CommitLog.instance.metrics.waitingOnFlush.getCount());
+        assertEquals(startingWaitCount + 1, CommitLog.instance.metrics.waitingOnCommit.getCount());
     }
 }
