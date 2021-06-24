@@ -406,6 +406,12 @@ public abstract class CQLTester
         return allArgs;
     }
 
+    protected static void requireNetworkWithoutDriver()
+    {
+        startServices();
+        startServer(server -> {});
+    }
+
     // lazy initialization for all tests that require Java Driver
     protected static void requireNetwork() throws ConfigurationException
     {
@@ -418,11 +424,16 @@ public abstract class CQLTester
         if (server != null)
             return;
 
+        startServices();
+        initializeNetwork(decorator, null);
+    }
+
+    private static void startServices()
+    {
         SystemKeyspace.finishStartup();
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
-        initializeNetwork(decorator, null);
     }
 
     protected static void reinitializeNetwork()
@@ -451,11 +462,7 @@ public abstract class CQLTester
 
     private static void initializeNetwork(Consumer<Server.Builder> decorator, Consumer<Cluster.Builder> clusterConfigurator)
     {
-        Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
-        decorator.accept(serverBuilder);
-        server = serverBuilder.build();
-        ClientMetrics.instance.init(Collections.singleton(server));
-        server.start();
+        startServer(decorator);
 
         for (ProtocolVersion version : PROTOCOL_VERSIONS)
         {
@@ -489,6 +496,15 @@ public abstract class CQLTester
 
             logger.info("Started Java Driver instance for protocol version {}", version);
         }
+    }
+
+    private static void startServer(Consumer<Server.Builder> decorator)
+    {
+        Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
+        decorator.accept(serverBuilder);
+        server = serverBuilder.build();
+        ClientMetrics.instance.init(Collections.singleton(server));
+        server.start();
     }
 
     protected void dropPerTestKeyspace() throws Throwable
