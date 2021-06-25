@@ -126,7 +126,8 @@ public class SlidingTimeRateTest
     @Test
     public void testConcurrentUpdateAndGet() throws InterruptedException
     {
-        final ExecutorService executor = Executors.newFixedThreadPool(FBUtilities.getAvailableProcessors());
+        int nproc = Math.min(4, FBUtilities.getAvailableProcessors());
+        final ExecutorService executor = Executors.newFixedThreadPool(nproc);
         final TestTimeSource time = new TestTimeSource();
         final SlidingTimeRate rate = new SlidingTimeRate(time, 5, 1, TimeUnit.SECONDS);
         int updates = 100000;
@@ -141,6 +142,6 @@ public class SlidingTimeRateTest
         executor.shutdown();
 
         Assert.assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
-        Assert.assertEquals(1000, rate.get(TimeUnit.SECONDS), 100.0);
+        Assert.assertEquals(1000, rate.get(TimeUnit.SECONDS), 150.0);
     }
 }
