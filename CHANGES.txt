@@ -1,4 +1,5 @@
 7.0
+ * Allow nodetool garbagecollect to take a user defined list of SSTables (CASSANDRA-16767)
  * Add a guardrail for misprepared statements (CASSANDRA-21139)
 Merged from 6.0:
  * Ensure schema created before 2.1 without tableId in folder name can be loaded in SnapshotLoader (CASSANDRA-21246)

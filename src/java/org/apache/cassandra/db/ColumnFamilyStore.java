@@ -1857,6 +1857,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
     }
 
+    public CompactionManager.AllSSTableOpStatus partialGarbageCollect(TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> sstables)
+    {
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, sstables);
+    }
+
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         assert !sstables.isEmpty();
