@@ -7,7 +7,8 @@ SYNOPSIS
                 [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
                 [(-u <username> | --username <username>)] garbagecollect
                 [(-g <granularity> | --granularity <granularity>)]
-                [(-j <jobs> | --jobs <jobs>)] [--] [<keyspace> <tables>...]
+                [(-j <jobs> | --jobs <jobs>)] [--user-defined] [--] [<keyspace>
+                <tables>...] or <SSTable file>...
 
 OPTIONS
         -g <granularity>, --granularity <granularity>
@@ -34,10 +35,16 @@ OPTIONS
         -u <username>, --username <username>
             Remote jmx agent username
 
+        --user-defined
+            Submit the listed Data.db files for user-defined garbagecollect
+            instead of interpreting the positional arguments as keyspace +
+            tables.
+
         --
             This option can be used to separate command-line options from the
             list of argument, (useful when arguments might be mistaken for
             command-line options
 
-        [<keyspace> <tables>...]
-            The keyspace followed by one or many tables
+        [<keyspace> <tables>...] or <SSTable file>...
+            The keyspace followed by one or many tables, or a list of SSTable
+            data files when using --user-defined

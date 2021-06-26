@@ -134,6 +134,7 @@ import org.apache.cassandra.gms.VersionedValue.VersionedValueFactory;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -2831,6 +2832,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (ColumnFamilyStore cfs : getValidColumnFamilies(false, false, keyspaceName, tableNames))
         {
             CompactionManager.AllSSTableOpStatus oneStatus = cfs.garbageCollect(tombstoneOption, jobs);
+            if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
+                status = oneStatus;
+        }
+        logger.info("Completed {} with status {}", OperationType.GARBAGE_COLLECT, status);
+        return status.statusCode;
+    }
+
+    public int userDefinedGarbageCollect(String tombstoneOptionString, int jobs, List<String> userDefinedTables) throws ExecutionException, InterruptedException
+    {
+        TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);
+        CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
+        logger.info("Starting {} on {}", OperationType.GARBAGE_COLLECT, userDefinedTables);
+        for (Map.Entry<ColumnFamilyStore, Collection<Descriptor>> entry : Descriptor.fromFilenamesGrouped(userDefinedTables).asMap().entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getKey();
+            Collection<Descriptor> sstables = entry.getValue();
+            CompactionManager.AllSSTableOpStatus oneStatus = cfs.partialGarbageCollect(tombstoneOption, jobs, sstables);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                 status = oneStatus;
         }
