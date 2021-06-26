@@ -46,17 +46,9 @@ public abstract class UnfilteredPartitionIterators
     public interface MergeListener
     {
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
-        public void close();
+        public default void close() {}
 
-        public static MergeListener NOOP = new MergeListener()
-        {
-            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
-            {
-                return UnfilteredRowIterators.MergeListener.NOOP;
-            }
-
-            public void close() {}
-        };
+        public static MergeListener NOOP = (partitionKey, versions) -> UnfilteredRowIterators.MergeListener.NOOP;
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -112,7 +104,6 @@ public abstract class UnfilteredPartitionIterators
     @SuppressWarnings("resource")
     public static UnfilteredPartitionIterator merge(final List<? extends UnfilteredPartitionIterator> iterators, final MergeListener listener)
     {
-        assert listener != null;
         assert !iterators.isEmpty();
 
         final TableMetadata metadata = iterators.get(0).metadata();
@@ -137,7 +128,9 @@ public abstract class UnfilteredPartitionIterators
             @SuppressWarnings("resource")
             protected UnfilteredRowIterator getReduced()
             {
-                UnfilteredRowIterators.MergeListener rowListener = listener.getRowMergeListener(partitionKey, toMerge);
+                UnfilteredRowIterators.MergeListener rowListener = listener == null
+                                                                 ? null
+                                                                 : listener.getRowMergeListener(partitionKey, toMerge);
 
                 // Make a single empty iterator object to merge, we don't need toMerge.size() copiess
                 UnfilteredRowIterator empty = null;
@@ -185,7 +178,9 @@ public abstract class UnfilteredPartitionIterators
             public void close()
             {
                 merged.close();
-                listener.close();
+
+                if (listener != null)
+                    listener.close();
             }
         };
     }

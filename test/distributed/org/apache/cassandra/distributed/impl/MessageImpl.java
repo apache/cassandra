@@ -21,7 +21,7 @@ package org.apache.cassandra.distributed.impl;
 import java.net.InetSocketAddress;
 
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.utils.ByteArrayUtil;
 
 // a container for simplifying the method signature for per-instance message handling/delivery
 public class MessageImpl implements IMessage
@@ -64,6 +64,17 @@ public class MessageImpl implements IMessage
     public InetSocketAddress from()
     {
         return from;
+    }
+
+    public String toString()
+    {
+        return "MessageImpl{" +
+               "verb=" + verb +
+               ", bytes=" + ByteArrayUtil.bytesToHex(bytes) +
+               ", id=" + id +
+               ", version=" + version +
+               ", from=" + from +
+               '}';
     }
 }
 

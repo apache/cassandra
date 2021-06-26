@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.schema;
 
+import java.net.UnknownHostException;
+
 public interface SchemaTransformation
 {
     /**
@@ -27,5 +29,5 @@ public interface SchemaTransformation
      * @param schema Keyspaces to base the transformation on
      * @return Keyspaces transformed by the statement
      */
-    Keyspaces apply(Keyspaces schema);
+    Keyspaces apply(Keyspaces schema) throws UnknownHostException;
 }

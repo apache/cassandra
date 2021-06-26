@@ -21,32 +21,32 @@ package org.apache.cassandra.distributed.upgrade;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.Versions;
 import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
 public class UpgradeTest extends UpgradeTestBase
 {
-
     @Test
-    public void upgradeTest() throws Throwable
+    public void simpleUpgradeWithNetworkAndGossipTest() throws Throwable
     {
         new TestCase()
-        .upgrade(Versions.Major.v22, Versions.Major.v30, Versions.Major.v3X)
-        .upgrade(Versions.Major.v30, Versions.Major.v3X, Versions.Major.v4)
+        .nodes(2)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP))
+        .upgrade(Versions.Major.v3X, Versions.Major.v4)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
-            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, 2)");
-            cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, 3)");
+            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)", ConsistencyLevel.ALL);
         })
-        .runAfterClusterUpgrade((cluster) -> {
-            assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
-                                                      ConsistencyLevel.ALL,
-                                                      1),
-                       row(1, 1, 1),
-                       row(1, 2, 2),
-                       row(1, 3, 3));
+        .runAfterNodeUpgrade((cluster, node) -> {
+            for (int i : new int[]{ 1, 2 })
+            {
+                assertRows(cluster.coordinator(i).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
+                                                          ConsistencyLevel.ALL,
+                                                          1),
+                           row(1, 1, 1));
+            }
         }).run();
     }
 }

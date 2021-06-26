@@ -65,8 +65,8 @@ public class ColumnIndex
     private int written;
     private long previousRowStart;
 
-    private ClusteringPrefix firstClustering;
-    private ClusteringPrefix lastClustering;
+    private ClusteringPrefix<?> firstClustering;
+    private ClusteringPrefix<?> lastClustering;
 
     private DeletionTime openMarker;
 

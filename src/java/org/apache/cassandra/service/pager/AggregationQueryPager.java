@@ -146,7 +146,7 @@ public final class AggregationQueryPager implements QueryPager
         /**
          * The clustering of the last row processed
          */
-        private Clustering lastClustering;
+        private Clustering<?> lastClustering;
 
         /**
          * The initial amount of row remaining
@@ -260,7 +260,7 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering lastClustering)
+                                              Clustering<?> lastClustering)
         {
             GroupingState state = new GroupingState(lastPartitionKey, lastClustering);
             DataLimits newLimits = limits.forGroupByInternalPaging(state);
@@ -417,7 +417,7 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering lastClustering)
+                                              Clustering<?> lastClustering)
         {
             return pager;
         }

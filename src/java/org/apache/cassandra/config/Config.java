@@ -83,7 +83,7 @@ public class Config
 
     /* initial token in the ring */
     public String initial_token;
-    public int num_tokens = 1;
+    public Integer num_tokens;
     /** Triggers automatic allocation of tokens if set, using the replication strategy of the referenced keyspace */
     public String allocate_tokens_for_keyspace = null;
     /** Triggers automatic allocation of tokens if set, based on the provided replica count for a datacenter */
@@ -172,12 +172,15 @@ public class Config
 
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
-    public int internode_tcp_connect_timeout_in_ms = 2000;
+    public volatile int internode_tcp_connect_timeout_in_ms = 2000;
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-    public int internode_tcp_user_timeout_in_ms = 30000;
+    public volatile int internode_tcp_user_timeout_in_ms = 30000;
+    // Similar to internode_tcp_user_timeout_in_ms but used specifically for streaming connection.
+    // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
+    public volatile int internode_streaming_tcp_user_timeout_in_ms = 300_000; // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
@@ -188,12 +191,12 @@ public class Config
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     public volatile boolean native_transport_allow_older_protocols = true;
-    public int native_transport_frame_block_size_in_kb = 32;
     public volatile long native_transport_max_concurrent_requests_in_bytes_per_ip = -1L;
     public volatile long native_transport_max_concurrent_requests_in_bytes = -1L;
+    public int native_transport_receive_queue_capacity_in_bytes = 1 << 20; // 1MiB
+
     @Deprecated
     public Integer native_transport_max_negotiable_protocol_version = null;
-
 
     /**
      * Max size of values in SSTables, in MegaBytes.
@@ -204,6 +207,7 @@ public class Config
 
     public boolean snapshot_before_compaction = false;
     public boolean auto_snapshot = true;
+    public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public int column_index_size_in_kb = 64;
@@ -216,8 +220,8 @@ public class Config
     public volatile int compaction_large_partition_warning_threshold_mb = 100;
     public int min_free_space_per_drive_in_mb = 50;
 
-    public volatile int concurrent_validations = Integer.MAX_VALUE;
     public volatile int concurrent_materialized_view_builders = 1;
+    public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
@@ -229,6 +233,12 @@ public class Config
     public volatile int inter_dc_stream_throughput_outbound_megabits_per_sec = 200;
 
     public String[] data_file_directories = new String[0];
+
+    /**
+     * The directory to use for storing the system keyspaces data.
+     * If unspecified the data will be stored in the first of the data_file_directories.
+     */
+    public String local_system_data_file_directory;
 
     public String saved_caches_directory;
 
@@ -265,7 +275,7 @@ public class Config
     public boolean dynamic_snitch = true;
     public int dynamic_snitch_update_interval_in_ms = 100;
     public int dynamic_snitch_reset_interval_in_ms = 600000;
-    public double dynamic_snitch_badness_threshold = 0.1;
+    public double dynamic_snitch_badness_threshold = 1.0;
 
     public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
     public EncryptionOptions client_encryption_options = new EncryptionOptions();
@@ -302,7 +312,11 @@ public class Config
     private static boolean isClientMode = false;
     private static Supplier<Config> overrideLoadConfig = null;
 
+    public Integer networking_cache_size_in_mb;
+
     public Integer file_cache_size_in_mb;
+
+    public boolean file_cache_enabled = Boolean.getBoolean("cassandra.file_cache_enabled");
 
     /**
      * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 kb, we
@@ -330,6 +344,8 @@ public class Config
 
     public volatile int tombstone_warn_threshold = 1000;
     public volatile int tombstone_failure_threshold = 100000;
+
+    public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
     public volatile Long index_summary_capacity_in_mb;
     public volatile int index_summary_resize_interval_in_minutes = 60;
@@ -382,6 +398,8 @@ public class Config
 
     public boolean enable_sasi_indexes = false;
 
+    public volatile boolean enable_drop_compact_storage = false;
+
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!
@@ -413,9 +431,12 @@ public class Config
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
+    @Deprecated
     public volatile boolean back_pressure_enabled = false;
+    @Deprecated
     public volatile ParameterizedClass back_pressure_strategy;
 
+    public volatile int concurrent_validations;
     public RepairCommandPoolFullStrategy repair_command_pool_full_strategy = RepairCommandPoolFullStrategy.queue;
     public int repair_command_pool_size = concurrent_validations;
 
@@ -521,6 +542,13 @@ public class Config
     public volatile boolean check_for_duplicate_rows_during_reads = true;
     public volatile boolean check_for_duplicate_rows_during_compaction = true;
 
+    public boolean autocompaction_on_startup_enabled = Boolean.parseBoolean(System.getProperty("cassandra.autocompaction_on_startup_enabled", "true"));
+
+    // see CASSANDRA-3200 / CASSANDRA-16274
+    public volatile boolean auto_optimise_inc_repair_streams = false;
+    public volatile boolean auto_optimise_full_repair_streams = false;
+    public volatile boolean auto_optimise_preview_repair_streams = false;
+
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.
@@ -532,6 +560,11 @@ public class Config
     {
         isClientMode = clientMode;
     }
+
+    public volatile int table_count_warn_threshold = 150;
+    public volatile int keyspace_count_warn_threshold = 40;
+
+    public volatile int consecutive_message_errors_threshold = 1;
 
     public static Supplier<Config> getOverrideLoadConfig()
     {

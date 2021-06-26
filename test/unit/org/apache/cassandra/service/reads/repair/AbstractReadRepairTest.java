@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.cassandra.service.reads.repair;
 
 import java.nio.ByteBuffer;
@@ -7,15 +25,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -85,9 +100,9 @@ public abstract  class AbstractReadRepairTest
 
     static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
     static DecoratedKey key;
-    static Cell cell1;
-    static Cell cell2;
-    static Cell cell3;
+    static Cell<?> cell1;
+    static Cell<?> cell2;
+    static Cell<?> cell3;
     static Mutation resolved;
 
     static ReadCommand command;
@@ -145,35 +160,35 @@ public abstract  class AbstractReadRepairTest
         return DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(v));
     }
 
-    static Cell cell(String name, String value, long timestamp)
+    static Cell<?> cell(String name, String value, long timestamp)
     {
         return BufferCell.live(cfm.getColumn(ColumnIdentifier.getInterned(name, false)), timestamp, ByteBufferUtil.bytes(value));
     }
 
-    static PartitionUpdate update(Cell... cells)
+    static PartitionUpdate update(Cell<?>... cells)
     {
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
-        for (Cell cell: cells)
+        for (Cell<?> cell: cells)
         {
             builder.addCell(cell);
         }
         return PartitionUpdate.singleRowUpdate(cfm, key, builder.build());
     }
 
-    static PartitionIterator partition(Cell... cells)
+    static PartitionIterator partition(Cell<?>... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());
         return UnfilteredPartitionIterators.filter(iter, Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(now)));
     }
 
-    static Mutation mutation(Cell... cells)
+    static Mutation mutation(Cell<?>... cells)
     {
         return new Mutation(update(cells));
     }
 
     @SuppressWarnings("resource")
-    static Message<ReadResponse> msg(InetAddressAndPort from, Cell... cells)
+    static Message<ReadResponse> msg(InetAddressAndPort from, Cell<?>... cells)
     {
         UnfilteredPartitionIterator iter = new SingletonUnfilteredPartitionIterator(update(cells).unfilteredIterator());
         return Message.builder(INTERNAL_RSP, ReadResponse.createDataResponse(iter, command))
@@ -281,7 +296,12 @@ public abstract  class AbstractReadRepairTest
     {
         Token token = readPlan.range().left.getToken();
         EndpointsForToken pending = EndpointsForToken.empty(token);
-        return ReplicaPlans.forWrite(ks, ConsistencyLevel.TWO, liveAndDown.forToken(token), pending, Predicates.alwaysTrue(), ReplicaPlans.writeReadRepair(readPlan));
+        return ReplicaPlans.forWrite(readPlan.keyspace(),
+                                     ConsistencyLevel.TWO,
+                                     liveAndDown.forToken(token),
+                                     pending,
+                                     replica -> true,
+                                     ReplicaPlans.writeReadRepair(readPlan));
     }
     static ReplicaPlan.ForRangeRead replicaPlan(EndpointsForRange replicas, EndpointsForRange targets)
     {
@@ -293,8 +313,7 @@ public abstract  class AbstractReadRepairTest
     }
     static ReplicaPlan.ForRangeRead replicaPlan(Keyspace keyspace, ConsistencyLevel consistencyLevel, EndpointsForRange replicas, EndpointsForRange targets)
     {
-        return new ReplicaPlan.ForRangeRead(keyspace, consistencyLevel,
-                ReplicaUtils.FULL_BOUNDS, replicas, targets);
+        return new ReplicaPlan.ForRangeRead(keyspace, keyspace.getReplicationStrategy(), consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, targets, 1);
     }
 
     public abstract InstrumentedReadRepair createInstrumentedReadRepair(ReadCommand command, ReplicaPlan.Shared<?, ?> replicaPlan, long queryStartNanoTime);

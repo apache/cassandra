@@ -129,7 +129,7 @@ public class MessagePayloadTest extends CQLTester
                                                    new EncryptionOptions());
             try
             {
-                client.connect(false, false);
+                client.connect(false);
 
                 Map<String, ByteBuffer> reqMap;
                 Map<String, ByteBuffer> respMap;
@@ -205,7 +205,7 @@ public class MessagePayloadTest extends CQLTester
             SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort);
             try
             {
-                client.connect(false, false);
+                client.connect(false);
 
                 Map<String, ByteBuffer> reqMap;
                 Map<String, ByteBuffer> respMap;
@@ -274,7 +274,7 @@ public class MessagePayloadTest extends CQLTester
             SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, ProtocolVersion.V3);
             try
             {
-                client.connect(false, false);
+                client.connect(false);
 
                 Map<String, ByteBuffer> reqMap;
 
@@ -296,6 +296,10 @@ public class MessagePayloadTest extends CQLTester
                 {
                     Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
+                // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
+                client.close();
+                client.connect(false);
+
                 queryMessage.setCustomPayload(null);
                 client.execute(queryMessage);
 
@@ -311,6 +315,10 @@ public class MessagePayloadTest extends CQLTester
                 {
                     Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
+                // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
+                client.close();
+                client.connect(false);
+
                 prepareMessage.setCustomPayload(null);
                 ResultMessage.Prepared prepareResponse = (ResultMessage.Prepared) client.execute(prepareMessage);
 
@@ -327,6 +335,9 @@ public class MessagePayloadTest extends CQLTester
                 {
                     Assert.assertTrue(e.getCause() instanceof ProtocolException);
                 }
+                // when a protocol exception is thrown by the server the connection is closed, so need to re-connect
+                client.close();
+                client.connect(false);
 
                 BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
                                                              Collections.<Object>singletonList("INSERT INTO " + KEYSPACE + ".atable (pk,v) VALUES (1, 'foo')"),

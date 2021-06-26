@@ -114,9 +114,9 @@ public interface Selectable extends AssignmentTestable
         }
     }
 
-    public static abstract class Raw
+    public interface Raw
     {
-        public abstract Selectable prepare(TableMetadata table);
+        public Selectable prepare(TableMetadata table);
     }
 
     public static class WithTerm implements Selectable
@@ -204,7 +204,7 @@ public interface Selectable extends AssignmentTestable
             return rawTerm.getText();
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final Term.Raw term;
 
@@ -265,17 +265,18 @@ public interface Selectable extends AssignmentTestable
             return predicate.test(column);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
-            private final ColumnMetadata.Raw id;
+            private final Selectable.RawIdentifier id;
             private final boolean isWritetime;
 
-            public Raw(ColumnMetadata.Raw id, boolean isWritetime)
+            public Raw(Selectable.RawIdentifier id, boolean isWritetime)
             {
                 this.id = id;
                 this.isWritetime = isWritetime;
             }
 
+            @Override
             public WritetimeOrTTL prepare(TableMetadata table)
             {
                 return new WritetimeOrTTL(id.prepare(table), isWritetime);
@@ -317,7 +318,7 @@ public interface Selectable extends AssignmentTestable
             return function.returnType();
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final FunctionName functionName;
             private final List<Selectable.Raw> args;
@@ -346,6 +347,7 @@ public interface Selectable extends AssignmentTestable
                                Collections.singletonList(arg));
             }
 
+            @Override
             public Selectable prepare(TableMetadata table)
             {
                 List<Selectable> preparedArgs = new ArrayList<>(args.size());
@@ -475,7 +477,7 @@ public interface Selectable extends AssignmentTestable
             return arg.selectColumns(predicate);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final CQL3Type type;
             private final Selectable.Raw arg;
@@ -565,7 +567,7 @@ public interface Selectable extends AssignmentTestable
             return selected.selectColumns(predicate);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final Selectable.Raw selected;
             private final FieldIdentifier field;
@@ -689,7 +691,7 @@ public interface Selectable extends AssignmentTestable
             return Tuples.tupleToString(selectables);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final List<Selectable.Raw> raws;
 
@@ -698,6 +700,7 @@ public interface Selectable extends AssignmentTestable
                 this.raws = raws;
             }
 
+            @Override
             public Selectable prepare(TableMetadata cfm)
             {
                 return new BetweenParenthesesOrWithTuple(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
@@ -773,7 +776,7 @@ public interface Selectable extends AssignmentTestable
             return Lists.listToString(selectables);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final List<Selectable.Raw> raws;
 
@@ -782,6 +785,7 @@ public interface Selectable extends AssignmentTestable
                 this.raws = raws;
             }
 
+            @Override
             public Selectable prepare(TableMetadata cfm)
             {
                 return new WithList(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
@@ -865,7 +869,7 @@ public interface Selectable extends AssignmentTestable
             return Sets.setToString(selectables);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final List<Selectable.Raw> raws;
 
@@ -874,6 +878,7 @@ public interface Selectable extends AssignmentTestable
                 this.raws = raws;
             }
 
+            @Override
             public Selectable prepare(TableMetadata cfm)
             {
                 return new WithSet(raws.stream().map(p -> p.prepare(cfm)).collect(Collectors.toList()));
@@ -884,7 +889,7 @@ public interface Selectable extends AssignmentTestable
     /**
      * {@code Selectable} for literal Maps or UDTs.
      * <p>The parser cannot differentiate between a Map or a UDT in the selection cause because a
-     * {@code ColumnMetadata} is equivalent to a {@code FieldIdentifier} from a syntax point of view.
+     * {@code ColumnIdentifier} is equivalent to a {@code FieldIdentifier} from a syntax point of view.
      * By consequence, we are forced to wait until the type is known to be able to differentiate them.</p>
      */
     public static class WithMapOrUdt implements Selectable
@@ -1044,7 +1049,7 @@ public interface Selectable extends AssignmentTestable
             return fields;
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final List<Pair<Selectable.Raw, Selectable.Raw>> raws;
 
@@ -1053,6 +1058,7 @@ public interface Selectable extends AssignmentTestable
                 this.raws = raws;
             }
 
+            @Override
             public Selectable prepare(TableMetadata cfm)
             {
                 return new WithMapOrUdt(cfm, raws);
@@ -1149,7 +1155,7 @@ public interface Selectable extends AssignmentTestable
             return String.format("(%s)%s", typeName, selectable);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final CQL3Type.Raw typeRaw;
 
@@ -1177,7 +1183,7 @@ public interface Selectable extends AssignmentTestable
      * identifier have the same syntax. By consequence, we need to wait until the type is known to create the proper
      * Object: {@code ColumnMetadata} or {@code FieldIdentifier}.
      */
-    public static final class RawIdentifier extends Selectable.Raw
+    public static final class RawIdentifier implements Selectable.Raw
     {
         private final String text;
 
@@ -1186,7 +1192,7 @@ public interface Selectable extends AssignmentTestable
         /**
          * Creates a {@code RawIdentifier} from an unquoted identifier string.
          */
-        public static Raw forUnquoted(String text)
+        public static RawIdentifier forUnquoted(String text)
         {
             return new RawIdentifier(text, false);
         }
@@ -1194,7 +1200,7 @@ public interface Selectable extends AssignmentTestable
         /**
          * Creates a {@code RawIdentifier} from a quoted identifier string.
          */
-        public static Raw forQuoted(String text)
+        public static RawIdentifier forQuoted(String text)
         {
             return new RawIdentifier(text, true);
         }
@@ -1206,11 +1212,9 @@ public interface Selectable extends AssignmentTestable
         }
 
         @Override
-        public Selectable prepare(TableMetadata cfm)
+        public ColumnMetadata prepare(TableMetadata cfm)
         {
-            ColumnMetadata.Raw raw = quoted ? ColumnMetadata.Raw.forQuoted(text)
-                                            : ColumnMetadata.Raw.forUnquoted(text);
-            return raw.prepare(cfm);
+            return cfm.getExistingColumn(ColumnIdentifier.getInterned(text, quoted));
         }
 
         public FieldIdentifier toFieldIdentifier()
@@ -1281,7 +1285,7 @@ public interface Selectable extends AssignmentTestable
             return selected.selectColumns(predicate);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final Selectable.Raw selected;
             private final Term.Raw element;
@@ -1367,7 +1371,7 @@ public interface Selectable extends AssignmentTestable
             return selected.selectColumns(predicate);
         }
 
-        public static class Raw extends Selectable.Raw
+        public static class Raw implements Selectable.Raw
         {
             private final Selectable.Raw selected;
             // Both from and to can be null if they haven't been provided

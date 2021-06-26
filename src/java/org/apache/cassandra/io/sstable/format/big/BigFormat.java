@@ -18,10 +18,7 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.Collection;
-import java.util.Set;
 import java.util.UUID;
-
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
@@ -29,11 +26,9 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -103,9 +98,9 @@ public class BigFormat implements SSTableFormat
     static class ReaderFactory extends SSTableReader.Factory
     {
         @Override
-        public SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, Long maxDataAge, StatsMetadata sstableMetadata, SSTableReader.OpenReason openReason, SerializationHeader header)
+        public SSTableReader open(SSTableReaderBuilder builder)
         {
-            return new BigTableReader(descriptor, components, metadata, maxDataAge, sstableMetadata, openReason, header);
+            return new BigTableReader(builder);
         }
     }
 
@@ -117,7 +112,7 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "na";
+        public static final String current_version = "nb";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -125,8 +120,10 @@ public class BigFormat implements SSTableFormat
         // mb (3.0.7, 3.7): commit log lower bound included
         // mc (3.0.8, 3.9): commit log intervals included
         // md (3.0.18, 3.11.4): corrected sstable min/max clustering
+        // me (3.0.25, 3.11.11): added hostId of the node from which the sstable originated
 
-        // na (4.0.0): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
+        // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
+        // nb (4.0.0): originating host id
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -135,6 +132,7 @@ public class BigFormat implements SSTableFormat
         private final boolean hasCommitLogLowerBound;
         private final boolean hasCommitLogIntervals;
         private final boolean hasAccurateMinMax;
+        private final boolean hasOriginatingHostId;
         public final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
@@ -156,6 +154,7 @@ public class BigFormat implements SSTableFormat
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
+            hasOriginatingHostId = version.matches("(m[e-z])|(n[b-z])");
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
@@ -219,6 +218,11 @@ public class BigFormat implements SSTableFormat
         public boolean isCompatibleForStreaming()
         {
             return isCompatible() && version.charAt(0) == current_version.charAt(0);
+        }
+
+        public boolean hasOriginatingHostId()
+        {
+            return hasOriginatingHostId;
         }
 
         @Override

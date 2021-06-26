@@ -42,12 +42,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import afu.org.checkerframework.checker.oigj.qual.O;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionTasks;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -77,8 +78,10 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FilterFactory;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -122,9 +125,14 @@ public class Util
         return PartitionPosition.ForKey.get(ByteBufferUtil.bytes(key), partitioner);
     }
 
-    public static Clustering clustering(ClusteringComparator comparator, Object... o)
+    public static Clustering<?> clustering(ClusteringComparator comparator, Object... o)
     {
         return comparator.make(o);
+    }
+
+    public static Token token(int key)
+    {
+        return testPartitioner().getToken(ByteBufferUtil.bytes(key));
     }
 
     public static Token token(String key)
@@ -222,7 +230,7 @@ public class Util
         for (int i=0; i<endpointTokens.size(); i++)
         {
             InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
-            Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), 1);
+            Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), MessagingService.current_version, 1);
             Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(endpointTokens.get(i))));
             ss.onChange(ep,
                         ApplicationState.STATUS_WITH_PORT,
@@ -431,7 +439,7 @@ public class Util
         return mutation.getPartitionUpdates().iterator().next().unfilteredIterator();
     }
 
-    public static Cell cell(ColumnFamilyStore cfs, Row row, String columnName)
+    public static Cell<?> cell(ColumnFamilyStore cfs, Row row, String columnName)
     {
         ColumnMetadata def = cfs.metadata().getColumn(ByteBufferUtil.bytes(columnName));
         assert def != null;
@@ -445,9 +453,9 @@ public class Util
 
     public static void assertCellValue(Object value, ColumnFamilyStore cfs, Row row, String columnName)
     {
-        Cell cell = cell(cfs, row, columnName);
+        Cell<?> cell = cell(cfs, row, columnName);
         assert cell != null : "Row " + row.toString(cfs.metadata()) + " has no cell for " + columnName;
-        assertEquals(value, cell.column().type.compose(cell.value()));
+        assertEquals(value, Cells.composeValue(cell, cell.column().type));
     }
 
     public static void consume(UnfilteredRowIterator iter)
@@ -524,10 +532,10 @@ public class Util
     // moved & refactored from KeyspaceTest in < 3.0
     public static void assertColumns(Row row, String... expectedColumnNames)
     {
-        Iterator<Cell> cells = row == null ? Collections.emptyIterator() : row.cells().iterator();
-        String[] actual = Iterators.toArray(Iterators.transform(cells, new Function<Cell, String>()
+        Iterator<Cell<?>> cells = row == null ? Collections.emptyIterator() : row.cells().iterator();
+        String[] actual = Iterators.toArray(Iterators.transform(cells, new Function<Cell<?>, String>()
         {
-            public String apply(Cell cell)
+            public String apply(Cell<?> cell)
             {
                 return cell.column().name.toString();
             }
@@ -541,14 +549,14 @@ public class Util
 
     public static void assertColumn(TableMetadata cfm, Row row, String name, String value, long timestamp)
     {
-        Cell cell = row.getCell(cfm.getColumn(new ColumnIdentifier(name, true)));
+        Cell<?> cell = row.getCell(cfm.getColumn(new ColumnIdentifier(name, true)));
         assertColumn(cell, value, timestamp);
     }
 
-    public static void assertColumn(Cell cell, String value, long timestamp)
+    public static void assertColumn(Cell<?> cell, String value, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.value(), ByteBufferUtil.bytes(value)));
+        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.buffer(), ByteBufferUtil.bytes(value)));
         assertEquals(timestamp, cell.timestamp());
     }
 
@@ -706,14 +714,14 @@ public class Util
             for ( ; ; )
             {
                 DataDirectory dir = cfs.getDirectories().getWriteableLocation(1);
-                BlacklistedDirectories.maybeMarkUnwritable(cfs.getDirectories().getLocationForDisk(dir));
+                DisallowedDirectories.maybeMarkUnwritable(cfs.getDirectories().getLocationForDisk(dir));
             }
         }
         catch (IOError e)
         {
             // Expected -- marked all directories as unwritable
         }
-        return () -> BlacklistedDirectories.clearUnwritableUnsafe();
+        return () -> DisallowedDirectories.clearUnwritableUnsafe();
     }
 
     public static PagingState makeSomePagingState(ProtocolVersion protocolVersion)
@@ -734,7 +742,7 @@ public class Util
         ByteBuffer pk = ByteBufferUtil.bytes("someKey");
 
         ColumnMetadata def = metadata.getColumn(new ColumnIdentifier("myCol", false));
-        Clustering c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
+        Clustering<?> c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
         return new PagingState(pk, mark, 10, remainingInPartition);
@@ -772,5 +780,42 @@ public class Util
             }
         }
         assertEquals(expectedSSTableCount, fileCount);
+    }
+
+    /**
+     * Disable bloom filter on all sstables of given table
+     */
+    public static void disableBloomFilter(ColumnFamilyStore cfs)
+    {
+        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
+        {
+            for (SSTableReader sstable : sstables)
+            {
+                sstable = sstable.cloneAndReplace(FilterFactory.AlwaysPresent);
+                txn.update(sstable, true);
+                txn.checkpoint();
+            }
+            txn.finish();
+        }
+
+        for (SSTableReader reader : cfs.getLiveSSTables())
+            assertEquals(FilterFactory.AlwaysPresent, reader.getBloomFilter());
+    }
+
+    /**
+     * Setups Gossiper to mimic the upgrade behaviour when {@link Gossiper#isUpgradingFromVersionLowerThan(CassandraVersion)}
+     * or {@link Gossiper#hasMajorVersion3Nodes()} is called.
+     */
+    public static void setUpgradeFromVersion(String version)
+    {
+        int v = Optional.ofNullable(Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort()))
+                        .map(ep -> ep.getApplicationState(ApplicationState.RELEASE_VERSION))
+                        .map(rv -> rv.version)
+                        .orElse(0);
+
+        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION,
+                                                   VersionedValue.unsafeMakeVersionedValue(version, v + 1));
+        Gossiper.instance.expireUpgradeFromVersion();
     }
 }

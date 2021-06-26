@@ -78,12 +78,12 @@ cqlsh_special_cmd_command_syntax_rules = r'''
 
 cqlsh_describe_cmd_syntax_rules = r'''
 <describeCommand> ::= ( "DESCRIBE" | "DESC" )
-                                  ( "FUNCTIONS"
+                                ( ( "FUNCTIONS"
                                   | "FUNCTION" udf=<anyFunctionName>
                                   | "AGGREGATES"
                                   | "AGGREGATE" uda=<userAggregateName>
                                   | "KEYSPACES"
-                                  | "KEYSPACE" ksname=<keyspaceName>?
+                                  | "ONLY"? "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                   | "INDEX" idx=<indexName>
                                   | "MATERIALIZED" "VIEW" mv=<materializedViewName>
@@ -92,7 +92,9 @@ cqlsh_describe_cmd_syntax_rules = r'''
                                   | "CLUSTER"
                                   | "TYPES"
                                   | "TYPE" ut=<userTypeName>
-                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName> | mv=<materializedViewName>))
+                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName> | mv=<materializedViewName>)
+                                  ) ("WITH" "INTERNALS")?
+                                )
                     ;
 '''
 

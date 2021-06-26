@@ -19,7 +19,11 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,14 +46,13 @@ import static org.junit.Assert.assertTrue;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class TableMetricsTest extends SchemaLoader
 {
-
     private static Session session;
 
     private static final String KEYSPACE = "junit";
     private static final String TABLE = "tablemetricstest";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
 
-    @BeforeClass()
+    @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
         Schema.instance.clear();
@@ -234,5 +237,51 @@ public class TableMetricsTest extends SchemaLoader
 
     private static void assertGreaterThan(double actual, double expectedLessThan) {
         assertTrue("Expected " + actual + " > " + expectedLessThan, actual > expectedLessThan);
+    }
+
+    @Test
+    public void testMetricsCleanupOnDrop()
+    {
+        String tableName = TABLE + "_metrics_cleanup";
+        CassandraMetricsRegistry registry = CassandraMetricsRegistry.Metrics;
+        Supplier<Stream<String>> metrics = () -> registry.getNames().stream().filter(m -> m.contains(tableName));
+
+        // no metrics before creating
+        assertEquals(0, metrics.get().count());
+
+        recreateTable(tableName);
+        // some metrics
+        assertTrue(metrics.get().count() > 0);
+
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, tableName));
+        // no metrics after drop
+        assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+
+    @Test
+    public void testViewMetricsCleanupOnDrop()
+    {
+        String tableName = TABLE + "_metrics_cleanup";
+        String viewName = TABLE + "_materialized_view_cleanup";
+        CassandraMetricsRegistry registry = CassandraMetricsRegistry.Metrics;
+        Supplier<Stream<String>> metrics = () -> registry.getNames().stream().filter(m -> m.contains(viewName));
+
+        // no metrics before creating
+        assertEquals(0, metrics.get().count());
+
+        recreateTable(tableName);
+        session.execute(String.format("CREATE MATERIALIZED VIEW %s.%s AS SELECT id,val1 FROM %s.%s WHERE id IS NOT NULL AND val1 IS NOT NULL PRIMARY KEY (id,val1);", KEYSPACE, viewName, KEYSPACE, tableName));
+        // some metrics
+        assertTrue(metrics.get().count() > 0);
+
+        session.execute(String.format("DROP MATERIALIZED VIEW IF EXISTS %s.%s;", KEYSPACE, viewName));
+        // no metrics after drop
+        assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+
+    @AfterClass
+    public static void teardown()
+    {
+        session.close();
     }
 }

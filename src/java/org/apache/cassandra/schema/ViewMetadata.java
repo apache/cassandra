@@ -26,7 +26,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.UserType;
 
-public final class ViewMetadata
+public final class ViewMetadata implements SchemaElement
 {
     public final TableId baseTableId;
     public final String baseTableName;
@@ -142,14 +142,10 @@ public final class ViewMetadata
 
     public ViewMetadata withRenamedPrimaryKeyColumn(ColumnIdentifier from, ColumnIdentifier to)
     {
-        // convert whereClause to Relations, rename ids in Relations, then convert back to whereClause
-        ColumnMetadata.Raw rawFrom = ColumnMetadata.Raw.forQuoted(from.toString());
-        ColumnMetadata.Raw rawTo = ColumnMetadata.Raw.forQuoted(to.toString());
-
         return new ViewMetadata(baseTableId,
                                 baseTableName,
                                 includeAllColumns,
-                                whereClause.renameIdentifier(rawFrom, rawTo),
+                                whereClause.renameIdentifier(from, to),
                                 metadata.unbuild().renamePrimaryKeyColumn(from, to).build());
     }
 
@@ -160,5 +156,74 @@ public final class ViewMetadata
                                 includeAllColumns,
                                 whereClause,
                                 metadata.unbuild().addColumn(column).build());
+    }
+
+    public void appendCqlTo(CqlBuilder builder,
+                            boolean internals,
+                            boolean ifNotExists)
+    {
+        builder.append("CREATE MATERIALIZED VIEW ");
+
+        if (ifNotExists)
+            builder.append("IF NOT EXISTS ");
+
+        builder.append(metadata.toString())
+               .append(" AS")
+               .newLine()
+               .increaseIndent()
+               .append("SELECT ");
+
+        if (includeAllColumns)
+        {
+            builder.append('*');
+        }
+        else
+        {
+            builder.appendWithSeparators(metadata.allColumnsInSelectOrder(), (b, c) -> b.append(c.name), ", ");
+        }
+
+        builder.newLine()
+               .append("FROM ")
+               .appendQuotingIfNeeded(metadata.keyspace)
+               .append('.')
+               .appendQuotingIfNeeded(baseTableName)
+               .newLine()
+               .append("WHERE ")
+               .append(whereClause.toString())
+               .newLine();
+
+        metadata.appendPrimaryKey(builder);
+
+        builder.decreaseIndent()
+               .append(" WITH ")
+               .increaseIndent();
+
+        metadata.appendTableOptions(builder, internals);
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.MATERIALIZED_VIEW;
+    }
+
+    @Override
+    public String elementKeyspace()
+    {
+        return keyspace();
+    }
+
+    @Override
+    public String elementName()
+    {
+        return name();
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    {
+        CqlBuilder builder = new CqlBuilder(2048);
+        appendCqlTo(builder, withInternals, ifNotExists);
+        return builder.toString();
     }
 }

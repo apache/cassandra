@@ -36,6 +36,7 @@ import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTreeSet;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -511,7 +512,7 @@ public final class StatementRestrictions
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
 
         if (!type.allowClusteringColumnSlices()
-               && (!table.isCompactTable() || (table.isCompactTable() && !hasClusteringColumnsRestrictions())))
+            && (!table.isCompactTable() || (table.isCompactTable() && !hasClusteringColumnsRestrictions())))
         {
             if (!selectsOnlyStaticColumns && hasUnrestrictedClusteringColumns())
                 throw invalidRequest("Some clustering keys are missing: %s",
@@ -745,7 +746,7 @@ public final class StatementRestrictions
      * @param options the query options
      * @return the requested clustering columns
      */
-    public NavigableSet<Clustering> getClusteringColumns(QueryOptions options)
+    public NavigableSet<Clustering<?>> getClusteringColumns(QueryOptions options)
     {
         // If this is a names command and the table is a static compact one, then as far as CQL is concerned we have
         // only a single row which internally correspond to the static parts. In which case we want to return an empty
@@ -763,7 +764,7 @@ public final class StatementRestrictions
      * @param options the query options
      * @return the bounds (start or end) of the clustering columns
      */
-    public NavigableSet<ClusteringBound> getClusteringColumnsBounds(Bound b, QueryOptions options)
+    public NavigableSet<ClusteringBound<?>> getClusteringColumnsBounds(Bound b, QueryOptions options)
     {
         return clusteringColumnsRestrictions.boundsAsClustering(b, options);
     }
@@ -775,10 +776,15 @@ public final class StatementRestrictions
      */
     public boolean isColumnRange()
     {
-        // For static compact tables we want to ignore the fake clustering column (note that if we weren't special casing,
-        // this would mean a 'SELECT *' on a static compact table would query whole partitions, even though we'll only return
-        // the static part as far as CQL is concerned. This is thus mostly an optimization to use the query-by-name path).
-        int numberOfClusteringColumns = table.isStaticCompactTable() ? 0 : table.clusteringColumns().size();
+        int numberOfClusteringColumns = table.clusteringColumns().size();
+        if (table.isStaticCompactTable())
+        {
+            // For static compact tables we want to ignore the fake clustering column (note that if we weren't special casing,
+            // this would mean a 'SELECT *' on a static compact table would query whole partitions, even though we'll only return
+            // the static part as far as CQL is concerned. This is thus mostly an optimization to use the query-by-name path).
+            numberOfClusteringColumns = 0;
+        }
+
         // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ or IN.
         return clusteringColumnsRestrictions.size() < numberOfClusteringColumns
             || !clusteringColumnsRestrictions.hasOnlyEqualityRestrictions();
@@ -828,6 +834,33 @@ public final class StatementRestrictions
     public boolean hasRegularColumnsRestrictions()
     {
         return hasRegularColumnsRestrictions;
+    }
+
+    /**
+     * Checks if the query is a full partitions selection.
+     * @return {@code true} if the query is a full partitions selection, {@code false} otherwise.
+     */
+    private boolean queriesFullPartitions()
+    {
+        return !hasClusteringColumnsRestrictions() && !hasRegularColumnsRestrictions();
+    }
+
+    /**
+     * Determines if the query should return the static content when a partition without rows is returned (as a
+     * result set row with null for all other regular columns.)
+     *
+     * @return {@code true} if the query should return the static content when a partition without rows is returned,
+     * {@code false} otherwise.
+     */
+    public boolean returnStaticContentOnPartitionWithNoRows()
+    {
+        if (table.isStaticCompactTable())
+            return true;
+
+        // The general rationale is that if some rows are specifically selected by the query (have clustering or
+        // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's
+        // a full partition query, then we include that content.
+        return queriesFullPartitions();
     }
     
     @Override

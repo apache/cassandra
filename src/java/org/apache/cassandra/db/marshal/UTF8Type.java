@@ -43,7 +43,6 @@ public class UTF8Type extends AbstractType<String>
         return decompose(source);
     }
 
-
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {

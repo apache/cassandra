@@ -244,8 +244,7 @@ Creating a new table uses the ``CREATE TABLE`` statement:
    partition_key: `column_name`
                 : | '(' `column_name` ( ',' `column_name` )* ')'
    clustering_columns: `column_name` ( ',' `column_name` )*
-   table_options: COMPACT STORAGE [ AND `table_options` ]
-                   : | CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `table_options` ]
+   table_options: CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `options` ]
                    : | `options`
    clustering_order: `column_name` (ASC | DESC) ( ',' `column_name` (ASC | DESC) )*
 
@@ -330,7 +329,6 @@ that example being ``pk``, both rows are in that same partition): the 2nd insert
 
 The use of static columns as the following restrictions:
 
-- tables with the ``COMPACT STORAGE`` option (see below) cannot use them.
 - a table without clustering columns cannot have static columns (in a table without clustering columns, every partition
   has only one row, and so every column is inherently static).
 - only non ``PRIMARY KEY`` columns can be static.
@@ -452,32 +450,37 @@ Table options
 ~~~~~~~~~~~~~
 
 A CQL table has a number of options that can be set at creation (and, for most of them, :ref:`altered
-<alter-table-statement>` later). These options are specified after the ``WITH`` keyword.
-
-Amongst those options, two important ones cannot be changed after creation and influence which queries can be done
-against the table: the ``COMPACT STORAGE`` option and the ``CLUSTERING ORDER`` option. Those, as well as the other
-options of a table are described in the following sections.
+<alter-table-statement>` later). These options are specified after the ``WITH`` keyword and are described
+in the following sections.
 
 .. _compact-tables:
 
-Compact tables
-``````````````
+ COMPACT STORAGE tables
+ ``````````````
 
-.. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
-   same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
-   and usage. It only exists for historical reason and is preserved for backward compatibility And as ``COMPACT
-   STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
-   ``COMPACT STORAGE`` option.
+.. warning:: It is strongly discouraged to create new tables with the ``COMPACT STORAGE`` option. Since Cassandra 3.0,
+    compact storage tables have the exact same layout internally than non compact ones (for the same schema obviously),
+    and declaring a table compact **only** creates artificial limitations on the table definition and usage. As of Cassandra
+    |version| ``COMPACT STORAGE`` cannot be removed.
 
-A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
-compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. Declaring a
-table with this option creates limitations for the table which are largely arbitrary (and exists for historical
-reasons). Amongst those limitation:
+.. warning:: ``DROP COMPACT STORAGE`` is not recommended for production environments. There are still cases where a change of
+    behavior is observed. To name a few: (1) Hidden columns show up, which breaks ``SELECT *`` queries.
+    (2) ``DELETE v`` and ``UPDATE v WITH TTL`` would result into row removals in non-dense compact storage tables (CASSANDRA-16069)
+    (3) ``INSERT`` allows skipping clusterings, which are filled with nulls by default.
 
-- a compact table cannot use collections nor static columns.
-- if a compact table has at least one clustering column, then it must have *exactly* one column outside of the primary
-  key ones. This imply you cannot add or remove columns after creation in particular.
-- a compact table is limited in the indexes it can create, and no materialized view can be created on it.
+ A *compact storage* table is one defined with the ``COMPACT STORAGE`` option. This option is only maintained for backward
+ compatibility for definitions created before CQL version 3 and shouldn't be used for new tables. 4.0 supports partially
+ ``COMPACT STORAGE``. There is no support for super column family. Since Cassandra 3.0, compact storage tables have the exact
+ same layout internally than non compact ones (for the same schema obviously), and declaring a table with this option creates
+ limitations for the table which are largely arbitrary (and exists for historical reasons). Amongst those limitation:
+
+ - a compact storage table cannot use collections nor static columns.
+ - if a compact storage table has at least one clustering column, then it must have *exactly* one column outside of the primary
+   key ones. This implies you cannot add or remove columns after creation in particular.
+ - a compact storage table is limited in the indexes it can create, and no materialized view can be created on it.
+
+But please bear in mind that the ``CLUSTERING ORDER`` option cannot be changed after table creation and
+has influences on the performance of some queries.
 
 .. _clustering-order:
 
@@ -807,7 +810,7 @@ The ``ALTER TABLE`` statement can:
   below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
   cluster) time operation.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
-  <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
+  <create-table-options>` are the same that when creating a table (outside of ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
   erasing all previous ``compaction`` options, so you need to re-specify all the sub-options if you want to keep them.
   The same note applies to the set of ``compression`` sub-options.
@@ -850,3 +853,325 @@ Note that ``TRUNCATE TABLE foo`` is allowed for consistency with other DDL state
 that can be truncated currently and so the ``TABLE`` keyword can be omitted.
 
 Truncating a table permanently removes all existing data from the table, but without removing the table itself.
+
+.. _describe-statements:
+
+DESCRIBE
+^^^^^^^^
+
+Statements used to outputs information about the connected Cassandra cluster,
+or about the data objects stored in the cluster.
+
+.. warning:: Describe statement resultset that exceed the page size are paged. If a schema changes is detected between
+   two pages the query will fail with an ``InvalidRequestException``. It is safe to retry the whole ``DESCRIBE``
+   statement after such an error.
+ 
+DESCRIBE KEYSPACES
+""""""""""""""""""
+
+Output the names of all keyspaces.
+
+.. productionlist::
+   describe_keyspaces_statement: DESCRIBE KEYSPACES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE KEYSPACE
+"""""""""""""""""
+
+Output CQL commands that could be used to recreate the given keyspace, and the objects in it 
+(such as tables, types, functions, etc.).
+
+.. productionlist::
+   describe_keyspace_statement: DESCRIBE [ONLY] KEYSPACE [`keyspace_name`] [WITH INTERNALS]
+
+The ``keyspace_name`` argument may be omitted, in which case the current keyspace will be described.
+
+If ``WITH INTERNALS`` is specified, the output contains the table IDs and is adopted to represent the DDL necessary 
+to "re-create" dropped columns.
+
+If ``ONLY`` is specified, only the DDL to recreate the keyspace will be created. All keyspace elements, like tables,
+types, functions, etc will be omitted.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE TABLES
+"""""""""""""""
+
+Output the names of all tables in the current keyspace, or in all keyspaces if there is no current keyspace.
+
+.. productionlist::
+   describe_tables_statement: DESCRIBE TABLES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE TABLE
+""""""""""""""
+
+Output CQL commands that could be used to recreate the given table.
+
+.. productionlist::
+   describe_table_statement: DESCRIBE TABLE [`keyspace_name`.]`table_name` [WITH INTERNALS]
+
+If `WITH INTERNALS` is specified, the output contains the table ID and is adopted to represent the DDL necessary
+to "re-create" dropped columns.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE INDEX
+""""""""""""""
+
+Output the CQL command that could be used to recreate the given index.
+
+.. productionlist::
+   describe_index_statement: DESCRIBE INDEX [`keyspace_name`.]`index_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+
+DESCRIBE MATERIALIZED VIEW
+""""""""""""""""""""""""""
+
+Output the CQL command that could be used to recreate the given materialized view.
+
+.. productionlist::
+   describe_materialized_view_statement: DESCRIBE MATERIALIZED VIEW [`keyspace_name`.]`view_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE CLUSTER
+""""""""""""""""
+
+Output information about the connected Cassandra cluster, such as the cluster name, and the partitioner and snitch
+in use. When you are connected to a non-system keyspace, also shows endpoint-range ownership information for
+the Cassandra ring.
+
+.. productionlist::
+   describe_cluster_statement: DESCRIBE CLUSTER
+
+Returned columns:
+
+======================== ====================== ========================================================================
+ Columns                  Type                   Description
+======================== ====================== ========================================================================
+ cluster                                   text  The cluster name
+ partitioner                               text  The partitioner being used by the cluster
+ snitch                                    text  The snitch being used by the cluster
+ range_ownership          map<text, list<text>>  The CQL statement to use to recreate the schema element
+======================== ====================== ========================================================================
+
+DESCRIBE SCHEMA
+"""""""""""""""
+
+Output CQL commands that could be used to recreate the entire (non-system) schema.
+Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
+
+.. productionlist::
+   describe_schema_statement: DESCRIBE [FULL] SCHEMA [WITH INTERNALS]
+
+Use ``DESCRIBE FULL SCHEMA`` to include the system keyspaces.
+
+If ``WITH INTERNALS`` is specified, the output contains the table IDs and is adopted to represent the DDL necessary
+to "re-create" dropped columns.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE TYPES
+""""""""""""""
+
+Output the names of all user-defined-types in the current keyspace, or in all keyspaces if there is no current keyspace.
+
+.. productionlist::
+   describe_types_statement: DESCRIBE TYPES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE TYPE
+"""""""""""""
+
+Output the CQL command that could be used to recreate the given user-defined-type.
+
+.. productionlist::
+   describe_type_statement: DESCRIBE TYPE [`keyspace_name`.]`type_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE FUNCTIONS
+""""""""""""""""""
+
+Output the names of all user-defined-functions in the current keyspace, or in all keyspaces if there is no current
+keyspace.
+
+.. productionlist::
+   describe_functions_statement: DESCRIBE FUNCTIONS
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE FUNCTION
+"""""""""""""""""
+
+Output the CQL command that could be used to recreate the given user-defined-function.
+
+.. productionlist::
+   describe_function_statement: DESCRIBE FUNCTION [`keyspace_name`.]`function_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE AGGREGATES
+"""""""""""""""""""
+
+Output the names of all user-defined-aggregates in the current keyspace, or in all keyspaces if there is no current
+keyspace.
+
+.. productionlist::
+   describe_aggregates_statement: DESCRIBE AGGREGATES
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+======================== ========= ====================================================================================
+
+DESCRIBE AGGREGATE
+""""""""""""""""""
+
+Output the CQL command that could be used to recreate the given user-defined-aggregate.
+
+.. productionlist::
+   describe_aggregate_statement: DESCRIBE AGGREGATE [`keyspace_name`.]`aggregate_name`
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+
+DESCRIBE object
+"""""""""""""""
+
+Output CQL commands that could be used to recreate the entire object schema, where object can be either a keyspace 
+or a table or an index or a materialized view (in this order).
+
+.. productionlist::
+   describe_object_statement: DESCRIBE `object_name` [WITH INTERNALS]
+
+If ``WITH INTERNALS`` is specified and ``object_name`` represents a keyspace or table the output contains the table IDs
+and is adopted to represent the DDL necessary to "re-create" dropped columns.
+
+``object_name`` cannot be any of the "describe what" qualifiers like "cluster", "table", etc.
+
+Returned columns:
+
+======================== ========= ====================================================================================
+ Columns                  Type      Description
+======================== ========= ====================================================================================
+ keyspace_name                text  The keyspace name
+ type                         text  The schema element type
+ name                         text  The schema element name
+ create_statement             text  The CQL statement to use to recreate the schema element
+======================== ========= ====================================================================================
+

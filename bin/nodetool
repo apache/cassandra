@@ -101,6 +101,7 @@ fi
 CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
             -XX:ParallelGCThreads=1 \
             -Dcassandra.storagedir="$cassandra_storagedir" \
+            -Dcassandra.logdir="$CASSANDRA_LOG_DIR" \
             -Dlogback.configurationFile=logback-tools.xml \
             $JVM_ARGS \
             org.apache.cassandra.tools.NodeTool -p $JMX_PORT $ARGS)

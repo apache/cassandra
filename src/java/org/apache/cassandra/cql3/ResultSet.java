@@ -216,7 +216,14 @@ public class ResultSet
         // when re-preparing we create the intermediate object
         public ResultMetadata(List<ColumnSpecification> names)
         {
-            this(computeResultMetadataId(names), EnumSet.noneOf(Flag.class), names, names.size(), null);
+            this(names, null);
+        }
+
+        // Problem is that we compute the metadata from the columns on creation;
+        // when re-preparing we create the intermediate object
+        public ResultMetadata(List<ColumnSpecification> names, PagingState pagingState)
+        {
+            this(computeResultMetadataId(names), EnumSet.noneOf(Flag.class), names, names.size(), pagingState);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
                 flags.add(Flag.GLOBAL_TABLES_SPEC);
         }
@@ -445,7 +452,7 @@ public class ResultSet
                             CBUtil.writeAsciiString(name.ksName, dest);
                             CBUtil.writeAsciiString(name.cfName, dest);
                         }
-                        CBUtil.writeAsciiString(name.name.toString(), dest);
+                        CBUtil.writeString(name.name.toString(), dest);
                         DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                     }
                 }
@@ -481,7 +488,7 @@ public class ResultSet
                             size += CBUtil.sizeOfAsciiString(name.ksName);
                             size += CBUtil.sizeOfAsciiString(name.cfName);
                         }
-                        size += CBUtil.sizeOfAsciiString(name.name.toString());
+                        size += CBUtil.sizeOfString(name.name.toString());
                         size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                     }
                 }
@@ -650,7 +657,7 @@ public class ResultSet
                         CBUtil.writeAsciiString(name.ksName, dest);
                         CBUtil.writeAsciiString(name.cfName, dest);
                     }
-                    CBUtil.writeAsciiString(name.name.toString(), dest);
+                    CBUtil.writeString(name.name.toString(), dest);
                     DataType.codec.writeOne(DataType.fromType(name.type, version), dest, version);
                 }
             }
@@ -675,7 +682,7 @@ public class ResultSet
                         size += CBUtil.sizeOfAsciiString(name.ksName);
                         size += CBUtil.sizeOfAsciiString(name.cfName);
                     }
-                    size += CBUtil.sizeOfAsciiString(name.name.toString());
+                    size += CBUtil.sizeOfString(name.name.toString());
                     size += DataType.codec.oneSerializedSize(DataType.fromType(name.type, version), version);
                 }
                 return size;

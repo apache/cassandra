@@ -36,6 +36,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
@@ -52,6 +53,7 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
 {
     public static final Serializer serializer = new Serializer();
     public static final Columns NONE = new Columns(BTree.empty(), 0);
+    static final long EMPTY_SIZE = ObjectSizes.measure(NONE);
 
     public static final ColumnMetadata FIRST_COMPLEX_STATIC =
         new ColumnMetadata("",
@@ -406,6 +408,14 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
         return Objects.hash(complexIdx, BTree.hashCode(columns));
     }
 
+    public long unsharedHeapSize()
+    {
+        if(this == NONE)
+            return 0;
+
+        return EMPTY_SIZE;
+    }
+
     @Override
     public String toString()
     {
@@ -451,8 +461,9 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                     // fail deserialization because of that. So we grab a "fake" ColumnMetadata that ensure proper
                     // deserialization. The column will be ignore later on anyway.
                     column = metadata.getDroppedColumn(name);
+
                     if (column == null)
-                        throw new UnknownColumnException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
+                        throw new RuntimeException("Unknown column " + UTF8Type.instance.getString(name) + " during deserialization");
                 }
                 builder.add(column);
             }

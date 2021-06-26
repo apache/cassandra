@@ -24,6 +24,7 @@ import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 
 import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.FastByteOperations;
 
 public class Digest
@@ -63,15 +64,15 @@ public class Digest
         return new Digest(Hashing.crc32c().newHasher())
         {
             @Override
-            public Digest updateWithCounterContext(ByteBuffer context)
+            public <V> Digest updateWithCounterContext(V context, ValueAccessor<V> accessor)
             {
                 // for the purposes of repaired data tracking on the read path, exclude
                 // contexts with legacy shards as these may be irrevocably different on
                 // different replicas
-                if (CounterContext.instance().hasLegacyShards(context))
+                if (CounterContext.instance().hasLegacyShards(context, accessor))
                     return this;
 
-                return super.updateWithCounterContext(context);
+                return super.updateWithCounterContext(context, accessor);
             }
         };
     }
@@ -85,6 +86,12 @@ public class Digest
     {
         hasher.putBytes(input, offset, len);
         inputBytes += len;
+        return this;
+    }
+
+    public <V> Digest update(V input, ValueAccessor<V> accessor)
+    {
+        accessor.digest(input, this);
         return this;
     }
 
@@ -103,7 +110,7 @@ public class Digest
      * not modify the position of the supplied buffer, so callers are not
      * required to duplicate() the source buffer before calling
      */
-    private Digest update(ByteBuffer input, int pos, int len)
+    public Digest update(ByteBuffer input, int pos, int len)
     {
         if (len <= 0)
             return this;
@@ -138,15 +145,15 @@ public class Digest
      * nodes. This means in particular that we always have:
      *  updateDigest(ctx) == updateDigest(clearAllLocal(ctx))
      */
-    public Digest updateWithCounterContext(ByteBuffer context)
+    public <V> Digest updateWithCounterContext(V context, ValueAccessor<V> accessor)
     {
         // context can be empty due to the optimization from CASSANDRA-10657
-        if (!context.hasRemaining())
+        if (accessor.isEmpty(context))
             return this;
 
-        int pos = context.position() + CounterContext.headerLength(context);
-        int len = context.limit() - pos;
-        update(context, pos, len);
+        int pos = CounterContext.headerLength(context, accessor);
+        int len = accessor.size(context) - pos;
+        accessor.digest(context, pos, len, this);
         return this;
     }
 

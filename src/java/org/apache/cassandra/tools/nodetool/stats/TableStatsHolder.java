@@ -35,13 +35,16 @@ public class TableStatsHolder implements StatsHolder
     public final boolean humanReadable;
     public final String sortKey;
     public final int top;
+    public final boolean locationCheck;
 
-    public TableStatsHolder(NodeProbe probe, boolean humanReadable, boolean ignore, List<String> tableNames, String sortKey, int top)
+    public TableStatsHolder(NodeProbe probe, boolean humanReadable, boolean ignore, List<String> tableNames, String sortKey, int top, boolean locationCheck)
     {
         this.keyspaces = new ArrayList<>();
         this.humanReadable = humanReadable;
         this.sortKey = sortKey;
         this.top = top;
+        this.locationCheck = locationCheck;
+
         if (!this.isTestTableStatsHolder())
         {
             this.numberOfTables = probe.getNumberOfTables();
@@ -155,6 +158,8 @@ public class TableStatsHolder implements StatsHolder
         mpTable.put("maximum_tombstones_per_slice_last_five_minutes",
                     table.maximumTombstonesPerSliceLastFiveMinutes);
         mpTable.put("dropped_mutations", table.droppedMutations);
+        if (locationCheck)
+            mpTable.put("sstables_in_correct_location", table.isInCorrectLocation);
         return mpTable;
     }
 
@@ -210,6 +215,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.isIndex = tableName.contains(".");
                 statsTable.sstableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "LiveSSTableCount");
                 statsTable.oldSSTableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "OldVersionSSTableCount");
+
                 int[] leveledSStables = table.getSSTableCountPerLevel();
                 if (leveledSStables != null)
                 {
@@ -225,6 +231,9 @@ public class TableStatsHolder implements StatsHolder
                         statsTable.sstablesInEachLevel.add(count + ((count > maxCount) ? "/" + maxCount : ""));
                     }
                 }
+
+                if (locationCheck)
+                    statsTable.isInCorrectLocation = !table.hasMisplacedSSTables();
 
                 Long memtableOffHeapSize = null;
                 Long bloomFilterOffHeapSize = null;

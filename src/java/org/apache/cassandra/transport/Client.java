@@ -33,13 +33,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.transport.frame.checksum.ChecksummingTransformer;
-import org.apache.cassandra.transport.frame.compress.CompressingTransformer;
-import org.apache.cassandra.transport.frame.compress.Compressor;
-import org.apache.cassandra.transport.frame.compress.LZ4Compressor;
-import org.apache.cassandra.transport.frame.compress.SnappyCompressor;
 import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
@@ -50,7 +44,7 @@ public class Client extends SimpleClient
 
     public Client(String host, int port, ProtocolVersion version, EncryptionOptions encryptionOptions)
     {
-        super(host, port, version, version.isBeta(), encryptionOptions);
+        super(host, port, version, version.isBeta(), new EncryptionOptions(encryptionOptions).applyConfig());
         setEventHandler(eventHandler);
     }
 
@@ -111,56 +105,25 @@ public class Client extends SimpleClient
         {
             Map<String, String> options = new HashMap<String, String>();
             options.put(StartupMessage.CQL_VERSION, "3.0.0");
-            Compressor compressor = null;
-            ChecksumType checksumType = null;
             while (iter.hasNext())
             {
-               String next = iter.next().toLowerCase();
-               switch (next)
+               String next = iter.next();
+               if (next.toLowerCase().equals("snappy"))
                {
-                   case "snappy": {
-                       if (options.containsKey(StartupMessage.COMPRESSION))
-                           throw new RuntimeException("Multiple compression types supplied");
-                       options.put(StartupMessage.COMPRESSION, "snappy");
-                       compressor = SnappyCompressor.INSTANCE;
-                       break;
-                   }
-                   case "lz4": {
-                       if (options.containsKey(StartupMessage.COMPRESSION))
-                           throw new RuntimeException("Multiple compression types supplied");
-                       options.put(StartupMessage.COMPRESSION, "lz4");
-                       compressor = LZ4Compressor.INSTANCE;
-                       break;
-                   }
-                   case "crc32": {
-                       if (options.containsKey(StartupMessage.CHECKSUM))
-                           throw new RuntimeException("Multiple checksum types supplied");
-                       options.put(StartupMessage.CHECKSUM, ChecksumType.CRC32.name());
-                       checksumType = ChecksumType.CRC32;
-                       break;
-                   }
-                   case "adler32": {
-                       if (options.containsKey(StartupMessage.CHECKSUM))
-                           throw new RuntimeException("Multiple checksum types supplied");
-                       options.put(StartupMessage.CHECKSUM, ChecksumType.ADLER32.name());
-                       checksumType = ChecksumType.ADLER32;
-                       break;
-                   }
+                   options.put(StartupMessage.COMPRESSION, "snappy");
+                   connection.setCompressor(Compressor.SnappyCompressor.instance);
+               }
+               if (next.toLowerCase().equals("lz4"))
+               {
+                   options.put(StartupMessage.COMPRESSION, "lz4");
+                   connection.setCompressor(Compressor.LZ4Compressor.instance);
+               }
+               if (next.toLowerCase().equals("throw_on_overload"))
+               {
+                   options.put(StartupMessage.THROW_ON_OVERLOAD, "1");
+                   connection.setThrowOnOverload(true);
                }
             }
-
-            if (checksumType == null)
-            {
-               if (compressor != null)
-               {
-                   connection.setTransformer(CompressingTransformer.getTransformer(compressor));
-               }
-            }
-            else
-            {
-                connection.setTransformer(ChecksummingTransformer.getTransformer(checksumType, compressor));
-            }
-
             return new StartupMessage(options);
         }
         else if (msgType.equals("QUERY"))
@@ -294,7 +257,7 @@ public class Client extends SimpleClient
         int port = Integer.parseInt(args[1]);
         ProtocolVersion version = args.length == 3 ? ProtocolVersion.decode(Integer.parseInt(args[2]), DatabaseDescriptor.getNativeTransportAllowOlderProtocols()) : ProtocolVersion.CURRENT;
 
-        EncryptionOptions encryptionOptions = new EncryptionOptions();
+        EncryptionOptions encryptionOptions = new EncryptionOptions().applyConfig();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
         new Client(host, port, version, encryptionOptions).run();

@@ -218,14 +218,9 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
     }
 
     @VisibleForTesting
-    public void resetDroppedMessages(String scope)
+    public void resetDroppedMessages()
     {
-        for (Verb verb : droppedMessages.keySet())
-        {
-            droppedMessages.put(verb, new DroppedForVerb(new DroppedMessageMetrics(metricName ->
-                                                                                      new CassandraMetricsRegistry.MetricName("DroppedMessages", metricName, scope)
-            )));
-        }
+        droppedMessages.replaceAll((u, v) -> new DroppedForVerb(new DroppedMessageMetrics(u)));
     }
 
 }

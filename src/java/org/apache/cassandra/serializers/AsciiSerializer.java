@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.serializers;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public class AsciiSerializer extends AbstractTextSerializer
 {
@@ -29,12 +30,12 @@ public class AsciiSerializer extends AbstractTextSerializer
         super(StandardCharsets.US_ASCII);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
         // 0-127
-        for (int i = bytes.position(); i < bytes.limit(); i++)
+        for (int i=0, size=accessor.size(value); i < size; i++)
         {
-            byte b = bytes.get(i);
+            byte b = accessor.getByte(value, i);
             if (b < 0)
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }

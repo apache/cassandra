@@ -26,6 +26,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.Directories;
@@ -51,7 +52,10 @@ public class StandaloneSplitter
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        Util.initDatabaseDescriptor();
+        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+            DatabaseDescriptor.toolInitialization(false); //Necessary for testing
+        else
+            Util.initDatabaseDescriptor();
 
         try
         {

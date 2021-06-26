@@ -39,7 +39,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +48,8 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TaskSupplier;
+import org.apache.cassandra.db.compaction.PendingRepairManager.CleanupTask;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
@@ -69,6 +70,7 @@ import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.notifications.SSTableMetadataChanged;
 import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
+import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -123,7 +125,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     private volatile CompactionParams params;
     private DiskBoundaries currentBoundaries;
-    private volatile boolean enabled = true;
+    private volatile boolean enabled;
     private volatile boolean isActive = true;
 
     /*
@@ -134,9 +136,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         we will use the new compaction parameters.
      */
     private volatile CompactionParams schemaCompactionParams;
-    private boolean shouldDefragment;
-    private boolean supportsEarlyOpen;
-    private int fanout;
+    private volatile boolean supportsEarlyOpen;
+    private volatile int fanout;
+    private volatile long maxSSTableSizeBytes;
+    private volatile String name;
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
@@ -309,9 +312,10 @@ public class CompactionStrategyManager implements INotificationConsumer
                     compactionStrategyFor(sstable).addSSTable(sstable);
             }
             holders.forEach(AbstractStrategyHolder::startup);
-            shouldDefragment = repaired.first().shouldDefragment();
             supportsEarlyOpen = repaired.first().supportsEarlyOpen();
             fanout = (repaired.first() instanceof LeveledCompactionStrategy) ? ((LeveledCompactionStrategy) repaired.first()).getLevelFanoutSize() : LeveledCompactionStrategy.DEFAULT_LEVEL_FANOUT_SIZE;
+            maxSSTableSizeBytes = repaired.first().getMaxSSTableBytes();
+            name = repaired.first().getName();
         }
         finally
         {
@@ -361,7 +365,6 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param sstable
      * @return
      */
-    @VisibleForTesting
     int compactionStrategyIndexFor(SSTableReader sstable)
     {
         // should not call maybeReloadDiskBoundaries because it may be called from within lock
@@ -479,18 +482,17 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     //TODO improve this to reload after receiving a notification rather than trying to reload on every operation
     @VisibleForTesting
-    protected boolean maybeReloadDiskBoundaries()
+    protected void maybeReloadDiskBoundaries()
     {
         if (!currentBoundaries.isOutOfDate())
-            return false;
+            return;
 
         writeLock.lock();
         try
         {
             if (!currentBoundaries.isOutOfDate())
-                return false;
+                return;
             reload(params);
-            return true;
         }
         finally
         {
@@ -569,7 +571,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             if (repaired.first() instanceof LeveledCompactionStrategy)
             {
-                int[] res = new int[LeveledManifest.MAX_LEVEL_COUNT];
+                int[] res = new int[LeveledGenerations.MAX_LEVEL_COUNT];
                 for (AbstractCompactionStrategy strategy : getAllStrategies())
                 {
                     int[] repairedCountPerLevel = ((LeveledCompactionStrategy) strategy).getAllLevelSize();
@@ -600,28 +602,13 @@ public class CompactionStrategyManager implements INotificationConsumer
         return res;
     }
 
-    public boolean shouldDefragment()
-    {
-        return shouldDefragment;
-    }
-
+    /**
+     * Should only be called holding the readLock
+     */
     private void handleFlushNotification(Iterable<SSTableReader> added)
     {
-        // If reloaded, SSTables will be placed in their correct locations
-        // so there is no need to process notification
-        if (maybeReloadDiskBoundaries())
-            return;
-
-        readLock.lock();
-        try
-        {
-            for (SSTableReader sstable : added)
-                compactionStrategyFor(sstable).addSSTable(sstable);
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+        for (SSTableReader sstable : added)
+            compactionStrategyFor(sstable).addSSTable(sstable);
     }
 
     private int getHolderIndex(SSTableReader sstable)
@@ -677,8 +664,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * lives in matches the list index of the holder that's responsible for it
      */
-    @VisibleForTesting
-    List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
+    public List<GroupedSSTableContainer> groupSSTables(Iterable<SSTableReader> sstables)
     {
         List<GroupedSSTableContainer> classified = new ArrayList<>(holders.size());
         for (AbstractStrategyHolder holder : holders)
@@ -694,112 +680,98 @@ public class CompactionStrategyManager implements INotificationConsumer
         return classified;
     }
 
+    /**
+     * Should only be called holding the readLock
+     */
     private void handleListChangedNotification(Iterable<SSTableReader> added, Iterable<SSTableReader> removed)
     {
-        // If reloaded, SSTables will be placed in their correct locations
-        // so there is no need to process notification
-        if (maybeReloadDiskBoundaries())
-            return;
-
-        readLock.lock();
-        try
+        List<GroupedSSTableContainer> addedGroups = groupSSTables(added);
+        List<GroupedSSTableContainer> removedGroups = groupSSTables(removed);
+        for (int i=0; i<holders.size(); i++)
         {
-            List<GroupedSSTableContainer> addedGroups = groupSSTables(added);
-            List<GroupedSSTableContainer> removedGroups = groupSSTables(removed);
-            for (int i=0; i<holders.size(); i++)
-            {
-                holders.get(i).replaceSSTables(removedGroups.get(i), addedGroups.get(i));
-            }
-        }
-        finally
-        {
-            readLock.unlock();
+            holders.get(i).replaceSSTables(removedGroups.get(i), addedGroups.get(i));
         }
     }
 
+    /**
+     * Should only be called holding the readLock
+     */
     private void handleRepairStatusChangedNotification(Iterable<SSTableReader> sstables)
     {
-        // If reloaded, SSTables will be placed in their correct locations
-        // so there is no need to process notification
-        if (maybeReloadDiskBoundaries())
-            return;
-        // we need a write lock here since we move sstables from one strategy instance to another
-        readLock.lock();
-        try
+        List<GroupedSSTableContainer> groups = groupSSTables(sstables);
+        for (int i = 0; i < holders.size(); i++)
         {
-            List<GroupedSSTableContainer> groups = groupSSTables(sstables);
-            for (int i = 0; i < holders.size(); i++)
+            GroupedSSTableContainer group = groups.get(i);
+
+            if (group.isEmpty())
+                continue;
+
+            AbstractStrategyHolder dstHolder = holders.get(i);
+            for (AbstractStrategyHolder holder : holders)
             {
-                GroupedSSTableContainer group = groups.get(i);
-
-                if (group.isEmpty())
-                    continue;
-
-                AbstractStrategyHolder dstHolder = holders.get(i);
-
-                for (AbstractStrategyHolder holder : holders)
-                {
-                    if (holder != dstHolder)
-                        holder.removeSSTables(group);
-                }
-
-                // adding sstables into another strategy may change its level,
-                // thus it won't be removed from original LCS. We have to remove sstables first
-                dstHolder.addSSTables(group);
+                if (holder != dstHolder)
+                    holder.removeSSTables(group);
             }
-        }
-        finally
-        {
-            readLock.unlock();
+
+            // adding sstables into another strategy may change its level,
+            // thus it won't be removed from original LCS. We have to remove sstables first
+            dstHolder.addSSTables(group);
         }
     }
 
+    /**
+     * Should only be called holding the readLock
+     */
     private void handleMetadataChangedNotification(SSTableReader sstable, StatsMetadata oldMetadata)
     {
         AbstractCompactionStrategy acs = getCompactionStrategyFor(sstable);
         acs.metadataChanged(oldMetadata, sstable);
     }
 
+    /**
+     * Should only be called holding the readLock
+     */
     private void handleDeletingNotification(SSTableReader deleted)
     {
-        // If reloaded, SSTables will be placed in their correct locations
-        // so there is no need to process notification
-        if (maybeReloadDiskBoundaries())
-            return;
-        readLock.lock();
-        try
-        {
-            compactionStrategyFor(deleted).removeSSTable(deleted);
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+        compactionStrategyFor(deleted).removeSSTable(deleted);
     }
 
     public void handleNotification(INotification notification, Object sender)
     {
-        if (notification instanceof SSTableAddedNotification)
+        // we might race with reload adding/removing the sstables, this means that compaction strategies
+        // must handle double notifications.
+        maybeReloadDiskBoundaries();
+        readLock.lock();
+        try
         {
-            handleFlushNotification(((SSTableAddedNotification) notification).added);
+
+            if (notification instanceof SSTableAddedNotification)
+            {
+                SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
+                handleFlushNotification(flushedNotification.added);
+            }
+            else if (notification instanceof SSTableListChangedNotification)
+            {
+                SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
+                handleListChangedNotification(listChangedNotification.added, listChangedNotification.removed);
+            }
+            else if (notification instanceof SSTableRepairStatusChanged)
+            {
+                handleRepairStatusChangedNotification(((SSTableRepairStatusChanged) notification).sstables);
+            }
+            else if (notification instanceof SSTableDeletingNotification)
+            {
+                handleDeletingNotification(((SSTableDeletingNotification) notification).deleting);
+            }
+            else if (notification instanceof SSTableMetadataChanged)
+            {
+                SSTableMetadataChanged lcNotification = (SSTableMetadataChanged) notification;
+                handleMetadataChangedNotification(lcNotification.sstable, lcNotification.oldMetadata);
+            }
         }
-        else if (notification instanceof SSTableListChangedNotification)
+        finally
         {
-            SSTableListChangedNotification listChangedNotification = (SSTableListChangedNotification) notification;
-            handleListChangedNotification(listChangedNotification.added, listChangedNotification.removed);
-        }
-        else if (notification instanceof SSTableRepairStatusChanged)
-        {
-            handleRepairStatusChangedNotification(((SSTableRepairStatusChanged) notification).sstables);
-        }
-        else if (notification instanceof SSTableDeletingNotification)
-        {
-            handleDeletingNotification(((SSTableDeletingNotification) notification).deleting);
-        }
-        else if (notification instanceof SSTableMetadataChanged)
-        {
-            SSTableMetadataChanged lcNotification = (SSTableMetadataChanged) notification;
-            handleMetadataChangedNotification(lcNotification.sstable, lcNotification.oldMetadata);
+            readLock.unlock();
         }
     }
 
@@ -842,8 +814,8 @@ public class CompactionStrategyManager implements INotificationConsumer
     public AbstractCompactionStrategy.ScannerList maybeGetScanners(Collection<SSTableReader> sstables,  Collection<Range<Token>> ranges)
     {
         maybeReloadDiskBoundaries();
-        readLock.lock();
         List<ISSTableScanner> scanners = new ArrayList<>(sstables.size());
+        readLock.lock();
         try
         {
             List<GroupedSSTableContainer> sstableGroups = groupSSTables(sstables);
@@ -902,15 +874,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public long getMaxSSTableBytes()
     {
-        readLock.lock();
-        try
-        {
-            return unrepaired.first().getMaxSSTableBytes();
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+        return maxSSTableSizeBytes;
     }
 
     public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, int gcBefore, long maxSSTableBytes)
@@ -1033,16 +997,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public String getName()
     {
-        maybeReloadDiskBoundaries();
-        readLock.lock();
-        try
-        {
-            return unrepaired.first().getName();
-        }
-        finally
-        {
-            readLock.unlock();
-        }
+        return name;
     }
 
     public List<List<AbstractCompactionStrategy>> getStrategies()
@@ -1200,8 +1155,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             for (SSTableReader sstable: sstables)
             {
-                sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, repairedAt, pendingRepair, isTransient);
-                sstable.reloadSSTableMetadata();
+                sstable.mutateRepairedAndReload(repairedAt, pendingRepair, isTransient);
                 verifyMetadata(sstable, repairedAt, pendingRepair, isTransient);
                 changed.add(sstable);
             }
@@ -1229,5 +1183,27 @@ public class CompactionStrategyManager implements INotificationConsumer
             throw new IllegalStateException(String.format("Failed setting repairedAt to %d on %s (repairedAt is %d)", repairedAt, sstable, sstable.getRepairedAt()));
         if (isTransient != sstable.isTransient())
             throw new IllegalStateException(String.format("Failed setting isTransient to %b on %s (isTransient is %b)", isTransient, sstable, sstable.isTransient()));
+    }
+
+    public CleanupSummary releaseRepairData(Collection<UUID> sessions)
+    {
+        List<CleanupTask> cleanupTasks = new ArrayList<>();
+        readLock.lock();
+        try
+        {
+            for (PendingRepairManager prm : Iterables.concat(pendingRepairs.getManagers(), transientRepairs.getManagers()))
+                cleanupTasks.add(prm.releaseSessionData(sessions));
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+
+        CleanupSummary summary = new CleanupSummary(cfs, Collections.emptySet(), Collections.emptySet());
+
+        for (CleanupTask task : cleanupTasks)
+            summary = CleanupSummary.add(summary, task.cleanup());
+
+        return summary;
     }
 }

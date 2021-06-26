@@ -71,6 +71,7 @@ public class NoSpamLogger
 
         public NoSpamLogStatement(String statement, long minIntervalNanos)
         {
+            super(Long.MIN_VALUE);
             this.statement = statement;
             this.minIntervalNanos = minIntervalNanos;
         }
@@ -78,7 +79,7 @@ public class NoSpamLogger
         private boolean shouldLog(long nowNanos)
         {
             long expected = get();
-            return nowNanos - expected >= minIntervalNanos && compareAndSet(expected, nowNanos);
+            return nowNanos >= expected && compareAndSet(expected, nowNanos + minIntervalNanos);
         }
 
         public boolean log(Level l, long nowNanos, Object... objects)

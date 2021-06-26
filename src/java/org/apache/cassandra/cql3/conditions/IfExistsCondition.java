@@ -24,7 +24,7 @@ import org.apache.cassandra.db.Clustering;
 final class IfExistsCondition extends AbstractConditions
 {
     @Override
-    public void addConditionsTo(CQL3CasRequest request, Clustering clustering, QueryOptions options)
+    public void addConditionsTo(CQL3CasRequest request, Clustering<?> clustering, QueryOptions options)
     {
         request.addExist(clustering);
     }

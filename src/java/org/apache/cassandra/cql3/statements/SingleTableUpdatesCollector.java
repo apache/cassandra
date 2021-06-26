@@ -19,10 +19,11 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.HashMultiset;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
@@ -50,32 +51,39 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
     private final RegularAndStaticColumns updatedColumns;
 
     /**
-     * The estimated number of updated row.
+     * The number of updated rows per key.
      */
-    private final int updatedRows;
+    private final HashMultiset<ByteBuffer> perPartitionKeyCounts;
 
     /**
      * the partition update builders per key
      */
-    private final Map<ByteBuffer, PartitionUpdate.Builder> puBuilders = new HashMap<>();
+    private final Map<ByteBuffer, PartitionUpdate.Builder> puBuilders;
 
     /**
      * if it is a counter table, we will set this
      */
     private ConsistencyLevel counterConsistencyLevel = null;
 
-    SingleTableUpdatesCollector(TableMetadata metadata, RegularAndStaticColumns updatedColumns, int updatedRows)
+    SingleTableUpdatesCollector(TableMetadata metadata, RegularAndStaticColumns updatedColumns, HashMultiset<ByteBuffer> perPartitionKeyCounts)
     {
         this.metadata = metadata;
         this.updatedColumns = updatedColumns;
-        this.updatedRows = updatedRows;
+        this.perPartitionKeyCounts = perPartitionKeyCounts;
+        this.puBuilders = Maps.newHashMapWithExpectedSize(perPartitionKeyCounts.size());
     }
 
     public PartitionUpdate.Builder getPartitionUpdateBuilder(TableMetadata metadata, DecoratedKey dk, ConsistencyLevel consistency)
     {
         if (metadata.isCounter())
             counterConsistencyLevel = consistency;
-        return puBuilders.computeIfAbsent(dk.getKey(), (k) -> new PartitionUpdate.Builder(metadata, dk, updatedColumns, updatedRows));
+        PartitionUpdate.Builder builder = puBuilders.get(dk.getKey());
+        if (builder == null)
+        {
+            builder = new PartitionUpdate.Builder(metadata, dk, updatedColumns, perPartitionKeyCounts.count(dk.getKey()));
+            puBuilders.put(dk.getKey(), builder);
+        }
+        return builder;
     }
 
     /**
@@ -84,7 +92,7 @@ final class SingleTableUpdatesCollector implements UpdatesCollector
      */
     public List<IMutation> toMutations()
     {
-        List<IMutation> ms = new ArrayList<>();
+        List<IMutation> ms = new ArrayList<>(puBuilders.size());
         for (PartitionUpdate.Builder builder : puBuilders.values())
         {
             IMutation mutation;

@@ -74,8 +74,6 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
     public PartitionIterator getData()
     {
-        assert isDataPresent();
-
         Collection<Message<ReadResponse>> responses = this.responses.snapshot();
 
         if (!hasTransientResponse(responses))
@@ -109,7 +107,8 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         // validate digests against each other; return false immediately on mismatch.
         ByteBuffer digest = null;
         Collection<Message<ReadResponse>> snapshot = responses.snapshot();
-        if (snapshot.size() <= 1)
+        assert snapshot.size() > 0 : "Attempted response match comparison while no responses have been received.";
+        if (snapshot.size() == 1)
             return true;
 
         // TODO: should also not calculate if only one full node

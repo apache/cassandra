@@ -30,7 +30,7 @@ import org.apache.commons.lang3.ArrayUtils;
  * The native (CQL binary) protocol version.
  *
  * Some versions may be in beta, which means that the client must
- * specify the beta flag in the frame for the version to be considered valid.
+ * specify the beta flag in the envelope's header for the version to be considered valid.
  * Beta versions must have the word "beta" in their description, this is mandated
  * by the specs.
  *
@@ -43,7 +43,8 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     V2(2, "v2", false), // no longer supported
     V3(3, "v3", false),
     V4(4, "v4", false),
-    V5(5, "v5-beta", true);
+    V5(5, "v5", false),
+    V6(6, "v6-beta", true);
 
     /** The version number */
     private final int num;
@@ -62,19 +63,21 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     }
 
     /** The supported versions stored as an array, these should be private and are required for fast decoding*/
-    private final static ProtocolVersion[] SUPPORTED_VERSIONS = new ProtocolVersion[] { V3, V4, V5 };
+    private final static ProtocolVersion[] SUPPORTED_VERSIONS = new ProtocolVersion[] { V3, V4, V5, V6 };
     final static ProtocolVersion MIN_SUPPORTED_VERSION = SUPPORTED_VERSIONS[0];
     final static ProtocolVersion MAX_SUPPORTED_VERSION = SUPPORTED_VERSIONS[SUPPORTED_VERSIONS.length - 1];
+    /** These versions are sent by some clients, but are not valid Apache Cassandra versions (66, and 65 are DSE versions) */
+    private static int[] KNOWN_INVALID_VERSIONS = { 66, 65 };
 
     /** All supported versions, published as an enumset */
-    public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList((ProtocolVersion[]) ArrayUtils.addAll(SUPPORTED_VERSIONS)));
+    public final static EnumSet<ProtocolVersion> SUPPORTED = EnumSet.copyOf(Arrays.asList(ArrayUtils.addAll(SUPPORTED_VERSIONS)));
 
     /** Old unsupported versions, this is OK as long as we never add newer unsupported versions */
     public final static EnumSet<ProtocolVersion> UNSUPPORTED = EnumSet.complementOf(SUPPORTED);
 
     /** The preferred versions */
-    public final static ProtocolVersion CURRENT = V4;
-    public final static Optional<ProtocolVersion> BETA = Optional.of(V5);
+    public final static ProtocolVersion CURRENT = V5;
+    public final static Optional<ProtocolVersion> BETA = Optional.of(V6);
 
     public static List<String> supportedVersions()
     {
@@ -109,9 +112,14 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
                 if (version.num == versionNum)
                     throw new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum), version);
             }
+            for (int dseVersion : KNOWN_INVALID_VERSIONS)
+            {
+                if (versionNum == dseVersion)
+                    throw ProtocolException.toSilentException(new ProtocolException(ProtocolVersion.invalidVersionMessage(versionNum)));
+            }
 
-            // If the version is invalid response with the highest version that we support
-            throw new ProtocolException(invalidVersionMessage(versionNum), MAX_SUPPORTED_VERSION);
+            // If the version is invalid reply with the channel's version
+            throw new ProtocolException(invalidVersionMessage(versionNum));
         }
 
         if (!allowOlderProtocols && ret.isSmallerThan(CURRENT))
@@ -134,11 +142,6 @@ public enum ProtocolVersion implements Comparable<ProtocolVersion>
     public int asInt()
     {
         return num;
-    }
-
-    public boolean supportsChecksums()
-    {
-        return num >= V5.asInt();
     }
 
     @Override

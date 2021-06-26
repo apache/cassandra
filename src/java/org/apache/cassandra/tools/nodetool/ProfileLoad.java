@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.commons.lang3.StringUtils.join;
 
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -108,19 +109,19 @@ public class ProfileLoad extends NodeToolCmd
             .addColumn("Partition", "value")
             .addColumn("Count", "count")
             .addColumn("+/-", "error")
-            .print();
+            .print(probe.output().out);
         }
 
         rb.forType(SamplerType.WRITE_SIZE, "Max mutation size by partition")
             .addColumn("Table", "table")
             .addColumn("Partition", "value")
             .addColumn("Bytes", "count")
-            .print();
+            .print(probe.output().out);
 
         rb.forType(SamplerType.LOCAL_READ_TIME, "Longest read query times")
             .addColumn("Query", "value")
             .addColumn("Microseconds", "count")
-            .print();
+            .print(probe.output().out);
     }
 
     private class ResultBuilder
@@ -163,14 +164,14 @@ public class ProfileLoad extends NodeToolCmd
             return key;
         }
 
-        public void print()
+        public void print(PrintStream outStream)
         {
             if (targets.contains(type.toString()))
             {
                 if (!first.get())
-                    System.out.println();
+                    outStream.println();
                 first.set(false);
-                System.out.println(description + ':');
+                outStream.println(description + ':');
                 TableBuilder out = new TableBuilder();
                 out.add(dataKeys.stream().map(p -> p.left).collect(Collectors.toList()).toArray(new String[] {}));
                 List<CompositeData> topk = results.get(type.toString());
@@ -180,11 +181,11 @@ public class ProfileLoad extends NodeToolCmd
                 }
                 if (topk.size() == 0)
                 {
-                    System.out.println("   Nothing recorded during sampling period...");
+                    outStream.println("   Nothing recorded during sampling period...");
                 }
                 else
                 {
-                    out.printTo(System.out);
+                    out.printTo(outStream);
                 }
             }
         }

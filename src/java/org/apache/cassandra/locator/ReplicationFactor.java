@@ -76,11 +76,11 @@ public class ReplicationFactor
                                                                     .filter(endpoint -> Gossiper.instance.getReleaseVersion(endpoint) != null && Gossiper.instance.getReleaseVersion(endpoint).major < 4)
                                                                     .collect(Collectors.toList());
             if (!badVersionEndpoints.isEmpty())
-                throw new AssertionError("Transient replication is not supported in mixed version clusters with nodes < 4.0. Bad nodes: " + badVersionEndpoints);
+                throw new IllegalArgumentException("Transient replication is not supported in mixed version clusters with nodes < 4.0. Bad nodes: " + badVersionEndpoints);
         }
         else if (transientRF < 0)
         {
-            throw new AssertionError(String.format("Amount of transient nodes should be strictly positive, but was: '%d'", transientRF));
+            throw new IllegalArgumentException(String.format("Amount of transient nodes should be strictly positive, but was: '%d'", transientRF));
         }
     }
 
@@ -114,17 +114,17 @@ public class ReplicationFactor
             String[] parts = s.split("/");
             Preconditions.checkArgument(parts.length == 2,
                                         "Replication factor format is <replicas> or <replicas>/<transient>");
-            return new ReplicationFactor(Integer.valueOf(parts[0]), Integer.valueOf(parts[1]));
+            return new ReplicationFactor(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
         }
         else
         {
-            return new ReplicationFactor(Integer.valueOf(s), 0);
+            return new ReplicationFactor(Integer.parseInt(s), 0);
         }
     }
 
     public String toParseableString()
     {
-        return String.valueOf(allReplicas) + (hasTransientReplicas() ? "/" + transientReplicas() : "");
+        return allReplicas + (hasTransientReplicas() ? "/" + transientReplicas() : "");
     }
 
     @Override

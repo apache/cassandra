@@ -56,7 +56,6 @@ import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.hints.HintVerbHandler;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.repair.RepairMessageVerbHandler;
-import org.apache.cassandra.repair.messages.AsymmetricSyncRequest;
 import org.apache.cassandra.repair.messages.CleanupMessage;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
@@ -164,7 +163,6 @@ public enum Verb
     FAILED_SESSION_MSG     (113, P1, rpcTimeout,      ANTI_ENTROPY,      () -> FailSession.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     STATUS_RSP             (115, P1, rpcTimeout,      ANTI_ENTROPY,      () -> StatusResponse.serializer,            () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     STATUS_REQ             (114, P1, rpcTimeout,      ANTI_ENTROPY,      () -> StatusRequest.serializer,             () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
-    ASYMMETRIC_SYNC_REQ    (116, P1, rpcTimeout,      ANTI_ENTROPY,      () -> AsymmetricSyncRequest.serializer,     () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
 
     REPLICATION_DONE_RSP   (82,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     REPLICATION_DONE_REQ   (22,  P0, rpcTimeout,      MISC,              () -> NoPayload.serializer,                 () -> ReplicationDoneVerbHandler.instance, REPLICATION_DONE_RSP),
@@ -329,7 +327,7 @@ public enum Verb
     }
 
     @VisibleForTesting
-    Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> unsafeSetSerializer(Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer) throws NoSuchFieldException, IllegalAccessException
+    public Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> unsafeSetSerializer(Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> serializer) throws NoSuchFieldException, IllegalAccessException
     {
         Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> original = this.serializer;
         Field field = Verb.class.getDeclaredField("serializer");

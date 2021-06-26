@@ -98,6 +98,6 @@ public interface Conditions
      * @param options the query options
      */
     public void addConditionsTo(CQL3CasRequest request,
-                                Clustering clustering,
+                                Clustering<?> clustering,
                                 QueryOptions options);
 }

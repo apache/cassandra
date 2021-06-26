@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -55,9 +56,9 @@ public final class GroupingState
     /**
      * The last row clustering
      */
-    final Clustering clustering;
+    final Clustering<?> clustering;
 
-    public GroupingState(ByteBuffer partitionKey, Clustering clustering)
+    public GroupingState(ByteBuffer partitionKey, Clustering<?> clustering)
     {
         this.partitionKey = partitionKey;
         this.clustering = clustering;
@@ -78,7 +79,7 @@ public final class GroupingState
      * @return he last row clustering or <code>null</code> if either no rows has been processed yet or the last
      * row was a static row
      */
-    public Clustering clustering()
+    public Clustering<?> clustering()
     {
         return clustering;
     }
@@ -115,7 +116,7 @@ public final class GroupingState
                 return GroupingState.EMPTY_STATE;
 
             ByteBuffer partitionKey = ByteBufferUtil.readWithVIntLength(in);
-            Clustering clustering = null;
+            Clustering<byte[]> clustering = null;
             if (in.readBoolean())
                 clustering = Clustering.serializer.deserialize(in, version, comparator.subtypes());
 

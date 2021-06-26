@@ -70,6 +70,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
         }
     };
 
+    /* this enum is used in serialization; preserve order for compatibility */
     public enum TraceType
     {
         NONE,

@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaPlan;
@@ -87,9 +88,9 @@ public class ReadRepairTest
 
     static long now = TimeUnit.NANOSECONDS.toMicros(System.nanoTime());
     static DecoratedKey key;
-    static Cell cell1;
-    static Cell cell2;
-    static Cell cell3;
+    static Cell<?> cell1;
+    static Cell<?> cell2;
+    static Cell<?> cell3;
     static Mutation resolved;
 
     private static void assertRowsEqual(Row expected, Row actual)
@@ -142,16 +143,16 @@ public class ReadRepairTest
         return DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(v));
     }
 
-    private static Cell cell(String name, String value, long timestamp)
+    private static Cell<?> cell(String name, String value, long timestamp)
     {
         return BufferCell.live(cfm.getColumn(ColumnIdentifier.getInterned(name, false)), timestamp, ByteBufferUtil.bytes(value));
     }
 
-    private static Mutation mutation(Cell... cells)
+    private static Mutation mutation(Cell<?>... cells)
     {
         Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
-        for (Cell cell: cells)
+        for (Cell<?> cell: cells)
         {
             builder.addCell(cell);
         }
@@ -168,11 +169,12 @@ public class ReadRepairTest
     @Test
     public void consistencyLevelTest() throws Exception
     {
-        Assert.assertTrue(ConsistencyLevel.QUORUM.satisfies(ConsistencyLevel.QUORUM, ks));
-        Assert.assertTrue(ConsistencyLevel.THREE.satisfies(ConsistencyLevel.QUORUM, ks));
-        Assert.assertTrue(ConsistencyLevel.TWO.satisfies(ConsistencyLevel.QUORUM, ks));
-        Assert.assertFalse(ConsistencyLevel.ONE.satisfies(ConsistencyLevel.QUORUM, ks));
-        Assert.assertFalse(ConsistencyLevel.ANY.satisfies(ConsistencyLevel.QUORUM, ks));
+        AbstractReplicationStrategy rs = ks.getReplicationStrategy();
+        Assert.assertTrue(ConsistencyLevel.QUORUM.satisfies(ConsistencyLevel.QUORUM, rs));
+        Assert.assertTrue(ConsistencyLevel.THREE.satisfies(ConsistencyLevel.QUORUM, rs));
+        Assert.assertTrue(ConsistencyLevel.TWO.satisfies(ConsistencyLevel.QUORUM, rs));
+        Assert.assertFalse(ConsistencyLevel.ONE.satisfies(ConsistencyLevel.QUORUM, rs));
+        Assert.assertFalse(ConsistencyLevel.ANY.satisfies(ConsistencyLevel.QUORUM, rs));
     }
 
     private static void assertMutationEqual(Mutation expected, Mutation actual)

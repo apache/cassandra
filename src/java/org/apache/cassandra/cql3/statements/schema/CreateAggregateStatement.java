@@ -92,11 +92,11 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             throw ire("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 
         rawArgumentTypes.stream()
-                        .filter(CQL3Type.Raw::isFrozen)
+                        .filter(raw -> !raw.isTuple() && raw.isFrozen())
                         .findFirst()
                         .ifPresent(t -> { throw ire("Argument '%s' cannot be frozen; remove frozen<> modifier from '%s'", t, t); });
 
-        if (rawStateType.isFrozen())
+        if (!rawStateType.isTuple() && rawStateType.isFrozen())
             throw ire("State type '%s' cannot be frozen; remove frozen<> modifier from '%s'", rawStateType, rawStateType);
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);

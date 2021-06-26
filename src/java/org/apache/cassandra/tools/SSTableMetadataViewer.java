@@ -73,7 +73,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
 import com.google.common.collect.MinMaxPriorityQueue;
-import org.apache.commons.lang3.time.DurationFormatUtils;
 
 /**
  * Shows the contents of sstable metadata
@@ -228,7 +227,7 @@ public class SSTableMetadataViewer
                                 Row row = (Row) unfiltered;
                                 psize += row.dataSize();
                                 pcount++;
-                                for (org.apache.cassandra.db.rows.Cell cell : row.cells())
+                                for (org.apache.cassandra.db.rows.Cell<?> cell : row.cells())
                                 {
                                     cellCount++;
                                     double percentComplete = Math.min(1.0, cellCount / totalCells);

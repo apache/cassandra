@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
@@ -48,9 +49,12 @@ import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -316,7 +320,36 @@ public class SimpleStrategyTest
 
         Map<String, String> configOptions = new HashMap<>();
 
+        @SuppressWarnings("unused")
         SimpleStrategy strategy = new SimpleStrategy("ks", metadata, snitch, configOptions);
+    }
+    
+    @Test
+    public void shouldReturnNoEndpointsForEmptyRing()
+    {
+        TokenMetadata metadata = new TokenMetadata();
+        
+        HashMap<String, String> configOptions = new HashMap<>();
+        configOptions.put("replication_factor", "1");
+        
+        SimpleStrategy strategy = new SimpleStrategy("ks", metadata, new SimpleSnitch(), configOptions);
+
+        EndpointsForRange replicas = strategy.calculateNaturalReplicas(null, metadata);
+        assertTrue(replicas.endpoints().isEmpty());
+    }
+
+    @Test
+    public void shouldWarnOnHigherReplicationFactorThanNodes()
+    {
+        HashMap<String, String> configOptions = new HashMap<>();
+        configOptions.put("replication_factor", "2");
+
+        SimpleStrategy strategy = new SimpleStrategy("ks", new TokenMetadata(), new SimpleSnitch(), configOptions);
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
+        
+        ClientWarn.instance.captureWarnings();
+        strategy.maybeWarnOnOptions();
+        assertTrue(ClientWarn.instance.getWarnings().stream().anyMatch(s -> s.contains("Your replication factor")));
     }
 
     private AbstractReplicationStrategy getStrategy(String keyspaceName, TokenMetadata tmd, IEndpointSnitch snitch)

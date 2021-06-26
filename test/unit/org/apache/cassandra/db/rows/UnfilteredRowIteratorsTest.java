@@ -168,16 +168,16 @@ public class UnfilteredRowIteratorsTest
         };
     }
 
-    public Row row(int ck, Cell... columns)
+    public Row row(int ck, Cell<?>... columns)
     {
         BTreeRow.Builder builder = new BTreeRow.Builder(true);
         builder.newRow(Util.clustering(metadata.comparator, ck));
-        for (Cell cell : columns)
+        for (Cell<?> cell : columns)
             builder.addCell(cell);
         return builder.build();
     }
 
-    public Cell cell(ColumnMetadata metadata, int v)
+    public Cell<?> cell(ColumnMetadata metadata, int v)
     {
         return new BufferCell(metadata,
                               1L, BufferCell.NO_TTL, BufferCell.NO_DELETION_TIME, ByteBufferUtil.bytes(v), null);

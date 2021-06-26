@@ -31,17 +31,17 @@ import static org.apache.cassandra.net.Crc.*;
  * Please see {@link FrameDecoderCrc} for description of the framing produced by this encoder.
  */
 @ChannelHandler.Sharable
-class FrameEncoderCrc extends FrameEncoder
+public class FrameEncoderCrc extends FrameEncoder
 {
     static final int HEADER_LENGTH = 6;
     private static final int TRAILER_LENGTH = 4;
-    static final int HEADER_AND_TRAILER_LENGTH = 10;
+    public static final int HEADER_AND_TRAILER_LENGTH = 10;
 
-    static final FrameEncoderCrc instance = new FrameEncoderCrc();
+    public static final FrameEncoderCrc instance = new FrameEncoderCrc();
     static final PayloadAllocator allocator = (isSelfContained, capacity) ->
         new Payload(isSelfContained, capacity, HEADER_LENGTH, TRAILER_LENGTH);
 
-    PayloadAllocator allocator()
+    public PayloadAllocator allocator()
     {
         return allocator;
     }
@@ -52,7 +52,6 @@ class FrameEncoderCrc extends FrameEncoder
         if (isSelfContained)
             header3b |= 1 << 17;
         int crc = crc24(header3b, 3);
-
         put3b(frame, 0, header3b);
         put3b(frame, 3, crc);
     }
@@ -87,11 +86,12 @@ class FrameEncoderCrc extends FrameEncoder
             frame.limit(frameLength);
             frame.putInt(frameLength - TRAILER_LENGTH, frameCrc);
             frame.position(0);
+
             return GlobalBufferPoolAllocator.wrap(frame);
         }
         catch (Throwable t)
         {
-            BufferPool.put(frame);
+            bufferPool.put(frame);
             throw t;
         }
     }

@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.*;
@@ -140,6 +141,36 @@ public final class Functions implements Iterable<Function>
     public Collection<Function> get(FunctionName name)
     {
         return functions.get(name);
+    }
+
+    /**
+     * Get all UDFs overloads with the specified name
+     *
+     * @param name fully qualified function name
+     * @return an empty list if the function name is not found; a non-empty collection of {@link UDFunction} otherwise
+     */
+    public Collection<UDFunction> getUdfs(FunctionName name)
+    {
+        return functions.get(name)
+                        .stream()
+                        .filter(Filter.UDF)
+                        .map(f -> (UDFunction) f)
+                        .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all UDAs overloads with the specified name
+     *
+     * @param name fully qualified function name
+     * @return an empty list if the function name is not found; a non-empty collection of {@link UDAggregate} otherwise
+     */
+    public Collection<UDAggregate> getUdas(FunctionName name)
+    {
+        return functions.get(name)
+                        .stream()
+                        .filter(Filter.UDA)
+                        .map(f -> (UDAggregate) f)
+                        .collect(Collectors.toList());
     }
 
     public Optional<Function> find(FunctionName name, List<AbstractType<?>> argTypes)

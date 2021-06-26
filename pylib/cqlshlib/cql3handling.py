@@ -58,7 +58,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         # (CQL3 option name, schema_columnfamilies column name (or None if same),
         #  list of known map keys)
         ('compaction', 'compaction_strategy_options',
-            ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled', 'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones')),
+            ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled', 'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
         ('compression', 'compression_parameters',
             ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
         ('caching', None,
@@ -554,6 +554,8 @@ def cf_prop_val_mapval_completer(ctxt, cass):
     if opt == 'compaction':
         if key == 'class':
             return list(map(escape_value, CqlRuleSet.available_compaction_classes))
+        if key == 'provide_overlapping_tombstones':
+            return [Hint('<NONE|ROW|CELL>')]
         return [Hint('<option_value>')]
     elif opt == 'compression':
         if key == 'sstable_compression':

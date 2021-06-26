@@ -23,19 +23,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.io.ISerializer;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.io.ISerializer;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
+import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -64,6 +69,7 @@ public class StatsMetadata extends MetadataComponent
     public final long repairedAt;
     public final long totalColumnsSet;
     public final long totalRows;
+    public final UUID originatingHostId;
     public final UUID pendingRepair;
     public final boolean isTransient;
     // just holds the current encoding stats to avoid allocating - it is not serialized
@@ -87,6 +93,7 @@ public class StatsMetadata extends MetadataComponent
                          long repairedAt,
                          long totalColumnsSet,
                          long totalRows,
+                         UUID originatingHostId,
                          UUID pendingRepair,
                          boolean isTransient)
     {
@@ -108,6 +115,7 @@ public class StatsMetadata extends MetadataComponent
         this.repairedAt = repairedAt;
         this.totalColumnsSet = totalColumnsSet;
         this.totalRows = totalRows;
+        this.originatingHostId = originatingHostId;
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
         this.encodingStats = new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
@@ -162,6 +170,7 @@ public class StatsMetadata extends MetadataComponent
                                  repairedAt,
                                  totalColumnsSet,
                                  totalRows,
+                                 originatingHostId,
                                  pendingRepair,
                                  isTransient);
     }
@@ -186,6 +195,7 @@ public class StatsMetadata extends MetadataComponent
                                  newRepairedAt,
                                  totalColumnsSet,
                                  totalRows,
+                                 originatingHostId,
                                  newPendingRepair,
                                  newIsTransient);
     }
@@ -216,6 +226,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasLegacyCounterShards, that.hasLegacyCounterShards)
                        .append(totalColumnsSet, that.totalColumnsSet)
                        .append(totalRows, that.totalRows)
+                       .append(originatingHostId, that.originatingHostId)
                        .append(pendingRepair, that.pendingRepair)
                        .build();
     }
@@ -242,12 +253,15 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasLegacyCounterShards)
                        .append(totalColumnsSet)
                        .append(totalRows)
+                       .append(originatingHostId)
                        .append(pendingRepair)
                        .build();
     }
 
     public static class StatsMetadataSerializer implements IMetadataComponentSerializer<StatsMetadata>
     {
+        private static final Logger logger = LoggerFactory.getLogger(StatsMetadataSerializer.class);
+
         public int serializedSize(Version version, StatsMetadata component) throws IOException
         {
             int size = 0;
@@ -282,6 +296,13 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasIsTransient())
             {
                 size += TypeSizes.sizeof(component.isTransient);
+            }
+
+            if (version.hasOriginatingHostId())
+            {
+                size += 1; // boolean: is originatingHostId present
+                if (component.originatingHostId != null)
+                    size += UUIDSerializer.serializer.serializedSize(component.originatingHostId, version.correspondingMessagingVersion());
             }
 
             return size;
@@ -335,12 +356,45 @@ public class StatsMetadata extends MetadataComponent
             {
                 out.writeBoolean(component.isTransient);
             }
+
+            if (version.hasOriginatingHostId())
+            {
+                if (component.originatingHostId != null)
+                {
+                    out.writeByte(1);
+                    UUIDSerializer.serializer.serialize(component.originatingHostId, out, 0);
+                }
+                else
+                {
+                    out.writeByte(0);
+                }
+            }
         }
 
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException
         {
             EstimatedHistogram partitionSizes = EstimatedHistogram.serializer.deserialize(in);
+
+            if (partitionSizes.isOverflowed())
+            {
+                logger.warn("Deserialized partition size histogram with {} values greater than the maximum of {}. " +
+                            "Clearing the overflow bucket to allow for degraded mean and percentile calculations...",
+                            partitionSizes.overflowCount(), partitionSizes.getLargestBucketOffset());
+
+                partitionSizes.clearOverflow();
+            }
+
             EstimatedHistogram columnCounts = EstimatedHistogram.serializer.deserialize(in);
+
+            if (columnCounts.isOverflowed())
+            {
+                logger.warn("Deserialized partition cell count histogram with {} values greater than the maximum of {}. " +
+                            "Clearing the overflow bucket to allow for degraded mean and percentile calculations...",
+                            columnCounts.overflowCount(), columnCounts.getLargestBucketOffset());
+
+                columnCounts.clearOverflow();
+            }
+
             CommitLogPosition commitLogLowerBound = CommitLogPosition.NONE, commitLogUpperBound;
             commitLogUpperBound = CommitLogPosition.serializer.deserialize(in);
             long minTimestamp = in.readLong();
@@ -395,6 +449,10 @@ public class StatsMetadata extends MetadataComponent
 
             boolean isTransient = version.hasIsTransient() && in.readBoolean();
 
+            UUID originatingHostId = null;
+            if (version.hasOriginatingHostId() && in.readByte() != 0)
+                originatingHostId = UUIDSerializer.serializer.deserialize(in, 0);
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -413,6 +471,7 @@ public class StatsMetadata extends MetadataComponent
                                      repairedAt,
                                      totalColumnsSet,
                                      totalRows,
+                                     originatingHostId,
                                      pendingRepair,
                                      isTransient);
         }

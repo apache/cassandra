@@ -323,9 +323,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().address, Map.Entry::getValue));
     }
 
-    public Map<InetAddressAndPort, Double> getScoresWithPort()
+    public Map<String, Double> getScoresWithPort()
     {
-        return scores;
+        return scores.entrySet().stream().collect(Collectors.toMap(address -> address.getKey().toString(true), Map.Entry::getValue));
     }
 
     public int getUpdateInterval()

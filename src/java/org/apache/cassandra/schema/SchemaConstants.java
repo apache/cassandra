@@ -39,6 +39,10 @@ public final class SchemaConstants
     public static final String AUTH_KEYSPACE_NAME = "system_auth";
     public static final String DISTRIBUTED_KEYSPACE_NAME = "system_distributed";
 
+    public static final String VIRTUAL_SCHEMA = "system_virtual_schema";
+
+    public static final String VIRTUAL_VIEWS = "system_views";
+
     /* system keyspace names (the ones with LocalStrategy replication strategy) */
     public static final Set<String> LOCAL_SYSTEM_KEYSPACE_NAMES =
         ImmutableSet.of(SYSTEM_KEYSPACE_NAME, SCHEMA_KEYSPACE_NAME);
@@ -83,5 +87,25 @@ public final class SchemaConstants
     public static boolean isReplicatedSystemKeyspace(String keyspaceName)
     {
         return REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
+    }
+
+    /**
+     * Checks if the keyspace is a virtual system keyspace.
+     * @return {@code true} if the keyspace is a virtual system keyspace, {@code false} otherwise.
+     */
+    public static boolean isVirtualSystemKeyspace(String keyspaceName)
+    {
+        return VIRTUAL_SCHEMA.equals(keyspaceName.toLowerCase()) || VIRTUAL_VIEWS.equals(keyspaceName.toLowerCase());
+    }
+
+    /**
+     * Checks if the keyspace is a system keyspace (local replicated or virtual).
+     * @return {@code true} if the keyspace is a system keyspace, {@code false} otherwise.
+     */
+    public static boolean isSystemKeyspace(String keyspaceName)
+    {
+        return isLocalSystemKeyspace(keyspaceName)
+                || isReplicatedSystemKeyspace(keyspaceName)
+                || isVirtualSystemKeyspace(keyspaceName);
     }
 }

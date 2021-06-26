@@ -42,8 +42,8 @@ public class GetCompactionThreshold extends NodeToolCmd
         String cf = args.get(1);
 
         ColumnFamilyStoreMBean cfsProxy = probe.getCfsProxy(ks, cf);
-        System.out.println("Current compaction thresholds for " + ks + "/" + cf + ": \n" +
-                " min = " + cfsProxy.getMinimumCompactionThreshold() + ", " +
-                " max = " + cfsProxy.getMaximumCompactionThreshold());
+        probe.output().out.println("Current compaction thresholds for " + ks + "/" + cf + ": \n" +
+                            " min = " + cfsProxy.getMinimumCompactionThreshold() + ", " +
+                            " max = " + cfsProxy.getMaximumCompactionThreshold());
     }
 }

@@ -24,13 +24,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 
@@ -43,16 +44,14 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     private final MaximumPoolSizeListener maximumPoolSizeListener;
     public final String name;
     private final String mbeanName;
-    public final int maxTasksQueued;
-    private final ThreadPoolMetrics metrics;
+    @VisibleForTesting
+    public final ThreadPoolMetrics metrics;
 
     // stores both a set of work permits and task permits:
     //  bottom 32 bits are number of queued tasks, in the range [0..maxTasksQueued]   (initially 0)
     //  top 32 bits are number of work permits available in the range [-resizeDelta..maximumPoolSize]   (initially maximumPoolSize)
     private final AtomicLong permits = new AtomicLong();
 
-    // producers wait on this when there is no room on the queue
-    private final WaitQueue hasRoom = new WaitQueue();
     private final AtomicLong completedTasks = new AtomicLong();
 
     volatile boolean shuttingDown = false;
@@ -61,14 +60,13 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     // TODO: see if other queue implementations might improve throughput
     protected final ConcurrentLinkedQueue<FutureTask<?>> tasks = new ConcurrentLinkedQueue<>();
 
-    SEPExecutor(SharedExecutorPool pool, int maximumPoolSize, MaximumPoolSizeListener maximumPoolSizeListener, int maxTasksQueued, String jmxPath, String name)
+    SEPExecutor(SharedExecutorPool pool, int maximumPoolSize, MaximumPoolSizeListener maximumPoolSizeListener, String jmxPath, String name)
     {
         this.pool = pool;
         this.name = name;
         this.mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + name;
         this.maximumPoolSize = new AtomicInteger(maximumPoolSize);
         this.maximumPoolSizeListener = maximumPoolSizeListener;
-        this.maxTasksQueued = maxTasksQueued;
         this.permits.set(combine(0, maximumPoolSize));
         this.metrics = new ThreadPoolMetrics(this, jmxPath, name).register();
         MBeanWrapper.instance.registerMBean(this, mbeanName);
@@ -82,7 +80,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     @Override
     public int getMaxTasksQueued()
     {
-        return maxTasksQueued;
+        return Integer.MAX_VALUE;
     }
 
     // schedules another worker for this pool if there is work outstanding and there are no spinning threads that
@@ -121,29 +119,6 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
             // worker, we simply start a worker in a spinning state
             pool.maybeStartSpinningWorker();
         }
-        else if (taskPermits >= maxTasksQueued)
-        {
-            // register to receive a signal once a task is processed bringing the queue below its threshold
-            WaitQueue.Signal s = hasRoom.register();
-
-            // we will only be signalled once the queue drops below full, so this creates equivalent external behaviour
-            // however the advantage is that we never wake-up spuriously;
-            // we choose to always sleep, even if in the intervening time the queue has dropped below limit,
-            // so long as we _will_ eventually receive a signal
-            if (taskPermits(permits.get()) > maxTasksQueued)
-            {
-                // if we're blocking, we might as well directly schedule a worker if we aren't already at max
-                if (takeWorkPermit(true))
-                    pool.schedule(new Work(this));
-
-                metrics.totalBlocked.inc();
-                metrics.currentBlocked.inc();
-                s.awaitUninterruptibly();
-                metrics.currentBlocked.dec();
-            }
-            else // don't propagate our signal when we cancel, just cancel
-                s.cancel();
-        }
     }
 
     public enum TakeTaskPermitResult
@@ -181,8 +156,6 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
             }
             if (permits.compareAndSet(current, updated))
             {
-                if (taskPermits == maxTasksQueued && hasRoom.hasWaiters())
-                    hasRoom.signalAll();
                 return result;
             }
         }
@@ -201,8 +174,6 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
                 return false;
             if (permits.compareAndSet(current, combine(taskPermits - taskDelta, workPermits - 1)))
             {
-                if (takeTaskPermit && taskPermits == maxTasksQueued && hasRoom.hasWaiters())
-                    hasRoom.signalAll();
                 return true;
             }
         }
@@ -337,6 +308,12 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
         permits.updateAndGet(cur -> updateWorkPermits(cur, workPermits(cur) + deltaWorkPermits));
         logger.info("Resized {} maximum pool size from {} to {}", name, oldMaximumPoolSize, newMaximumPoolSize);
+
+        // If we we have more work permits than before we should spin up a worker now rather than waiting
+        // until either a new task is enqueued (if all workers are descheduled) or a spinning worker calls
+        // maybeSchedule().
+        pool.maybeStartSpinningWorker();
+
         maximumPoolSizeListener.onUpdateMaximumPoolSize(newMaximumPoolSize);
     }
 

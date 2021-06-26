@@ -68,7 +68,7 @@ class FrameEncoderLegacyLZ4 extends FrameEncoder
         ByteBuffer frame = null;
         try
         {
-            frame = BufferPool.getAtLeast(calculateMaxFrameLength(payload), BufferType.OFF_HEAP);
+            frame = bufferPool.getAtLeast(calculateMaxFrameLength(payload), BufferType.OFF_HEAP);
 
             int   frameOffset = 0;
             int payloadOffset = 0;
@@ -82,19 +82,19 @@ class FrameEncoderLegacyLZ4 extends FrameEncoder
             }
 
             frame.limit(frameOffset);
-            BufferPool.putUnusedPortion(frame);
+            bufferPool.putUnusedPortion(frame);
 
             return GlobalBufferPoolAllocator.wrap(frame);
         }
         catch (Throwable t)
         {
             if (null != frame)
-                BufferPool.put(frame);
+                bufferPool.put(frame);
             throw t;
         }
         finally
         {
-            BufferPool.put(payload);
+            bufferPool.put(payload);
         }
     }
 

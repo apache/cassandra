@@ -57,7 +57,7 @@ import static org.apache.cassandra.net.Crc.*;
  * |                  CRC32 of Compressed Payload                  |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
-final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
+public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
 {
     public static FrameDecoderLZ4 fast(BufferPoolAllocator allocator)
     {

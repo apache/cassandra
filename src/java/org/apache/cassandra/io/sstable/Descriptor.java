@@ -33,6 +33,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.IMetadataSerializer;
 import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.io.sstable.Component.separator;
 
@@ -79,6 +80,12 @@ public class Descriptor
         this(formatType.info.getLatestVersion(), directory, ksname, cfname, generation, formatType);
     }
 
+    @VisibleForTesting
+    public Descriptor(String version, File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
+    {
+        this(formatType.info.getVersion(version), directory, ksname, cfname, generation, formatType);
+    }
+
     public Descriptor(Version version, File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
@@ -114,6 +121,16 @@ public class Descriptor
         return filenameFor(component) + TMP_EXT;
     }
 
+    /**
+     * @return a unique temporary file name for given component during entire-sstable-streaming.
+     */
+    public String tmpFilenameForStreaming(Component component)
+    {
+        // Use UUID to handle concurrent streamings on the same sstable.
+        // TMP_EXT allows temp file to be removed by {@link ColumnFamilyStore#scrubDataDirectories}
+        return String.format("%s.%s%s", filenameFor(component), UUIDGen.getTimeUUID(), TMP_EXT);
+    }
+
     public String filenameFor(Component component)
     {
         return baseFilename() + separator + component.name();
@@ -137,6 +154,11 @@ public class Descriptor
     public String relativeFilenameFor(Component component)
     {
         final StringBuilder buff = new StringBuilder();
+        if (Directories.isSecondaryIndexFolder(directory))
+        {
+            buff.append(directory.getName()).append(File.separator);
+        }
+
         appendFileName(buff);
         buff.append(separator).append(component.name());
         return buff.toString();
@@ -276,7 +298,7 @@ public class Descriptor
 
         // Check if it's a 2ndary index directory (not that it doesn't exclude it to be also a backup or snapshot)
         String indexName = "";
-        if (tableDir.getName().startsWith(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
+        if (Directories.isSecondaryIndexFolder(tableDir))
         {
             indexName = tableDir.getName();
             tableDir = parentOf(name, tableDir);
@@ -338,6 +360,7 @@ public class Descriptor
                        && that.generation == this.generation
                        && that.ksname.equals(this.ksname)
                        && that.cfname.equals(this.cfname)
+                       && that.version.equals(this.version)
                        && that.formatType == this.formatType;
     }
 

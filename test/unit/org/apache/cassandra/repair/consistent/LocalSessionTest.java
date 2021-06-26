@@ -42,6 +42,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.net.Message;
@@ -69,9 +70,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class LocalSessionTest extends AbstractRepairTest
 {
+    private static final UUID TID1 = UUIDGen.getTimeUUID();
+    private static final UUID TID2 = UUIDGen.getTimeUUID();
 
     static LocalSession.Builder createBuilder()
     {
@@ -79,7 +83,7 @@ public class LocalSessionTest extends AbstractRepairTest
         builder.withState(PREPARING);
         builder.withSessionID(UUIDGen.getTimeUUID());
         builder.withCoordinator(COORDINATOR);
-        builder.withUUIDTableIds(Sets.newHashSet(UUIDGen.getTimeUUID(), UUIDGen.getTimeUUID()));
+        builder.withUUIDTableIds(Sets.newHashSet(TID1, TID2));
         builder.withRepairedAt(System.currentTimeMillis());
         builder.withRanges(Sets.newHashSet(RANGE1, RANGE2, RANGE3));
         builder.withParticipants(Sets.newHashSet(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
@@ -814,22 +818,95 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(0, initialSessions.getNumSessions());
         UUID id1 = registerSession();
         UUID id2 = registerSession();
+        UUID id3 = registerSession();
 
         initialSessions.prepareForTest(id1);
         initialSessions.prepareForTest(id2);
-        Assert.assertEquals(2, initialSessions.getNumSessions());
+        initialSessions.prepareForTest(id3);
+
+        Assert.assertEquals(3, initialSessions.getNumSessions());
         LocalSession session1 = initialSessions.getSession(id1);
         LocalSession session2 = initialSessions.getSession(id2);
-
+        LocalSession session3 = initialSessions.getSession(id3);
+        initialSessions.setStateAndSave(session2, PREPARED);
+        initialSessions.setStateAndSave(session2, REPAIRING);
+        initialSessions.setStateAndSave(session2, FINALIZE_PROMISED);
+        initialSessions.setStateAndSave(session3, PREPARED);
+        initialSessions.setStateAndSave(session3, REPAIRING);
+        initialSessions.setStateAndSave(session3, FINALIZE_PROMISED);
+        initialSessions.setStateAndSave(session3, FINALIZED);
+        Assert.assertEquals(3, initialSessions.getNumSessions());
 
         // subsequent startups should load persisted sessions
         InstrumentedLocalSessions nextSessions = new InstrumentedLocalSessions();
         Assert.assertEquals(0, nextSessions.getNumSessions());
         nextSessions.start();
-        Assert.assertEquals(2, nextSessions.getNumSessions());
+        Assert.assertEquals(3, nextSessions.getNumSessions());
 
-        Assert.assertEquals(session1, nextSessions.getSession(id1));
-        Assert.assertEquals(session2, nextSessions.getSession(id2));
+        LocalSession session1next = nextSessions.getSession(id1);
+        LocalSession session2next = nextSessions.getSession(id2);
+        LocalSession session3next = nextSessions.getSession(id3);
+
+        // non-finalized sessions should fail & notify coordinator after startup
+        assertMessagesSent(nextSessions, session1next.coordinator, new FailSession(session1next.sessionID));
+        Assert.assertEquals(session1.sessionID, session1next.sessionID);
+        Assert.assertEquals(FAILED, session1next.getState());
+
+        Assert.assertEquals(session2, session2next);
+        Assert.assertEquals(session3, session3next);
+
+    }
+
+    /**
+     * Stop happy path
+     */
+    @Test
+    public void stop() throws Exception
+    {
+        InstrumentedLocalSessions initialSessions = new InstrumentedLocalSessions();
+        initialSessions.start();
+        Assert.assertEquals(0, initialSessions.getNumSessions());
+        UUID id1 = registerSession();
+        UUID id2 = registerSession();
+        UUID id3 = registerSession();
+
+        initialSessions.prepareForTest(id1);
+        initialSessions.prepareForTest(id2);
+        initialSessions.prepareForTest(id3);
+
+        Assert.assertEquals(3, initialSessions.getNumSessions());
+        LocalSession session1 = initialSessions.getSession(id1);
+        LocalSession session2 = initialSessions.getSession(id2);
+        LocalSession session3 = initialSessions.getSession(id3);
+        initialSessions.setStateAndSave(session2, PREPARED);
+        initialSessions.setStateAndSave(session2, REPAIRING);
+        initialSessions.setStateAndSave(session2, FINALIZE_PROMISED);
+        initialSessions.setStateAndSave(session3, PREPARED);
+        initialSessions.setStateAndSave(session3, REPAIRING);
+        initialSessions.setStateAndSave(session3, FINALIZE_PROMISED);
+        initialSessions.setStateAndSave(session3, FINALIZED);
+
+        initialSessions.stop();
+        // clean shutdown should fail session1 & notify coordinator
+        assertMessagesSent(initialSessions, session1.coordinator, new FailSession(session1.sessionID));
+
+        // subsequent startups should load persisted sessions
+        InstrumentedLocalSessions nextSessions = new InstrumentedLocalSessions();
+        Assert.assertEquals(0, nextSessions.getNumSessions());
+        nextSessions.start();
+        Assert.assertEquals(3, nextSessions.getNumSessions());
+
+        LocalSession session1next = nextSessions.getSession(id1);
+        LocalSession session2next = nextSessions.getSession(id2);
+        LocalSession session3next = nextSessions.getSession(id3);
+
+        Assert.assertEquals(session1, session1next);
+        Assert.assertEquals(session2, session2next);
+        Assert.assertEquals(session3, session3next);
+        // clean shutdown above should make startup send no messages;
+        assertNoMessagesSent(nextSessions, session1next.coordinator);
+        assertNoMessagesSent(nextSessions, session2next.coordinator);
+        assertNoMessagesSent(nextSessions, session3next.coordinator);
     }
 
     /**
@@ -864,12 +941,15 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions = new LocalSessions();
         sessions.start();
         Assert.assertNull(sessions.getSession(session.sessionID));
+        UntypedResultSet res = QueryProcessor.executeInternal("SELECT * FROM system.repairs WHERE parent_id=?", session.sessionID);
+        assertTrue(res.isEmpty());
     }
 
     private static LocalSession sessionWithTime(int started, int updated)
     {
         LocalSession.Builder builder = createBuilder();
         builder.withStartedAt(started);
+        builder.withRepairedAt(started);
         builder.withLastUpdate(updated);
         return builder.build();
     }
@@ -940,11 +1020,26 @@ public class LocalSessionTest extends AbstractRepairTest
 
         sessions.cleanup();
 
+        // failed session should be gone, but finalized should not, since it hasn't been superseded
         Assert.assertNull(sessions.getSession(failed.sessionID));
-        Assert.assertNull(sessions.getSession(finalized.sessionID));
+        Assert.assertNotNull(sessions.getSession(finalized.sessionID));
 
         Assert.assertNull(sessions.loadUnsafe(failed.sessionID));
+        Assert.assertNotNull(sessions.loadUnsafe(finalized.sessionID));
+
+        // add a finalized superseding session
+        LocalSession superseding = sessionWithTime(time, time + 1);
+        superseding.setState(FINALIZED);
+        sessions.putSessionUnsafe(superseding);
+
+        sessions.cleanup();
+
+        // old finalized should be removed, superseding should still be there
+        Assert.assertNull(sessions.getSession(finalized.sessionID));
+        Assert.assertNotNull(sessions.getSession(superseding.sessionID));
+
         Assert.assertNull(sessions.loadUnsafe(finalized.sessionID));
+        Assert.assertNotNull(sessions.loadUnsafe(superseding.sessionID));
     }
 
     /**

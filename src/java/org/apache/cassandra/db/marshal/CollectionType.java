@@ -84,7 +84,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public abstract AbstractType<?> nameComparator();
     public abstract AbstractType<?> valueComparator();
 
-    protected abstract List<ByteBuffer> serializedValues(Iterator<Cell> cells);
+    protected abstract List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells);
 
     @Override
     public abstract CollectionSerializer<T> getSerializer();
@@ -94,9 +94,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return kind.makeCollectionReceiver(collection, isKey);
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
-        return BytesType.instance.getString(bytes);
+        return BytesType.instance.getString(value, accessor);
     }
 
     public ByteBuffer fromString(String source)
@@ -117,12 +117,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
     }
 
     @Override
-    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    public <V> void validateCellValue(V cellValue, ValueAccessor<V> accessor) throws MarshalException
     {
         if (isMultiCell())
-            valueComparator().validateCellValue(cellValue);
+            valueComparator().validateCellValue(cellValue, accessor);
         else
-            super.validateCellValue(cellValue);
+            super.validateCellValue(cellValue, accessor);
     }
 
     /**
@@ -146,12 +146,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return values.size();
     }
 
-    public ByteBuffer serializeForNativeProtocol(Iterator<Cell> cells, ProtocolVersion version)
+    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion version)
     {
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
         int size = collectionSize(values);
-        return CollectionSerializer.pack(values, size, version);
+        return CollectionSerializer.pack(values, ByteBufferAccessor.instance, size, version);
     }
 
     @Override

@@ -95,11 +95,11 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
             throw ire("Duplicate argument names for given function %s with argument names %s", functionName, argumentNames);
 
         rawArgumentTypes.stream()
-                        .filter(CQL3Type.Raw::isFrozen)
+                        .filter(raw -> !raw.isTuple() && raw.isFrozen())
                         .findFirst()
                         .ifPresent(t -> { throw ire("Argument '%s' cannot be frozen; remove frozen<> modifier from '%s'", t, t); });
 
-        if (rawReturnType.isFrozen())
+        if (!rawReturnType.isTuple() && rawReturnType.isFrozen())
             throw ire("Return type '%s' cannot be frozen; remove frozen<> modifier from '%s'", rawReturnType, rawReturnType);
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);

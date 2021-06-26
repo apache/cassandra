@@ -119,12 +119,51 @@ public class InetAddressAndPortTest
     @Test
     public void toStringTest() throws Exception
     {
-        String ipv4 = "127.0.0.1:42";
-        String ipv6 = "[2001:db8:0:0:0:ff00:42:8329]:42";
-        assertEquals(ipv4, InetAddressAndPort.getByName(ipv4).toString());
-        assertEquals(ipv6, InetAddressAndPort.getByName(ipv6).toString());
+        InetAddress resolvedIPv4 = InetAddress.getByAddress("resolved4", new byte[] { 127, 0, 0, 1});
+        assertEquals("resolved4", resolvedIPv4.getHostName());
+        assertEquals("resolved4/127.0.0.1:42", InetAddressAndPort.getByAddressOverrideDefaults(resolvedIPv4, 42).toString());
+
+        InetAddress strangeIPv4 = InetAddress.getByAddress("strange/host/name4", new byte[] { 127, 0, 0, 1});
+        assertEquals("strange/host/name4", strangeIPv4.getHostName());
+        assertEquals("strange/host/name4/127.0.0.1:42", InetAddressAndPort.getByAddressOverrideDefaults(strangeIPv4, 42).toString());
+
+        InetAddress unresolvedIPv4 = InetAddress.getByAddress(null, new byte[] { 127, 0, 0, 1}); // don't call getHostName and resolve
+        assertEquals("/127.0.0.1:42", InetAddressAndPort.getByAddressOverrideDefaults(unresolvedIPv4, 42).toString());
+
+        InetAddress resolvedIPv6 = InetAddress.getByAddress("resolved6", new byte[] { 0x20, 0x01, 0xd, (byte) 0xb8, 0, 0, 0, 0, 0, 0, (byte) 0xff, 0, 0x00, 0x42, (byte) 0x83, 0x29});
+        assertEquals("resolved6", resolvedIPv6.getHostName());
+        assertEquals("resolved6/[2001:db8:0:0:0:ff00:42:8329]:42", InetAddressAndPort.getByAddressOverrideDefaults(resolvedIPv6, 42).toString());
+
+        InetAddress strangeIPv6 = InetAddress.getByAddress("strange/host/name6", new byte[] { 0x20, 0x01, 0xd, (byte) 0xb8, 0, 0, 0, 0, 0, 0, (byte) 0xff, 0, 0x00, 0x42, (byte) 0x83, 0x29});
+        assertEquals("strange/host/name6", strangeIPv6.getHostName());
+        assertEquals("strange/host/name6/[2001:db8:0:0:0:ff00:42:8329]:42", InetAddressAndPort.getByAddressOverrideDefaults(strangeIPv6, 42).toString());
+
+        InetAddress unresolvedIPv6 = InetAddress.getByAddress(null, new byte[] { 0x20, 0x01, 0xd, (byte) 0xb8, 0, 0, 0, 0, 0, 0, (byte) 0xff, 0, 0x00, 0x42, (byte) 0x83, 0x29});
+        assertEquals("/[2001:db8:0:0:0:ff00:42:8329]:42", InetAddressAndPort.getByAddressOverrideDefaults(unresolvedIPv6, 42).toString());
     }
 
+    @Test
+    public void getHostAddressAndPortTest() throws Exception
+    {
+        String ipv4withoutPort = "127.0.0.1";
+        String ipv6withoutPort = "2001:db8:0:0:0:ff00:42:8329";
+        String ipv4 = ipv4withoutPort + ":42";
+        String ipv6 = "[" + ipv6withoutPort + "]:42";
+        String ipv4forJMX = ipv4.replace("[", "_").replace("]", "_").replace(":","_");
+        String ipv6forJMX = ipv6.replace("[", "_").replace("]", "_").replace(":","_");
+
+        assertEquals(ipv4, InetAddressAndPort.getByName(ipv4).getHostAddressAndPort());
+        assertEquals(ipv6, InetAddressAndPort.getByName(ipv6).getHostAddressAndPort());
+
+        assertEquals(ipv4, InetAddressAndPort.getByName(ipv4).getHostAddress(true));
+        assertEquals(ipv6, InetAddressAndPort.getByName(ipv6).getHostAddress(true));
+
+        assertEquals(ipv4withoutPort, InetAddressAndPort.getByName(ipv4).getHostAddress(false));
+        assertEquals(ipv6withoutPort, InetAddressAndPort.getByName(ipv6).getHostAddress(false));
+
+        assertEquals(ipv4forJMX, InetAddressAndPort.getByName(ipv4).getHostAddressAndPortForJMX());
+        assertEquals(ipv6forJMX, InetAddressAndPort.getByName(ipv6).getHostAddressAndPortForJMX());
+    }
 
     private void shouldThrow(ThrowingRunnable t, Class expectedClass)
     {

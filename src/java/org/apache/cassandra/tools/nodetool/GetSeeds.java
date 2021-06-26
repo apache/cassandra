@@ -33,11 +33,11 @@ public class GetSeeds extends NodeToolCmd
         List<String> seedList = probe.getSeeds();
         if (seedList.isEmpty())
         {
-            System.out.println("Seed node list does not contain any remote node IPs");
+            probe.output().out.println("Seed node list does not contain any remote node IPs");
         }
         else
         {
-            System.out.println("Current list of seed node IPs, excluding the current node's IP: " + String.join(" ", seedList));
+            probe.output().out.println("Current list of seed node IPs, excluding the current node's IP: " + String.join(" ", seedList));
         }
 
     }

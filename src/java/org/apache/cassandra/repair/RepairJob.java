@@ -37,6 +37,7 @@ import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -274,6 +275,8 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     @VisibleForTesting
     ListenableFuture<List<SyncStat>> executeTasks(List<SyncTask> syncTasks)
     {
+        // this throws if the parent session has failed
+        ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
         for (SyncTask task : syncTasks)
         {
             if (!task.isLocal())
@@ -297,7 +300,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         // We need to difference all trees one against another
         DifferenceHolder diffHolder = new DifferenceHolder(trees);
 
-        logger.debug("diffs = {}", diffHolder);
+        logger.trace("diffs = {}", diffHolder);
         PreferedNodeFilter preferSameDCFilter = (streaming, candidates) ->
                                                 candidates.stream()
                                                           .filter(node -> getDC.apply(streaming)
@@ -319,10 +322,10 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                 Preconditions.checkArgument(streamsFor.get(address).isEmpty(), "We should not fetch ranges from ourselves");
                 for (InetAddressAndPort fetchFrom : streamsFor.hosts())
                 {
-                    List<Range<Token>> toFetch = streamsFor.get(fetchFrom);
+                    List<Range<Token>> toFetch = new ArrayList<>(streamsFor.get(fetchFrom));
                     assert !toFetch.isEmpty();
 
-                    logger.debug("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
+                    logger.trace("{} is about to fetch {} from {}", address, toFetch, fetchFrom);
                     SyncTask task;
                     if (address.equals(local))
                     {
@@ -339,11 +342,12 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
             else
             {
-                logger.debug("Node {} has nothing to stream", address);
+                logger.trace("Node {} has nothing to stream", address);
             }
         }
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
                     syncTasks.size(), trees.size(), desc.parentSessionId, System.currentTimeMillis() - startedAt);
+        logger.trace("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
         return syncTasks;
     }
 

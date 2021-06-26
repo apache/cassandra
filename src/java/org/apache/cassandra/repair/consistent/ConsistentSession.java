@@ -216,6 +216,11 @@ public abstract class ConsistentSession
         this.state = state;
     }
 
+    public boolean intersects(Iterable<Range<Token>> otherRanges)
+    {
+        return Iterables.any(ranges, r -> r.intersects(otherRanges));
+    }
+
     public boolean equals(Object o)
     {
         if (this == o) return true;

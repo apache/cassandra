@@ -38,7 +38,7 @@ import org.junit.Test;
 
 import io.netty.buffer.Unpooled;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.ValueIn;
@@ -227,7 +227,7 @@ public class FullQueryLoggerTest extends CQLTester
         assertTrue(new File(tempDir.toFile(), "foobar").createNewFile());
         configureFQL();
         assertEquals(tempDir.toFile().listFiles().length, 1);
-        assertEquals("directory-listing.cq4t", tempDir.toFile().listFiles()[0].getName());
+        assertEquals("metadata.cq4t", tempDir.toFile().listFiles()[0].getName());
     }
 
     @Test
@@ -316,7 +316,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private boolean checkForQueries(List<String> queries)
     {
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             List<String> expectedQueries = new LinkedList<>(queries);
@@ -427,7 +427,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void assertRoundTripQuery(@Nullable String keyspace)
     {
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire ->
@@ -466,7 +466,7 @@ public class FullQueryLoggerTest extends CQLTester
 
         Util.spinAssertEquals(true, () ->
         {
-            try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+            try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
             {
                 return queue.createTailer().readingDocument().isPresent();
             }
@@ -490,7 +490,7 @@ public class FullQueryLoggerTest extends CQLTester
 
         Util.spinAssertEquals(true, () ->
         {
-            try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+            try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
             {
                 return queue.createTailer().readingDocument().isPresent();
             }
@@ -502,7 +502,7 @@ public class FullQueryLoggerTest extends CQLTester
 
     private void assertRoundTripBatch(@Nullable String keyspace)
     {
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(tempDir.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             assertTrue(tailer.readDocument(wire -> {

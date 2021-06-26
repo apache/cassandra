@@ -52,12 +52,10 @@ class CqlshCompletionCase(BaseTestCase):
         remove_db()
 
     def setUp(self):
-        env = os.environ
+        env = os.environ.copy()
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
              env['LC_CTYPE'] = 'en_US.utf8'
-        if ('PATH' in os.environ.keys()):
-            env['PATH'] = os.environ['PATH']
         self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
@@ -657,7 +655,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'tombstone_compaction_interval',
                                      'tombstone_threshold',
                                      'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones'])
+                                     'only_purge_repaired_tombstones',
+                                     'provide_overlapping_tombstones'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'SizeTieredCompactionStrategy'}",
                             choices=[';', 'AND'])
@@ -677,14 +676,15 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'max_window_size_seconds', 'only_purge_repaired_tombstones'])
+                                     'max_window_size_seconds',
+                                     'only_purge_repaired_tombstones', 'provide_overlapping_tombstones'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'TimeWindowCompactionStrategy', '",
                             choices=['compaction_window_unit', 'compaction_window_size',
                                      'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                      'tombstone_compaction_interval', 'tombstone_threshold',
                                      'enabled', 'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones'])
+                                     'only_purge_repaired_tombstones','provide_overlapping_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])
@@ -696,10 +696,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE TA', immediate='BLE ')
         self.create_columnfamily_table_template('TABLE')
 
-    def test_complete_in_describe(self):
-        """
-        Tests for Cassandra-10733
-        """
+    def test_complete_in_describe(self):  # Cassandra-10733
         self.trycompletions('DES', immediate='C')
         # quoted_keyspace = '"' + self.cqlsh.keyspace + '"'
         self.trycompletions('DESCR', immediate='IBE ')
@@ -803,23 +800,24 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'aggmax'],
                             other_choices_ok=True)
 
-    def test_complete_in_drop_columnfamily(self):
-        pass
-
-    def test_complete_in_truncate(self):
-        pass
-
-    def test_complete_in_alter_columnfamily(self):
-        pass
-
-    def test_complete_in_use(self):
-        pass
-
-    def test_complete_in_create_index(self):
-        pass
-
-    def test_complete_in_drop_index(self):
-        pass
+    # TODO: CASSANDRA-16640
+    # def test_complete_in_drop_columnfamily(self):
+    #     pass
+    #
+    # def test_complete_in_truncate(self):
+    #     pass
+    #
+    # def test_complete_in_alter_columnfamily(self):
+    #     pass
+    #
+    # def test_complete_in_use(self):
+    #     pass
+    #
+    # def test_complete_in_create_index(self):
+    #     pass
+    #
+    # def test_complete_in_drop_index(self):
+    #     pass
 
     def test_complete_in_alter_keyspace(self):
         self.trycompletions('ALTER KEY', 'SPACE ')

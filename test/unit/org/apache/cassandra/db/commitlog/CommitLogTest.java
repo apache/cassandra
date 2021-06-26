@@ -63,6 +63,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
@@ -122,6 +124,7 @@ public abstract class CommitLogTest
         KeyspaceParams.DEFAULT_LOCAL_DURABLE_WRITES = false;
 
         SchemaLoader.prepareServer();
+        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
 
         TableMetadata.Builder custom =
             TableMetadata.builder(KEYSPACE1, CUSTOM1)
@@ -460,7 +463,16 @@ public abstract class CommitLogTest
                       .clustering("bytes")
                       .add("val", ByteBuffer.allocate(1 + getMaxRecordDataSize()))
                       .build();
-        CommitLog.instance.add(rm);
+        long cnt = CommitLog.instance.metrics.oversizedMutations.getCount();
+        try
+        {
+            CommitLog.instance.add(rm);
+        }
+        catch (MutationExceededMaxSizeException e)
+        {
+            Assert.assertEquals(cnt + 1, CommitLog.instance.metrics.oversizedMutations.getCount());
+            throw e;
+        }
         throw new AssertionError("mutation larger than limit was accepted");
     }
     @Test

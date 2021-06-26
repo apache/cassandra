@@ -84,6 +84,18 @@ public class QualifiedName
              : name;
     }
 
+    /**
+     * Returns a string representation of the qualified name that is safe to use directly in CQL queries.
+     * If necessary, the string will be double-quoted, and any quotes inside the string will be escaped.
+     */
+    public String toCQLString()
+    {
+        String nameQuotedIfNeeded = ColumnIdentifier.maybeQuote(name);
+        return hasKeyspace()
+             ? String.format("%s.%s", ColumnIdentifier.maybeQuote(keyspace), nameQuotedIfNeeded)
+             : nameQuotedIfNeeded;
+    }
+
     @Override
     public int hashCode()
     {

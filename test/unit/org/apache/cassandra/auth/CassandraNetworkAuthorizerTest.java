@@ -22,7 +22,7 @@ import java.util.Set;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-import org.apache.commons.lang.RandomStringUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;

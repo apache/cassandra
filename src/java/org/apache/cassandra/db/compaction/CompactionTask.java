@@ -59,12 +59,6 @@ public class CompactionTask extends AbstractCompactionTask
         this(cfs, txn, gcBefore, false);
     }
 
-    @Deprecated
-    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean offline, boolean keepOriginals)
-    {
-        this(cfs, txn, gcBefore, keepOriginals);
-    }
-
     public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean keepOriginals)
     {
         super(cfs, txn);

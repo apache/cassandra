@@ -157,17 +157,53 @@ public class NoSpamLoggerTest
        assertLoggedSizes(1, 0, 0);
 
        NoSpamLogStatement statement = logger.getStatement("swizzle2{}", 10, TimeUnit.NANOSECONDS);
-       assertFalse(statement.warn(param));
-       //now is 5 so it won't log
-       assertLoggedSizes(1, 0, 0);
-
-       now = 10;
-       assertTrue(statement.warn(param));
+       assertTrue(statement.warn(param)); // since a statement of this key hasn't logged yet
        assertLoggedSizes(1, 1, 0);
 
+       now = 10;
+       assertFalse(statement.warn(param)); // we logged it above
+       assertLoggedSizes(1, 1, 0);
+
+       now = 15;
+       assertTrue(statement.warn(param)); // First log was at 5, now past the interval
+       assertLoggedSizes(1, 2, 0);
    }
 
-   @Test
+    @Test
+    public void testNegativeNowNanos() throws Exception
+    {
+        now = -6;
+        NoSpamLogger logger = NoSpamLogger.getLogger( mock, 5, TimeUnit.NANOSECONDS);
+
+        assertTrue(logger.info(statement, param));
+        assertFalse(logger.info(statement, param));
+        assertFalse(logger.warn(statement, param));
+        assertFalse(logger.error(statement, param));
+
+        assertLoggedSizes(1, 0, 0);
+
+        now = -2;
+        assertFalse(logger.error(statement, param));
+        assertLoggedSizes(1, 0, 0);
+
+        now = -1;
+        assertTrue(logger.error(statement, param));
+        assertLoggedSizes(1, 0, 1);
+
+        now = 0;
+        assertFalse(logger.error(statement, param));
+        assertLoggedSizes(1, 0, 1);
+
+        now = 3;
+        assertFalse(logger.error(statement, param));
+        assertLoggedSizes(1, 0, 1);
+
+        now = 4;
+        assertTrue(logger.info(statement, param));
+        assertLoggedSizes(2, 0, 1);
+    }
+
+    @Test
    public void testNoSpamLoggerStatementDirect() throws Exception
    {
        NoSpamLogger.NoSpamLogStatement nospam = NoSpamLogger.getStatement( mock, statement, 5, TimeUnit.NANOSECONDS);

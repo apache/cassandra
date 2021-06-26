@@ -44,36 +44,36 @@ public class IndexTarget
 
     public static class Raw
     {
-        private final ColumnMetadata.Raw column;
+        private final ColumnIdentifier column;
         private final Type type;
 
-        private Raw(ColumnMetadata.Raw column, Type type)
+        private Raw(ColumnIdentifier column, Type type)
         {
             this.column = column;
             this.type = type;
         }
 
-        public static Raw simpleIndexOn(ColumnMetadata.Raw c)
+        public static Raw simpleIndexOn(ColumnIdentifier c)
         {
             return new Raw(c, Type.SIMPLE);
         }
 
-        public static Raw valuesOf(ColumnMetadata.Raw c)
+        public static Raw valuesOf(ColumnIdentifier c)
         {
             return new Raw(c, Type.VALUES);
         }
 
-        public static Raw keysOf(ColumnMetadata.Raw c)
+        public static Raw keysOf(ColumnIdentifier c)
         {
             return new Raw(c, Type.KEYS);
         }
 
-        public static Raw keysAndValuesOf(ColumnMetadata.Raw c)
+        public static Raw keysAndValuesOf(ColumnIdentifier c)
         {
             return new Raw(c, Type.KEYS_AND_VALUES);
         }
 
-        public static Raw fullCollection(ColumnMetadata.Raw c)
+        public static Raw fullCollection(ColumnIdentifier c)
         {
             return new Raw(c, Type.FULL);
         }
@@ -85,7 +85,7 @@ public class IndexTarget
             // same syntax as an index on a regular column (i.e. the 'values' in
             // 'CREATE INDEX on table(values(collection));' is optional). So we correct the target type
             // when the target column is a collection & the target type is SIMPLE.
-            ColumnMetadata columnDef = column.prepare(table);
+            ColumnMetadata columnDef = table.getExistingColumn(column);
             Type actualType = (type == Type.SIMPLE && columnDef.type.isCollection()) ? Type.VALUES : type;
             return new IndexTarget(columnDef.name, actualType);
         }

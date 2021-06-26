@@ -48,11 +48,11 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public final class TokenRelation extends Relation
 {
-    private final List<ColumnMetadata.Raw> entities;
+    private final List<ColumnIdentifier> entities;
 
     private final Term.Raw value;
 
-    public TokenRelation(List<ColumnMetadata.Raw> entities, Operator type, Term.Raw value)
+    public TokenRelation(List<ColumnIdentifier> entities, Operator type, Term.Raw value)
     {
         this.entities = entities;
         this.relationType = type;
@@ -129,19 +129,20 @@ public final class TokenRelation extends Relation
         return term;
     }
 
-    public Relation renameIdentifier(ColumnMetadata.Raw from, ColumnMetadata.Raw to)
+    @Override
+    public Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
     {
         if (!entities.contains(from))
             return this;
 
-        List<ColumnMetadata.Raw> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
+        List<ColumnIdentifier> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
         return new TokenRelation(newEntities, operator(), value);
     }
 
     @Override
-    public String toString()
+    public String toCQLString()
     {
-        return String.format("token%s %s %s", Tuples.tupleToString(entities), relationType, value);
+        return String.format("token%s %s %s", Tuples.tupleToString(entities, ColumnIdentifier::toCQLString), relationType, value);
     }
 
     @Override
@@ -173,8 +174,8 @@ public final class TokenRelation extends Relation
     private List<ColumnMetadata> getColumnDefinitions(TableMetadata table)
     {
         List<ColumnMetadata> columnDefs = new ArrayList<>(entities.size());
-        for ( ColumnMetadata.Raw raw : entities)
-            columnDefs.add(raw.prepare(table));
+        for (ColumnIdentifier id : entities)
+            columnDefs.add(table.getExistingColumn(id));
         return columnDefs;
     }
 

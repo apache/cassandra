@@ -439,8 +439,10 @@ public class LoaderOptions
                 else
                     sslStoragePort = config.ssl_storage_port;
                 throttle = config.stream_throughput_outbound_megabits_per_sec;
-                clientEncOptions = config.client_encryption_options;
+                // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
+                clientEncOptions = config.client_encryption_options.applyConfig();
                 serverEncOptions = config.server_encryption_options;
+                serverEncOptions.applyConfig();
 
                 if (cmd.hasOption(THROTTLE_MBITS))
                 {
@@ -464,7 +466,7 @@ public class LoaderOptions
                 }
                 else
                 {
-                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.enabled || clientEncOptions.enabled))
+                    if (config.native_transport_port_ssl != null && (config.client_encryption_options.isEnabled() || clientEncOptions.isEnabled()))
                         nativePort = config.native_transport_port_ssl;
                     else
                         nativePort = config.native_transport_port;

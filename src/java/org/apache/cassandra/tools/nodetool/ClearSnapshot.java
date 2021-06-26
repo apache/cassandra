@@ -31,7 +31,7 @@ import java.util.List;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "clearsnapshot", description = "Remove the snapshot with the given name from the given keyspaces. If no snapshotName is specified we will remove all snapshots")
+@Command(name = "clearsnapshot", description = "Remove the snapshot with the given name from the given keyspaces")
 public class ClearSnapshot extends NodeToolCmd
 {
     @Arguments(usage = "[<keyspaces>...] ", description = "Remove snapshots from the given keyspaces")
@@ -66,7 +66,7 @@ public class ClearSnapshot extends NodeToolCmd
         else
             sb.append(" with snapshot name [").append(snapshotName).append("]");
 
-        System.out.println(sb.toString());
+        probe.output().out.println(sb.toString());
 
         try
         {

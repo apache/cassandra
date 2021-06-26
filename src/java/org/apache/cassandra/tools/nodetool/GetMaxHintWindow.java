@@ -28,6 +28,6 @@ public class GetMaxHintWindow extends NodeTool.NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println("Current max hint window: " + probe.getMaxHintWindow() + " ms");
+        probe.output().out.println("Current max hint window: " + probe.getMaxHintWindow() + " ms");
     }
 }

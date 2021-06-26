@@ -63,7 +63,6 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
-    private volatile boolean supportsBackPressure = true;
 
     /**
       * Delegate to another WriteResponseHandler or possibly this one to track if the ideal consistency level was reached.
@@ -268,17 +267,6 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     public boolean invokeOnFailure()
     {
         return true;
-    }
-
-    @Override
-    public boolean supportsBackPressure()
-    {
-        return supportsBackPressure;
-    }
-
-    public void setSupportsBackPressure(boolean supportsBackPressure)
-    {
-        this.supportsBackPressure = supportsBackPressure;
     }
 
     /**

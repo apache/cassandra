@@ -72,8 +72,6 @@ import static java.util.Collections.singletonMap;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.Replica.transientReplica;
 
 public final class SystemKeyspace
 {
@@ -92,6 +90,8 @@ public final class SystemKeyspace
     // Cassandra was not previously installed and we're in the process of starting a fresh node.
     public static final CassandraVersion NULL_VERSION = new CassandraVersion("0.0.0-absent");
 
+    public static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
+
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String BUILT_INDEXES = "IndexInfo";
@@ -109,6 +109,17 @@ public final class SystemKeyspace
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
+
+    /**
+     * By default the system keyspace tables should be stored in a single data directory to allow the server
+     * to handle more gracefully disk failures. Some tables through can be split accross multiple directories
+     * as the server can continue operating even if those tables lost some data.
+     */
+    public static final Set<String> TABLES_SPLIT_ACROSS_MULTIPLE_DISKS = ImmutableSet.of(BATCHES,
+                                                                                         PAXOS,
+                                                                                         COMPACTION_HISTORY,
+                                                                                         PREPARED_STATEMENTS,
+                                                                                         REPAIRS);
 
     @Deprecated public static final String LEGACY_PEERS = "peers";
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";
@@ -917,7 +928,7 @@ public final class SystemKeyspace
         {
             if (FBUtilities.getBroadcastAddressAndPort().equals(ep))
             {
-                return new CassandraVersion(FBUtilities.getReleaseVersionString());
+                return CURRENT_VERSION;
             }
             String req = "SELECT release_version FROM system.%s WHERE peer=? AND peer_port=?";
             UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
@@ -1090,8 +1101,7 @@ public final class SystemKeyspace
     }
 
     /**
-     * Read the host ID from the system keyspace, creating (and storing) one if
-     * none exists.
+     * Read the host ID from the system keyspace.
      */
     public static UUID getLocalHostId()
     {
@@ -1099,19 +1109,34 @@ public final class SystemKeyspace
         UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
 
         // Look up the Host UUID (return it if found)
-        if (!result.isEmpty() && result.one().has("host_id"))
+        if (result != null && !result.isEmpty() && result.one().has("host_id"))
             return result.one().getUUID("host_id");
 
+        return null;
+    }
+
+    /**
+     * Read the host ID from the system keyspace, creating (and storing) one if
+     * none exists.
+     */
+    public static synchronized UUID getOrInitializeLocalHostId()
+    {
+        UUID hostId = getLocalHostId();
+        if (hostId != null)
+            return hostId;
+
         // ID not found, generate a new one, persist, and then return it.
-        UUID hostId = UUID.randomUUID();
+        String hostString = System.getProperty("cassandra.host_id_first_boot", UUID.randomUUID().toString());
+        hostId = UUID.fromString(hostString);
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
     }
 
     /**
-     * Sets the local host ID explicitly.  Should only be called outside of SystemTable when replacing a node.
+     * Sets the local host ID explicitly. Should only be called outside of SystemTable when replacing a node.
+     * Used also in CASSANDRA-14582.
      */
-    public static UUID setLocalHostId(UUID hostId)
+    public static synchronized UUID setLocalHostId(UUID hostId)
     {
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), hostId);
@@ -1449,7 +1474,7 @@ public final class SystemKeyspace
                                                                              previous,
                                                                              next));
             for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
-                Keyspace.open(keyspace).snapshot(snapshotName, null);
+                Keyspace.open(keyspace).snapshot(snapshotName, null, false, null);
         }
     }
 

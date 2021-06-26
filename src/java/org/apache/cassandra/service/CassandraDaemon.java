@@ -24,11 +24,23 @@ import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.addthis.metrics3.reporter.config.ReporterConfig;
 import com.codahale.metrics.Meter;
@@ -38,26 +50,21 @@ import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SizeEstimatesRecorder;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.SystemKeyspaceMigrator40;
+import org.apache.cassandra.db.WindowsFailedSnapshotTracker;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.StartupClusterConnectivityChecker;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
@@ -65,14 +72,32 @@ import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.net.StartupClusterConnectivityChecker;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JMXServerUtils;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Mx4jTool;
+import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.WindowsTimer;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -119,7 +144,7 @@ public class CassandraDaemon
         // on it, so log a warning and skip setting up the server with the settings
         // as configured in cassandra-env.(sh|ps1)
         // See: CASSANDRA-11540 & CASSANDRA-11725
-        if (System.getProperty("com.sun.management.jmxremote.port") != null)
+        if (COM_SUN_MANAGEMENT_JMXREMOTE_PORT.isPresent())
         {
             logger.warn("JMX settings in cassandra-env.sh have been bypassed as the JMX connector server is " +
                         "already initialized. Please refer to cassandra-env.(sh|ps1) for JMX configuration info");
@@ -137,7 +162,7 @@ public class CassandraDaemon
         // If neither is remote nor local port is set in cassandra-env.(sh|ps)
         // then JMX is effectively  disabled.
         boolean localOnly = false;
-        String jmxPort = System.getProperty("cassandra.jmx.remote.port");
+        String jmxPort = CASSANDRA_JMX_REMOTE_PORT.getString();
 
         if (jmxPort == null)
         {
@@ -160,9 +185,24 @@ public class CassandraDaemon
         }
     }
 
+    @VisibleForTesting
+    public static Runnable SPECULATION_THRESHOLD_UPDATER = 
+        () -> 
+        {
+            try
+            {
+                Keyspace.allExisting().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold));
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Failed to update speculative retry thresholds.", t);
+                JVMStabilityInspector.inspectThrowable(t);
+            }
+        };
+    
     static final CassandraDaemon instance = new CassandraDaemon();
 
-    private NativeTransportService nativeTransportService;
+    private volatile NativeTransportService nativeTransportService;
     private JMXConnectorServer jmxServer;
 
     private final boolean runManaged;
@@ -190,6 +230,19 @@ public class CassandraDaemon
     {
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
 
+        // Since CASSANDRA-14793 the local system keyspaces data are not dispatched across the data directories
+        // anymore to reduce the risks in case of disk failures. By consequence, the system need to ensure in case of
+        // upgrade that the old data files have been migrated to the new directories before we start deleting
+        // snapshots and upgrading system tables.
+        try
+        {
+            migrateSystemDataIfNeeded();
+        }
+        catch (IOException e)
+        {
+            exitOrFail(StartupException.ERR_WRONG_DISK_STATE, e.getMessage(), e);
+        }
+
         // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
         if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
@@ -206,14 +259,7 @@ public class CassandraDaemon
 
         CommitLog.instance.start();
 
-        try
-        {
-            startupChecks.verify();
-        }
-        catch (StartupException e)
-        {
-            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
-        }
+        runStartupChecks();
 
         try
         {
@@ -221,7 +267,7 @@ public class CassandraDaemon
         }
         catch (IOException e)
         {
-            exitOrFail(3, e.getMessage(), e.getCause());
+            exitOrFail(StartupException.ERR_WRONG_DISK_STATE, e.getMessage(), e.getCause());
         }
 
         // We need to persist this as soon as possible after startup checks.
@@ -404,7 +450,14 @@ public class CassandraDaemon
                     store.reload(); //reload CFs in case there was a change of disk boundaries
                     if (store.getCompactionStrategyManager().shouldBeEnabled())
                     {
-                        store.enableAutoCompaction();
+                        if (DatabaseDescriptor.getAutocompactionOnStartupEnabled())
+                        {
+                            store.enableAutoCompaction();
+                        }
+                        else
+                        {
+                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.keyspace.getName(), store.name);
+                        }
                     }
                 }
             }
@@ -417,16 +470,93 @@ public class CassandraDaemon
         ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(ColumnFamilyStore.getBackgroundCompactionTaskSubmitter(), 5, 1, TimeUnit.MINUTES);
 
         // schedule periodic recomputation of speculative retry thresholds
-        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(
-            () -> Keyspace.all().forEach(k -> k.getColumnFamilyStores().forEach(ColumnFamilyStore::updateSpeculationThreshold)),
-            DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
-            DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
-            NANOSECONDS
-        );
+        ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SPECULATION_THRESHOLD_UPDATER, 
+                                                                DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
+                                                                DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS),
+                                                                NANOSECONDS);
 
-        initializeNativeTransport();
+        initializeClientTransports();
 
         completeSetup();
+    }
+
+    public void runStartupChecks()
+    {
+        try
+        {
+            startupChecks.verify();
+        }
+        catch (StartupException e)
+        {
+            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
+        }
+
+    }
+
+    /**
+     * Checks if the data of the local system keyspaces need to be migrated to a different location.
+     *
+     * @throws IOException
+     */
+    public void migrateSystemDataIfNeeded() throws IOException
+    {
+        // If there is only one directory and no system keyspace directory has been specified we do not need to do
+        // anything. If it is not the case we want to try to migrate the data.
+        if (!DatabaseDescriptor.useSpecificLocationForLocalSystemData()
+                && DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations().length <= 1)
+            return;
+
+        // We can face several cases:
+        //  1) The system data are spread accross the data file locations and need to be moved to
+        //     the first data location (upgrade to 4.0)
+        //  2) The system data are spread accross the data file locations and need to be moved to
+        //     the system keyspace location configured by the user (upgrade to 4.0)
+        //  3) The system data are stored in the first data location and need to be moved to
+        //     the system keyspace location configured by the user (system_data_file_directory has been configured)
+        Path target = Paths.get(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
+
+        String[] nonLocalSystemKeyspacesFileLocations = DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations();
+        String[] sources = DatabaseDescriptor.useSpecificLocationForLocalSystemData() ? nonLocalSystemKeyspacesFileLocations
+                                                                                      : Arrays.copyOfRange(nonLocalSystemKeyspacesFileLocations,
+                                                                                                           1,
+                                                                                                           nonLocalSystemKeyspacesFileLocations.length);
+
+        for (String source : sources)
+        {
+            Path dataFileLocation = Paths.get(source);
+
+            if (!Files.exists(dataFileLocation))
+                continue;
+
+            try (Stream<Path> locationChildren = Files.list(dataFileLocation))
+            {
+                Path[] keyspaceDirectories = locationChildren.filter(p -> SchemaConstants.isLocalSystemKeyspace(p.getFileName().toString()))
+                                                             .toArray(Path[]::new);
+
+                for (Path keyspaceDirectory : keyspaceDirectories)
+                {
+                    try (Stream<Path> keyspaceChildren = Files.list(keyspaceDirectory))
+                    {
+                        Path[] tableDirectories = keyspaceChildren.filter(Files::isDirectory)
+                                                                  .filter(p -> !SystemKeyspace.TABLES_SPLIT_ACROSS_MULTIPLE_DISKS
+                                                                                              .contains(p.getFileName()
+                                                                                                         .toString()))
+                                                                  .toArray(Path[]::new);
+
+                        for (Path tableDirectory : tableDirectories)
+                        {
+                            FileUtils.moveRecursively(tableDirectory,
+                                                      target.resolve(dataFileLocation.relativize(tableDirectory)));
+                        }
+
+                        if (!SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspaceDirectory.getFileName().toString()))
+                        {
+                            FileUtils.deleteDirectoryIfEmpty(keyspaceDirectory);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public void setupVirtualKeyspaces()
@@ -435,36 +565,26 @@ public class CassandraDaemon
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
     }
 
-    public void initializeNativeTransport()
+    public synchronized void initializeClientTransports()
     {
         // Native transport
-        nativeTransportService = new NativeTransportService();
+        if (nativeTransportService == null)
+            nativeTransportService = new NativeTransportService();
     }
 
     @VisibleForTesting
     public static void uncaughtException(Thread t, Throwable e)
     {
         StorageMetrics.uncaughtExceptions.inc();
-        logger.error("Exception in thread " + t, e);
+        logger.error("Exception in thread {}", t, e);
         Tracing.trace("Exception in thread {}", t, e);
         for (Throwable e2 = e; e2 != null; e2 = e2.getCause())
         {
-            JVMStabilityInspector.inspectThrowable(e2);
-
-            if (e2 instanceof FSError)
-            {
-                if (e2 != e) // make sure FSError gets logged exactly once.
-                    logger.error("Exception in thread " + t, e2);
-                FileUtils.handleFSError((FSError) e2);
-            }
-
-            if (e2 instanceof CorruptSSTableException)
-            {
-                if (e2 != e)
-                    logger.error("Exception in thread " + t, e2);
-                FileUtils.handleCorruptSSTable((CorruptSSTableException) e2);
-            }
+            // make sure error gets logged exactly once.
+            if (e2 != e && (e2 instanceof FSError || e2 instanceof CorruptSSTableException))
+                logger.error("Exception in thread {}", t, e2);
         }
+        JVMStabilityInspector.inspectThrowable(e);
     }
 
     /*
@@ -507,7 +627,7 @@ public class CassandraDaemon
 	            logger.info("Could not resolve local host");
 	        }
 
-	        logger.info("JVM vendor/version: {}/{}", System.getProperty("java.vm.name"), System.getProperty("java.version"));
+	        logger.info("JVM vendor/version: {}/{}", JAVA_VM_NAME.getString(), JAVA_VERSION.getString());
 	        logger.info("Heap size: {}/{}",
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().totalMemory()),
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
@@ -515,7 +635,7 @@ public class CassandraDaemon
 	        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
 	            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
 
-	        logger.info("Classpath: {}", System.getProperty("java.class.path"));
+	        logger.info("Classpath: {}", JAVA_CLASS_PATH.getString());
 
             logger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
     	}
@@ -547,30 +667,24 @@ public class CassandraDaemon
                                                                                                          DatabaseDescriptor.getBlockForPeersInRemoteDatacenters());
         connectivityChecker.execute(Gossiper.instance.getEndpoints(), DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
 
-        // We only start transports if bootstrap has completed and we're not in survey mode,
-        // OR if we are in survey mode and streaming has completed but we're not using auth
-        // OR if we have not joined the ring yet.
-        if (StorageService.instance.hasJoined())
+        // check to see if transports may start else return without starting.  This is needed when in survey mode or
+        // when bootstrap has not completed.
+        try
         {
-            if (StorageService.instance.isSurveyMode())
-            {
-                if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
-                {
-                    logger.info("Not starting client transports in write_survey mode as it's bootstrapping or " +
-                            "auth is enabled");
-                    return;
-                }
-            }
-            else
-            {
-                if (!SystemKeyspace.bootstrapComplete())
-                {
-                    logger.info("Not starting client transports as bootstrap has not completed");
-                    return;
-                }
-            }
+            validateTransportsCanStart();
+        }
+        catch (IllegalStateException isx)
+        {
+            // If there are any errors, we just log and return in this case
+            logger.warn(isx.getMessage());
+            return;
         }
 
+        startClientTransports();
+    }
+
+    private void startClientTransports()
+    {
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
@@ -594,8 +708,7 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        if (nativeTransportService != null)
-            nativeTransportService.destroy();
+        destroyClientTransports();
         StorageService.instance.setRpcReady(false);
 
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
@@ -617,15 +730,12 @@ public class CassandraDaemon
     }
 
     @VisibleForTesting
-    public void destroyNativeTransport() throws InterruptedException
+    public void destroyClientTransports()
     {
+        stopNativeTransport();
         if (nativeTransportService != null)
-        {
             nativeTransportService.destroy();
-            nativeTransportService = null;
-        }
     }
-
 
     /**
      * Clean up all resources obtained during the lifetime of the daemon. This
@@ -644,7 +754,7 @@ public class CassandraDaemon
         {
             applyConfig();
 
-            MBeanWrapper.instance.registerMBean(new StandardMBean(new NativeAccess(), NativeAccessMBean.class), MBEAN_NAME, MBeanWrapper.OnException.LOG);
+            registerNativeAccess();
 
             if (FBUtilities.isWindows)
             {
@@ -655,20 +765,22 @@ public class CassandraDaemon
 
             setup();
 
-            String pidFile = System.getProperty("cassandra-pidfile");
+            String pidFile = CASSANDRA_PID_FILE.getString();
 
             if (pidFile != null)
             {
                 new File(pidFile).deleteOnExit();
             }
 
-            if (System.getProperty("cassandra-foreground") == null)
+            if (CASSANDRA_FOREGROUND.getString() == null)
             {
                 System.out.close();
                 System.err.close();
             }
 
             start();
+
+            logger.info("Startup complete");
         }
         catch (Throwable e)
         {
@@ -694,6 +806,12 @@ public class CassandraDaemon
                 exitOrFail(3, "Exception encountered during startup: " + e.getMessage());
             }
         }
+    }
+
+    @VisibleForTesting
+    public static void registerNativeAccess() throws javax.management.NotCompliantMBeanException
+    {
+        MBeanWrapper.instance.registerMBean(new StandardMBean(new NativeAccess(), NativeAccessMBean.class), MBEAN_NAME, MBeanWrapper.OnException.LOG);
     }
 
     public void applyConfig()
@@ -733,23 +851,22 @@ public class CassandraDaemon
 
         if (nativeTransportService == null)
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
-        else
-            nativeTransportService.start();
-            StorageService.instance.setRpcReady(true);
+
+        nativeTransportService.start();
+        StorageService.instance.setRpcReady(true);
     }
 
     public void stopNativeTransport()
     {
         if (nativeTransportService != null)
             nativeTransportService.stop();
-            StorageService.instance.setRpcReady(false);
+        StorageService.instance.setRpcReady(false);
     }
 
     public boolean isNativeTransportRunning()
     {
-        return nativeTransportService != null ? nativeTransportService.isRunning() : false;
+        return nativeTransportService != null && nativeTransportService.isRunning();
     }
-
 
     /**
      * A convenience method to stop and destroy the daemon in one shot.

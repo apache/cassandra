@@ -27,7 +27,7 @@ public class GetConcurrentViewBuilders extends NodeToolCmd
 {
     protected void execute(NodeProbe probe)
     {
-        System.out.println("Current number of concurrent view builders in the system is: \n" +
-                           probe.getConcurrentViewBuilders());
+        probe.output().out.println("Current number of concurrent view builders in the system is: \n" +
+                            probe.getConcurrentViewBuilders());
     }
 }

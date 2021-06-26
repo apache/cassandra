@@ -91,7 +91,7 @@ public class DiskBoundaries
     {
         if (isInvalid)
             return true;
-        int currentDiskVersion = BlacklistedDirectories.getDirectoriesVersion();
+        int currentDiskVersion = DisallowedDirectories.getDirectoriesVersion();
         long currentRingVersion = StorageService.instance.getTokenMetadata().getRingVersion();
         return currentDiskVersion != directoriesVersion || (ringVersion != -1 && currentRingVersion != ringVersion);
     }
@@ -139,6 +139,13 @@ public class DiskBoundaries
             return null;
 
         return directories.get(getDiskIndex(key));
+    }
+
+    public boolean isInCorrectLocation(SSTableReader sstable, Directories.DataDirectory currentLocation)
+    {
+        int diskIndex = getDiskIndex(sstable);
+        PartitionPosition diskLast = positions.get(diskIndex);
+        return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
     }
 
     private int getDiskIndex(DecoratedKey key)

@@ -29,6 +29,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.LongAccumulator;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -53,7 +54,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
      * The clustering values for this row.
      */
     @Override
-    public Clustering clustering();
+    public Clustering<?> clustering();
 
     /**
      * An in-natural-order collection of the columns for which data (incl. simple tombstones)
@@ -125,7 +126,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
      * @param c the simple column for which to fetch the cell.
      * @return the corresponding cell or {@code null} if the row has no such cell.
      */
-    public Cell getCell(ColumnMetadata c);
+    public Cell<?> getCell(ColumnMetadata c);
 
     /**
      * Return a cell for a given complex column and cell path.
@@ -134,7 +135,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
      * @param path the cell path for which to fetch the cell.
      * @return the corresponding cell or {@code null} if the row has no such cell.
      */
-    public Cell getCell(ColumnMetadata c, CellPath path);
+    public Cell<?> getCell(ColumnMetadata c, CellPath path);
 
     /**
      * The data for a complex column.
@@ -153,7 +154,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
      *
      * @return an iterable over the cells of this row.
      */
-    public Iterable<Cell> cells();
+    public Iterable<Cell<?>> cells();
 
     /**
      * A collection of the ColumnData representation of this row, for columns with some data (possibly not live) present
@@ -175,7 +176,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
      * @param reversed if cells should returned in reverse order.
      * @return an iterable over the cells of this row in "legacy order".
      */
-    public Iterable<Cell> cellsInLegacyOrder(TableMetadata metadata, boolean reversed);
+    public Iterable<Cell<?>> cellsInLegacyOrder(TableMetadata metadata, boolean reversed);
 
     /**
      * Whether the row stores any (non-live) complex deletion for any complex column.
@@ -323,6 +324,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
     public static class Deletion
     {
         public static final Deletion LIVE = new Deletion(DeletionTime.LIVE, false);
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
 
         private final DeletionTime time;
         private final boolean isShadowable;
@@ -397,7 +399,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             return time.deletes(info);
         }
 
-        public boolean deletes(Cell cell)
+        public boolean deletes(Cell<?> cell)
         {
             return time.deletes(cell);
         }
@@ -420,6 +422,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 return false;
             Deletion that = (Deletion)o;
             return this.time.equals(that.time) && this.isShadowable == that.isShadowable;
+        }
+
+        public long unsharedHeapSize()
+        {
+            if(this == LIVE)
+                return 0;
+
+            return EMPTY_SIZE + time().unsharedHeapSize();
         }
 
         @Override
@@ -482,7 +492,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
          *
          * @param clustering the clustering for the new row.
          */
-        public void newRow(Clustering clustering);
+        public void newRow(Clustering<?> clustering);
 
         /**
          * The clustering for the row that is currently being built.
@@ -490,7 +500,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
          * @return the clustering for the row that is currently being built, or {@code null} if {@link #newRow} hasn't
          * yet been called.
          */
-        public Clustering clustering();
+        public Clustering<?> clustering();
 
         /**
          * Adds the liveness information for the partition key columns of this row.
@@ -515,7 +525,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
          *
          * @param cell the cell to add.
          */
-        public void addCell(Cell cell);
+        public void addCell(Cell<?> cell);
 
         /**
          * Adds a complex deletion.
@@ -640,7 +650,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
         private final Row[] rows;
         private final List<Iterator<ColumnData>> columnDataIterators;
 
-        private Clustering clustering;
+        private Clustering<?> clustering;
         private int rowsToMerge;
         private int lastRowSet = -1;
 
@@ -722,10 +732,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
             return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
                  ? null
-                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.<ColumnData>noOp()));
+                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.noOp()));
         }
 
-        public Clustering mergedClustering()
+        public Clustering<?> mergedClustering()
         {
             return clustering;
         }
@@ -743,7 +753,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             private DeletionTime activeDeletion;
 
             private final ComplexColumnData.Builder complexBuilder;
-            private final List<Iterator<Cell>> complexCells;
+            private final List<Iterator<Cell<?>>> complexCells;
             private final CellReducer cellReducer;
 
             public ColumnDataReducer(int size, boolean hasComplex)
@@ -785,10 +795,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             {
                 if (column.isSimple())
                 {
-                    Cell merged = null;
+                    Cell<?> merged = null;
                     for (int i=0, isize=versions.size(); i<isize; i++)
                     {
-                        Cell cell = (Cell) versions.get(i);
+                        Cell<?> cell = (Cell<?>) versions.get(i);
                         if (!activeDeletion.deletes(cell))
                             merged = merged == null ? cell : Cells.reconcile(merged, cell);
                     }
@@ -818,10 +828,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                         cellReducer.setActiveDeletion(activeDeletion);
                     }
 
-                    Iterator<Cell> cells = MergeIterator.get(complexCells, Cell.comparator, cellReducer);
+                    Iterator<Cell<?>> cells = MergeIterator.get(complexCells, Cell.comparator, cellReducer);
                     while (cells.hasNext())
                     {
-                        Cell merged = cells.next();
+                        Cell<?> merged = cells.next();
                         if (merged != null)
                             complexBuilder.addCell(merged);
                     }
@@ -836,10 +846,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             }
         }
 
-        private static class CellReducer extends MergeIterator.Reducer<Cell, Cell>
+        private static class CellReducer extends MergeIterator.Reducer<Cell<?>, Cell<?>>
         {
             private DeletionTime activeDeletion;
-            private Cell merged;
+            private Cell<?> merged;
 
             public void setActiveDeletion(DeletionTime activeDeletion)
             {
@@ -847,13 +857,13 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                 onKeyChange();
             }
 
-            public void reduce(int idx, Cell cell)
+            public void reduce(int idx, Cell<?> cell)
             {
                 if (!activeDeletion.deletes(cell))
                     merged = merged == null ? cell : Cells.reconcile(merged, cell);
             }
 
-            protected Cell getReduced()
+            protected Cell<?> getReduced()
             {
                 return merged;
             }

@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
@@ -39,7 +37,7 @@ public class RangeDenormalizerTest
     {
         // test when the new incoming range is fully contained within an existing incoming range
         StreamFromOptions dummy = new StreamFromOptions(null, range(0, 100));
-        Map<Range<Token>, StreamFromOptions> incoming = new HashMap<>();
+        RangeMap<StreamFromOptions> incoming = new RangeMap<>();
         incoming.put(range(0, 100), dummy);
         Set<Range<Token>> newInput = RangeDenormalizer.denormalize(range(30, 40), incoming);
         assertEquals(3, incoming.size());
@@ -55,7 +53,7 @@ public class RangeDenormalizerTest
     {
         // test when the new incoming range fully contains an existing incoming range
         StreamFromOptions dummy = new StreamFromOptions(null, range(40, 50));
-        Map<Range<Token>, StreamFromOptions> incoming = new HashMap<>();
+        RangeMap<StreamFromOptions> incoming = new RangeMap<>();
         incoming.put(range(40, 50), dummy);
         Set<Range<Token>> newInput = RangeDenormalizer.denormalize(range(0, 100), incoming);
         assertEquals(1, incoming.size());
@@ -73,7 +71,7 @@ public class RangeDenormalizerTest
         StreamFromOptions dummy = new StreamFromOptions(null, range(0, 100));
         StreamFromOptions dummy2 = new StreamFromOptions(null, range(200, 300));
         StreamFromOptions dummy3 = new StreamFromOptions(null, range(500, 600));
-        Map<Range<Token>, StreamFromOptions> incoming = new HashMap<>();
+        RangeMap<StreamFromOptions> incoming = new RangeMap<>();
         incoming.put(range(0, 100), dummy);
         incoming.put(range(200, 300), dummy2);
         incoming.put(range(500, 600), dummy3);

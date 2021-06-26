@@ -30,5 +30,6 @@ public class IncrementalRepairCoordinatorFastTest extends RepairCoordinatorFast
     public IncrementalRepairCoordinatorFastTest(RepairParallelism parallelism, boolean withNotifications)
     {
         super(RepairType.INCREMENTAL, parallelism, withNotifications);
+        CLUSTER.setUncaughtExceptionsFilter((throwable) -> throwable.getMessage().contains("prepare fail"));
     }
 }

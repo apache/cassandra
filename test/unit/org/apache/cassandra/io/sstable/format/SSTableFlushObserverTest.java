@@ -105,7 +105,7 @@ public class SSTableFlushObserverTest
                                                    transaction);
 
         SSTableReader reader = null;
-        Multimap<ByteBuffer, Cell> expected = ArrayListMultimap.create();
+        Multimap<ByteBuffer, Cell<?>> expected = ArrayListMultimap.create();
 
         try
         {
@@ -187,7 +187,7 @@ public class SSTableFlushObserverTest
 
     private static class FlushObserver implements SSTableFlushObserver
     {
-        private final Multimap<Pair<ByteBuffer, Long>, Cell> rows = ArrayListMultimap.create();
+        private final Multimap<Pair<ByteBuffer, Long>, Cell<?>> rows = ArrayListMultimap.create();
         private Pair<ByteBuffer, Long> currentKey;
         private boolean isComplete;
 
@@ -205,7 +205,7 @@ public class SSTableFlushObserverTest
         public void nextUnfilteredCluster(Unfiltered row)
         {
             if (row.isRow())
-                ((Row) row).forEach((c) -> rows.put(currentKey, (Cell) c));
+                ((Row) row).forEach((c) -> rows.put(currentKey, (Cell<?>) c));
         }
 
         @Override
@@ -215,7 +215,7 @@ public class SSTableFlushObserverTest
         }
     }
 
-    private static Row buildRow(Collection<Cell> cells)
+    private static Row buildRow(Collection<Cell<?>> cells)
     {
         Row.Builder rowBuilder = BTreeRow.sortedBuilder();
         rowBuilder.newRow(Clustering.EMPTY);

@@ -48,6 +48,7 @@ import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.net.MessagingService.current_version;
@@ -241,6 +242,11 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         logger.debug("Creating stream session to {} as {}", template, isFollower ? "follower" : "initiator");
     }
 
+    public boolean isFollower()
+    {
+        return isFollower;
+    }
+
     public UUID planId()
     {
         return streamResult == null ? null : streamResult.planId;
@@ -330,7 +336,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * On channel closing, if no channels are left just close the message sender; this must be closed last to ensure
      * keep alive messages are sent until the very end of the streaming session.
      */
-    private synchronized void onChannelClose(Channel channel)
+    private void onChannelClose(Channel channel)
     {
         if (channels.remove(channel.id()) != null && channels.isEmpty())
             messageSender.close();
@@ -609,19 +615,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         state(State.PREPARING);
         PrepareSynMessage prepare = new PrepareSynMessage();
         prepare.requests.addAll(requests);
-        long totalBytesToStream = 0;
-        long totalSSTablesStreamed = 0;
         for (StreamTransferTask task : transfers.values())
         {
-            totalBytesToStream += task.getTotalSize();
-            totalSSTablesStreamed += task.getTotalNumberOfFiles();
             prepare.summaries.add(task.getSummary());
-        }
-
-        if(StreamOperation.REPAIR == getStreamOperation())
-        {
-            StreamingMetrics.totalOutgoingRepairBytes.inc(totalBytesToStream);
-            StreamingMetrics.totalOutgoingRepairSSTables.inc(totalSSTablesStreamed);
         }
 
         messageSender.sendMessage(prepare);
@@ -647,7 +643,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             {
                 logger.error("[Stream #{}] Socket closed before session completion, peer {} is probably down.",
                              planId(),
-                             peer.address.getHostAddress(),
+                             peer.getHostAddressAndPort(),
                              e);
 
                 return closeSession(State.FAILED);
@@ -668,16 +664,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
                          "If not, maybe try increasing streaming_keep_alive_period_in_secs.", planId(),
-                         peer.getHostAddress(true),
-                         template.connectTo == null ? "" : " through " + template.connectTo.getHostAddress(true),
+                         peer.getHostAddressAndPort(),
+                         template.connectTo == null ? "" : " through " + template.connectTo.getHostAddressAndPort(),
                          2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),
                          e);
         }
         else
         {
             logger.error("[Stream #{}] Streaming error occurred on session with peer {}{}", planId(),
-                         peer.getHostAddress(true),
-                         template.connectTo == null ? "" : " through " + template.connectTo.getHostAddress(true),
+                         peer.getHostAddressAndPort(),
+                         template.connectTo == null ? "" : " through " + template.connectTo.getHostAddressAndPort(),
                          e);
         }
     }
@@ -689,7 +685,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         // prepare tasks
         state(State.PREPARING);
-        ScheduledExecutors.nonPeriodicTasks.execute(() -> prepareAsync(requests, summaries));
+        ScheduledExecutors.nonPeriodicTasks.execute(() -> {
+            try
+            {
+                prepareAsync(requests, summaries);
+            }
+            catch (Exception e)
+            {
+                onError(e);
+            }
+        });
     }
 
     /**
@@ -749,9 +754,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void streamSent(OutgoingStreamMessage message)
     {
-        long headerSize = message.stream.getSize();
+        long headerSize = message.stream.getEstimatedSize();
         StreamingMetrics.totalOutgoingBytes.inc(headerSize);
         metrics.outgoingBytes.inc(headerSize);
+
+        if(StreamOperation.REPAIR == getStreamOperation())
+        {
+            StreamingMetrics.totalOutgoingRepairBytes.inc(headerSize);
+            StreamingMetrics.totalOutgoingRepairSSTables.inc(message.stream.getNumFiles());
+        }
+
         // schedule timeout for receiving ACK
         StreamTransferTask task = transfers.get(message.header.tableId);
         if (task != null)
@@ -778,7 +790,27 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // send back file received message
         messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
-        receivers.get(message.header.tableId).received(message.stream);
+        long receivedStartNanos = System.nanoTime();
+        try
+        {
+            receivers.get(message.header.tableId).received(message.stream);
+        }
+        finally
+        {
+            long latencyNanos = System.nanoTime() - receivedStartNanos;
+            metrics.incomingProcessTime.update(latencyNanos, TimeUnit.NANOSECONDS);
+            long latencyMs = TimeUnit.NANOSECONDS.toMillis(latencyNanos);
+            int timeout = DatabaseDescriptor.getInternodeStreamingTcpUserTimeoutInMS();
+            if (timeout > 0 && latencyMs > timeout)
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN,
+                                 1, TimeUnit.MINUTES,
+                                 "The time taken ({} ms) for processing the incoming stream message ({})" +
+                                 " exceeded internode streaming TCP user timeout ({} ms).\n" +
+                                 "The streaming connection might be closed due to tcp user timeout.\n" +
+                                 "Try to increase the internode_streaming_tcp_user_timeout_in_ms" +
+                                 " or set it to 0 to use system defaults.",
+                                 latencyMs, message, timeout);
+        }
     }
 
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)

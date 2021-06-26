@@ -23,7 +23,6 @@ import java.util.Objects;
 import com.google.common.collect.ImmutableList;
 
 import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
 
 import static java.lang.String.join;
@@ -60,7 +59,7 @@ public final class WhereClause
      * @param to the new identifier
      * @return a new WhereClause with with "from" replaced by "to" in all relations
      */
-    public WhereClause renameIdentifier(ColumnMetadata.Raw from, ColumnMetadata.Raw to)
+    public WhereClause renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
     {
         WhereClause.Builder builder = new WhereClause.Builder();
 
@@ -81,9 +80,19 @@ public final class WhereClause
     @Override
     public String toString()
     {
+        return toCQLString();
+    }
+
+    /**
+     * Returns a CQL representation of this WHERE clause.
+     *
+     * @return a CQL representation of this WHERE clause
+     */
+    public String toCQLString()
+    {
         return join(" AND ",
-                    concat(transform(relations, Relation::toString),
-                           transform(expressions, CustomIndexExpression::toString)));
+                    concat(transform(relations, Relation::toCQLString),
+                           transform(expressions, CustomIndexExpression::toCQLString)));
     }
 
     @Override

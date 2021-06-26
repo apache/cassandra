@@ -33,7 +33,7 @@ import org.junit.Test;
 
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.tools.Util;
@@ -80,7 +80,7 @@ public class FQLCompareTest
         List<ChronicleQueue> readQueues = null;
         try
         {
-            readQueues = resultPaths.stream().map(s -> ChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
+            readQueues = resultPaths.stream().map(s -> SingleChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             List<Iterator<ResultHandler.ComparableResultSet>> its = readQueues.stream().map(q -> new Compare.StoredResultSetIterator(q.createTailer())).collect(Collectors.toList());
             List<ResultHandler.ComparableResultSet> resultSets = Compare.resultSets(its);
             while(resultSets.stream().allMatch(Objects::nonNull))

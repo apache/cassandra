@@ -178,10 +178,11 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             // Further, we can't make any assumptions of what that suffix might be by looking at this node's
             // datacenterSuffix as conceivably their could be many different suffixes in play for a given region.
             //
-            // Thus, the best we can do is make sure the region name follows
-            // the basic region naming pattern: "us-east-1<custom-suffix>"
-            boolean dcUsesLegacyFormat = !dc.matches("[a-z]+-[a-z].+-[\\d].*");
-            if (dcUsesLegacyFormat != usingLegacyNaming)
+            // It is impossible to distinguish standard and legacy names for datacenters in some cases
+            // as the format didn't change for some regions (us-west-2 for example).
+            // We can still identify as legacy the dc names without a number as a suffix like us-east"
+            boolean dcUsesLegacyFormat = dc.matches("^[a-z]+-[a-z]+$");
+            if (dcUsesLegacyFormat && !usingLegacyNaming)
                 valid = false;
         }
 

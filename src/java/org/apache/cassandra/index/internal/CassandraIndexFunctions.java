@@ -83,14 +83,26 @@ public interface CassandraIndexFunctions
 
     static final CassandraIndexFunctions KEYS_INDEX_FUNCTIONS = new CassandraIndexFunctions()
     {
+        @Override
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new KeysIndex(baseCfs, indexMetadata);
+        }
+
+        @Override
+        public TableMetadata.Builder addIndexClusteringColumns(TableMetadata.Builder builder,
+                                                               TableMetadata baseMetadata,
+                                                               ColumnMetadata columnDef)
+        {
+            // KEYS index are indexing the whole partition so have no clustering columns (outside of the
+            // "partition_key" one that all the 'CassandraIndex' gets (see CassandraIndex#indexCfsMetadata)).
+            return builder;
         }
     };
 
     static final CassandraIndexFunctions REGULAR_COLUMN_INDEX_FUNCTIONS = new CassandraIndexFunctions()
     {
+        @Override
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new RegularColumnIndex(baseCfs, indexMetadata);
@@ -99,11 +111,13 @@ public interface CassandraIndexFunctions
 
     static final CassandraIndexFunctions CLUSTERING_COLUMN_INDEX_FUNCTIONS = new CassandraIndexFunctions()
     {
+        @Override
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new ClusteringColumnIndex(baseCfs, indexMetadata);
         }
 
+        @Override
         public TableMetadata.Builder addIndexClusteringColumns(TableMetadata.Builder builder,
                                                                TableMetadata baseMetadata,
                                                                ColumnMetadata columnDef)
@@ -124,14 +138,6 @@ public interface CassandraIndexFunctions
         }
     };
 
-    static final CassandraIndexFunctions PARTITION_KEY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
-    {
-        public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
-        {
-            return new PartitionKeyIndex(baseCfs, indexMetadata);
-        }
-    };
-
     static final CassandraIndexFunctions COLLECTION_KEY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
     {
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
@@ -142,6 +148,14 @@ public interface CassandraIndexFunctions
         public AbstractType<?> getIndexedValueType(ColumnMetadata indexedColumn)
         {
             return ((CollectionType) indexedColumn.type).nameComparator();
+        }
+    };
+
+    static final CassandraIndexFunctions PARTITION_KEY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
+    {
+        public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
+        {
+            return new PartitionKeyIndex(baseCfs, indexMetadata);
         }
     };
 

@@ -78,7 +78,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
     // For each source, the time of the current deletion as known by the source.
     private final DeletionTime[] sourceDeletionTime;
     // For each source, record if there is an open range to send as repair, and from where.
-    private final ClusteringBound[] markerToRepair;
+    private final ClusteringBound<?>[] markerToRepair;
 
     private final ReadRepair readRepair;
 
@@ -111,37 +111,37 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         this.repairs = new PartitionUpdate.Builder[size + (buildFullDiff ? 1 : 0)];
         this.currentRows = new Row.Builder[size];
         this.sourceDeletionTime = new DeletionTime[size];
-        this.markerToRepair = new ClusteringBound[size];
+        this.markerToRepair = new ClusteringBound<?>[size];
         this.command = command;
         this.readRepair = readRepair;
 
         this.diffListener = new RowDiffListener()
         {
-            public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
+            public void onPrimaryKeyLivenessInfo(int i, Clustering<?> clustering, LivenessInfo merged, LivenessInfo original)
             {
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addPrimaryKeyLivenessInfo(merged);
             }
 
-            public void onDeletion(int i, Clustering clustering, Row.Deletion merged, Row.Deletion original)
+            public void onDeletion(int i, Clustering<?> clustering, Row.Deletion merged, Row.Deletion original)
             {
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addRowDeletion(merged);
             }
 
-            public void onComplexDeletion(int i, Clustering clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
+            public void onComplexDeletion(int i, Clustering<?> clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original)
             {
                 if (merged != null && !merged.equals(original))
                     currentRow(i, clustering).addComplexDeletion(column, merged);
             }
 
-            public void onCell(int i, Clustering clustering, Cell merged, Cell original)
+            public void onCell(int i, Clustering<?> clustering, Cell<?> merged, Cell<?> original)
             {
                 if (merged != null && !merged.equals(original) && isQueried(merged))
                     currentRow(i, clustering).addCell(merged);
             }
 
-            private boolean isQueried(Cell cell)
+            private boolean isQueried(Cell<?> cell)
             {
                 // When we read, we may have some cell that have been fetched but are not selected by the user. Those cells may
                 // have empty values as optimization (see CASSANDRA-10655) and hence they should not be included in the read-repair.
@@ -167,7 +167,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         return repairs[i] == null ? DeletionTime.LIVE : repairs[i].partitionLevelDeletion();
     }
 
-    private Row.Builder currentRow(int i, Clustering clustering)
+    private Row.Builder currentRow(int i, Clustering<?> clustering)
     {
         if (currentRows[i] == null)
         {
@@ -204,13 +204,13 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
         }
     }
 
-    public void onMergedRows(Row merged, Row[] versions)
+    public Row onMergedRows(Row merged, Row[] versions)
     {
         // If a row was shadowed post merged, it must be by a partition level or range tombstone, and we handle
         // those case directly in their respective methods (in other words, it would be inefficient to send a row
         // deletion as repair when we know we've already send a partition level or range tombstone that covers it).
         if (merged.isEmpty())
-            return;
+            return merged;
 
         Rows.diff(diffListener, merged, versions);
         for (int i = 0; i < currentRows.length; i++)
@@ -222,6 +222,8 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             }
         }
         Arrays.fill(currentRows, null);
+
+        return merged;
     }
 
     private DeletionTime currentDeletion()
@@ -236,6 +238,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
 
         for (int i = 0; i < versions.length; i++)
         {
+            // we are not collecting a mutation for this version/source, skip;
+            if (!writeBackTo.get(i))
+                continue;
             RangeTombstoneMarker marker = versions[i];
 
             // Update what the source now thinks is the current deletion
@@ -250,16 +255,16 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                     continue;
 
                 // We have a close and/or open marker for a source, with nothing corresponding in merged.
-                // Because merged is a superset, this imply that we have a current deletion (being it due to an
+                // Because merged is a superset, this implies that we have a current deletion (either due to an
                 // early opening in merged or a partition level deletion) and that this deletion will still be
                 // active after that point. Further whatever deletion was open or is open by this marker on the
                 // source, that deletion cannot supersedes the current one.
                 //
                 // But while the marker deletion (before and/or after this point) cannot supersede the current
                 // deletion, we want to know if it's equal to it (both before and after), because in that case
-                // the source is up to date and we don't want to include repair.
+                // the source is up to date and we don't want to include it into repair.
                 //
-                // So in practice we have 2 possible case:
+                // So in practice we have 2 possible cases:
                 //  1) the source was up-to-date on deletion up to that point: then it won't be from that point
                 //     on unless it's a boundary and the new opened deletion time is also equal to the current
                 //     deletion (note that this implies the boundary has the same closing and opening deletion
@@ -275,6 +280,7 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                 // current deletion, this means the current deletion is due to a previously open range tombstone,
                 // and if the source isn't currently repaired for that RT, then it means it's up to date on it).
                 DeletionTime partitionRepairDeletion = partitionLevelRepairDeletion(i);
+
                 if (markerToRepair[i] == null && currentDeletion.supersedes(partitionRepairDeletion))
                 {
                     /*
@@ -305,9 +311,19 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
                 // In case 2) above, we only have something to do if the source is up-to-date after that point
                 // (which, since the source isn't up-to-date before that point, means we're opening a new deletion
                 // that is equal to the current one).
-                else if (marker.isOpen(isReversed) && currentDeletion.equals(marker.openDeletionTime(isReversed)))
+                else
                 {
-                    closeOpenMarker(i, marker.openBound(isReversed).invert());
+                    if (markerToRepair[i] == null)
+                    {
+                        // Only way we can have no open RT repair is that partition deletion that has the same timestamp
+                        // as the deletion and same local deletion time. In such case, since partition deletion covers
+                        // an entire partition, we do not include it into repair.
+                        assert currentDeletion.localDeletionTime() == partitionRepairDeletion.localDeletionTime();
+                    }
+                    else if (marker.isOpen(isReversed) && currentDeletion.equals(marker.openDeletionTime(isReversed)))
+                    {
+                        closeOpenMarker(i, marker.openBound(isReversed).invert());
+                    }
                 }
             }
             else
@@ -340,9 +356,9 @@ public class RowIteratorMergeListener<E extends Endpoints<E>>
             mergedDeletionTime = merged.isOpen(isReversed) ? merged.openDeletionTime(isReversed) : null;
     }
 
-    private void closeOpenMarker(int i, ClusteringBound close)
+    private void closeOpenMarker(int i, ClusteringBound<?> close)
     {
-        ClusteringBound open = markerToRepair[i];
+        ClusteringBound<?> open = markerToRepair[i];
         RangeTombstone rt = new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), currentDeletion());
         applyToPartition(i, p -> p.add(rt));
         markerToRepair[i] = null;

@@ -40,7 +40,7 @@ class FrameEncoderUnprotected extends FrameEncoder
     static final PayloadAllocator allocator = (isSelfContained, capacity) ->
         new Payload(isSelfContained, capacity, HEADER_LENGTH, 0);
 
-    PayloadAllocator allocator()
+    public PayloadAllocator allocator()
     {
         return allocator;
     }
@@ -59,7 +59,7 @@ class FrameEncoderUnprotected extends FrameEncoder
         }
         catch (Throwable t)
         {
-            BufferPool.put(frame);
+            bufferPool.put(frame);
             throw t;
         }
     }

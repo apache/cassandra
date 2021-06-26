@@ -52,7 +52,7 @@
 ; default browser (specifying 'browser = default' does not work).
 ;
 ; Supported browsers are those supported by the Python webbrowser module.
-; (https://docs.python.org/2/library/webbrowser.html).
+; (https://docs.python.org/3/library/webbrowser.html).
 ;
 ; Hint: to use Google Chome, use
 ; 'browser = open -a /Applications/Google\ Chrome.app %s' on Mac OS X and

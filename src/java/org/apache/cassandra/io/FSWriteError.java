@@ -31,6 +31,11 @@ public class FSWriteError extends FSError
         this(cause, new File(path));
     }
 
+    public FSWriteError(Throwable cause)
+    {
+        this(cause, new File(""));
+    }
+
     @Override
     public String toString()
     {

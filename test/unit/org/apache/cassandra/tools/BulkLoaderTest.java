@@ -23,16 +23,23 @@ import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
+import org.hamcrest.CoreMatchers;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class BulkLoaderTest extends ToolsTester
+public class BulkLoaderTest extends OfflineToolUtils
 {
     @Test
-    public void testBulkLoader_NoArgs()
+    public void testBulkLoader_NoArgs() throws Exception
     {
-        runTool(1, "org.apache.cassandra.tools.BulkLoader");
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class);
+        assertEquals(1, tool.getExitCode());
+        assertThat(tool.getCleanedStderr(), CoreMatchers.containsString("Missing sstable directory argument"));
+        
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -40,22 +47,21 @@ public class BulkLoaderTest extends ToolsTester
         assertKeyspaceNotLoaded();
         assertServerNotLoaded();
     }
-
+    
     @Test
     public void testBulkLoader_WithArgs() throws Exception
     {
-        try
-        {
-            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", sstableDirName("legacy_sstables", "legacy_ma_simple"));
-            fail();
-        }
-        catch (RuntimeException e)
-        {
-            if (!(e.getCause() instanceof BulkLoadException))
-                throw e;
-            if (!(e.getCause().getCause() instanceof NoHostAvailableException))
-                throw e;
-        }
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+
+        assertEquals(-1, tool.getExitCode());
+        if (!(tool.getException().getCause() instanceof BulkLoadException))
+            throw tool.getException();
+        if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
+            throw tool.getException();
+
         assertNoUnexpectedThreadsStarted(null, new String[]{"globalEventExecutor-1-1", "globalEventExecutor-1-2"});
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
@@ -67,19 +73,20 @@ public class BulkLoaderTest extends ToolsTester
     @Test
     public void testBulkLoader_WithArgs1() throws Exception
     {
-        try
-        {
-            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9042", sstableDirName("legacy_sstables", "legacy_ma_simple"));
-            fail();
-        }
-        catch (RuntimeException e)
-        {
-            if (!(e.getCause() instanceof BulkLoadException))
-                throw e;
-            if (!(e.getCause().getCause() instanceof NoHostAvailableException))
-                throw e;
-        }
-        assertNoUnexpectedThreadsStarted(null, new String[]{"globalEventExecutor-1-1", "globalEventExecutor-1-2"});
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1",
+                                                 "--port",
+                                                 "9042",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+
+        assertEquals(-1, tool.getExitCode());
+        if (!(tool.getException().getCause() instanceof BulkLoadException))
+            throw tool.getException();
+        if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
+            throw tool.getException();
+
+        assertNoUnexpectedThreadsStarted(null, new String[] { "globalEventExecutor-1-1", "globalEventExecutor-1-2" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -90,19 +97,20 @@ public class BulkLoaderTest extends ToolsTester
     @Test
     public void testBulkLoader_WithArgs2() throws Exception
     {
-        try
-        {
-            runTool(0, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9042", "--port", "9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
-            fail();
-        }
-        catch (RuntimeException e)
-        {
-            if (!(e.getCause() instanceof BulkLoadException))
-                throw e;
-            if (!(e.getCause().getCause() instanceof NoHostAvailableException))
-                throw e;
-        }
-        assertNoUnexpectedThreadsStarted(null, new String[]{"globalEventExecutor-1-1", "globalEventExecutor-1-2"});
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1:9042",
+                                                 "--port",
+                                                 "9041",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+
+        assertEquals(-1, tool.getExitCode());
+        if (!(tool.getException().getCause() instanceof BulkLoadException))
+            throw tool.getException();
+        if (!(tool.getException().getCause().getCause() instanceof NoHostAvailableException))
+            throw tool.getException();
+
+        assertNoUnexpectedThreadsStarted(null, new String[] { "globalEventExecutor-1-1", "globalEventExecutor-1-2" });
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -113,26 +121,24 @@ public class BulkLoaderTest extends ToolsTester
     @Test(expected = NoHostAvailableException.class)
     public void testBulkLoader_WithArgs3() throws Throwable
     {
-        try
-        {
-            runTool(1, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1", "--port", "9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
-        }
-        catch (RuntimeException e)
-        {
-            throw e.getCause().getCause();
-        }
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1",
+                                                 "--port",
+                                                 "9041",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+        assertEquals(-1, tool.getExitCode());
+        throw tool.getException().getCause().getCause();
     }
 
     @Test(expected = NoHostAvailableException.class)
     public void testBulkLoader_WithArgs4() throws Throwable
     {
-        try
-        {
-            runTool(1, "org.apache.cassandra.tools.BulkLoader", "-d", "127.9.9.1:9041", sstableDirName("legacy_sstables", "legacy_ma_simple"));
-        }
-        catch (RuntimeException e)
-        {
-            throw e.getCause().getCause();
-        }
+        ToolResult tool = ToolRunner.invokeClass(BulkLoader.class,
+                                                 "-d",
+                                                 "127.9.9.1:9041",
+                                                 OfflineToolUtils.sstableDirName("legacy_sstables", "legacy_ma_simple"));
+        assertEquals(-1, tool.getExitCode());
+        throw tool.getException().getCause().getCause();
     }
 }

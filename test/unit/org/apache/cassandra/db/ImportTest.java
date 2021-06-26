@@ -23,19 +23,16 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cache.RowCacheKey;
@@ -43,8 +40,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -53,20 +48,45 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ImportTest extends CQLTester
 {
+
     @Test
-    public void basicImportTest() throws Throwable
+    public void basicImportByMovingTest() throws Throwable
+    {
+        File backupDir = prepareBasicImporting();
+        // copy is false - so importing will be done by moving
+        importSSTables(SSTableImporter.Options.options(backupDir.toString()).copyData(false).build(), 10);
+        // files were moved
+        Assert.assertEquals(0, countFiles(backupDir));
+    }
+
+    @Test
+    public void basicImportByCopyingTest() throws Throwable
+    {
+        File backupDir = prepareBasicImporting();
+        // copy is true - so importing will be done by copying
+        importSSTables(SSTableImporter.Options.options(backupDir.toString()).copyData(true).build(), 10);
+        // files are left there as they were just copied
+        Assert.assertNotEquals(0, countFiles(backupDir));
+    }
+
+    private File prepareBasicImporting() throws Throwable
     {
         createTable("create table %s (id int primary key, d int)");
+
+
         for (int i = 0; i < 10; i++)
+        {
             execute("insert into %s (id, d) values (?, ?)", i, i);
+        }
+
         getCurrentColumnFamilyStore().forceBlockingFlush();
+
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
         getCurrentColumnFamilyStore().clearUnsafe();
 
@@ -74,11 +94,14 @@ public class ImportTest extends CQLTester
 
         assertEquals(0, execute("select * from %s").size());
 
-        SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).build();
-        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-        importer.importNewSSTables(options);
+        return backupdir;
+    }
 
-        assertEquals(10, execute("select * from %s").size());
+    private List<String> importSSTables(SSTableImporter.Options options, int expectedRows) throws Throwable {
+        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
+        List<String> failedDirectories = importer.importNewSSTables(options);
+        assertEquals(expectedRows, execute("select * from %s").size());
+        return failedDirectories;
     }
 
     @Test
@@ -276,7 +299,7 @@ public class ImportTest extends CQLTester
             sstable.selfRef().release();
     }
 
-    private void testCorruptHelper(boolean verify) throws Throwable
+    private void testCorruptHelper(boolean verify, boolean copy) throws Throwable
     {
         createTable("create table %s (id int primary key, d int)");
         for (int i = 0; i < 10; i++)
@@ -312,7 +335,7 @@ public class ImportTest extends CQLTester
         // first we moved out 2 sstables, one correct and one corrupt in to a single directory (backupdir)
         // then we moved out 1 sstable, a correct one (in backupdirCorrect).
         // now import should fail import on backupdir, but import the one in backupdirCorrect.
-        SSTableImporter.Options options = SSTableImporter.Options.options(Sets.newHashSet(backupdir.toString(), backupdirCorrect.toString())).verifySSTables(verify).build();
+        SSTableImporter.Options options = SSTableImporter.Options.options(Sets.newHashSet(backupdir.toString(), backupdirCorrect.toString())).copyData(copy).verifySSTables(verify).build();
         SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
         List<String> failedDirectories = importer.importNewSSTables(options);
         assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
@@ -324,7 +347,15 @@ public class ImportTest extends CQLTester
         }
         assertEquals("Data dir should contain one file", 1, countFiles(getCurrentColumnFamilyStore().getDirectories().getDirectoryForNewSSTables()));
         assertEquals("backupdir contained 2 files before import, should still contain 2 after failing to import it", beforeImport, Sets.newHashSet(backupdir.listFiles()));
-        assertEquals("backupdirCorrect contained 1 file before import, should be empty after import", 0, countFiles(backupdirCorrect));
+        if (copy)
+        {
+            assertEquals("backupdirCorrect contained 1 file before import, should contain 1 after import too", 1, countFiles(backupdirCorrect));
+        }
+        else
+        {
+            assertEquals("backupdirCorrect contained 1 file before import, should be empty after import", 0, countFiles(backupdirCorrect));
+        }
+
     }
 
     private int countFiles(File dir)
@@ -344,13 +375,25 @@ public class ImportTest extends CQLTester
     @Test
     public void testImportCorrupt() throws Throwable
     {
-        testCorruptHelper(true);
+        testCorruptHelper(true, false);
+    }
+
+    @Test
+    public void testImportCorruptWithCopying() throws Throwable
+    {
+        testCorruptHelper(true, true);
     }
 
     @Test
     public void testImportCorruptWithoutValidation() throws Throwable
     {
-        testCorruptHelper(false);
+        testCorruptHelper(false, false);
+    }
+
+    @Test
+    public void testImportCorruptWithoutValidationWithCopying() throws Throwable
+    {
+        testCorruptHelper(false, true);
     }
 
     @Test

@@ -20,7 +20,7 @@ package org.apache.cassandra.utils.binlog;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -34,12 +34,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.io.util.FileUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -51,10 +50,7 @@ public class BinLogTest
 {
     public static Path tempDir() throws Exception
     {
-        File f = FileUtils.createTempFile("foo", "bar");
-        f.delete();
-        f.mkdir();
-        return Paths.get(f.getPath());
+        return Files.createTempDirectory("binlogtest" + System.nanoTime());
     }
 
     private static final String testString = "ry@nlikestheyankees";
@@ -417,28 +413,44 @@ public class BinLogTest
     /**
      * Test for a bug where files were deleted but the space was not reclaimed when tracking so
      * all log segemnts were incorrectly deleted when rolled.
+     *
+     * Due to some internal state in ChronicleQueue this test is occasionally
+     * flaky when run in the suite with testPut or testOffer.
      */
     @Test
-    public void testTrucationReleasesLogSpace() throws Exception
+    public void testTruncationReleasesLogSpace() throws Exception
+    {
+        Util.flakyTest(this::flakyTestTruncationReleasesLogSpace, 2, "Fails occasionally due to Chronicle internal state, see CASSANDRA-16526");
+    }
+
+
+    private void flakyTestTruncationReleasesLogSpace()
     {
         StringBuilder sb = new StringBuilder();
-        for (int ii = 0; ii < 1024 * 1024 * 2; ii++)
+        try
         {
-            sb.append('a');
+            for (int ii = 0; ii < 1024 * 1024 * 2; ii++)
+            {
+                sb.append('a');
+            }
+
+            String queryString = sb.toString();
+
+            //This should fill up the log so when it rolls in the future it will always delete the rolled segment;
+            for (int ii = 0; ii < 129; ii++)
+            {
+                binLog.put(record(queryString));
+            }
+
+            for (int ii = 0; ii < 2; ii++)
+            {
+                Thread.sleep(2000);
+                binLog.put(record(queryString));
+            }
         }
-
-        String queryString = sb.toString();
-
-        //This should fill up the log so when it rolls in the future it will always delete the rolled segment;
-        for (int ii = 0; ii < 129; ii++)
+        catch (InterruptedException e)
         {
-            binLog.put(record(queryString));
-        }
-
-        for (int ii = 0; ii < 2; ii++)
-        {
-            Thread.sleep(2000);
-            binLog.put(record(queryString));
+            throw new RuntimeException(e);
         }
 
         Util.spinAssertEquals(2, () -> readBinLogRecords(path).size(), 60);
@@ -473,7 +485,7 @@ public class BinLogTest
     List<String> readBinLogRecords(Path path)
     {
         List<String> records = new ArrayList<String>();
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(path.toFile()).rollCycle(RollCycles.TEST_SECONDLY).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             while (true)

@@ -38,7 +38,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;

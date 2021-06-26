@@ -56,9 +56,4 @@ public interface RequestCallback<T>
     {
         return false;
     }
-
-    default boolean supportsBackPressure()
-    {
-        return false;
-    }
 }

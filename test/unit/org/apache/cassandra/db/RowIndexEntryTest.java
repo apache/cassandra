@@ -34,8 +34,6 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.db.rows.SerializationHelper;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.columniterator.AbstractSSTableIterator;
@@ -49,6 +47,7 @@ import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
@@ -59,6 +58,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.LongSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -75,7 +75,7 @@ public class RowIndexEntryTest extends CQLTester
 
     private static final byte[] dummy_100k = new byte[100000];
 
-    private static Clustering cn(long l)
+    private static Clustering<?> cn(long l)
     {
         return Util.clustering(comp, l);
     }
@@ -182,10 +182,10 @@ public class RowIndexEntryTest extends CQLTester
         }
 
         void build(Row staticRow, DecoratedKey partitionKey,
-                   Collection<Clustering> clusterings, long startPosition) throws IOException
+                   Collection<Clustering<?>> clusterings, long startPosition) throws IOException
         {
 
-            Iterator<Clustering> clusteringIter = clusterings.iterator();
+            Iterator<Clustering<?>> clusteringIter = clusterings.iterator();
             columnIndex.buildRowIndex(makeRowIter(staticRow, partitionKey, clusteringIter, dataWriterNew));
             rieNew = RowIndexEntry.create(startPosition, 0L,
                                           deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
@@ -195,7 +195,7 @@ public class RowIndexEntryTest extends CQLTester
             rieSerializer.serialize(rieNew, rieOutput, columnIndex.buffer());
             rieNewSerialized = rieOutput.buffer().duplicate();
 
-            Iterator<Clustering> clusteringIter2 = clusterings.iterator();
+            Iterator<Clustering<?>> clusteringIter2 = clusterings.iterator();
             ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(makeRowIter(staticRow, partitionKey, clusteringIter2, dataWriterOld),
                                                                                        dataWriterOld, header, Collections.emptySet(), BigFormat.latestVersion);
             rieOld = Pre_C_11206_RowIndexEntry.create(startPosition, deletionInfo, columnIndex);
@@ -204,7 +204,7 @@ public class RowIndexEntryTest extends CQLTester
         }
 
         private AbstractUnfilteredRowIterator makeRowIter(Row staticRow, DecoratedKey partitionKey,
-                                                          Iterator<Clustering> clusteringIter, SequentialWriter dataWriter)
+                                                          Iterator<Clustering<?>> clusteringIter, SequentialWriter dataWriter)
         {
             return new AbstractUnfilteredRowIterator(metadata, partitionKey, deletionInfo, metadata.regularAndStaticColumns(),
                                                      staticRow, false, new EncodingStats(0, 0, 0))
@@ -227,7 +227,7 @@ public class RowIndexEntryTest extends CQLTester
             };
         }
 
-        private Unfiltered buildRow(Clustering clustering)
+        private Unfiltered buildRow(Clustering<?> clustering)
         {
             BTree.Builder<ColumnData> builder = BTree.builder(ColumnData.comparator);
             builder.add(BufferCell.live(metadata.regularAndStaticColumns().iterator().next(),
@@ -293,8 +293,8 @@ public class RowIndexEntryTest extends CQLTester
             private int written;
             private long previousRowStart;
 
-            private ClusteringPrefix firstClustering;
-            private ClusteringPrefix lastClustering;
+            private ClusteringPrefix<?> firstClustering;
+            private ClusteringPrefix<?> lastClustering;
 
             private DeletionTime openMarker;
 

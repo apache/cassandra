@@ -40,12 +40,12 @@ import org.apache.cassandra.db.rows.Cell;
  * <ol>
  *     <li>If point <i>p</i> is already exists in collection, add <i>m</i> to recorded value of point <i>p</i> </li>
  *     <li>If there is no point <i>p</i> in the collection, add point <i>p</i> with weight <i>m</i> </li>
- *     <li>If point was added and collection size became lorger than maxBinSize:</li>
+ *     <li>If point was added and collection size became larger than maxBinSize:</li>
  * </ol>
  *
  * <ol type="a">
  *     <li>Find nearest points <i>p1</i> and <i>p2</i> in the collection </li>
- *     <li>Replace theese two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)</i></li>
+ *     <li>Replace these two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)</i></li>
  * </ol>
  *
  * <p>
@@ -54,7 +54,7 @@ import org.apache.cassandra.db.rows.Cell;
  *     <li>Spool: big map that saves from excessively merging of small bin. This map can contains up to maxSpoolSize points and accumulate weight from same points.
  *     For example, if spoolSize=100, binSize=10 and there are only 50 different points. it will be only 40 merges regardless how many points will be added.</li>
  *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
- *     Spool can not resize => when number of collisions became bigger than threashold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
+ *     Spool can not resize => when number of collisions became bigger than threshold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
  *     <li>Bin is organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
  *     <li>To use existing Arrays.binarySearch <i></>{point, values}</i> in bin pairs is packed in one long</li>
  * </ol>
@@ -69,7 +69,7 @@ public class StreamingTombstoneHistogramBuilder
     private final DataHolder bin;
 
     // Keep a second, larger buffer to spool data in, before finalizing it into `bin`
-    private final Spool spool;
+    private Spool spool;
 
     // voluntarily give up resolution for speed
     private final int roundSeconds;
@@ -98,6 +98,7 @@ public class StreamingTombstoneHistogramBuilder
      */
     public void update(int point, int value)
     {
+        assert spool != null: "update is being called after releaseBuffers. This could be functionally okay, but this assertion is a canary to alert about unintended use before it is necessary.";
         point = ceilKey(point, roundSeconds);
 
         if (spool.capacity > 0)
@@ -120,8 +121,22 @@ public class StreamingTombstoneHistogramBuilder
      */
     public void flushHistogram()
     {
-        spool.forEach(this::flushValue);
-        spool.clear();
+        Spool spool = this.spool;
+        if (spool != null)
+        {
+            spool.forEach(this::flushValue);
+            spool.clear();
+        }
+    }
+
+    /**
+     * Release inner spool buffers. Histogram remains readable and writable, but with lesser performance.
+     * Not intended for use before finalization.
+     */
+    public void releaseBuffers()
+    {
+       flushHistogram();
+       spool = null;
     }
 
     private void flushValue(int key, int spoolValue)
@@ -135,7 +150,7 @@ public class StreamingTombstoneHistogramBuilder
     }
 
     /**
-     * Creates a 'finished' snapshot of the current state of the historgram, but leaves this builder instance
+     * Creates a 'finished' snapshot of the current state of the histogram, but leaves this builder instance
      * open for subsequent additions to the histograms. Basically, this allows us to have some degree of sanity
      * wrt sstable early open.
      */
@@ -220,7 +235,7 @@ public class StreamingTombstoneHistogramBuilder
 
         /**
          *  Finds nearest points <i>p1</i> and <i>p2</i> in the collection
-         *  Replaces theese two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)
+         *  Replaces these two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)
          */
         @VisibleForTesting
         void mergeNearestPoints()

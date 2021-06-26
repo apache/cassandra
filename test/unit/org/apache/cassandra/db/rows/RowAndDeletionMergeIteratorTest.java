@@ -128,7 +128,7 @@ public class RowAndDeletionMergeIteratorTest
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_START_BOUND, 4);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.TOP);
+        assertRtMarker(iterator.next(), BufferClusteringBound.TOP);
 
         assertFalse(iterator.hasNext());
     }
@@ -146,7 +146,7 @@ public class RowAndDeletionMergeIteratorTest
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+        assertRtMarker(iterator.next(), BufferClusteringBound.BOTTOM);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_BOUND, 0);
@@ -191,7 +191,7 @@ public class RowAndDeletionMergeIteratorTest
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_START_BOUND, 2);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.TOP);
+        assertRtMarker(iterator.next(), BufferClusteringBound.TOP);
 
         assertFalse(iterator.hasNext());
     }
@@ -210,7 +210,7 @@ public class RowAndDeletionMergeIteratorTest
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+        assertRtMarker(iterator.next(), BufferClusteringBound.BOTTOM);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_BOUND, 0);
@@ -225,7 +225,7 @@ public class RowAndDeletionMergeIteratorTest
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_START_BOUND, 2);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.TOP);
+        assertRtMarker(iterator.next(), BufferClusteringBound.TOP);
 
         assertFalse(iterator.hasNext());
     }
@@ -253,13 +253,13 @@ public class RowAndDeletionMergeIteratorTest
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+        assertRtMarker(iterator.next(), BufferClusteringBound.BOTTOM);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY, 2);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.TOP);
+        assertRtMarker(iterator.next(), BufferClusteringBound.TOP);
 
         assertFalse(iterator.hasNext());
     }
@@ -280,13 +280,13 @@ public class RowAndDeletionMergeIteratorTest
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+        assertRtMarker(iterator.next(), BufferClusteringBound.BOTTOM);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY, 2);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.TOP);
+        assertRtMarker(iterator.next(), BufferClusteringBound.TOP);
 
         assertFalse(iterator.hasNext());
     }
@@ -301,7 +301,7 @@ public class RowAndDeletionMergeIteratorTest
         UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringBound.BOTTOM);
+        assertRtMarker(iterator.next(), BufferClusteringBound.BOTTOM);
 
         assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 0);
@@ -369,7 +369,7 @@ public class RowAndDeletionMergeIteratorTest
         }
     }
 
-    private void assertRtMarker(Unfiltered unfiltered, ClusteringBoundOrBoundary bound)
+    private void assertRtMarker(Unfiltered unfiltered, ClusteringBoundOrBoundary<?> bound)
     {
         assertEquals(Unfiltered.Kind.RANGE_TOMBSTONE_MARKER, unfiltered.kind());
         assertEquals(bound, unfiltered.clustering());
@@ -427,35 +427,35 @@ public class RowAndDeletionMergeIteratorTest
         update.add(BTreeRow.singleCellRow(update.metadata().comparator.make(col1), makeCell(defA, a, 0)));
     }
 
-    private Cell makeCell(ColumnMetadata columnMetadata, int value, long timestamp)
+    private Cell<?> makeCell(ColumnMetadata columnMetadata, int value, long timestamp)
     {
         return BufferCell.live(columnMetadata, timestamp, ((AbstractType) columnMetadata.cellValueType()).decompose(value));
     }
 
     private static RangeTombstone atLeast(int start, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.inclusiveStartOf(bb(start)), ClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone atMost(int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.BOTTOM, ClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone lessThan(int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.BOTTOM, ClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone greaterThan(int start, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.exclusiveStartOf(bb(start)), ClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone rt(int start, boolean startInclusive, int end, boolean endInclusive, long tstamp, int delTime)
     {
-        ClusteringBound startBound = startInclusive ? ClusteringBound.inclusiveStartOf(bb(start)) : ClusteringBound.exclusiveStartOf(bb(start));
-        ClusteringBound endBound = endInclusive ? ClusteringBound.inclusiveEndOf(bb(end)) : ClusteringBound.exclusiveEndOf(bb(end));
+        ClusteringBound<?> startBound = startInclusive ? BufferClusteringBound.inclusiveStartOf(bb(start)) : BufferClusteringBound.exclusiveStartOf(bb(start));
+        ClusteringBound<?> endBound = endInclusive ? BufferClusteringBound.inclusiveEndOf(bb(end)) : BufferClusteringBound.exclusiveEndOf(bb(end));
 
         return new RangeTombstone(Slice.make(startBound, endBound), new DeletionTime(tstamp, delTime));
     }

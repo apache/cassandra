@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.RowCacheKey;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -121,7 +122,7 @@ public class RowCacheTest
             Row r = (Row) unfiltered;
             for (ColumnData c : r)
             {
-                assertEquals(((Cell)c).value(), ByteBufferUtil.bytes("val" + 0));
+                assertEquals(((Cell<?>)c).buffer(), ByteBufferUtil.bytes("val" + 0));
             }
         }
         cachedStore.truncateBlocking();
@@ -161,12 +162,12 @@ public class RowCacheTest
                 Row r = (Row)ai.next();
                 assertFalse(ai.hasNext());
 
-                Iterator<Cell> ci = r.cells().iterator();
+                Iterator<Cell<?>> ci = r.cells().iterator();
                 assert(ci.hasNext());
-                Cell cell = ci.next();
+                Cell<?> cell = ci.next();
 
                 assert cell.column().name.bytes.equals(ByteBufferUtil.bytes("val"));
-                assert cell.value().equals(ByteBufferUtil.bytes("val" + i));
+                assert cell.buffer().equals(ByteBufferUtil.bytes("val" + i));
             }
         }
 
@@ -188,12 +189,12 @@ public class RowCacheTest
                 Row r = (Row)ai.next();
                 assertFalse(ai.hasNext());
 
-                Iterator<Cell> ci = r.cells().iterator();
+                Iterator<Cell<?>> ci = r.cells().iterator();
                 assert(ci.hasNext());
-                Cell cell = ci.next();
+                Cell<?> cell = ci.next();
 
                 assert cell.column().name.bytes.equals(ByteBufferUtil.bytes("val"));
-                assert cell.value().equals(ByteBufferUtil.bytes("val" + i));
+                assert cell.buffer().equals(ByteBufferUtil.bytes("val" + i));
             }
         }
 
@@ -255,12 +256,12 @@ public class RowCacheTest
                 Row r = (Row)ai.next();
                 assertFalse(ai.hasNext());
 
-                Iterator<Cell> ci = r.cells().iterator();
+                Iterator<Cell<?>> ci = r.cells().iterator();
                 assert(ci.hasNext());
-                Cell cell = ci.next();
+                Cell<?> cell = ci.next();
 
                 assert cell.column().name.bytes.equals(ByteBufferUtil.bytes("val"));
-                assert cell.value().equals(ByteBufferUtil.bytes("val" + i));
+                assert cell.buffer().equals(ByteBufferUtil.bytes("val" + i));
             }
         }
 
@@ -460,11 +461,11 @@ public class RowCacheTest
         {
             Row r = (Row) unfiltered;
 
-            assertEquals(r.clustering().get(0), ByteBufferUtil.bytes(values[i].substring(3)));
+            ValueAccessors.assertDataEquals(r.clustering().get(0), ByteBufferUtil.bytes(values[i].substring(3)));
 
             for (ColumnData c : r)
             {
-                assertEquals(((Cell)c).value(), ByteBufferUtil.bytes(values[i]));
+                assertEquals(((Cell<?>)c).buffer(), ByteBufferUtil.bytes(values[i]));
             }
             i++;
         }

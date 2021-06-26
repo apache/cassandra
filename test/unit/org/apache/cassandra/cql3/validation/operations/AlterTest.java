@@ -17,29 +17,37 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.List;
 import java.util.UUID;
+
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.PreparedStatement;
-
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@RunWith(OrderedJUnit4ClassRunner.class)
 public class AlterTest extends CQLTester
 {
     @Test
@@ -267,6 +275,58 @@ public class AlterTest extends CQLTester
                    row("cf1", map("class", "org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy",
                                   "min_threshold", "7",
                                   "max_threshold", "32")));
+    }
+
+    @Test
+    public void testCreateAlterKeyspacesRFWarnings() throws Throwable
+    {
+        requireNetwork();
+
+        // NTS
+        ClientWarn.instance.captureWarnings();
+        String ks = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 3 }");
+        List<String> warnings = ClientWarn.instance.getWarnings();
+        assertEquals(1, warnings.size());
+        Assertions.assertThat(warnings.get(0)).contains("Your replication factor 3 for keyspace " + ks + " is higher than the number of nodes 1 for datacenter " + DATA_CENTER);
+
+        ClientWarn.instance.captureWarnings();
+        execute("CREATE TABLE " + ks + ".t (k int PRIMARY KEY, v int)");
+        warnings = ClientWarn.instance.getWarnings();
+        assertNull(warnings);
+
+        ClientWarn.instance.captureWarnings();
+        execute("ALTER KEYSPACE " + ks + " WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 }");
+        warnings = ClientWarn.instance.getWarnings();
+        assertEquals(1, warnings.size());
+        Assertions.assertThat(warnings.get(0)).contains("Your replication factor 2 for keyspace " + ks + " is higher than the number of nodes 1 for datacenter " + DATA_CENTER);
+
+        ClientWarn.instance.captureWarnings();
+        execute("ALTER KEYSPACE " + ks + " WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 1 }");
+        warnings = ClientWarn.instance.getWarnings();
+        assertNull(warnings);
+
+        // SimpleStrategy
+        ClientWarn.instance.captureWarnings();
+        ks = createKeyspace("CREATE KEYSPACE %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 3 }");
+        warnings = ClientWarn.instance.getWarnings();
+        assertEquals(1, warnings.size());
+        Assertions.assertThat(warnings.get(0)).contains("Your replication factor 3 for keyspace " + ks + " is higher than the number of nodes 1");
+
+        ClientWarn.instance.captureWarnings();
+        execute("CREATE TABLE " + ks + ".t (k int PRIMARY KEY, v int)");
+        warnings = ClientWarn.instance.getWarnings();
+        assertNull(warnings);
+
+        ClientWarn.instance.captureWarnings();
+        execute("ALTER KEYSPACE " + ks + " WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 2 }");
+        warnings = ClientWarn.instance.getWarnings();
+        assertEquals(1, warnings.size());
+        Assertions.assertThat(warnings.get(0)).contains("Your replication factor 2 for keyspace " + ks + " is higher than the number of nodes 1");
+
+        ClientWarn.instance.captureWarnings();
+        execute("ALTER KEYSPACE " + ks + " WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+        warnings = ClientWarn.instance.getWarnings();
+        assertNull(warnings);
     }
 
     @Test
@@ -630,5 +690,35 @@ public class AlterTest extends CQLTester
         alterTable("ALTER TABLE %s DROP x");
 
         assertEmpty(execute("SELECT * FROM %s"));
+    }
+
+    @Test
+    public void testAlterTypeUsedInPartitionKey() throws Throwable
+    {
+        // frozen UDT used directly in a partition key
+        String  type1 = createType("CREATE TYPE %s (v1 int)");
+        String table1 = createTable("CREATE TABLE %s (pk frozen<" + type1 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen UDT used in a partition key
+        String  type2 = createType("CREATE TYPE %s (v1 frozen<" + type1 + ">, v2 frozen<" + type1 + ">)");
+        String table2 = createTable("CREATE TABLE %s (pk frozen<" + type2 + ">, val int, PRIMARY KEY(pk));");
+
+        // frozen UDT used in a frozen collection used in a partition key
+        String table3 = createTable("CREATE TABLE %s (pk frozen<list<frozen<" + type1 + ">>>, val int, PRIMARY KEY(pk));");
+
+        // assert that ALTER fails and that the error message contains all the names of the table referencing it
+        assertInvalidMessage(table1, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table2, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+        assertInvalidMessage(table3, format("ALTER TYPE %s.%s ADD v2 int;", keyspace(), type1));
+    }
+
+    @Test
+    public void testAlterDropCompactStorageDisabled() throws Throwable
+    {
+        DatabaseDescriptor.setEnableDropCompactStorage(false);
+
+        createTable("CREATE TABLE %s (k text, i int, PRIMARY KEY (k, i)) WITH COMPACT STORAGE");
+
+        assertInvalidMessage("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.", "ALTER TABLE %s DROP COMPACT STORAGE");
     }
 }

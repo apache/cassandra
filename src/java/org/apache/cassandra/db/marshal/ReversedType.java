@@ -63,9 +63,9 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.isEmptyValueMeaningless();
     }
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        return baseType.compare(o2, o1);
+        return baseType.compare(right, accessorR, left, accessorL);
     }
 
     @Override
@@ -74,9 +74,9 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.compare(v1, v2);
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
-        return baseType.getString(bytes);
+        return baseType.getString(value, accessor);
     }
 
     public ByteBuffer fromString(String source)
@@ -123,9 +123,9 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
-    public boolean referencesUserType(ByteBuffer name)
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return baseType.referencesUserType(name);
+        return baseType.referencesUserType(name, accessor);
     }
 
     @Override

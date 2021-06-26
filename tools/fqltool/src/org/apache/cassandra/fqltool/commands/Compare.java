@@ -32,7 +32,7 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import net.openhft.chronicle.core.io.Closeable;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import org.apache.cassandra.fqltool.FQLQueryIterator;
 import org.apache.cassandra.fqltool.ResultHandler;
@@ -64,10 +64,10 @@ public class Compare implements Runnable
     {
         List<ChronicleQueue> readQueues = null;
         try (ResultHandler rh = new ResultHandler(arguments, null, null);
-             ChronicleQueue queryQ = ChronicleQueueBuilder.single(querylog).readOnly(true).build();
+             ChronicleQueue queryQ = SingleChronicleQueueBuilder.single(querylog).readOnly(true).build();
              FQLQueryIterator queries = new FQLQueryIterator(queryQ.createTailer(), 1))
         {
-            readQueues = arguments.stream().map(s -> ChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
+            readQueues = arguments.stream().map(s -> SingleChronicleQueueBuilder.single(s).readOnly(true).build()).collect(Collectors.toList());
             List<Iterator<ResultHandler.ComparableResultSet>> its = readQueues.stream().map(q -> new StoredResultSetIterator(q.createTailer())).collect(Collectors.toList());
             while (queries.hasNext())
                 rh.handleResults(queries.next(), resultSets(its));

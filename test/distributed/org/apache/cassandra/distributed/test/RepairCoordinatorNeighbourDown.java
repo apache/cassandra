@@ -74,7 +74,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
         String table = tableName("neighbourdown");
         assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
-            String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().toString());
+            String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort());
             Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
             try
             {
@@ -166,29 +166,19 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             NodeToolResult result = repair(1, KEYSPACE, table);
             recovered.join(); // if recovery didn't happen then the results are not what are being tested, so block here first
             result.asserts()
-                  .failure();
+                  .failure()
+                  .errorContains("/127.0.0.2:7012 died");
             if (withNotifications)
             {
                 result.asserts()
-                      .errorContains("Endpoint 127.0.0.2:7012 died")
-                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Endpoint 127.0.0.2:7012 died")
+                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "/127.0.0.2:7012 died")
                       .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
-            }
-            else
-            {
-                // Right now coordination doesn't propgate the first exception, so we only know "there exists a issue".
-                // With notifications on nodetool will see the error then complete, so the cmd state (what nodetool
-                // polls on) is ignored.  With notifications off, the poll await fails and queries cmd state, and that
-                // will have the below error.
-                // NOTE: this isn't desireable, would be good to propgate
-                result.asserts()
-                      .errorContains("Some repair failed");
             }
 
             Assert.assertEquals(repairExceptions + 1, getRepairExceptions(CLUSTER, 1));
             if (repairType != RepairType.PREVIEW)
             {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Endpoint 127.0.0.2:7012 died");
+                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "/127.0.0.2:7012 died");
             }
             else
             {

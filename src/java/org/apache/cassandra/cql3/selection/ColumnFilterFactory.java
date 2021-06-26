@@ -46,9 +46,10 @@ abstract class ColumnFilterFactory
     public static ColumnFilterFactory fromColumns(TableMetadata table,
                                                   List<ColumnMetadata> selectedColumns,
                                                   Set<ColumnMetadata> orderingColumns,
-                                                  Set<ColumnMetadata> nonPKRestrictedColumns)
+                                                  Set<ColumnMetadata> nonPKRestrictedColumns,
+                                                  boolean returnStaticContentOnPartitionWithNoRows)
     {
-        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(table);
+        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(table, returnStaticContentOnPartitionWithNoRows);
         builder.addAll(selectedColumns);
         builder.addAll(orderingColumns);
         // we'll also need to fetch any column on which we have a restriction (so we can apply said restriction)
@@ -62,17 +63,20 @@ abstract class ColumnFilterFactory
      * @param table the table metadata
      * @param factories the {@code SelectorFactories}
      * @param orderingColumns the columns used for ordering
-     * @param nonPKRestrictedColumns the non primary key columns that have been resticted in the WHERE clause
+     * @param nonPKRestrictedColumns the non primary key columns that have been restricted in the WHERE clause
+     * @param returnStaticContentOnPartitionWithNoRows {@code true} if the query will return the static content when the
+     * partition has no rows, {@code false} otherwise.
      * @return a new {@code ColumnFilterFactory} instance
      */
     public static ColumnFilterFactory fromSelectorFactories(TableMetadata table,
                                                             SelectorFactories factories,
                                                             Set<ColumnMetadata> orderingColumns,
-                                                            Set<ColumnMetadata> nonPKRestrictedColumns)
+                                                            Set<ColumnMetadata> nonPKRestrictedColumns,
+                                                            boolean returnStaticContentOnPartitionWithNoRows)
     {
         if (factories.areAllFetchedColumnsKnown())
         {
-            ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(table);
+            ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(table, returnStaticContentOnPartitionWithNoRows);
             factories.addFetchedColumns(builder);
             builder.addAll(orderingColumns);
             // we'll also need to fetch any column on which we have a restriction (so we can apply said restriction)
@@ -80,7 +84,7 @@ abstract class ColumnFilterFactory
             return new PrecomputedColumnFilter(builder.build());
         }
 
-        return new OnRequestColumnFilterFactory(table, nonPKRestrictedColumns);
+        return new OnRequestColumnFilterFactory(table, nonPKRestrictedColumns, returnStaticContentOnPartitionWithNoRows);
     }
 
     /**
@@ -112,17 +116,21 @@ abstract class ColumnFilterFactory
     {
         private final TableMetadata table;
         private final Set<ColumnMetadata> nonPKRestrictedColumns;
+        private final boolean returnStaticContentOnPartitionWithNoRows;
 
-        public OnRequestColumnFilterFactory(TableMetadata table, Set<ColumnMetadata> nonPKRestrictedColumns)
+        public OnRequestColumnFilterFactory(TableMetadata table,
+                                            Set<ColumnMetadata> nonPKRestrictedColumns,
+                                            boolean returnStaticContentOnPartitionWithNoRows)
         {
             this.table = table;
             this.nonPKRestrictedColumns = nonPKRestrictedColumns;
+            this.returnStaticContentOnPartitionWithNoRows = returnStaticContentOnPartitionWithNoRows;
         }
 
         @Override
         public ColumnFilter newInstance(List<Selector> selectors)
         {
-            ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(table);
+            ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(table, returnStaticContentOnPartitionWithNoRows);
             for (int i = 0, m = selectors.size(); i < m; i++)
                 selectors.get(i).addFetchedColumns(builder);
 

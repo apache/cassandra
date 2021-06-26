@@ -51,7 +51,7 @@ from six.moves.queue import Queue
 
 from cassandra import OperationTimedOut
 from cassandra.cluster import Cluster, DefaultConnection
-from cassandra.cqltypes import ReversedType, UserType, BytesType
+from cassandra.cqltypes import ReversedType, UserType, BytesType, VarcharType
 from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import RetryPolicy, WhiteListRoundRobinPolicy, DCAwareRoundRobinPolicy, FallthroughRetryPolicy
 from cassandra.query import BatchStatement, BatchType, SimpleStatement, tuple_factory
@@ -67,7 +67,6 @@ PROFILE_ON = False
 STRACE_ON = False
 DEBUG = False  # This may be set to True when initializing the task
 IS_LINUX = platform.system() == 'Linux'
-IS_WINDOWS = platform.system() == 'Windows'
 
 CopyOptions = namedtuple('CopyOptions', 'copy dialect unrecognized')
 
@@ -480,10 +479,8 @@ class CopyTask(object):
     def make_params(self):
         """
         Return a dictionary of parameters to be used by the worker processes.
-        On Windows this dictionary must be pickle-able, therefore we do not pass the
-        parent connection since it may not be pickle-able. Also, on Windows child
-        processes are spawned and not forked, and therefore we don't need to shutdown
-        the parent connection anyway, see CASSANDRA-11749 for more details.
+        On platforms using 'spawn' as the default multiprocessing start method,
+        this dictionary must be picklable.
         """
         shell = self.shell
 
@@ -497,7 +494,6 @@ class CopyTask(object):
                     port=shell.port,
                     ssl=shell.ssl,
                     auth_provider=shell.auth_provider,
-                    parent_cluster=shell.conn if not IS_WINDOWS else None,
                     cql_version=shell.conn.cql_version,
                     config_file=self.config_file,
                     protocol_version=self.protocol_version,
@@ -564,7 +560,7 @@ class ExportWriter(object):
 
         if self.header:
             writer = csv.writer(self.current_dest.output, **self.options.dialect)
-            writer.writerow(self.columns)
+            writer.writerow([ensure_str(c) for c in self.columns])
 
         return True
 
@@ -1171,8 +1167,7 @@ class ImportTask(CopyTask):
                 self.processes.append(ImportProcess(self.update_params(params, i)))
 
             feeder = FeedingProcess(self.outmsg.pipes[-1], self.inmsg.pipes[-1],
-                                    self.outmsg.pipes[:-1], self.fname, self.options,
-                                    self.shell.conn if not IS_WINDOWS else None)
+                                    self.outmsg.pipes[:-1], self.fname, self.options)
             self.processes.append(feeder)
 
             self.start_processes()
@@ -1259,7 +1254,7 @@ class ImportTask(CopyTask):
             attempts -= 1
 
         self.printmsg("\n%d rows imported from %d files in %s (%d skipped)." %
-                      (self.receive_meter.get_total_records(),
+                      (self.receive_meter.get_total_records() - self.error_handler.num_rows_failed,
                        self.feeding_result.num_sources if self.feeding_result else 0,
                        self.describe_interval(time.time() - self.time_start),
                        self.feeding_result.skip_rows if self.feeding_result else 0))
@@ -1291,7 +1286,7 @@ class FeedingProcess(mp.Process):
     """
     A process that reads from import sources and sends chunks to worker processes.
     """
-    def __init__(self, inpipe, outpipe, worker_pipes, fname, options, parent_cluster):
+    def __init__(self, inpipe, outpipe, worker_pipes, fname, options):
         super(FeedingProcess, self).__init__(target=self.run)
         self.inpipe = inpipe
         self.outpipe = outpipe
@@ -1305,7 +1300,6 @@ class FeedingProcess(mp.Process):
         self.num_worker_processes = options.copy['numprocesses']
         self.max_pending_chunks = options.copy['maxpendingchunks']
         self.chunk_id = 0
-        self.parent_cluster = parent_cluster
 
     def on_fork(self):
         """
@@ -1315,10 +1309,6 @@ class FeedingProcess(mp.Process):
         self.inmsg = ReceivingChannel(self.inpipe)
         self.outmsg = SendingChannel(self.outpipe)
         self.worker_channels = [SendingChannel(p) for p in self.worker_pipes]
-
-        if self.parent_cluster:
-            printdebugmsg("Closing parent cluster sockets")
-            self.parent_cluster.shutdown()
 
     def run(self):
         pr = profile_on() if PROFILE_ON else None
@@ -1419,7 +1409,6 @@ class ChildProcess(mp.Process):
         self.connect_timeout = params['connect_timeout']
         self.cql_version = params['cql_version']
         self.auth_provider = params['auth_provider']
-        self.parent_cluster = params['parent_cluster']
         self.ssl = params['ssl']
         self.protocol_version = params['protocol_version']
         self.config_file = params['config_file']
@@ -1450,10 +1439,6 @@ class ChildProcess(mp.Process):
         """
         self.inmsg = ReceivingChannel(self.inpipe)
         self.outmsg = SendingChannel(self.outpipe)
-
-        if self.parent_cluster:
-            printdebugmsg("Closing parent cluster sockets")
-            self.parent_cluster.shutdown()
 
     def close(self):
         printdebugmsg("Closing queues...")
@@ -1738,7 +1723,6 @@ class ExportProcess(ChildProcess):
             writer = csv.writer(output, **self.options.dialect)
 
             for row in rows:
-                print("cqlshlib.copyutil.ExportProcess.write_rows_to_csv(): writing row")
                 writer.writerow(list(map(self.format_value, row, cql_types)))
 
             data = (output.getvalue(), len(rows))
@@ -1928,7 +1912,9 @@ class ImportConversion(object):
 
         def convert_mandatory(t, v):
             v = unprotect(v)
-            if v == self.nullval:
+            # we can't distinguish between empty strings and null values in csv. Null values are not supported in
+            # collections, so it must be an empty string.
+            if v == self.nullval and not issubclass(t, VarcharType):
                 raise ParseError('Empty values are not allowed')
             return converters.get(t.typename, convert_unknown)(v, ct=t)
 
@@ -2046,7 +2032,7 @@ class ImportConversion(object):
                     raise ValueError("can't interpret %r as a date with format %s or as int" % (val,
                                                                                                 self.date_time_format))
 
-            # https://docs.python.org/2/library/time.html#time.struct_time
+            # https://docs.python.org/3/library/time.html#time.struct_time
             tval = time.struct_time((int(m.group(1)), int(m.group(2)), int(m.group(3)),  # year, month, day
                                     int(m.group(4)) if m.group(4) else 0,  # hour
                                     int(m.group(5)) if m.group(5) else 0,  # minute

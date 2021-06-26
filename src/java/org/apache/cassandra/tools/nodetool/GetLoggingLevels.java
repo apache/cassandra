@@ -31,8 +31,8 @@ public class GetLoggingLevels extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         // what if some one set a very long logger name? 50 space may not be enough...
-        System.out.printf("%n%-50s%10s%n", "Logger Name", "Log Level");
+        probe.output().out.printf("%n%-50s%10s%n", "Logger Name", "Log Level");
         for (Map.Entry<String, String> entry : probe.getLoggingLevels().entrySet())
-            System.out.printf("%-50s%10s%n", entry.getKey(), entry.getValue());
+            probe.output().out.printf("%-50s%10s%n", entry.getKey(), entry.getValue());
     }
 }

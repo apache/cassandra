@@ -27,6 +27,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.QueryResult;
@@ -45,11 +46,11 @@ public final class DistributedRepairUtils
 
     }
 
-    public static NodeToolResult repair(AbstractCluster<?> cluster, RepairType repairType, boolean withNotifications, String... args) {
+    public static NodeToolResult repair(ICluster<IInvokableInstance> cluster, RepairType repairType, boolean withNotifications, String... args) {
         return repair(cluster, DEFAULT_COORDINATOR, repairType, withNotifications, args);
     }
 
-    public static NodeToolResult repair(AbstractCluster<?> cluster, int node, RepairType repairType, boolean withNotifications, String... args) {
+    public static NodeToolResult repair(ICluster<IInvokableInstance> cluster, int node, RepairType repairType, boolean withNotifications, String... args) {
         args = repairType.append(args);
         args = ArrayUtils.addAll(new String[] { "repair" }, args);
         return cluster.get(node).nodetoolResult(withNotifications, args);
@@ -65,12 +66,12 @@ public final class DistributedRepairUtils
         return cluster.get(node).callOnInstance(() -> StorageMetrics.repairExceptions.getCount());
     }
 
-    public static QueryResult queryParentRepairHistory(AbstractCluster<?> cluster, String ks, String table)
+    public static QueryResult queryParentRepairHistory(ICluster<IInvokableInstance> cluster, String ks, String table)
     {
         return queryParentRepairHistory(cluster, DEFAULT_COORDINATOR, ks, table);
     }
 
-    public static QueryResult queryParentRepairHistory(AbstractCluster<?> cluster, int coordinator, String ks, String table)
+    public static QueryResult queryParentRepairHistory(ICluster<IInvokableInstance> cluster, int coordinator, String ks, String table)
     {
         // This is kinda brittle since the caller never gets the ID and can't ask for the ID; it needs to infer the id
         // this logic makes the assumption the ks/table pairs are unique (should be or else create should fail) so any
@@ -84,35 +85,41 @@ public final class DistributedRepairUtils
         return rs;
     }
 
-    public static void assertParentRepairNotExist(AbstractCluster<?> cluster, String ks, String table)
+    public static void assertParentRepairNotExist(ICluster<IInvokableInstance> cluster, String ks, String table)
     {
         assertParentRepairNotExist(cluster, DEFAULT_COORDINATOR, ks, table);
     }
 
-    public static void assertParentRepairNotExist(AbstractCluster<?> cluster, int coordinator, String ks, String table)
+    public static void assertParentRepairNotExist(ICluster<IInvokableInstance> cluster, int coordinator, String ks, String table)
     {
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         Assert.assertFalse("No repairs should be found but at least one found", rs.hasNext());
     }
 
-    public static void assertParentRepairNotExist(AbstractCluster<?> cluster, String ks)
+    public static void assertParentRepairNotExist(ICluster<IInvokableInstance> cluster, String ks)
     {
         assertParentRepairNotExist(cluster, DEFAULT_COORDINATOR, ks);
     }
 
-    public static void assertParentRepairNotExist(AbstractCluster<?> cluster, int coordinator, String ks)
+    public static void assertParentRepairNotExist(ICluster<IInvokableInstance> cluster, int coordinator, String ks)
     {
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, null);
         Assert.assertFalse("No repairs should be found but at least one found", rs.hasNext());
     }
 
-    public static void assertParentRepairSuccess(AbstractCluster<?> cluster, String ks, String table)
+    public static void assertParentRepairSuccess(ICluster<IInvokableInstance> cluster, String ks, String table)
     {
         assertParentRepairSuccess(cluster, DEFAULT_COORDINATOR, ks, table);
     }
 
-    public static void assertParentRepairSuccess(AbstractCluster<?> cluster, int coordinator, String ks, String table)
+    public static void assertParentRepairSuccess(ICluster<IInvokableInstance> cluster, int coordinator, String ks, String table)
     {
+        assertParentRepairSuccess(cluster, coordinator, ks, table, row -> {});
+    }
+
+    public static void assertParentRepairSuccess(ICluster<IInvokableInstance> cluster, int coordinator, String ks, String table, Consumer<Row> moreSuccessCriteria)
+    {
+        Assert.assertNotNull("Invalid null value for moreSuccessCriteria", moreSuccessCriteria);
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {
             // check completed
@@ -121,15 +128,17 @@ public final class DistributedRepairUtils
             // check not failed (aka success)
             Assert.assertNull("Exception found", row.getString("exception_stacktrace"));
             Assert.assertNull("Exception found", row.getString("exception_message"));
+
+            moreSuccessCriteria.accept(row);
         });
     }
 
-    public static void assertParentRepairFailedWithMessageContains(AbstractCluster<?> cluster, String ks, String table, String message)
+    public static void assertParentRepairFailedWithMessageContains(ICluster<IInvokableInstance> cluster, String ks, String table, String message)
     {
         assertParentRepairFailedWithMessageContains(cluster, DEFAULT_COORDINATOR, ks, table, message);
     }
 
-    public static void assertParentRepairFailedWithMessageContains(AbstractCluster<?> cluster, int coordinator, String ks, String table, String message)
+    public static void assertParentRepairFailedWithMessageContains(ICluster<IInvokableInstance> cluster, int coordinator, String ks, String table, String message)
     {
         QueryResult rs = queryParentRepairHistory(cluster, coordinator, ks, table);
         validateExistingParentRepair(rs, row -> {

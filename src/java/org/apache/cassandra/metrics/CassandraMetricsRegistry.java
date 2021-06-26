@@ -154,6 +154,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return ret;
     }
 
+    public <T extends Metric> T register(MetricName name, T metric, MetricName... aliases)
+    {
+        T ret = register(name, metric);
+        for (MetricName aliasName : aliases)
+        {
+            registerAlias(name, aliasName);
+        }
+        return ret;
+    }
+
     public boolean remove(MetricName name)
     {
         boolean removed = remove(name.getMetricName());
@@ -162,11 +172,14 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return removed;
     }
 
-    public boolean remove(MetricName name, MetricName alias)
+    public boolean remove(MetricName name, MetricName... aliases)
     {
         if (remove(name))
         {
-            removeAlias(alias);
+            for (MetricName alias : aliases)
+            {
+                removeAlias(alias);
+            }
             return true;
         }
         return false;
@@ -375,8 +388,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return metric.getSnapshot().getValues();
         }
 
+        /**
+         * Returns a histogram describing the values recorded since the last time this method was called.
+         *
+         * ex. If the counts are [0, 1, 2, 1] at the time the first caller arrives, but change to [1, 2, 3, 2] by the 
+         * time a second caller arrives, the second caller will receive [1, 1, 1, 1].
+         *
+         * @return a histogram whose bucket offsets are assumed to be in nanoseconds
+         */
         @Override
-        public long[] getRecentValues()
+        public synchronized long[] getRecentValues()
         {
             long[] now = metric.getSnapshot().getValues();
             long[] delta = delta(now, last);
@@ -592,8 +613,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return metric.getSnapshot().getValues();
         }
 
+        /**
+         * Returns a histogram describing the values recorded since the last time this method was called.
+         * 
+         * ex. If the counts are [0, 1, 2, 1] at the time the first caller arrives, but change to [1, 2, 3, 2] by the 
+         * time a second caller arrives, the second caller will receive [1, 1, 1, 1].
+         * 
+         * @return a histogram whose bucket offsets are assumed to be in nanoseconds
+         */
         @Override
-        public long[] getRecentValues()
+        public synchronized long[] getRecentValues()
         {
             long[] now = metric.getSnapshot().getValues();
             long[] delta = delta(now, last);

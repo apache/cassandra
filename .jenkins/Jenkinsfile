@@ -18,7 +18,7 @@
 //
 // Jenkins declaration of how to build and test the current codebase.
 //  Jenkins infrastructure related settings should be kept in
-//    https://github.com/apache/cassandra-builds/blob/master/jenkins-dsl/cassandra_job_dsl_seed.groovy
+//    https://github.com/apache/cassandra-builds/blob/trunk/jenkins-dsl/cassandra_job_dsl_seed.groovy
 //
 // Validate/lint this file using the following command
 // `curl -X POST  -F "jenkinsfile=<.jenkins/Jenkinsfile" https://ci-cassandra.apache.org/pipeline-model-converter/validate`
@@ -40,20 +40,17 @@ pipeline {
         parallel {
           stage('stress') {
             steps {
-                build job: "${env.JOB_NAME}-stress-test"
+                script {
+                  stress = build job: "${env.JOB_NAME}-stress-test", propagate: false
+                  if (stress.result != 'SUCCESS') unstable('stress test failures')
+                  if (stress.result == 'FAILURE') currentBuild.result='FAILURE'
+                }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('stress-test')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('stress-test')
+                          copyTestResults('stress-test', stress.getNumber())
                       }
                   }
               }
@@ -61,43 +58,53 @@ pipeline {
           }
           stage('fqltool') {
             steps {
-                build job: "${env.JOB_NAME}-fqltool-test"
+                script {
+                  fqltool = build job: "${env.JOB_NAME}-fqltool-test", propagate: false
+                  if (fqltool.result != 'SUCCESS') unstable('fqltool test failures')
+                  if (fqltool.result == 'FAILURE') currentBuild.result='FAILURE'
+                }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('fqltool-test')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('fqltool-test')
+                          copyTestResults('fqltool-test', fqltool.getNumber())
                       }
                   }
               }
             }
           }
-          stage('JVM DTests') {
+          stage('jvm-dtest') {
             steps {
-                warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-jvm-dtest"
-                }
+              script {
+                jvm_dtest = build job: "${env.JOB_NAME}-jvm-dtest", propagate: false
+                if (jvm_dtest.result != 'SUCCESS') unstable('jvm-dtest failures')
+                if (jvm_dtest.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('jvm-dtest')
+                          copyTestResults('jvm-dtest', jvm_dtest.getNumber())
                       }
                   }
               }
-              unstable {
+            }
+          }
+          stage('jvm-dtest-upgrade') {
+            steps {
+              script {
+                jvm_dtest_upgrade = build job: "${env.JOB_NAME}-jvm-dtest-upgrade", propagate: false
+                if (jvm_dtest_upgrade.result != 'SUCCESS') unstable('jvm-dtest-upgrade failures')
+                if (jvm_dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('jvm-dtest')
+                          copyTestResults('jvm-dtest-upgrade', jvm_dtest_upgrade.getNumber())
                       }
                   }
               }
@@ -105,22 +112,17 @@ pipeline {
           }
           stage('units') {
             steps {
-              warnError('Tests unstable') {
-                build job: "${env.JOB_NAME}-test"
+              script {
+                test = build job: "${env.JOB_NAME}-test", propagate: false
+                if (test.result != 'SUCCESS') unstable('unit test failures')
+                if (test.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('test')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('test')
+                          copyTestResults('test', test.getNumber())
                       }
                   }
               }
@@ -128,22 +130,17 @@ pipeline {
           }
           stage('long units') {
             steps {
-                warnError('Tests unstable') {
-                    build job: "${env.JOB_NAME}-long-test"
-                }
+              script {
+                long_test = build job: "${env.JOB_NAME}-long-test", propagate: false
+                if (long_test.result != 'SUCCESS') unstable('long unit test failures')
+                if (long_test.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('long-test')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('long-test')
+                          copyTestResults('long-test', long_test.getNumber())
                       }
                   }
               }
@@ -151,118 +148,93 @@ pipeline {
           }
           stage('burn') {
             steps {
-                warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-test-burn"
-                }
+              script {
+                burn = build job: "${env.JOB_NAME}-test-burn", propagate: false
+                if (burn.result != 'SUCCESS') unstable('burn test failures')
+                if (burn.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('test-burn')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('test-burn')
+                          copyTestResults('test-burn', burn.getNumber())
                       }
                   }
               }
             }
           }
           stage('cdc') {
-              steps {
-                  warnError('Tests unstable') {
-                      build job: "${env.JOB_NAME}-test-cdc"
-                  }
-              }
-              post {
-                success {
-                    warnError('missing test xml files') {
-                        script {
-                          copyTestResults('test-cdc')
-                        }
-                    }
-                }
-                unstable {
-                    warnError('missing test xml files') {
-                        script {
-                          copyTestResults('test-cdc')
-                        }
-                    }
-                }
+            steps {
+              script {
+                cdc = build job: "${env.JOB_NAME}-test-cdc", propagate: false
+                if (cdc.result != 'SUCCESS') unstable('cdc failures')
+                if (cdc.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
-            stage('compression') {
-              steps {
-                  warnError('Tests unstable') {
-                    build job: "${env.JOB_NAME}-test-compression"
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('test-cdc', cdc.getNumber())
+                      }
                   }
               }
-              post {
-                success {
-                    warnError('missing test xml files') {
-                        script {
-                          copyTestResults('test-compression')
-                        }
-                    }
-                }
-                unstable {
-                    warnError('missing test xml files') {
-                        script {
-                          copyTestResults('test-compression')
-                        }
-                    }
-                }
+            }
+          }
+          stage('compression') {
+            steps {
+              script {
+                compression = build job: "${env.JOB_NAME}-test-compression", propagate: false
+                if (compression.result != 'SUCCESS') unstable('compression failures')
+                if (compression.result == 'FAILURE') currentBuild.result='FAILURE'
               }
             }
-            stage('cqlsh') {
-              steps {
-                  warnError('Tests unstable') {
-                    build job: "${env.JOB_NAME}-cqlsh-tests"
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('test-compression', compression.getNumber())
+                      }
                   }
               }
-              post {
-                success {
-                    warnError('missing test xml files') {
-                        script {
-                          copyTestResults('cqlsh-tests')
-                        }
-                    }
+            }
+          }
+          stage('cqlsh') {
+            steps {
+              script {
+                cqlsh = build job: "${env.JOB_NAME}-cqlsh-tests", propagate: false
+                  if (cqlsh.result != 'SUCCESS') unstable('cqlsh failures')
+                  if (cqlsh.result == 'FAILURE') currentBuild.result='FAILURE'
                 }
-                unstable {
+              }
+              post {
+                always {
                     warnError('missing test xml files') {
                         script {
-                          copyTestResults('cqlsh-tests')
+                            copyTestResults('cqlsh-tests', cqlsh.getNumber())
                         }
                     }
                 }
               }
-            }
+          }
         }
     }
     stage('Distributed Test') {
         parallel {
           stage('dtest') {
             steps {
-                warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-dtest"
-                }
+              script {
+                dtest = build job: "${env.JOB_NAME}-dtest", propagate: false
+                if (dtest.result != 'SUCCESS') unstable('dtest failures')
+                if (dtest.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('dtest')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest')
+                          copyTestResults('dtest', dtest.getNumber())
                       }
                   }
               }
@@ -270,68 +242,89 @@ pipeline {
           }
           stage('dtest-large') {
             steps {
-                warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-dtest-large"
-                }
+              script {
+                dtest_large = build job: "${env.JOB_NAME}-dtest-large", propagate: false
+                if (dtest_large.result != 'SUCCESS') unstable('dtest-large failures')
+                if (dtest_large.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-large')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-large')
-                      }
-                  }
+              always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('dtest-large', dtest_large.getNumber())
+                    }
+                }
               }
             }
           }
           stage('dtest-novnode') {
             steps {
-                warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-dtest-novnode"
-                }
+              script {
+                dtest_novnode = build job: "${env.JOB_NAME}-dtest-novnode", propagate: false
+                if (dtest_novnode.result != 'SUCCESS') unstable('dtest-novnode failures')
+                if (dtest_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-novnode')
-                      }
-                  }
-              }
-              unstable {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-novnode')
-                      }
-                  }
+              always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('dtest-novnode', dtest_novnode.getNumber())
+                    }
+                }
               }
             }
           }
           stage('dtest-offheap') {
             steps {
-                warnError('Tests unstable') {
-                  build job: "${env.JOB_NAME}-dtest-offheap"
-                }
+              script {
+                dtest_offheap = build job: "${env.JOB_NAME}-dtest-offheap", propagate: false
+                if (dtest_offheap.result != 'SUCCESS') unstable('dtest-offheap failures')
+                if (dtest_offheap.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
             }
             post {
-              success {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('dtest-offheap')
-                      }
-                  }
+              always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('dtest-offheap', dtest_offheap.getNumber())
+                    }
+                }
               }
-              unstable {
+            }
+          }
+          stage('dtest-large-novnode') {
+            steps {
+              script {
+                dtest_large_novnode = build job: "${env.JOB_NAME}-dtest-large-novnode", propagate: false
+                if (dtest_large_novnode.result != 'SUCCESS') unstable('dtest-large-novnode failures')
+                if (dtest_large_novnode.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
+                warnError('missing test xml files') {
+                    script {
+                        copyTestResults('dtest-large-novnode', dtest_large_novnode.getNumber())
+                    }
+                }
+              }
+            }
+          }
+          stage('dtest-upgrade') {
+            steps {
+              script {
+                dtest_upgrade = build job: "${env.JOB_NAME}-dtest-upgrade", propagate: false
+                if (dtest_upgrade.result != 'SUCCESS') unstable('dtest failures')
+                if (dtest_upgrade.result == 'FAILURE') currentBuild.result='FAILURE'
+              }
+            }
+            post {
+              always {
                   warnError('missing test xml files') {
                       script {
-                          copyTestResults('dtest-offheap')
+                          copyTestResults('dtest-upgrade', dtest_upgrade.getNumber())
                       }
                   }
               }
@@ -341,15 +334,20 @@ pipeline {
     }
     stage('Summary') {
       steps {
-          sh "git clone https://gitbox.apache.org/repos/asf/cassandra-builds.git"
+          sh "rm -fR cassandra-builds"
+          sh "git clone --depth 1 --single-branch https://gitbox.apache.org/repos/asf/cassandra-builds.git"
           sh "./cassandra-builds/build-scripts/cassandra-test-report.sh"
-          junit '**/build/test/**/TEST*.xml,**/cqlshlib.xml,**/nosetests.xml'
+          junit testResults: '**/build/test/**/TEST*.xml,**/cqlshlib.xml,**/nosetests.xml', testDataPublishers: [[$class: 'StabilityTestDataPublisher']]
 
-          // the following should fail on any installation other than builds.apache.org
+          // the following should fail on any installation other than ci-cassandra.apache.org
           //  TODO: keep jenkins infrastructure related settings in `cassandra_job_dsl_seed.groovy`
           warnError('cannot send notifications') {
-              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. ${env.GIT_COMMIT}\n${currentBuild.changeSets}"
-              emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${env.GIT_COMMIT}", body: '''
+              script {
+                changes = formatChanges(currentBuild.changeSets)
+                echo "changes: ${changes}"
+              }
+              slackSend channel: '#cassandra-builds', message: ":apache: <${env.BUILD_URL}|${currentBuild.fullDisplayName}> completed: ${currentBuild.result}. <https://github.com/apache/cassandra/commit/${env.GIT_COMMIT}|${env.GIT_COMMIT}>\n${changes}"
+              emailext to: 'builds@cassandra.apache.org', subject: "Build complete: ${currentBuild.fullDisplayName} [${currentBuild.result}] ${env.GIT_COMMIT}", presendScript: '${FILE,path="cassandra-builds/jenkins-dsl/cassandra_email_presend.groovy"}', body: '''
 -------------------------------------------------------------------------------
 Build ${ENV,var="JOB_NAME"} #${BUILD_NUMBER} ${BUILD_STATUS}
 URL: ${BUILD_URL}
@@ -360,19 +358,40 @@ ${CHANGES}
 Failed Tests:
 ${FAILED_TESTS,maxTests=500,showMessage=false,showStack=false}
 -------------------------------------------------------------------------------
-${FILE,path="cassandra-test-report.txt"}
+For complete test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/
 '''
+          }
+          sh "echo \"cassandra-builds at: `git -C cassandra-builds log -1 --pretty=format:'%h %an %ad %s'`\" > builds.head"
+          sh "find . -type f -name \\*.head -exec cat {} \\;"
+          sh "xz TESTS-TestSuites.xml"
+          sh "echo \"For test report and logs see https://nightlies.apache.org/cassandra/${JOB_NAME}/${BUILD_NUMBER}/\""
+      }
+      post {
+          always {
+              sshPublisher(publishers: [sshPublisherDesc(configName: 'Nightlies', transfers: [sshTransfer(remoteDirectory: 'cassandra/${JOB_NAME}/${BUILD_NUMBER}/', sourceFiles: 'TESTS-TestSuites.xml.xz')])])
           }
       }
     }
   }
 }
 
-def copyTestResults(target) {
+def copyTestResults(target, build_number) {
     step([$class: 'CopyArtifact',
             projectName: "${env.JOB_NAME}-${target}",
             optional: true,
             fingerprintArtifacts: true,
-            selector: [$class: 'StatusBuildSelector', stable: false],
+            selector: specific("${build_number}"),
             target: target]);
+}
+
+def formatChanges(changeLogSets) {
+    def result = ''
+    for (int i = 0; i < changeLogSets.size(); i++) {
+        def entries = changeLogSets[i].items
+        for (int j = 0; j < entries.length; j++) {
+            def entry = entries[j]
+            result = result + "${entry.commitId} by ${entry.author} on ${new Date(entry.timestamp)}: ${entry.msg}\n"
+        }
+    }
+    return result
 }

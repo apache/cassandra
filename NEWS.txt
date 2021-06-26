@@ -33,11 +33,31 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+4.1
+===
+
+New features
+------------
+
+Upgrading
+---------
+
+Deprecation
+-----------
+
 4.0
 ===
 
 New features
 ------------
+    - The data of the system keyspaces using a local strategy (at the exception of the system.batches,
+      system.paxos, system.compaction_history, system.prepared_statements and system.repair tables)
+      is now stored by default in the first data directory, instead of being distributed among all
+      the data directories. This approach will allow the server to tolerate the failure of the other disks.
+      To ensure that a disk failure will not bring a node down, it is possible to use the system_data_file_directory
+      yaml property to store the local system keyspaces data on a directory that provides redundancy.
+      On node startup the local system keyspaces data will be automatically migrated if needed to the
+      correct location.
     - Nodes will now bootstrap all intra-cluster connections at startup by default and wait
       10 seconds for the all but one node in the local data center to be connected and marked
       UP in gossip. This prevents nodes from coordinating requests and failing because they
@@ -52,8 +72,6 @@ New features
     - *Experimental* support for Java 11 has been added. JVM options that differ between or are
       specific for Java 8 and 11 have been moved from jvm.options into jvm8.options and jvm11.options.
       IMPORTANT: Running C* on Java 11 is *experimental* and do it at your own risk.
-      Compilation recommendations: configure Java 11 SDK via JAVA_HOME and Java 8 SDK via JAVA8_HOME.
-      Release builds require Java 11 + Java 8. Development builds can use Java 8 without 11.
     - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
       before, but now it is possible to do bigger compactions when compacting from L0 to L1.
       This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0
@@ -113,9 +131,26 @@ New features
     - Added Python 3 support so cqlsh and cqlshlib is now compatible with Python 2.7 and Python 3.6.
       Added --python option to cqlsh so users can specify the path to their chosen Python interpreter.
       See CASSANDRA-10190 for details.
+    - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
+    - It is now possible to rate limit snapshot creation/clearing. See CASSANDRA-13019
 
 Upgrading
 ---------
+    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC will not work in cqlsh 6.0.0
+      being connected to earlier major Cassandra versions where DESCRIBE does not exist server side.
+    - cqlsh shell startup script now prefers 'python3' before 'python' when identifying a runtime.
+    - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request
+      verb were introduced and verbs were renamed. DroppedMessageMetrics pre-4.0 are now available with _REQ suffix. As
+      part of CASSANDRA-16083, we added DroppedMessageMetrics backward compatibility layer which exposes the metrics with
+      their old names too. Only the value for verbs READ and RANGE_SLICE will differ from the same metrics in 3.11 as it
+      does not include anymore the responses dropped, only the requests. After being deprecated in 3.11 PAGED_RANGE was
+      fully removed in 4.0. ConditionNotMet metric has been moved under scope CASClientWriteRequestMetrtic but as part of
+      CASSANDRA-16083, backward compatibility layer was added so it can be still exposed under the old 3.11 scope.
+    - Native protocol v5 is promoted from beta in this release. The wire format has changed
+      significantly and users should take care to ensure client drivers are upgraded to a version
+      with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299, CASSANDRA-14973)
+    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
+      replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
 
       Background: The serialization-header in the -Statistics.db sstable component contains the type information
@@ -149,10 +184,6 @@ Upgrading
     - Timestamp ties between values resolve differently: if either value has a TTL,
       this value always wins. This is to provide consistent reconciliation before
       and after the value expires into a tombstone.
-    - Cassandra 4.0 removed support for COMPACT STORAGE tables. All Compact Tables
-      have to be migrated using `ALTER ... DROP COMPACT STORAGE` statement in 3.0/3.11.
-      Cassandra starting 4.0 will not start if flags indicate that the table is non-CQL.
-      Syntax for creating compact tables is also deprecated.
     - Support for legacy auth tables in the system_auth keyspace (users,
       permissions, credentials) and the migration code has been removed. Migration
       of these legacy auth tables must have been completed before the upgrade to
@@ -250,7 +281,41 @@ Upgrading
       four digits need to be prefixed with a plus or minus sign.
     - cqlsh now returns a non-zero code in case of errors. This is a backward incompatible change so it may
       break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
+    - Updated the default compaction_throughput_mb_per_sec to to 64. The original
+      default (16) was meant for spinning disk volumes.  See CASSANDRA-14902 for details.
+    - Custom compaction strategies must now handle getting sstables added/removed notifications for
+      sstables already added/removed - see CASSANDRA-14103 for details.
+    - Support for JNA with glibc 2.6 and earlier has been removed. Centos 5, Debian 4, and Ubuntu 7.10 operating systems
+      must be first upgraded. See CASSANDRA-16212 for more.
+    - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
+      If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
+      the node will not start. See CASSANDRA-14477 for details.
+    - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
+      value has been changed from 256 to 16 for reasons described in
+      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+      'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
+      Please note when upgrading that if the 'num_tokens' value is different than what you have
+      configured, the upgraded node will refuse to start. Also note that if a new node joining
+      the cluster has a different value for 'num_tokens' than the rest of the datacenter,
+      the new node will be responsible for a different amount of data than the rest of the datacenter.
 
+Deprecation
+-----------
+
+    - The JMX MBean org.apache.cassandra.metrics:type=Streaming,name=ActiveOutboundStreams has been
+      deprecated and will be removed in a subsequent major version. This metric was not updated since several version
+      already.
+    - The JMX MBean org.apache.cassandra.db:type=BlacklistedDirectories has been
+      deprecated in favor of org.apache.cassandra.db:type=DisallowedDirectories
+      and will be removed in a subsequent major version.
+    - cqlsh support of 2.7 is deprecated and will warn when running with Python 2.7.
+
+ALTER ... DROP COMPACT STORAGE
+------------------------------
+   - Following a discussion regarding concerns about the safety of the 'ALTER ... DROP COMPACT STORAGE' statement,
+     the C* development community does not recommend its use in production and considers it experimental
+     (see https://www.mail-archive.com/dev@cassandra.apache.org/msg16789.html).
+   - An 'enable_drop_compact_storage' flag has been added to cassandra.yaml to allow operators to prevent its use.
 
 Materialized Views
 -------------------
@@ -262,6 +327,32 @@ Materialized Views
     - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
       to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
       specify them explicitly now.
+
+Windows Support Removed
+-----------------------
+    - Due to the lack of maintenance and testing, Windows support is removed from this version onward. The developers
+      who use Windows 10 still can run Apache Cassandra locally using WSL2 (Windows Subsystem for Linux version 2),
+      Docker for Windows, or virtualization platform like Hyper-V and VirtualBox.
+
+3.11.10
+======
+
+Upgrading
+---------
+    - This release fix a correctness issue with SERIAL reads, and LWT writes that do not apply.
+      Unfortunately, this fix has a performance impact on read performance at the SERIAL or
+      LOCAL_SERIAL consistency levels. For heavy users of such SERIAL reads, the performance
+      impact may be noticeable and may also result in an increased of timeouts. For that
+      reason, a opt-in system property has been added to disable the fix:
+        -Dcassandra.unsafe.disable-serial-reads-linearizability=true
+      Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
+      previous versions. See CASSANDRA-12126 for details. 
+    - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
+      it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
+      lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
+      logged, and the setting reverted to the default value of 1GB. It is up to the user to correct the setting
+      after an upgrade, via dropping and recreating the index. See CASSANDRA-16071 for details.
+
 
 3.11.6
 ======
@@ -348,7 +439,8 @@ Upgrading
 
 Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
 ---------------
-    - Starting version 4.0, Thrift and COMPACT STORAGE is no longer supported.
+    - Starting version 4.0, Thrift is no longer supported.
+      Starting version 5.0, COMPACT STORAGE will no longer be supported.
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
       on exposed internal structure under: 

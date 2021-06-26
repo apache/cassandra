@@ -27,8 +27,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.FileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.apache.cassandra.net.FrameEncoder;
-import org.apache.cassandra.net.GlobalBufferPoolAllocator;
 
 public class TestChannel extends EmbeddedChannel
 {
@@ -82,7 +80,7 @@ public class TestChannel extends EmbeddedChannel
                             return buf.writerIndex();
                         }
 
-                        public boolean isOpen() { return false; }
+                        public boolean isOpen() { return true; }
 
                         public void close() { }
                     }, 0);

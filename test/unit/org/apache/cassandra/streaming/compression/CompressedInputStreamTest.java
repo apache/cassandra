@@ -172,7 +172,7 @@ public class CompressedInputStreamTest
         }
 
         // read buffer using CompressedInputStream
-        CompressionInfo info = new CompressionInfo(chunks, param);
+        CompressionInfo info = CompressionInfo.newInstance(chunks, param);
 
         if (testException)
         {

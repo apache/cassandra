@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.*;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -460,7 +461,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
             for (int i = 0; i< keys.length; i++)
                 keys[i] = keyColumns.get(partitionKeyColumns.get(i).getName());
 
-            partitionKey = CompositeType.build(keys);
+            partitionKey = CompositeType.build(ByteBufferAccessor.instance, keys);
         }
         else
         {

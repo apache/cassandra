@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -160,13 +161,13 @@ final class SettingsTable extends AbstractVirtualTable
         Preconditions.checkArgument(EncryptionOptions.class.isAssignableFrom(f.getType()));
 
         EncryptionOptions value = (EncryptionOptions) getValue(f);
-        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.enabled));
+        result.row(f.getName() + "_enabled").column(VALUE, Boolean.toString(value.isEnabled()));
         result.row(f.getName() + "_algorithm").column(VALUE, value.algorithm);
-        result.row(f.getName() + "_protocol").column(VALUE, value.protocol);
-        result.row(f.getName() + "_cipher_suites").column(VALUE, value.cipher_suites.toString());
+        result.row(f.getName() + "_protocol").column(VALUE, Objects.toString(value.acceptedProtocols(), null));
+        result.row(f.getName() + "_cipher_suites").column(VALUE, Objects.toString(value.cipher_suites, null));
         result.row(f.getName() + "_client_auth").column(VALUE, Boolean.toString(value.require_client_auth));
         result.row(f.getName() + "_endpoint_verification").column(VALUE, Boolean.toString(value.require_endpoint_verification));
-        result.row(f.getName() + "_optional").column(VALUE, Boolean.toString(value.optional));
+        result.row(f.getName() + "_optional").column(VALUE, Boolean.toString(value.isOptional()));
 
         if (value instanceof EncryptionOptions.ServerEncryptionOptions)
         {

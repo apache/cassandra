@@ -58,6 +58,12 @@ public class CassandraIncomingFile implements IncomingStream
     }
 
     @Override
+    public StreamSession session()
+    {
+        return session;
+    }
+
+    @Override
     public synchronized void read(DataInputPlus in, int version) throws IOException
     {
         CassandraStreamHeader streamHeader = CassandraStreamHeader.serializer.deserialize(in, version);

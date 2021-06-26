@@ -88,7 +88,7 @@ public class SerializationHeaderTest
         File dir = Files.createTempDir();
         try
         {
-            BiFunction<TableMetadata, Function<ByteBuffer, Clustering>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {
+            BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {
                 Descriptor descriptor = new Descriptor(BigFormat.latestVersion, dir, schema.keyspace, schema.name, generation.incrementAndGet(), SSTableFormat.Type.BIG);
 
                 SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
@@ -98,8 +98,8 @@ public class SerializationHeaderTest
                     ColumnMetadata cd = schema.getColumn(v);
                     for (int i = 0 ; i < 5 ; ++i) {
                         final ByteBuffer value = Int32Type.instance.decompose(i);
-                        Cell cell = BufferCell.live(cd, 1L, value);
-                        Clustering clustering = clusteringFunction.apply(value);
+                        Cell<?> cell = BufferCell.live(cd, 1L, value);
+                        Clustering<?> clustering = clusteringFunction.apply(value);
                         Row row = BTreeRow.singleCellRow(clustering, cell);
                         sstableWriter.append(PartitionUpdate.singleRowUpdate(schema, value, row).unfilteredIterator());
                     }
@@ -119,7 +119,7 @@ public class SerializationHeaderTest
                 {
                     UnfilteredRowIterator partition = partitions.next();
                     Assert.assertFalse(partition.hasNext());
-                    long value = Int32Type.instance.compose(partition.staticRow().getCell(columnStatic).value());
+                    long value = Int32Type.instance.compose(partition.staticRow().getCell(columnStatic).buffer());
                     Assert.assertEquals(value, (long)i);
                 }
                 Assert.assertFalse(partitions.hasNext());
@@ -128,7 +128,7 @@ public class SerializationHeaderTest
                 for (int i = 0 ; i < 5 ; ++i)
                 {
                     UnfilteredRowIterator partition = partitions.next();
-                    long value = Int32Type.instance.compose(((Row)partition.next()).getCell(columnRegular).value());
+                    long value = Int32Type.instance.compose(((Row)partition.next()).getCell(columnRegular).buffer());
                     Assert.assertEquals(value, (long)i);
                     Assert.assertTrue(partition.staticRow().isEmpty());
                     Assert.assertFalse(partition.hasNext());

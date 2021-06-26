@@ -38,7 +38,7 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import net.openhft.chronicle.core.io.IORuntimeException;
 import net.openhft.chronicle.queue.ChronicleQueue;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.wire.WireOut;
@@ -75,7 +75,7 @@ public class FQLReplayTest
     {
         File f = generateQueries(100, true);
         int queryCount = 0;
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(f).build();
              FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101))
         {
             long last = -1;
@@ -95,7 +95,7 @@ public class FQLReplayTest
     {
         File f = generateQueries(100, false);
         int queryCount = 0;
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(f).build();
              FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 1))
         {
             long last = -1;
@@ -116,8 +116,8 @@ public class FQLReplayTest
         File f = generateQueries(100, false);
         File f2 = generateQueries(100, false);
         int queryCount = 0;
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(f).build();
-             ChronicleQueue queue2 = ChronicleQueueBuilder.single(f2).build();
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(f).build();
+             ChronicleQueue queue2 = SingleChronicleQueueBuilder.single(f2).build();
              FQLQueryIterator iter = new FQLQueryIterator(queue.createTailer(), 101);
              FQLQueryIterator iter2 = new FQLQueryIterator(queue2.createTailer(), 101);
              MergeIterator<FQLQuery, List<FQLQuery>> merger = MergeIterator.get(Lists.newArrayList(iter, iter2), FQLQuery::compareTo, new Replay.Reducer()))
@@ -142,7 +142,7 @@ public class FQLReplayTest
     {
         FQLQueryReader reader = new FQLQueryReader();
 
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(generateQueries(1000, true)).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(generateQueries(1000, true)).build())
         {
             ExcerptTailer tailer = queue.createTailer();
             int queryCount = 0;
@@ -594,7 +594,7 @@ public class FQLReplayTest
     {
         FQLQueryReader reader = new FQLQueryReader();
         File dir = Files.createTempDirectory("chronicle").toFile();
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(dir).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
             appender.writeDocument(new BinLog.ReleaseableWriteMarshallable() {
@@ -635,7 +635,7 @@ public class FQLReplayTest
     {
         FQLQueryReader reader = new FQLQueryReader();
         File dir = Files.createTempDirectory("chronicle").toFile();
-        try (ChronicleQueue queue = ChronicleQueueBuilder.single(dir).build())
+        try (ChronicleQueue queue = SingleChronicleQueueBuilder.single(dir).build())
         {
             ExcerptAppender appender = queue.acquireAppender();
             appender.writeDocument(new BinLog.ReleaseableWriteMarshallable() {
@@ -686,7 +686,7 @@ public class FQLReplayTest
     {
         Random r = new Random();
         File dir = Files.createTempDirectory("chronicle").toFile();
-        try (ChronicleQueue readQueue = ChronicleQueueBuilder.single(dir).build())
+        try (ChronicleQueue readQueue = SingleChronicleQueueBuilder.single(dir).build())
         {
             ExcerptAppender appender = readQueue.acquireAppender();
 
@@ -771,8 +771,8 @@ public class FQLReplayTest
     private static List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> readResultFile(File dir, File queryDir)
     {
         List<Pair<FQLQuery, ResultHandler.ComparableResultSet>> resultSets = new ArrayList<>();
-        try (ChronicleQueue q = ChronicleQueueBuilder.single(dir).build();
-             ChronicleQueue queryQ = ChronicleQueueBuilder.single(queryDir).build())
+        try (ChronicleQueue q = SingleChronicleQueueBuilder.single(dir).build();
+             ChronicleQueue queryQ = SingleChronicleQueueBuilder.single(queryDir).build())
         {
             ExcerptTailer queryTailer = queryQ.createTailer();
             FQLQueryReader queryReader = new FQLQueryReader();

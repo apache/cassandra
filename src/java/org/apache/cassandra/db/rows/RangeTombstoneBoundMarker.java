@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -27,38 +27,58 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
 /**
  * A range tombstone marker that indicates the bound of a range tombstone (start or end).
  */
-public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<ClusteringBound>
+public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<ClusteringBound<?>>
 {
     private final DeletionTime deletion;
 
-    public RangeTombstoneBoundMarker(ClusteringBound bound, DeletionTime deletion)
+    public RangeTombstoneBoundMarker(ClusteringBound<?> bound, DeletionTime deletion)
     {
         super(bound);
         this.deletion = deletion;
     }
 
-    public static RangeTombstoneBoundMarker inclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime deletion)
+    public static <V> RangeTombstoneBoundMarker inclusiveOpen(boolean reversed, V[] boundValues, ValueAccessor<V> accessor,  DeletionTime deletion)
     {
-        ClusteringBound bound = ClusteringBound.inclusiveOpen(reversed, boundValues);
+        ClusteringBound<V> bound = accessor.factory().inclusiveOpen(reversed, boundValues);
         return new RangeTombstoneBoundMarker(bound, deletion);
     }
 
-    public static RangeTombstoneBoundMarker exclusiveOpen(boolean reversed, ByteBuffer[] boundValues, DeletionTime deletion)
+    public static <V> RangeTombstoneBoundMarker inclusiveOpen(boolean reversed, ClusteringPrefix<V> from,  DeletionTime deletion)
     {
-        ClusteringBound bound = ClusteringBound.exclusiveOpen(reversed, boundValues);
+        return inclusiveOpen(reversed, from.getRawValues(), from.accessor(), deletion);
+    }
+
+    public static <V> RangeTombstoneBoundMarker exclusiveOpen(boolean reversed, V[] boundValues, ValueAccessor<V> accessor, DeletionTime deletion)
+    {
+        ClusteringBound<V> bound = accessor.factory().exclusiveOpen(reversed, boundValues);
         return new RangeTombstoneBoundMarker(bound, deletion);
     }
 
-    public static RangeTombstoneBoundMarker inclusiveClose(boolean reversed, ByteBuffer[] boundValues, DeletionTime deletion)
+    public static <V> RangeTombstoneBoundMarker exclusiveOpen(boolean reversed, ClusteringPrefix<V> from, DeletionTime deletion)
     {
-        ClusteringBound bound = ClusteringBound.inclusiveClose(reversed, boundValues);
+        return exclusiveOpen(reversed, from.getRawValues(), from.accessor(), deletion);
+    }
+
+    public static <V> RangeTombstoneBoundMarker inclusiveClose(boolean reversed, V[] boundValues, ValueAccessor<V> accessor, DeletionTime deletion)
+    {
+        ClusteringBound<V> bound = accessor.factory().inclusiveClose(reversed, boundValues);
         return new RangeTombstoneBoundMarker(bound, deletion);
     }
 
-    public static RangeTombstoneBoundMarker exclusiveClose(boolean reversed, ByteBuffer[] boundValues, DeletionTime deletion)
+    public static <V> RangeTombstoneBoundMarker inclusiveClose(boolean reversed, ClusteringPrefix<V> from, DeletionTime deletion)
     {
-        ClusteringBound bound = ClusteringBound.exclusiveClose(reversed, boundValues);
+        return inclusiveClose(reversed, from.getRawValues(), from.accessor(), deletion);
+    }
+
+    public static <V> RangeTombstoneBoundMarker exclusiveClose(boolean reversed, V[] boundValues, ValueAccessor<V> accessor, DeletionTime deletion)
+    {
+        ClusteringBound<V> bound = accessor.factory().exclusiveClose(reversed, boundValues);
         return new RangeTombstoneBoundMarker(bound, deletion);
+    }
+
+    public static <V> RangeTombstoneBoundMarker exclusiveClose(boolean reversed, ClusteringPrefix<V> from, DeletionTime deletion)
+    {
+        return exclusiveClose(reversed, from.getRawValues(), from.accessor(), deletion);
     }
 
     public boolean isBoundary()
@@ -107,12 +127,12 @@ public class RangeTombstoneBoundMarker extends AbstractRangeTombstoneMarker<Clus
         return bound.isInclusive();
     }
 
-    public ClusteringBound openBound(boolean reversed)
+    public ClusteringBound<?> openBound(boolean reversed)
     {
         return isOpen(reversed) ? clustering() : null;
     }
 
-    public ClusteringBound closeBound(boolean reversed)
+    public ClusteringBound<?> closeBound(boolean reversed)
     {
         return isClose(reversed) ? clustering() : null;
     }

@@ -22,6 +22,9 @@
 # and perhaps have affinity.
 #-Dcassandra.available_processors=number_of_processors
 
+# Specify host id for the first boot and persist it
+#-Dcassandra.host_id_first_boot=host_id
+
 # The directory location of the cassandra.yaml file.
 #-Dcassandra.config=directory
 
@@ -102,9 +105,6 @@
 
 # Per-thread stack size.
 -Xss256k
-
-# Larger interned string table, for gossip's benefit (CASSANDRA-6410)
--XX:StringTableSize=1000003
 
 # Make sure all memory is faulted and zeroed on startup.
 # This helps prevent soft faults in containers and makes

@@ -24,7 +24,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class HeapPool extends MemtablePool
 {
-    public HeapPool(long maxOnHeapMemory, float cleanupThreshold, Runnable cleaner)
+    public HeapPool(long maxOnHeapMemory, float cleanupThreshold, MemtableCleaner cleaner)
     {
         super(maxOnHeapMemory, 0, cleanupThreshold, cleaner);
     }

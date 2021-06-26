@@ -21,18 +21,20 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.utils.MonotonicClock;
+
 import static java.lang.Math.min;
-import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 /**
  * A composite queue holding messages to be delivered by an {@link OutboundConnection}.
@@ -59,17 +61,22 @@ class OutboundMessageQueue
         boolean accept(Message<?> message) throws Produces;
     }
 
+    private final MonotonicClock clock;
     private final MessageConsumer<RuntimeException> onExpired;
 
     private final ManyToOneConcurrentLinkedQueue<Message<?>> externalQueue = new ManyToOneConcurrentLinkedQueue<>();
     private final PrunableArrayQueue<Message<?>> internalQueue = new PrunableArrayQueue<>(256);
 
     private volatile long earliestExpiresAt = Long.MAX_VALUE;
+    private volatile long nextExpirationDeadline = Long.MAX_VALUE;
     private static final AtomicLongFieldUpdater<OutboundMessageQueue> earliestExpiresAtUpdater =
         AtomicLongFieldUpdater.newUpdater(OutboundMessageQueue.class, "earliestExpiresAt");
+    private static final AtomicLongFieldUpdater<OutboundMessageQueue> nextExpirationDeadlineUpdater =
+        AtomicLongFieldUpdater.newUpdater(OutboundMessageQueue.class, "nextExpirationDeadline");
 
-    OutboundMessageQueue(MessageConsumer<RuntimeException> onExpired)
+    OutboundMessageQueue(MonotonicClock clock, MessageConsumer<RuntimeException> onExpired)
     {
+        this.clock = clock;
         this.onExpired = onExpired;
     }
 
@@ -80,7 +87,10 @@ class OutboundMessageQueue
     {
         maybePruneExpired();
         externalQueue.offer(m);
-        maybeUpdateMinimumExpiryTime(m.expiresAtNanos());
+        // Known race here. See CASSANDRAi-15958
+        nextExpirationDeadlineUpdater.accumulateAndGet(this,
+                                                       maybeUpdateEarliestExpiresAt(clock.now(), m.expiresAtNanos()),
+                                                       Math::min);
     }
 
     /**
@@ -105,7 +115,7 @@ class OutboundMessageQueue
      */
     void runEventually(Consumer<WithLock> runEventually)
     {
-        try (WithLock withLock = lockOrCallback(approxTime.now(), () -> runEventually(runEventually)))
+        try (WithLock withLock = lockOrCallback(clock.now(), () -> runEventually(runEventually)))
         {
             if (withLock != null)
                 runEventually.accept(withLock);
@@ -136,7 +146,6 @@ class OutboundMessageQueue
         private WithLock(long nowNanos)
         {
             this.nowNanos = nowNanos;
-            earliestExpiresAt = Long.MAX_VALUE;
             externalQueue.drain(internalQueue::offer);
         }
 
@@ -145,7 +154,7 @@ class OutboundMessageQueue
             Message<?> m;
             while (null != (m = internalQueue.poll()))
             {
-                if (shouldSend(m, nowNanos))
+                if (shouldSend(m, clock, nowNanos))
                     break;
 
                 onExpired.accept(m);
@@ -165,7 +174,7 @@ class OutboundMessageQueue
             Message<?> m;
             while (null != (m = internalQueue.peek()))
             {
-                if (shouldSend(m, nowNanos))
+                if (shouldSend(m, clock, nowNanos))
                     break;
 
                 internalQueue.poll();
@@ -185,7 +194,9 @@ class OutboundMessageQueue
         @Override
         public void close()
         {
-            pruneInternalQueueWithLock(nowNanos);
+            if (clock.isAfter(nowNanos, nextExpirationDeadline))
+                pruneInternalQueueWithLock(nowNanos);
+
             unlock();
         }
     }
@@ -195,20 +206,47 @@ class OutboundMessageQueue
      */
     boolean maybePruneExpired()
     {
-        return maybePruneExpired(approxTime.now());
+        return maybePruneExpired(clock.now());
     }
 
     private boolean maybePruneExpired(long nowNanos)
     {
-        if (approxTime.isAfter(nowNanos, earliestExpiresAt))
+        if (clock.isAfter(nowNanos, nextExpirationDeadline))
             return tryRun(() -> pruneWithLock(nowNanos));
+
         return false;
     }
 
-    private void maybeUpdateMinimumExpiryTime(long newTime)
+    /**
+     * Update {@code earliestExpiresAt} with the given {@code candidateTime} if less than the current value OR
+     * if the current value is past the current {@code nowNanos} time: this last condition is needed to make sure we keep
+     * tracking the earliest expiry time even while we prune previous values, so that at the end of the pruning task,
+     * we can reconcile between the earliest expiry time recorded at pruning and the one recorded at insert time.
+     */
+    private long maybeUpdateEarliestExpiresAt(long nowNanos, long candidateTime)
     {
-        if (newTime < earliestExpiresAt)
-            earliestExpiresAtUpdater.accumulateAndGet(this, newTime, Math::min);
+        return earliestExpiresAtUpdater.accumulateAndGet(this, candidateTime, (oldTime, newTime) -> {
+            if (clock.isAfter(nowNanos, oldTime))
+                return newTime;
+            else
+                return min(oldTime, newTime);
+        });
+    }
+
+    /**
+     * Update {@code nextExpirationDeadline} with the given {@code candidateDeadline} if less than the current
+     * deadline, unless the current deadline is passed in relation to {@code nowNanos}: this is needed
+     * to resolve a race where both {@link #add(org.apache.cassandra.net.Message) } and {@link #pruneInternalQueueWithLock(long) }
+     * try to update the expiration deadline.
+     */
+    private long maybeUpdateNextExpirationDeadline(long nowNanos, long candidateDeadline)
+    {
+        return nextExpirationDeadlineUpdater.accumulateAndGet(this, candidateDeadline, (oldDeadline, newDeadline) -> {
+            if (clock.isAfter(nowNanos, oldDeadline))
+                return newDeadline;
+            else
+                return min(oldDeadline, newDeadline);
+        });
     }
 
     /*
@@ -216,7 +254,6 @@ class OutboundMessageQueue
      */
     private void pruneWithLock(long nowNanos)
     {
-        earliestExpiresAt = Long.MAX_VALUE;
         externalQueue.drain(internalQueue::offer);
         pruneInternalQueueWithLock(nowNanos);
     }
@@ -232,7 +269,7 @@ class OutboundMessageQueue
 
             public boolean shouldPrune(Message<?> message)
             {
-                return !shouldSend(message, nowNanos);
+                return !shouldSend(message, clock, nowNanos);
             }
 
             public void onPruned(Message<?> message)
@@ -249,7 +286,13 @@ class OutboundMessageQueue
         Pruner pruner = new Pruner();
         internalQueue.prune(pruner);
 
-        maybeUpdateMinimumExpiryTime(pruner.earliestExpiresAt);
+        maybeUpdateNextExpirationDeadline(nowNanos, maybeUpdateEarliestExpiresAt(nowNanos, pruner.earliestExpiresAt));
+    }
+
+    @VisibleForTesting
+    long nextExpirationIn(long nowNanos, TimeUnit unit)
+    {
+        return unit.convert(nextExpirationDeadline - nowNanos, TimeUnit.NANOSECONDS);
     }
 
     private static class Locked implements Runnable
@@ -439,10 +482,12 @@ class OutboundMessageQueue
             }
 
             Remover remover = new Remover();
-            earliestExpiresAt = Long.MAX_VALUE;
             externalQueue.drain(internalQueue::offer);
             internalQueue.prune(remover);
-            maybeUpdateMinimumExpiryTime(remover.earliestExpiresAt);
+
+            long nowNanos = clock.now();
+            maybeUpdateNextExpirationDeadline(nowNanos, maybeUpdateEarliestExpiresAt(nowNanos, remover.earliestExpiresAt));
+
             done.countDown();
         }
     }
@@ -456,7 +501,7 @@ class OutboundMessageQueue
     {
         if (remove == null)
             throw new NullPointerException();
-        
+
         RemoveRunner runner;
         while (true)
         {
@@ -477,8 +522,8 @@ class OutboundMessageQueue
         return runner.removed.contains(remove);
     }
 
-    private static boolean shouldSend(Message<?> m, long nowNanos)
+    private static boolean shouldSend(Message<?> m, MonotonicClock clock, long nowNanos)
     {
-        return !approxTime.isAfter(nowNanos, m.expiresAtNanos());
+        return !clock.isAfter(nowNanos, m.expiresAtNanos());
     }
 }

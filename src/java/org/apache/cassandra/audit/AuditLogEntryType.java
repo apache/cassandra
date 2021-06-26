@@ -59,6 +59,7 @@ public enum AuditLogEntryType
     ALTER_TYPE(AuditLogEntryCategory.DDL),
     CREATE_ROLE(AuditLogEntryCategory.DCL),
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
+    DESCRIBE(AuditLogEntryCategory.OTHER),
 
     /*
      * Common Audit Log Entry Types

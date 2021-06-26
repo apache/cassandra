@@ -102,7 +102,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"na", "mc", "mb", "ma"};
+    public static final String[] legacyVersions = {"nb", "na", "me", "md", "mc", "mb", "ma"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -445,7 +445,7 @@ public class LegacySSTableTest
         new StreamPlan(StreamOperation.OTHER).transferStreams(FBUtilities.getBroadcastAddressAndPort(), streams).execute().get();
     }
 
-    private static void truncateLegacyTables(String legacyVersion) throws Exception
+    public static void truncateLegacyTables(String legacyVersion) throws Exception
     {
         logger.info("Truncating legacy version {}", legacyVersion);
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).truncateBlocking();
@@ -463,7 +463,7 @@ public class LegacySSTableTest
         Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).forceMajorCompaction();
     }
 
-    private static void loadLegacyTables(String legacyVersion) throws Exception
+    public static void loadLegacyTables(String legacyVersion) throws Exception
     {
             logger.info("Preparing legacy version {}", legacyVersion);
             loadLegacyTable("legacy_%s_simple", legacyVersion);

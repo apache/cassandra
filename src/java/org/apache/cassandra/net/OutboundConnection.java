@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -66,6 +65,7 @@ import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHO
 import static org.apache.cassandra.net.ResourceLimits.*;
 import static org.apache.cassandra.net.ResourceLimits.Outcome.*;
 import static org.apache.cassandra.net.SocketFactory.*;
+import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 import static org.apache.cassandra.utils.Throwables.isCausedBy;
 
@@ -109,7 +109,8 @@ public class OutboundConnection
 
     private final OutboundMessageCallbacks callbacks;
     private final OutboundDebugCallbacks debug;
-    private final OutboundMessageQueue queue;
+    @VisibleForTesting
+    final OutboundMessageQueue queue;
     /** the number of bytes we permit to queue to the network without acquiring any shared resource permits */
     private final long pendingCapacityInBytes;
     /** the number of messages and bytes queued for flush to the network,
@@ -119,6 +120,18 @@ public class OutboundConnection
     /** global shared limits that we use only if our local limits are exhausted;
      *  we allocate from here whenever queueSize > queueCapacity */
     private final EndpointAndGlobal reserveCapacityInBytes;
+
+    /** Used in logging statements to lazily build a human-readable number of pending bytes. */
+    private final Object readablePendingBytes =
+        new Object() { @Override public String toString() { return prettyPrintMemory(pendingBytes()); } };
+
+    /** Used in logging statements to lazily build a human-readable number of reserve endpoint bytes in use. */
+    private final Object readableReserveEndpointUsing =
+        new Object() { @Override public String toString() { return prettyPrintMemory(reserveCapacityInBytes.endpoint.using()); } };
+
+    /** Used in logging statements to lazily build a human-readable number of reserve global bytes in use. */
+    private final Object readableReserveGlobalUsing =
+        new Object() { @Override public String toString() { return prettyPrintMemory(reserveCapacityInBytes.global.using()); } };
 
     private volatile long submittedCount = 0;   // updated with cas
     private volatile long overloadedCount = 0;  // updated with cas
@@ -295,7 +308,7 @@ public class OutboundConnection
         this.reserveCapacityInBytes = reserveCapacityInBytes;
         this.callbacks = template.callbacks;
         this.debug = template.debug;
-        this.queue = new OutboundMessageQueue(this::onExpired);
+        this.queue = new OutboundMessageQueue(approxTime, this::onExpired);
         this.delivery = type == ConnectionType.LARGE_MESSAGES
                         ? new LargeMessageDelivery(template.socketFactory.synchronousWorkExecutor)
                         : new EventLoopDelivery();
@@ -439,13 +452,14 @@ public class OutboundConnection
     private void onOverloaded(Message<?> message)
     {
         overloadedCountUpdater.incrementAndGet(this);
-        overloadedBytesUpdater.addAndGet(this, canonicalSize(message));
+        
+        int canonicalSize = canonicalSize(message);
+        overloadedBytesUpdater.addAndGet(this, canonicalSize);
+        
         noSpamLogger.warn("{} overloaded; dropping {} message (queue: {} local, {} endpoint, {} global)",
-                          id(),
-                          FBUtilities.prettyPrintMemory(canonicalSize(message)),
-                          FBUtilities.prettyPrintMemory(pendingBytes()),
-                          FBUtilities.prettyPrintMemory(reserveCapacityInBytes.endpoint.using()),
-                          FBUtilities.prettyPrintMemory(reserveCapacityInBytes.global.using()));
+                          this, FBUtilities.prettyPrintMemory(canonicalSize),
+                          readablePendingBytes, readableReserveEndpointUsing, readableReserveGlobalUsing);
+        
         callbacks.onOverloaded(message, template.to);
     }
 
@@ -456,10 +470,10 @@ public class OutboundConnection
      */
     private boolean onExpired(Message<?> message)
     {
+        noSpamLogger.warn("{} dropping message of type {} whose timeout expired before reaching the network", id(), message.verb());
         releaseCapacity(1, canonicalSize(message));
         expiredCount += 1;
         expiredBytes += canonicalSize(message);
-        noSpamLogger.warn("{} dropping message of type {} whose timeout expired before reaching the network", id(), message.verb());
         callbacks.onExpired(message, template.to);
         return true;
     }
@@ -471,11 +485,11 @@ public class OutboundConnection
      */
     private void onFailedSerialize(Message<?> message, int messagingVersion, int bytesWrittenToNetwork, Throwable t)
     {
-        JVMStabilityInspector.inspectThrowable(t, false);
+        logger.warn("{} dropping message of type {} due to error", id(), message.verb(), t);
+        JVMStabilityInspector.inspectThrowable(t);
         releaseCapacity(1, canonicalSize(message));
         errorCount += 1;
         errorBytes += message.serializedSize(messagingVersion);
-        logger.warn("{} dropping message of type {} due to error", id(), message.verb(), t);
         callbacks.onFailedSerialize(message, template.to, messagingVersion, bytesWrittenToNetwork, t);
     }
 
@@ -571,8 +585,8 @@ public class OutboundConnection
          */
         void executeAgain()
         {
-             // if we are already executing, set EXECUTING_AGAIN and leave scheduling to the currently running one.
-             // otherwise, set ourselves unconditionally to EXECUTING and schedule ourselves immediately
+            // if we are already executing, set EXECUTING_AGAIN and leave scheduling to the currently running one.
+            // otherwise, set ourselves unconditionally to EXECUTING and schedule ourselves immediately
             if (!isExecuting(getAndUpdate(i -> !isExecuting(i) ? EXECUTING : EXECUTING_AGAIN)))
                 executor.execute(this);
         }
@@ -1033,7 +1047,7 @@ public class OutboundConnection
 
     private void invalidateChannel(Established established, Throwable cause)
     {
-        JVMStabilityInspector.inspectThrowable(cause, false);
+        JVMStabilityInspector.inspectThrowable(cause);
 
         if (state != established)
             return; // do nothing; channel already invalidated
@@ -1079,7 +1093,7 @@ public class OutboundConnection
                 else
                     noSpamLogger.error("{} failed to connect", id(), cause);
 
-                JVMStabilityInspector.inspectThrowable(cause, false);
+                JVMStabilityInspector.inspectThrowable(cause);
 
                 if (hasPending())
                 {
@@ -1137,7 +1151,7 @@ public class OutboundConnection
                                     id(true),
                                     success.messagingVersion,
                                     settings.framing,
-                                    encryptionLogStatement(settings.encryption));
+                                    encryptionConnectionSummary(channel));
                         break;
 
                     case RETRY:

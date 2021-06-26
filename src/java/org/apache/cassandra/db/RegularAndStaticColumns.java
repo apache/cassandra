@@ -22,6 +22,7 @@ import java.util.*;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static java.util.Comparator.naturalOrder;
@@ -33,6 +34,7 @@ import static java.util.Comparator.naturalOrder;
 public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 {
     public static RegularAndStaticColumns NONE = new RegularAndStaticColumns(Columns.NONE, Columns.NONE);
+    static final long EMPTY_SIZE = ObjectSizes.measure(NONE);
 
     public final Columns statics;
     public final Columns regulars;
@@ -105,11 +107,19 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
         return regulars.size() + statics.size();
     }
 
+    public long unsharedHeapSize()
+    {
+        if(this == NONE)
+            return 0;
+
+        return EMPTY_SIZE + regulars.unsharedHeapSize() + statics.unsharedHeapSize();
+    }
+
     @Override
     public String toString()
     {
         StringBuilder sb = new StringBuilder();
-        sb.append("[").append(statics).append(" | ").append(regulars).append("]");
+        sb.append('[').append(statics).append(" | ").append(regulars).append(']');
         return sb.toString();
     }
 

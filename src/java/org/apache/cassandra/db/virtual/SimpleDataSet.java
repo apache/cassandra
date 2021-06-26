@@ -18,17 +18,29 @@
 package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -60,7 +72,7 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         System.arraycopy(primaryKeyValues, partitionKeyValues.length, clusteringValues, 0, clusteringValues.length);
 
         DecoratedKey partitionKey = makeDecoratedKey(partitionKeyValues);
-        Clustering clustering = makeClustering(clusteringValues);
+        Clustering<?> clustering = makeClustering(clusteringValues);
 
         currentRow = new Row(metadata, clustering);
         SimplePartition partition = (SimplePartition) partitions.computeIfAbsent(partitionKey, pk -> new SimplePartition(metadata, pk));
@@ -87,7 +99,7 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
         return metadata.partitioner.decorateKey(partitionKey);
     }
 
-    private Clustering makeClustering(Object... clusteringValues)
+    private Clustering<?> makeClustering(Object... clusteringValues)
     {
         if (clusteringValues.length == 0)
             return Clustering.EMPTY;
@@ -101,7 +113,7 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
     private static final class SimplePartition implements AbstractVirtualTable.Partition
     {
         private final DecoratedKey key;
-        private final NavigableMap<Clustering, Row> rows;
+        private final NavigableMap<Clustering<?>, Row> rows;
 
         private SimplePartition(TableMetadata metadata, DecoratedKey key)
         {
@@ -151,11 +163,11 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
     private static class Row
     {
         private final TableMetadata metadata;
-        private final Clustering clustering;
+        private final Clustering<?> clustering;
 
         private final Map<ColumnMetadata, Object> values = new HashMap<>();
 
-        private Row(TableMetadata metadata, Clustering clustering)
+        private Row(TableMetadata metadata, Clustering<?> clustering)
         {
             this.metadata = metadata;
             this.clustering = clustering;

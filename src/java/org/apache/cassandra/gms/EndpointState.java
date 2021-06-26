@@ -20,11 +20,13 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -55,6 +57,11 @@ public class EndpointState
         this(initialHbState, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
     }
 
+    public EndpointState(EndpointState other)
+    {
+        this(new HeartBeatState(other.hbState), new EnumMap<>(other.applicationState.get()));
+    }
+
     EndpointState(HeartBeatState initialHbState, Map<ApplicationState, VersionedValue> states)
     {
         hbState = initialHbState;
@@ -77,6 +84,11 @@ public class EndpointState
     public VersionedValue getApplicationState(ApplicationState key)
     {
         return applicationState.get().get(key);
+    }
+
+    public boolean containsApplicationState(ApplicationState key)
+    {
+        return applicationState.get().containsKey(key);
     }
 
     public Set<Map.Entry<ApplicationState, VersionedValue>> states()
@@ -109,6 +121,47 @@ public class EndpointState
         }
     }
 
+    void removeMajorVersion3LegacyApplicationStates()
+    {
+        while (hasLegacyFields())
+        {
+            Map<ApplicationState, VersionedValue> orig = applicationState.get();
+            Map<ApplicationState, VersionedValue> updatedStates = filterMajorVersion3LegacyApplicationStates(orig);
+            // avoid updating if no state is removed
+            if (orig.size() == updatedStates.size()
+                || applicationState.compareAndSet(orig, updatedStates))
+                return;
+        }
+    }
+
+    private boolean hasLegacyFields()
+    {
+        Set<ApplicationState> statesPresent = applicationState.get().keySet();
+        if (statesPresent.isEmpty())
+            return false;
+        return (statesPresent.contains(ApplicationState.STATUS) && statesPresent.contains(ApplicationState.STATUS_WITH_PORT))
+               || (statesPresent.contains(ApplicationState.INTERNAL_IP) && statesPresent.contains(ApplicationState.INTERNAL_ADDRESS_AND_PORT))
+               || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
+    }
+
+    private static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
+    {
+        return states.entrySet().stream().filter(entry -> {
+                // Filter out pre-4.0 versions of data for more complete 4.0 versions
+                switch (entry.getKey())
+                {
+                    case INTERNAL_IP:
+                        return !states.containsKey(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
+                    case STATUS:
+                        return !states.containsKey(ApplicationState.STATUS_WITH_PORT);
+                    case RPC_ADDRESS:
+                        return !states.containsKey(ApplicationState.NATIVE_ADDRESS_AND_PORT);
+                    default:
+                        return true;
+                }
+            }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
     /* getters and setters */
     /**
      * @return System.nanoTime() when state was updated last time.
@@ -136,6 +189,15 @@ public class EndpointState
     void markDead()
     {
         isAlive = false;
+    }
+
+    /**
+     * @return true if {@link HeartBeatState#isEmpty()} is true and no STATUS application state exists
+     */
+    public boolean isEmptyWithoutStatus()
+    {
+        Map<ApplicationState, VersionedValue> state = applicationState.get();
+        return hbState.isEmpty() && !(state.containsKey(ApplicationState.STATUS_WITH_PORT) || state.containsKey(ApplicationState.STATUS));
     }
 
     public boolean isRpcReady()

@@ -255,11 +255,5 @@ final class HintsDispatcher implements AutoCloseable
             outcome = Outcome.SUCCESS;
             condition.signalAll();
         }
-
-        @Override
-        public boolean supportsBackPressure()
-        {
-            return true;
-        }
     }
 }

@@ -109,7 +109,7 @@ RegionalIndicatorEx = {RegionalIndicator}                                       
   
   public static final int HANGUL_TYPE = StandardAnalyzer.TokenType.HANGUL.value;
 
-  public final int yychar()
+  public final long yychar()
   {
     return yychar;
   }

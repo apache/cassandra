@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
@@ -38,8 +39,14 @@ public class CommonRange
     public final ImmutableSet<InetAddressAndPort> endpoints;
     public final ImmutableSet<InetAddressAndPort> transEndpoints;
     public final Collection<Range<Token>> ranges;
+    public final boolean hasSkippedReplicas;
 
     public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints, Collection<Range<Token>> ranges)
+    {
+        this(endpoints, transEndpoints, ranges, false);
+    }
+
+    public CommonRange(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints, Collection<Range<Token>> ranges, boolean hasSkippedReplicas)
     {
         Preconditions.checkArgument(endpoints != null && !endpoints.isEmpty(), "Endpoints can not be empty");
         Preconditions.checkArgument(transEndpoints != null, "Transient endpoints can not be null");
@@ -49,6 +56,7 @@ public class CommonRange
         this.endpoints = ImmutableSet.copyOf(endpoints);
         this.transEndpoints = ImmutableSet.copyOf(transEndpoints);
         this.ranges = new ArrayList<>(ranges);
+        this.hasSkippedReplicas = hasSkippedReplicas;
     }
 
     public boolean matchesEndpoints(Set<InetAddressAndPort> endpoints, Set<InetAddressAndPort> transEndpoints)
@@ -64,17 +72,15 @@ public class CommonRange
 
         CommonRange that = (CommonRange) o;
 
-        if (!endpoints.equals(that.endpoints)) return false;
-        if (!transEndpoints.equals(that.transEndpoints)) return false;
-        return ranges.equals(that.ranges);
+        return Objects.equals(endpoints, that.endpoints)
+               && Objects.equals(transEndpoints, that.transEndpoints)
+               && Objects.equals(ranges, that.ranges)
+               && hasSkippedReplicas == that.hasSkippedReplicas;
     }
 
     public int hashCode()
     {
-        int result = endpoints.hashCode();
-        result = 31 * result + transEndpoints.hashCode();
-        result = 31 * result + ranges.hashCode();
-        return result;
+        return Objects.hash(endpoints, transEndpoints, ranges, hasSkippedReplicas);
     }
 
     public String toString()
@@ -83,6 +89,7 @@ public class CommonRange
                "endpoints=" + endpoints +
                ", transEndpoints=" + transEndpoints +
                ", ranges=" + ranges +
+               ", hasSkippedReplicas=" + hasSkippedReplicas +
                '}';
     }
 }

@@ -130,8 +130,6 @@ public class PrepareMessage extends RepairMessage
 
         public long serializedSize(PrepareMessage message, int version)
         {
-            Preconditions.checkArgument(version == MessagingService.current_version, MIXED_MODE_ERROR);
-
             long size;
             size = TypeSizes.sizeof(message.tableIds.size());
             for (TableId tableId : message.tableIds)

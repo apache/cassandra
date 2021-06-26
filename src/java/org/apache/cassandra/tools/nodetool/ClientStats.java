@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -46,9 +47,10 @@ public class ClientStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
+        PrintStream out = probe.output().out;
         if (clearConnectionHistory)
         {
-            System.out.println("Clearing connection history");
+            out.println("Clearing connection history");
             probe.clearConnectionHistory();
             return;
         }
@@ -57,8 +59,8 @@ public class ClientStats extends NodeToolCmd
         {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy HH:mm:ss");
 
-            System.out.println("Clients by protocol version");
-            System.out.println();
+            out.println("Clients by protocol version");
+            out.println();
 
             List<Map<String, String>> clients = (List<Map<String, String>>) probe.getClientMetric("clientsByProtocolVersion");
 
@@ -74,8 +76,8 @@ public class ClientStats extends NodeToolCmd
                               sdf.format(new Date(Long.valueOf(client.get(ClientStat.LAST_SEEN_TIME)))));
                 }
 
-                table.printTo(System.out);
-                System.out.println();
+                table.printTo(out);
+                out.println();
             }
 
             return;
@@ -101,21 +103,21 @@ public class ClientStats extends NodeToolCmd
                               conn.get(ConnectedClient.DRIVER_NAME),
                               conn.get(ConnectedClient.DRIVER_VERSION));
                 }
-                table.printTo(System.out);
-                System.out.println();
+                table.printTo(out);
+                out.println();
             }
         }
 
         Map<String, Integer> connectionsByUser = (Map<String, Integer>) probe.getClientMetric("connectedNativeClientsByUser");
         int total = connectionsByUser.values().stream().reduce(0, Integer::sum);
-        System.out.println("Total connected clients: " + total);
-        System.out.println();
+        out.println("Total connected clients: " + total);
+        out.println();
         TableBuilder table = new TableBuilder();
         table.add("User", "Connections");
         for (Entry<String, Integer> entry : connectionsByUser.entrySet())
         {
             table.add(entry.getKey(), entry.getValue().toString());
         }
-        table.printTo(System.out);
+        table.printTo(out);
     }
 }

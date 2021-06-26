@@ -42,6 +42,11 @@ public abstract class AbstractClusteringIndexFilter implements ClusteringIndexFi
         return reversed;
     }
 
+    public boolean isEmpty(ClusteringComparator comparator)
+    {
+        return false;
+    }
+
     protected abstract void serializeInternal(DataOutputPlus out, int version) throws IOException;
     protected abstract long serializedSizeInternal(int version);
 

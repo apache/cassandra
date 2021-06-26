@@ -1,3 +1,21 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 %define __jar_repack %{nil}
 # Turn off the brp-python-bytecompile script
 %global __os_install_post %(echo '%{__os_install_post}' | sed -e 's!/usr/lib[^[:space:]]*/brp-python-bytecompile[[:space:]].*$!!g')
@@ -5,6 +23,8 @@
 # rpmbuild should not barf when it spots we ship
 # binary executable files in our 'noarch' package
 %define _binaries_in_noarch_packages_terminate_build   0
+
+%define __python /usr/bin/python3
 
 %global username cassandra
 
@@ -27,7 +47,7 @@ BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
-Requires:      python(abi) >= 2.7
+Requires:      python(abi) >= 3.6
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
 Requires(pre): shadow-utils
@@ -67,7 +87,7 @@ mkdir -p %{buildroot}/var/lib/%{username}/saved_caches
 mkdir -p %{buildroot}/var/lib/%{username}/hints
 mkdir -p %{buildroot}/var/run/%{username}
 mkdir -p %{buildroot}/var/log/%{username}
-( cd pylib && python2.7 setup.py install --no-compile --root %{buildroot}; )
+( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
 
 # patches for data and log paths
 patch -p1 < debian/patches/cassandra_yaml_dirs.diff
@@ -75,14 +95,10 @@ patch -p1 < debian/patches/cassandra_logdir_fix.diff
 # uncomment hints_directory path
 sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 
-# remove batch, powershell, and other files not being installed
-rm -f conf/*.ps1
-rm -f bin/*.bat
+# remove other files not being installed
 rm -f bin/*.orig
-rm -f bin/*.ps1
 rm -f bin/cassandra.in.sh
 rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
-rm -f tools/bin/*.bat
 rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
@@ -99,6 +115,9 @@ cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 
 # copy stress jar
 cp -p build/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
+
+# copy fqltool jar
+cp -p build/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
 
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
@@ -121,11 +140,13 @@ exit 0
 %defattr(0644,root,root,0755)
 %doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
 %attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/cassandra-stress
 %attr(755,root,root) %{_bindir}/cqlsh
 %attr(755,root,root) %{_bindir}/cqlsh.py
 %attr(755,root,root) %{_bindir}/debug-cql
 %attr(755,root,root) %{_bindir}/fqltool
+%attr(755,root,root) %{_bindir}/generatetokens
 %attr(755,root,root) %{_bindir}/nodetool
 %attr(755,root,root) %{_bindir}/sstableloader
 %attr(755,root,root) %{_bindir}/sstablescrub
@@ -142,8 +163,8 @@ exit 0
 %attr(755,%{username},%{username}) %config(noreplace) /var/lib/%{username}/*
 %attr(755,%{username},%{username}) /var/log/%{username}*
 %attr(755,%{username},%{username}) /var/run/%{username}*
-/usr/lib/python2.7/site-packages/cqlshlib/
-/usr/lib/python2.7/site-packages/cassandra_pylib*.egg-info
+%{python_sitelib}/cqlshlib/
+%{python_sitelib}/cassandra_pylib*.egg-info
 
 %post
 alternatives --install /%{_sysconfdir}/%{username}/conf %{username} /%{_sysconfdir}/%{username}/default.conf/ 0
@@ -177,6 +198,10 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/sstableofflinerelevel
 %attr(755,root,root) %{_bindir}/sstablerepairedset
 %attr(755,root,root) %{_bindir}/sstablesplit
+%attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/jmxtool
+%attr(755,root,root) %{_bindir}/fqltool
+%attr(755,root,root) %{_bindir}/generatetokens
 
 
 %changelog

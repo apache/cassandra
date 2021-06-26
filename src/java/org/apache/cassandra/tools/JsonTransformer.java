@@ -338,7 +338,7 @@ public final class JsonTransformer
         }
     }
 
-    private void serializeBound(ClusteringBound bound, DeletionTime deletionTime) throws IOException
+    private void serializeBound(ClusteringBound<?> bound, DeletionTime deletionTime) throws IOException
     {
         json.writeFieldName(bound.isStart() ? "start" : "end");
         json.writeStartObject();
@@ -349,7 +349,7 @@ public final class JsonTransformer
         json.writeEndObject();
     }
 
-    private void serializeClustering(ClusteringPrefix clustering) throws IOException
+    private <T> void serializeClustering(ClusteringPrefix<T> clustering) throws IOException
     {
         if (clustering.size() > 0)
         {
@@ -367,7 +367,7 @@ public final class JsonTransformer
                 }
                 else
                 {
-                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), ProtocolVersion.CURRENT));
+                    json.writeRawValue(column.cellValueType().toJSONString(clustering.get(i), clustering.accessor(), ProtocolVersion.CURRENT));
                 }
             }
             json.writeEndArray();
@@ -393,7 +393,7 @@ public final class JsonTransformer
     {
         if (cd.column().isSimple())
         {
-            serializeCell((Cell) cd, liveInfo);
+            serializeCell((Cell<?>) cd, liveInfo);
         }
         else
         {
@@ -416,13 +416,13 @@ public final class JsonTransformer
                     logger.error("Failure parsing ColumnData.", e);
                 }
             }
-            for (Cell cell : complexData){
+            for (Cell<?> cell : complexData){
                 serializeCell(cell, liveInfo);
             }
         }
     }
 
-    private void serializeCell(Cell cell, LivenessInfo liveInfo)
+    private <V> void serializeCell(Cell<V> cell, LivenessInfo liveInfo)
     {
         try
         {
@@ -483,7 +483,7 @@ public final class JsonTransformer
             else
             {
                 json.writeFieldName("value");
-                json.writeRawValue(cellType.toJSONString(cell.value(), ProtocolVersion.CURRENT));
+                json.writeRawValue(cellType.toJSONString(cell.value(), cell.accessor(), ProtocolVersion.CURRENT));
             }
             if (liveInfo.isEmpty() || cell.timestamp() != liveInfo.timestamp())
             {

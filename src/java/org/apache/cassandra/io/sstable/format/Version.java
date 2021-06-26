@@ -97,7 +97,6 @@ public abstract class Version
         return version;
     }
 
-
     @Override
     public boolean equals(Object o)
     {
@@ -116,4 +115,6 @@ public abstract class Version
     {
         return version != null ? version.hashCode() : 0;
     }
+
+    public abstract boolean hasOriginatingHostId();
 }

@@ -124,7 +124,7 @@ public class CompactionManager implements CompactionManagerMBean
     }
 
     private final CompactionExecutor executor = new CompactionExecutor();
-    private final CompactionExecutor validationExecutor = new ValidationExecutor();
+    private final ValidationExecutor validationExecutor = new ValidationExecutor();
     private final CompactionExecutor cacheCleanupExecutor = new CacheCleanupExecutor();
     private final CompactionExecutor viewBuildExecutor = new ViewBuildExecutor();
 
@@ -601,6 +601,12 @@ public class CompactionManager implements CompactionManagerMBean
                     {
                         return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
                     }
+
+                    @Override
+                    protected int getLevel()
+                    {
+                        return txn.onlyOne().getSSTableLevel();
+                    }
                 };
                 task.setUserDefined(true);
                 task.setCompactionType(OperationType.GARBAGE_COLLECT);
@@ -660,13 +666,9 @@ public class CompactionManager implements CompactionManagerMBean
                 if (!cfs.getPartitioner().splitter().isPresent())
                     return true;
 
-                int diskIndex = diskBoundaries.getDiskIndex(sstable);
-                PartitionPosition diskLast = diskBoundaries.positions.get(diskIndex);
-
-                // the location we get from directoryIndex is based on the first key in the sstable
-                // now we need to make sure the last key is less than the boundary as well:
-                Directories.DataDirectory dataDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
-                return diskBoundaries.directories.get(diskIndex).equals(dataDirectory) && sstable.last.compareTo(diskLast) <= 0;
+                // Compare the expected data directory for the sstable with its current data directory
+                Directories.DataDirectory currentDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
+                return diskBoundaries.isInCorrectLocation(sstable, currentDirectory);
             }
 
             @Override
@@ -1476,7 +1478,7 @@ public class CompactionManager implements CompactionManagerMBean
      * @param txn a transaction over the repaired sstables to anticompact
      * @param ranges full and transient ranges to be placed into one of the new sstables. The repaired table will be tracked via
      *   the {@link org.apache.cassandra.io.sstable.metadata.StatsMetadata#pendingRepair} field.
-     * @param sessionID the repair session we're anti-compacting for
+     * @param pendingRepair the repair session we're anti-compacting for
      * @param isCancelled function that indicates if active anti-compaction should be canceled
      */
     private void doAntiCompaction(ColumnFamilyStore cfs,
@@ -1897,9 +1899,32 @@ public class CompactionManager implements CompactionManagerMBean
     // TODO: pull out relevant parts of CompactionExecutor and move to ValidationManager
     public static class ValidationExecutor extends CompactionExecutor
     {
+        // CompactionExecutor, and by extension ValidationExecutor, use DebuggableThreadPoolExecutor's
+        // default RejectedExecutionHandler which blocks the submitting thread when the work queue is
+        // full. The calling thread in this case is AntiEntropyStage, so in most cases we don't actually
+        // want to block when the ValidationExecutor is saturated as this prevents progress on all
+        // repair tasks and may cause repair sessions to time out. Also, it can lead to references to
+        // heavyweight validation responses containing merkle trees being held for extended periods which
+        // increases GC pressure. Using LinkedBlockingQueue instead of the default SynchronousQueue allows
+        // tasks to be submitted without blocking the caller, but will always prefer queueing to creating
+        // new threads if the pool already has at least `corePoolSize` threads already running. For this
+        // reason we set corePoolSize to the maximum desired concurrency, but allow idle core threads to
+        // be terminated.
+
         public ValidationExecutor()
         {
-            super(1, DatabaseDescriptor.getConcurrentValidations(), "ValidationExecutor", new SynchronousQueue<Runnable>());
+            super(DatabaseDescriptor.getConcurrentValidations(),
+                  DatabaseDescriptor.getConcurrentValidations(),
+                  "ValidationExecutor",
+                  new LinkedBlockingQueue());
+
+            allowCoreThreadTimeOut(true);
+        }
+
+        public void adjustPoolSize()
+        {
+            setMaximumPoolSize(DatabaseDescriptor.getConcurrentValidations());
+            setCorePoolSize(DatabaseDescriptor.getConcurrentValidations());
         }
     }
 
@@ -2021,10 +2046,9 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public void setConcurrentValidations(int value)
+    public void setConcurrentValidations()
     {
-        value = value > 0 ? value : Integer.MAX_VALUE;
-        validationExecutor.setMaximumPoolSize(value);
+        validationExecutor.adjustPoolSize();
     }
 
     public void setConcurrentViewBuilders(int value)

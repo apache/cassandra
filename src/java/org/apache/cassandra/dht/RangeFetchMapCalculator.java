@@ -168,8 +168,12 @@ public class RangeFetchMapCalculator
                 {
                     if (passFilters(replica, localDCCheck))
                     {
-                        fetchMap.put(replica.endpoint(), trivialRange);
                         added = true;
+                        // if we pass filters, it means that we don't filter away localhost and we can count it as a source,
+                        // see RangeFetchMapCalculator#addEndpoints  and RangeStreamer#getRangeFetchMap
+                        if (replica.isSelf())
+                            continue; // but don't add localhost to avoid streaming locally
+                        fetchMap.put(replica.endpoint(), trivialRange);
                         break;
                     }
                 }

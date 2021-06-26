@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Random;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_EGD;
+
 public class GuidGenerator
 {
     private static final Random myRand;
@@ -29,7 +31,7 @@ public class GuidGenerator
 
     static
     {
-        if (System.getProperty("java.security.egd") == null)
+        if (!JAVA_SECURITY_EGD.isPresent())
         {
             System.setProperty("java.security.egd", "file:/dev/urandom");
         }

@@ -91,7 +91,7 @@ public final class ColumnConditions extends AbstractConditions
      * @param options the query options
      */
     public void addConditionsTo(CQL3CasRequest request,
-                                Clustering clustering,
+                                Clustering<?> clustering,
                                 QueryOptions options)
     {
         if (!columnConditions.isEmpty())

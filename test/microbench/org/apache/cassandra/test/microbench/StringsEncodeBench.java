@@ -39,7 +39,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 6, time = 20)
-@Fork(value = 1,jvmArgsAppend = { "-Xmx256M", "-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
+@Fork(value = 1, jvmArgsAppend = { "-Xmx256M", "-Djmh.executor=CUSTOM", "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor"})
 @State(Scope.Benchmark)
 public class StringsEncodeBench
 {

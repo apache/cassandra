@@ -77,7 +77,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
         if (!DatabaseDescriptor.diagnosticEventsEnabled())
             return;
 
-        logger.trace("Publishing: {}", event);
+        logger.trace("Publishing: {}={}", event.getClass().getName(), event.toMap());
 
         // event class + type
         ImmutableMultimap<Enum<?>, Consumer<DiagnosticEvent>> consumersByType = subscribersByClassAndType.get(event.getClass());

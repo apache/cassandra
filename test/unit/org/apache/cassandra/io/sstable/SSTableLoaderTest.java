@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.common.io.Files;
@@ -58,17 +59,22 @@ public class SSTableLoaderTest
     public static final String KEYSPACE2 = "SSTableLoaderTest1";
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
+    public static final String CF_BACKUPS = Directories.BACKUPS_SUBDIR;
+
+    private static final String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
+    private static final String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
 
     private File tmpdir;
 
     @BeforeClass
-    public static void defineSchema() throws Exception
+    public static void defineSchema()
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_BACKUPS));
 
         SchemaLoader.createKeyspace(KEYSPACE2,
                 KeyspaceParams.simple(1),
@@ -90,11 +96,11 @@ public class SSTableLoaderTest
         try {
             FileUtils.deleteRecursive(tmpdir);
         } catch (FSWriteError e) {
-            /**
-             * Windows does not allow a mapped file to be deleted, so we probably forgot to clean the buffers somewhere.
-             * We force a GC here to force buffer deallocation, and then try deleting the directory again.
-             * For more information, see: http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4715154
-             * If this is not the problem, the exception will be rethrown anyway.
+            /*
+              Windows does not allow a mapped file to be deleted, so we probably forgot to clean the buffers somewhere.
+              We force a GC here to force buffer deallocation, and then try deleting the directory again.
+              For more information, see: http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4715154
+              If this is not the problem, the exception will be rethrown anyway.
              */
             System.gc();
             FileUtils.deleteRecursive(tmpdir);
@@ -121,12 +127,8 @@ public class SSTableLoaderTest
     @Test
     public void testLoadingSSTable() throws Exception
     {
-        File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + KEYSPACE1 + File.separator + CF_STANDARD1);
-        assert dataDir.mkdirs();
+        File dataDir = dataDir(CF_STANDARD1);
         TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);
-
-        String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
-        String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                        .inDirectory(dataDir)
@@ -148,9 +150,10 @@ public class SSTableLoaderTest
 
         assertEquals(1, partitions.size());
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
+        assert metadata != null;
         assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                                                                   .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                                                                   .value());
+                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
+                                                            .buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
@@ -160,14 +163,7 @@ public class SSTableLoaderTest
     @Test
     public void testLoadingIncompleteSSTable() throws Exception
     {
-        File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + KEYSPACE1 + File.separator + CF_STANDARD2);
-        assert dataDir.mkdirs();
-
-        //make sure we have no tables...
-        assertTrue(dataDir.listFiles().length == 0);
-
-        String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
-        String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
+        File dataDir = dataDir(CF_STANDARD2);
 
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
@@ -188,7 +184,7 @@ public class SSTableLoaderTest
         cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
 
         //make sure we have some tables...
-        assertTrue(dataDir.listFiles().length > 0);
+        assertTrue(Objects.requireNonNull(dataDir.listFiles()).length > 0);
 
         final CountDownLatch latch = new CountDownLatch(2);
         //writer is still open so loader should not load anything
@@ -246,13 +242,59 @@ public class SSTableLoaderTest
 
         assertEquals(1, partitions.size());
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
+        assert metadata != null;
         assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
-                .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
-                .value());
+                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
+                                                            .buffer());
 
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
         latch.await();
+    }
+
+    @Test
+    public void testLoadingBackupsTable() throws Exception
+    {
+        File dataDir = dataDir(CF_BACKUPS);
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_BACKUPS);
+
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(String.format(schema, KEYSPACE1, CF_BACKUPS))
+                                                       .using(String.format(query, KEYSPACE1, CF_BACKUPS))
+                                                       .build())
+        {
+            writer.addRow("key", "col1", "100");
+        }
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_BACKUPS);
+        cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
+        loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
+
+        List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
+
+        assertEquals(1, partitions.size());
+        assertEquals("key", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
+        assert metadata != null;
+        assertEquals(ByteBufferUtil.bytes("100"), partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")))
+                                                            .getCell(metadata.getColumn(ByteBufferUtil.bytes("val")))
+                                                            .buffer());
+
+        // The stream future is signalled when the work is complete but before releasing references. Wait for release
+        // before cleanup (CASSANDRA-10118).
+        latch.await();
+    }
+
+    private File dataDir(String cf)
+    {
+        File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + SSTableLoaderTest.KEYSPACE1 + File.separator + cf);
+        assert dataDir.mkdirs();
+        //make sure we have no tables...
+        assertEquals(Objects.requireNonNull(dataDir.listFiles()).length, 0);
+        return dataDir;
     }
 
     StreamEventHandler completionStreamListener(final CountDownLatch latch)

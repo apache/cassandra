@@ -45,16 +45,15 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.Difference;
-import org.apache.cassandra.schema.Functions;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -66,7 +65,7 @@ import static com.google.common.collect.Iterables.transform;
 /**
  * Base class for User Defined Functions.
  */
-public abstract class UDFunction extends AbstractFunction implements ScalarFunction
+public abstract class UDFunction extends AbstractFunction implements ScalarFunction, SchemaElement
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
@@ -84,19 +83,19 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     protected final UDFContext udfContext;
 
     //
-    // Access to classes is controlled via a whitelist and a blacklist.
+    // Access to classes is controlled via allow and disallow lists.
     //
     // When a class is requested (both during compilation and runtime),
-    // the whitelistedPatterns array is searched first, whether the
+    // the allowedPatterns array is searched first, whether the
     // requested name matches one of the patterns. If not, nothing is
     // returned from the class-loader - meaning ClassNotFoundException
     // during runtime and "type could not resolved" during compilation.
     //
-    // If a whitelisted pattern has been found, the blacklistedPatterns
+    // If an allowed pattern has been found, the disallowedPatterns
     // array is searched for a match. If a match is found, class-loader
     // rejects access. Otherwise the class/resource can be loaded.
     //
-    private static final String[] whitelistedPatterns =
+    private static final String[] allowedPatterns =
     {
     "com/google/common/reflect/TypeToken",
     "java/io/IOException.class",
@@ -120,8 +119,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "org/apache/cassandra/exceptions/",
     "org/apache/cassandra/transport/ProtocolVersion.class"
     };
-    // Only need to blacklist a pattern, if it would otherwise be allowed via whitelistedPatterns
-    private static final String[] blacklistedPatterns =
+    // Only need to disallow a pattern, if it would otherwise be allowed via allowedPatterns
+    private static final String[] disallowedPatterns =
     {
     "com/datastax/driver/core/Cluster.class",
     "com/datastax/driver/core/Metrics.class",
@@ -164,13 +163,13 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         while (resource.startsWith("/"))
             resource = resource.substring(1);
 
-        for (String white : whitelistedPatterns)
-            if (resource.startsWith(white))
+        for (String allowed : allowedPatterns)
+            if (resource.startsWith(allowed))
             {
 
-                // resource is in whitelistedPatterns, let's see if it is not explicityl blacklisted
-                for (String black : blacklistedPatterns)
-                    if (resource.startsWith(black))
+                // resource is in allowedPatterns, let's see if it is not explicitly disallowed
+                for (String disallowed : disallowedPatterns)
+                    if (resource.startsWith(disallowed))
                     {
                         logger.trace("access denied: resource {}", resource);
                         return false;
@@ -183,7 +182,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return false;
     }
 
-    // setup the UDF class loader with no parent class loader so that we have full control about what class/resource UDF uses
+    // setup the UDF class loader with a context class loader as a parent so that we have full control about what class/resource UDF uses
     static final ClassLoader udfClassLoader = new UDFClassLoader();
 
     protected UDFunction(FunctionName name,
@@ -301,6 +300,53 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                                                  reason.getMessage()));
             }
         };
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.FUNCTION;
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    {
+        CqlBuilder builder = new CqlBuilder();
+        builder.append("CREATE FUNCTION ");
+
+        if (ifNotExists)
+        {
+            builder.append("IF NOT EXISTS ");
+        }
+
+        builder.append(name()).append("(");
+
+        for (int i = 0, m = argNames().size(); i < m; i++)
+        {
+            if (i > 0)
+                builder.append(", ");
+            builder.append(argNames().get(i))
+                   .append(' ')
+                   .append(toCqlString(argTypes().get(i)));
+        }
+
+        builder.append(')')
+               .newLine()
+               .increaseIndent()
+               .append(isCalledOnNullInput() ? "CALLED" : "RETURNS NULL")
+               .append(" ON NULL INPUT")
+               .newLine()
+               .append("RETURNS ")
+               .append(toCqlString(returnType()))
+               .newLine()
+               .append("LANGUAGE ")
+               .append(language())
+               .newLine()
+               .append("AS $$")
+               .append(body())
+               .append("$$;");
+
+        return builder.toString();
     }
 
     public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
@@ -696,6 +742,11 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         // insecureClassLoader is the C* class loader
         static final ClassLoader insecureClassLoader = Thread.currentThread().getContextClassLoader();
+
+        private UDFClassLoader()
+        {
+            super(insecureClassLoader);
+        }
 
         public URL getResource(String name)
         {

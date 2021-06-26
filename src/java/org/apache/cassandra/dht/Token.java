@@ -159,15 +159,6 @@ public abstract class Token implements RingPosition<Token>, Serializable
         return new KeyBound(this, false);
     }
 
-    @SuppressWarnings("unchecked")
-    public <R extends RingPosition<R>> R upperBound(Class<R> klass)
-    {
-        if (klass.equals(getClass()))
-            return (R)this;
-        else
-            return (R)maxKeyBound();
-    }
-
     public static class KeyBound implements PartitionPosition
     {
         private final Token token;

@@ -20,54 +20,21 @@
  */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-
 /**
  * The threshold between two different ranges, i.e. a shortcut for the combination of two ClusteringBounds -- one
  * specifying the end of one of the ranges, and its (implicit) complement specifying the beginning of the other.
  */
-public class ClusteringBoundary extends ClusteringBoundOrBoundary
+public interface ClusteringBoundary<V> extends ClusteringBoundOrBoundary<V>
 {
-    protected ClusteringBoundary(Kind kind, ByteBuffer[] values)
-    {
-        super(kind, values);
-    }
-
-    public ClusteringPrefix minimize()
-    {
-        if (!ByteBufferUtil.canMinimize(values))
-            return this;
-        return new ClusteringBoundary(kind, ByteBufferUtil.minimizeBuffers(values));
-    }
-
-    public static ClusteringBoundary create(Kind kind, ByteBuffer[] values)
-    {
-        assert kind.isBoundary();
-        return new ClusteringBoundary(kind, values);
-    }
-
     @Override
-    public ClusteringBoundary invert()
-    {
-        return create(kind().invert(), values);
-    }
+    public ClusteringBoundary<V> invert();
 
-    @Override
-    public ClusteringBoundary copy(AbstractAllocator allocator)
-    {
-        return (ClusteringBoundary) super.copy(allocator);
-    }
+    public ClusteringBound<V> openBound(boolean reversed);
 
-    public ClusteringBound openBound(boolean reversed)
-    {
-        return ClusteringBound.create(kind.openBoundOfBoundary(reversed), values);
-    }
+    public ClusteringBound<V> closeBound(boolean reversed);
 
-    public ClusteringBound closeBound(boolean reversed)
+    public static <V> ClusteringBoundary<V> create(ClusteringBound.Kind kind, ClusteringPrefix<V> from)
     {
-        return ClusteringBound.create(kind.closeBoundOfBoundary(reversed), values);
+        return from.accessor().factory().boundary(kind, from.getRawValues());
     }
 }

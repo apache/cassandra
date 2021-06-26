@@ -120,13 +120,13 @@ public class PropertyFileSnitchTest
             if (info.length == 2 && !line.startsWith("#") && !line.startsWith("default="))
             {
                 InetAddressAndPort address = InetAddressAndPort.getByName(info[0].replaceAll(Matcher.quoteReplacement("\\:"), ":"));
-                String replacement = replacements.get(address.toString());
+                String replacement = replacements.get(address.getHostAddressAndPort());
                 if (replacement != null)
                 {
                     if (!replacement.isEmpty()) // empty means remove this line
                         newLines.add(info[0] + '=' + replacement);
 
-                    replaced.add(address.toString());
+                    replaced.add(address.getHostAddressAndPort());
                 }
                 else
                 {
@@ -189,23 +189,23 @@ public class PropertyFileSnitchTest
     {
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.1");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.toString(), "DC1", "RAC1");
+        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
 
         try
         {
             setNodeLive(host);
 
             Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "DC1:RAC2"));
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC1:RAC2"));
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "RAC1");
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
 
             setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "DC1:RAC2"));
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC1:RAC2"));
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "RAC2");
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC2");
         }
         finally
         {
@@ -223,23 +223,23 @@ public class PropertyFileSnitchTest
     {
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.1");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.toString(), "DC1", "RAC1");
+        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
 
         try
         {
             setNodeLive(host);
 
             Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "DC2:RAC1"));
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC1"));
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "RAC1");
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC1");
 
             setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "DC2:RAC1"));
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC1"));
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC2", "RAC1");
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC2", "RAC1");
         }
         finally
         {
@@ -258,23 +258,23 @@ public class PropertyFileSnitchTest
     {
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.9");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.toString(), "DC1", "r1"); // default
+        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // default
 
         try
         {
             setNodeLive(host);
 
             Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "DC2:RAC2")); // add this line if not yet there
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC2")); // add this line if not yet there
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "r1"); // unchanged
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // unchanged
 
             setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "DC2:RAC2")); // add this line if not yet there
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "DC2:RAC2")); // add this line if not yet there
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC2", "RAC2"); // changed
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC2", "RAC2"); // changed
         }
         finally
         {
@@ -293,23 +293,23 @@ public class PropertyFileSnitchTest
     {
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.toString(), "DC1", "RAC2");
+        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC2");
 
         try
         {
             setNodeLive(host);
 
             Files.copy(effectiveFile, backupFile);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "")); // removes line if found
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "")); // removes line if found
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "RAC2"); // unchanged
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "RAC2"); // unchanged
 
             setNodeShutdown(host);
-            replaceConfigFile(Collections.singletonMap(host.toString(), "")); // removes line if found
+            replaceConfigFile(Collections.singletonMap(host.getHostAddressAndPort(), "")); // removes line if found
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "r1"); // default
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // default
         }
         finally
         {
@@ -328,7 +328,7 @@ public class PropertyFileSnitchTest
     {
         final InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.9");
         final PropertyFileSnitch snitch = new PropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        checkEndpoint(snitch, host.toString(), "DC1", "r1"); // default
+        checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // default
 
         try
         {
@@ -338,13 +338,13 @@ public class PropertyFileSnitchTest
             replaceConfigFile(Collections.singletonMap("default", "DC2:r2")); // change default
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC1", "r1"); // unchanged
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC1", "r1"); // unchanged
 
             setNodeShutdown(host);
             replaceConfigFile(Collections.singletonMap("default", "DC2:r2")); // change default again (refresh file update)
 
             Thread.sleep(1500);
-            checkEndpoint(snitch, host.toString(), "DC2", "r2"); // default updated
+            checkEndpoint(snitch, host.getHostAddressAndPort(), "DC2", "r2"); // default updated
         }
         finally
         {

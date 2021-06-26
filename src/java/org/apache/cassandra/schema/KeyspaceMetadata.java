@@ -28,6 +28,8 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.UserType;
@@ -46,7 +48,7 @@ import static com.google.common.collect.Iterables.any;
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
  */
-public final class KeyspaceMetadata
+public final class KeyspaceMetadata implements SchemaElement
 {
     public enum Kind
     {
@@ -228,6 +230,67 @@ public final class KeyspaceMetadata
                           .add("functions", functions)
                           .add("types", types)
                           .toString();
+    }
+
+    @Override
+    public SchemaElementType elementType()
+    {
+        return SchemaElementType.KEYSPACE;
+    }
+
+    @Override
+    public String elementKeyspace()
+    {
+        return name;
+    }
+
+    @Override
+    public String elementName()
+    {
+        return name;
+    }
+
+    @Override
+    public String toCqlString(boolean withInternals, boolean ifNotExists)
+    {
+        CqlBuilder builder = new CqlBuilder();
+        if (isVirtual())
+        {
+            builder.append("/*")
+                   .newLine()
+                   .append("Warning: Keyspace ")
+                   .appendQuotingIfNeeded(name)
+                   .append(" is a virtual keyspace and cannot be recreated with CQL.")
+                   .newLine()
+                   .append("Structure, for reference:")
+                   .newLine()
+                   .append("VIRTUAL KEYSPACE ")
+                   .appendQuotingIfNeeded(name)
+                   .append(';')
+                   .newLine()
+                   .append("*/")
+                   .toString();
+        }
+        else
+        {
+            builder.append("CREATE KEYSPACE ");
+
+            if (ifNotExists)
+            {
+                builder.append("IF NOT EXISTS ");
+            }
+
+            builder.appendQuotingIfNeeded(name)
+                   .append(" WITH replication = ");
+
+            params.replication.appendCqlTo(builder);
+
+            builder.append("  AND durable_writes = ")
+                   .append(params.durableWrites)
+                   .append(';')
+                   .toString();
+        }
+        return builder.toString();
     }
 
     public void validate()

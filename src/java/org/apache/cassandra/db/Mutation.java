@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -64,20 +65,29 @@ public class Mutation implements IMutation
 
     public Mutation(PartitionUpdate update)
     {
-        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now());
+        this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
     }
 
     public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
     {
+        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()));
+    }
+
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled)
+    {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
-
-        boolean cdc = false;
-        for (PartitionUpdate pu : modifications.values())
-            cdc |= pu.metadata().params.cdc;
-        this.cdcEnabled = cdc;
+        this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
+    }
+
+    private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
+    {
+        boolean cdc = false;
+        for (PartitionUpdate pu : modifications)
+            cdc |= pu.metadata().params.cdc;
+        return cdc;
     }
 
     public Mutation without(Set<TableId> tableIds)
@@ -127,6 +137,7 @@ public class Mutation implements IMutation
         long totalSize = serializedSize(version) + overhead;
         if(totalSize > MAX_MUTATION_SIZE)
         {
+            CommitLog.instance.metrics.oversizedMutations.mark();
             throw new MutationExceededMaxSizeException(this, version, totalSize);
         }
     }

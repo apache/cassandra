@@ -25,13 +25,19 @@ import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledUnsafeDirectByteBuf;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
+import org.assertj.core.util.VisibleForTesting;
+
+import static java.lang.Integer.max;
 
 /**
  * A trivial wrapper around BufferPool for integrating with Netty, but retaining ownership of pooling behaviour
  * that is integrated into Cassandra's other pooling.
  */
-abstract class BufferPoolAllocator extends AbstractByteBufAllocator
+public abstract class BufferPoolAllocator extends AbstractByteBufAllocator
 {
+    private static final BufferPool bufferPool = BufferPools.forNetworking();
+
     BufferPoolAllocator()
     {
         super(true);
@@ -53,29 +59,35 @@ abstract class BufferPoolAllocator extends AbstractByteBufAllocator
     @Override
     protected ByteBuf newDirectBuffer(int minCapacity, int maxCapacity)
     {
-        ByteBuf result = new Wrapped(this, getAtLeast(minCapacity));
+        ByteBuf result = new Wrapped(this, getAtLeast(minCapacity), maxCapacity);
         result.clear();
         return result;
     }
 
     ByteBuffer get(int size)
     {
-        return BufferPool.get(size, BufferType.OFF_HEAP);
+        return bufferPool.get(size, BufferType.OFF_HEAP);
     }
 
     ByteBuffer getAtLeast(int size)
     {
-        return BufferPool.getAtLeast(size, BufferType.OFF_HEAP);
+        return bufferPool.getAtLeast(size, BufferType.OFF_HEAP);
     }
 
     void put(ByteBuffer buffer)
     {
-        BufferPool.put(buffer);
+        bufferPool.put(buffer);
     }
 
     void putUnusedPortion(ByteBuffer buffer)
     {
-        BufferPool.putUnusedPortion(buffer);
+        bufferPool.putUnusedPortion(buffer);
+    }
+
+    @VisibleForTesting
+    public long usedSizeInBytes()
+    {
+        return bufferPool.usedSizeInBytes();
     }
 
     void release()
@@ -90,17 +102,45 @@ abstract class BufferPoolAllocator extends AbstractByteBufAllocator
     {
         private ByteBuffer wrapped;
 
-        Wrapped(BufferPoolAllocator allocator, ByteBuffer wrap)
+        Wrapped(BufferPoolAllocator allocator, ByteBuffer wrap, int maxCapacity)
         {
-            super(allocator, wrap, wrap.capacity());
+            super(allocator, wrap, max(wrap.capacity(), maxCapacity));
             wrapped = wrap;
+        }
+
+        @Override
+        public ByteBuf capacity(int newCapacity)
+        {
+            if (newCapacity == capacity())
+                return this;
+
+            ByteBuf newBuffer = super.capacity(newCapacity);
+            ByteBuffer nioBuffer = newBuffer.nioBuffer(0, newBuffer.capacity());
+
+            bufferPool.put(wrapped);
+            wrapped = nioBuffer;
+            return newBuffer;
+        }
+
+        @Override
+        protected ByteBuffer allocateDirect(int initialCapacity)
+        {
+            return bufferPool.getAtLeast(initialCapacity, BufferType.OFF_HEAP);
+        }
+
+        @Override
+        protected void freeDirect(ByteBuffer buffer)
+        {
+            // noop
+            // buffer is put back into the pool by deallocate()
         }
 
         @Override
         public void deallocate()
         {
+            super.deallocate();
             if (wrapped != null)
-                BufferPool.put(wrapped);
+                bufferPool.put(wrapped);
         }
 
         public ByteBuffer adopt()

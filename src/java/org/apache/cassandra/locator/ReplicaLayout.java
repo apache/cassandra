@@ -39,9 +39,12 @@ import java.util.function.Predicate;
 public abstract class ReplicaLayout<E extends Endpoints<E>>
 {
     private final E natural;
+    // the snapshot of the replication strategy that corresponds to the replica layout
+    private final AbstractReplicationStrategy replicationStrategy;
 
-    ReplicaLayout(E natural)
+    ReplicaLayout(AbstractReplicationStrategy replicationStrategy, E natural)
     {
+        this.replicationStrategy = replicationStrategy;
         this.natural = natural;
     }
 
@@ -53,6 +56,11 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     public final E natural()
     {
         return natural;
+    }
+
+    public final AbstractReplicationStrategy replicationStrategy()
+    {
+        return replicationStrategy;
     }
 
     /**
@@ -71,9 +79,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     public static class ForTokenRead extends ReplicaLayout<EndpointsForToken> implements ForToken
     {
-        public ForTokenRead(EndpointsForToken natural)
+        public ForTokenRead(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural)
         {
-            super(natural);
+            super(replicationStrategy, natural);
         }
 
         @Override
@@ -87,7 +95,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
             EndpointsForToken filtered = natural().filter(filter);
             // AbstractReplicaCollection.filter returns itself if all elements match the filter
             if (filtered == natural()) return this;
-            return new ReplicaLayout.ForTokenRead(filtered);
+            return new ReplicaLayout.ForTokenRead(replicationStrategy(), filtered);
         }
     }
 
@@ -95,9 +103,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     {
         final AbstractBounds<PartitionPosition> range;
 
-        public ForRangeRead(AbstractBounds<PartitionPosition> range, EndpointsForRange natural)
+        public ForRangeRead(AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range, EndpointsForRange natural)
         {
-            super(natural);
+            super(replicationStrategy, natural);
             this.range = range;
         }
 
@@ -112,7 +120,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
             EndpointsForRange filtered = natural().filter(filter);
             // AbstractReplicaCollection.filter returns itself if all elements match the filter
             if (filtered == natural()) return this;
-            return new ReplicaLayout.ForRangeRead(range(), filtered);
+            return new ReplicaLayout.ForRangeRead(replicationStrategy(), range(), filtered);
         }
     }
 
@@ -121,9 +129,9 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         final E all;
         final E pending;
 
-        ForWrite(E natural, E pending, E all)
+        ForWrite(AbstractReplicationStrategy replicationStrategy, E natural, E pending, E all)
         {
-            super(natural);
+            super(replicationStrategy, natural);
             assert pending != null && !haveWriteConflicts(natural, pending);
             if (all == null)
                 all = Endpoints.concat(natural, pending);
@@ -149,13 +157,13 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     public static class ForTokenWrite extends ForWrite<EndpointsForToken> implements ForToken
     {
-        public ForTokenWrite(EndpointsForToken natural, EndpointsForToken pending)
+        public ForTokenWrite(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural, EndpointsForToken pending)
         {
-            this(natural, pending, null);
+            this(replicationStrategy, natural, pending, null);
         }
-        public ForTokenWrite(EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken all)
+        public ForTokenWrite(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken all)
         {
-            super(natural, pending, all);
+            super(replicationStrategy, natural, pending, all);
         }
 
         @Override
@@ -168,6 +176,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
             if (filtered == all()) return this;
             // unique by endpoint, so can for efficiency filter only on endpoint
             return new ReplicaLayout.ForTokenWrite(
+                    replicationStrategy(),
                     natural().keep(filtered.endpoints()),
                     pending().keep(filtered.endpoints()),
                     filtered
@@ -196,19 +205,20 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     {
         // TODO: these should be cached, not the natural replicas
         // TODO: race condition to fetch these. implications??
-        EndpointsForToken natural = keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
+        EndpointsForToken natural = replicationStrategy.getNaturalReplicasForToken(token);
         EndpointsForToken pending = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspace.getName());
-        return forTokenWrite(natural, pending);
+        return forTokenWrite(replicationStrategy, natural, pending);
     }
 
-    public static ReplicaLayout.ForTokenWrite forTokenWrite(EndpointsForToken natural, EndpointsForToken pending)
+    public static ReplicaLayout.ForTokenWrite forTokenWrite(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural, EndpointsForToken pending)
     {
         if (haveWriteConflicts(natural, pending))
         {
             natural = resolveWriteConflictsInNatural(natural, pending);
             pending = resolveWriteConflictsInPending(natural, pending);
         }
-        return new ReplicaLayout.ForTokenWrite(natural, pending);
+        return new ReplicaLayout.ForTokenWrite(replicationStrategy, natural, pending);
     }
 
     /**
@@ -315,12 +325,12 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a token - this includes only live natural replicas, i.e. those that are not pending
      * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
      */
-    static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(Keyspace keyspace, Token token)
+    static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(AbstractReplicationStrategy replicationStrategy, Token token)
     {
-        EndpointsForToken replicas = keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
+        EndpointsForToken replicas = replicationStrategy.getNaturalReplicasForToken(token);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         replicas = replicas.filter(FailureDetector.isReplicaAlive);
-        return new ReplicaLayout.ForTokenRead(replicas);
+        return new ReplicaLayout.ForTokenRead(replicationStrategy, replicas);
     }
 
     /**
@@ -328,12 +338,12 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a range - this includes only live natural replicas, i.e. those that are not pending
      * and not marked down by the failure detector. these are reverse sorted by the badness score of the configured snitch
      */
-    static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(Keyspace keyspace, AbstractBounds<PartitionPosition> range)
+    static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
     {
-        EndpointsForRange replicas = keyspace.getReplicationStrategy().getNaturalReplicas(range.right);
+        EndpointsForRange replicas = replicationStrategy.getNaturalReplicas(range.right);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         replicas = replicas.filter(FailureDetector.isReplicaAlive);
-        return new ReplicaLayout.ForRangeRead(range, replicas);
+        return new ReplicaLayout.ForRangeRead(replicationStrategy, range, replicas);
     }
 
 }

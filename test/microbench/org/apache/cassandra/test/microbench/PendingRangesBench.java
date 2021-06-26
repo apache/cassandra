@@ -46,7 +46,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 50, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 3,jvmArgsAppend = "-Xmx512M")
+@Fork(value = 3, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
 public class PendingRangesBench

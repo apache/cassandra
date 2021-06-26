@@ -29,6 +29,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -45,17 +48,18 @@ import com.google.common.collect.Multimap;
  * <p>
  * So for example, if the keyspace replication factor is 6, the
  * datacenter replication factors could be 3, 2, and 1 - so 3 replicas in
- * one datacenter, 2 in another, and 1 in another - totalling 6.
+ * one datacenter, 2 in another, and 1 in another - totaling 6.
  * </p>
  * This class also caches the Endpoints and invalidates the cache if there is a
  * change in the number of tokens.
  */
 public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 {
+    public static final String REPLICATION_FACTOR = "replication_factor";
+    
     private final Map<String, ReplicationFactor> datacenters;
     private final ReplicationFactor aggregateRf;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
-    private static final String REPLICATION_FACTOR = "replication_factor";
 
     public NetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
@@ -104,7 +108,11 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         int acceptableRackRepeats;
         int transients;
 
-        DatacenterEndpoints(ReplicationFactor rf, int rackCount, int nodeCount, EndpointsForRange.Builder replicas, Set<Pair<String, String>> racks)
+        DatacenterEndpoints(ReplicationFactor rf,
+                            int rackCount,
+                            int nodeCount,
+                            EndpointsForRange.Builder replicas,
+                            Set<Pair<String, String>> racks)
         {
             this.replicas = replicas;
             this.racks = racks;
@@ -163,6 +171,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     /**
      * calculate endpoints in one pass through the tokens by tracking our progress in each DC.
      */
+    @Override
     public EndpointsForRange calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
@@ -222,6 +231,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         return collection != null ? collection.size() : 0;
     }
 
+    @Override
     public ReplicationFactor getReplicationFactor()
     {
         return aggregateRf;
@@ -238,6 +248,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         return datacenters.keySet();
     }
 
+    @Override
     public Collection<String> recognizedOptions()
     {
         // only valid options are valid DC names.
@@ -279,6 +290,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         options.values().removeAll(Collections.singleton("0"));
     }
 
+    @Override
     protected void validateExpectedOptions() throws ConfigurationException
     {
         // Do not accept query with no data centers specified.
@@ -291,6 +303,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         super.validateExpectedOptions();
     }
 
+    @Override
     public void validateOptions() throws ConfigurationException
     {
         for (Entry<String, String> e : this.configOptions.entrySet())
@@ -299,6 +312,36 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             if (e.getKey().equalsIgnoreCase(REPLICATION_FACTOR))
                 throw new ConfigurationException(REPLICATION_FACTOR + " should not appear as an option to NetworkTopologyStrategy");
             validateReplicationFactor(e.getValue());
+        }
+    }
+
+    @Override
+    public void maybeWarnOnOptions()
+    {
+        if (!SchemaConstants.isSystemKeyspace(keyspaceName))
+        {
+            ImmutableMultimap<String, InetAddressAndPort> dcsNodes = StorageService.instance.getTokenMetadata()
+                                                                                            .getDC2AllEndpoints(snitch);
+            for (Entry<String, String> e : this.configOptions.entrySet())
+            {
+
+                String dc = e.getKey();
+                ReplicationFactor rf = getReplicationFactor(dc);
+                int nodeCount = dcsNodes.get(dc).size();
+                // nodeCount==0 on many tests
+                if (rf.fullReplicas > nodeCount && nodeCount != 0)
+                {
+                    String msg = "Your replication factor " + rf.fullReplicas
+                                 + " for keyspace "
+                                 + keyspaceName
+                                 + " is higher than the number of nodes "
+                                 + nodeCount
+                                 + " for datacenter "
+                                 + dc;
+                    ClientWarn.instance.warn(msg);
+                    logger.warn(msg);
+                }
+            }
         }
     }
 

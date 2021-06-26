@@ -17,38 +17,52 @@
  */
 package org.apache.cassandra.db;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.AbstractBTreePartition;
+import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.AtomicBTreePartition;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IncludingExcludingBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -56,6 +70,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapPool;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import org.apache.cassandra.utils.memory.MemtableCleaner;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
@@ -70,16 +85,18 @@ public class Memtable implements Comparable<Memtable>
     {
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMb() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMb() << 20;
+        final float cleaningThreshold = DatabaseDescriptor.getMemtableCleanupThreshold();
+        final MemtableCleaner cleaner = ColumnFamilyStore::flushLargestMemtable;
         switch (DatabaseDescriptor.getMemtableAllocationType())
         {
             case unslabbed_heap_buffers:
-                return new HeapPool(heapLimit, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
+                return new HeapPool(heapLimit, cleaningThreshold, cleaner);
             case heap_buffers:
-                return new SlabPool(heapLimit, 0, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
+                return new SlabPool(heapLimit, 0, cleaningThreshold, cleaner);
             case offheap_buffers:
-                return new SlabPool(heapLimit, offHeapLimit, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
+                return new SlabPool(heapLimit, offHeapLimit, cleaningThreshold, cleaner);
             case offheap_objects:
-                return new NativePool(heapLimit, offHeapLimit, DatabaseDescriptor.getMemtableCleanupThreshold(), new ColumnFamilyStore.FlushLargestColumnFamily());
+                return new NativePool(heapLimit, offHeapLimit, cleaningThreshold, cleaner);
             default:
                 throw new AssertionError();
         }
@@ -391,7 +408,7 @@ public class Memtable implements Comparable<Memtable>
     @VisibleForTesting
     public void makeUnflushable()
     {
-        liveDataSize.addAndGet(1L * 1024 * 1024 * 1024 * 1024 * 1024);
+        liveDataSize.addAndGet((long) 1024 * 1024 * 1024 * 1024 * 1024);
     }
 
     class FlushRunnable implements Callable<SSTableMultiWriter>
@@ -529,6 +546,7 @@ public class Memtable implements Comparable<Memtable>
             rowOverhead = (int) ((avgSize - Math.floor(avgSize)) < 0.05 ? Math.floor(avgSize) : Math.ceil(avgSize));
             rowOverhead -= ObjectSizes.measureDeep(new LongToken(0));
             rowOverhead += AtomicBTreePartition.EMPTY_SIZE;
+            rowOverhead += AbstractBTreePartition.HOLDER_UNSHARED_HEAP_SIZE;
             allocator.setDiscarding();
             allocator.setDiscarded();
             return rowOverhead;

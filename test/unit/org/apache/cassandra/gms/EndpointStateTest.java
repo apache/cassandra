@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.gms;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -31,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -105,7 +108,7 @@ public class EndpointStateTest
     }
 
     @Test
-    public void testMultiThreadWriteConsistency() throws InterruptedException
+    public void testMultiThreadWriteConsistency() throws InterruptedException, UnknownHostException
     {
         for (int i = 0; i < 500; i++)
             innerTestMultiThreadWriteConsistency();
@@ -114,11 +117,11 @@ public class EndpointStateTest
     /**
      * Test that two threads can update the state map concurrently.
      */
-    private void innerTestMultiThreadWriteConsistency() throws InterruptedException
+    private void innerTestMultiThreadWriteConsistency() throws InterruptedException, UnknownHostException
     {
         final Token token = DatabaseDescriptor.getPartitioner().getRandomToken();
         final List<Token> tokens = Collections.singletonList(token);
-        final String ip = "127.0.0.1";
+        final InetAddress ip = InetAddress.getByAddress(null, new byte[] { 127, 0, 0, 1});
         final UUID hostId = UUID.randomUUID();
         final HeartBeatState hb = new HeartBeatState(0);
         final EndpointState state = new EndpointState(hb);

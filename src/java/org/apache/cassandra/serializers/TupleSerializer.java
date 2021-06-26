@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.serializers;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public class TupleSerializer extends BytesSerializer
 {
@@ -31,34 +31,35 @@ public class TupleSerializer extends BytesSerializer
         this.fields = fields;
     }
 
-    @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
     {
-        ByteBuffer input = bytes.duplicate();
+        int offset = 0;
         for (int i = 0; i < fields.size(); i++)
         {
             // we allow the input to have less fields than declared so as to support field addition.
-            if (!input.hasRemaining())
+            if (accessor.isEmptyFromOffset(input, offset))
                 return;
 
-            if (input.remaining() < Integer.BYTES)
+            if (accessor.sizeFromOffset(input, offset) < Integer.BYTES)
                 throw new MarshalException(String.format("Not enough bytes to read size of %dth component", i));
 
-            int size = input.getInt();
+            int size = accessor.getInt(input, offset);
+            offset += TypeSizes.INT_SIZE;
 
             // size < 0 means null value
             if (size < 0)
                 continue;
 
-            if (input.remaining() < size)
+            if (accessor.sizeFromOffset(input, offset) < size)
                 throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
 
-            ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            fields.get(i).validate(field);
+            V field = accessor.slice(input, offset, size);
+            offset += size;
+            fields.get(i).validate(field, accessor);
         }
 
         // We're allowed to get less fields than declared, but not more
-        if (input.hasRemaining())
+        if (!accessor.isEmptyFromOffset(input, offset))
             throw new MarshalException("Invalid remaining data after end of tuple value");
     }
 }

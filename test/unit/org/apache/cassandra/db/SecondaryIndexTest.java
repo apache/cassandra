@@ -136,7 +136,7 @@ public class SecondaryIndexTest
             for (Row row : partition)
             {
                 ++rowCount;
-                assert ByteBufferUtil.toLong(Util.cell(cfs, row, "birthdate").value()) > 1L;
+                assert ByteBufferUtil.toLong(Util.cell(cfs, row, "birthdate").buffer()) > 1L;
             }
         }
         assertEquals(2, rowCount);

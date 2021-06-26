@@ -32,9 +32,11 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.Version;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
-import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
 
@@ -79,27 +81,40 @@ public class NativeTransportService
                                                                 .withEventLoopGroup(workerGroup)
                                                                 .withHost(nativeAddr);
 
-        if (!DatabaseDescriptor.getNativeProtocolEncryptionOptions().enabled)
+        EncryptionOptions.TlsEncryptionPolicy encryptionPolicy = DatabaseDescriptor.getNativeProtocolEncryptionOptions().tlsEncryptionPolicy();
+        Server regularPortServer;
+        Server tlsPortServer = null;
+
+        // If an SSL port is separately supplied for the native transport, listen for unencrypted connections on the
+        // regular port, and encryption / optionally encrypted connections on the ssl port.
+        if (nativePort != nativePortSSL)
         {
-            servers = Collections.singleton(builder.withSSL(false).withPort(nativePort).build());
+            regularPortServer = builder.withTlsEncryptionPolicy(EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED).withPort(nativePort).build();
+            switch(encryptionPolicy)
+            {
+                case OPTIONAL: // FALLTHRU - encryption is optional on the regular port, but encrypted on the tls port.
+                case ENCRYPTED:
+                    tlsPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePortSSL).build();
+                    break;
+                case UNENCRYPTED: // Should have been caught by DatabaseDescriptor.applySimpleConfig
+                    throw new IllegalStateException("Encryption must be enabled in client_encryption_options for native_transport_port_ssl");
+                default:
+                    throw new IllegalStateException("Unrecognized TLS encryption policy: " + encryptionPolicy);
+            }
+        }
+        // Otherwise, if only the regular port is supplied, listen as the encryption policy specifies
+        else
+        {
+            regularPortServer = builder.withTlsEncryptionPolicy(encryptionPolicy).withPort(nativePort).build();
+        }
+
+        if (tlsPortServer == null)
+        {
+            servers = Collections.singleton(regularPortServer);
         }
         else
         {
-            if (nativePort != nativePortSSL)
-            {
-                // user asked for dedicated ssl port for supporting both non-ssl and ssl connections
-                servers = Collections.unmodifiableList(
-                                                      Arrays.asList(
-                                                                   builder.withSSL(false).withPort(nativePort).build(),
-                                                                   builder.withSSL(true).withPort(nativePortSSL).build()
-                                                      )
-                );
-            }
-            else
-            {
-                // ssl only mode using configured native port
-                servers = Collections.singleton(builder.withSSL(true).withPort(nativePort).build());
-            }
+            servers = Collections.unmodifiableList(Arrays.asList(regularPortServer, tlsPortServer));
         }
 
         ClientMetrics.instance.init(servers);
@@ -112,6 +127,7 @@ public class NativeTransportService
      */
     public void start()
     {
+        logger.info("Using Netty Version: {}", Version.identify().entrySet());
         initialize();
         servers.forEach(Server::start);
     }
@@ -135,7 +151,7 @@ public class NativeTransportService
         // shutdown executors used by netty for native transport server
         workerGroup.shutdownGracefully(3, 5, TimeUnit.SECONDS).awaitUninterruptibly();
 
-        Message.Dispatcher.shutdown();
+        Dispatcher.shutdown();
     }
 
     /**

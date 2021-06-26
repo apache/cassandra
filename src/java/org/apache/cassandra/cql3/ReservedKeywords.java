@@ -18,83 +18,46 @@
 
 package org.apache.cassandra.cql3;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
-class ReservedKeywords
+import org.apache.cassandra.exceptions.ConfigurationException;
+
+public final class ReservedKeywords
 {
+    private static final String FILE_NAME = "reserved_keywords.txt";
+
     @VisibleForTesting
-    static final String[] reservedKeywords = new String[]
-                                                     {
-                                                     "SELECT",
-                                                     "FROM",
-                                                     "WHERE",
-                                                     "AND",
-                                                     "ENTRIES",
-                                                     "FULL",
-                                                     "INSERT",
-                                                     "UPDATE",
-                                                     "WITH",
-                                                     "LIMIT",
-                                                     "USING",
-                                                     "USE",
-                                                     "SET",
-                                                     "BEGIN",
-                                                     "UNLOGGED",
-                                                     "BATCH",
-                                                     "APPLY",
-                                                     "TRUNCATE",
-                                                     "DELETE",
-                                                     "IN",
-                                                     "CREATE",
-                                                     "KEYSPACE",
-                                                     "SCHEMA",
-                                                     "COLUMNFAMILY",
-                                                     "TABLE",
-                                                     "MATERIALIZED",
-                                                     "VIEW",
-                                                     "INDEX",
-                                                     "ON",
-                                                     "TO",
-                                                     "DROP",
-                                                     "PRIMARY",
-                                                     "INTO",
-                                                     "ALTER",
-                                                     "RENAME",
-                                                     "ADD",
-                                                     "ORDER",
-                                                     "BY",
-                                                     "ASC",
-                                                     "DESC",
-                                                     "ALLOW",
-                                                     "IF",
-                                                     "IS",
-                                                     "GRANT",
-                                                     "OF",
-                                                     "REVOKE",
-                                                     "MODIFY",
-                                                     "AUTHORIZE",
-                                                     "DESCRIBE",
-                                                     "EXECUTE",
-                                                     "NORECURSIVE",
-                                                     "TOKEN",
-                                                     "NULL",
-                                                     "NOT",
-                                                     "NAN",
-                                                     "INFINITY",
-                                                     "OR",
-                                                     "REPLACE",
-                                                     "DEFAULT",
-                                                     "UNSET",
-                                                     "MBEAN",
-                                                     "MBEANS"};
+    static final Set<String> reservedKeywords = getFromResource();
 
-    private static final Set<String> reservedSet = ImmutableSet.copyOf(reservedKeywords);
-
-    static boolean isReserved(String text)
+    private static Set<String> getFromResource()
     {
-        return reservedSet.contains(text.toUpperCase());
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        try (InputStream is = ReservedKeywords.class.getResource(FILE_NAME).openConnection().getInputStream();
+             BufferedReader r = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8)))
+        {
+            String line;
+            while ((line = r.readLine()) != null)
+            {
+                builder.add(line.trim());
+            }
+        }
+        catch (IOException e)
+        {
+            throw new ConfigurationException(String.format("Unable to read reserved keywords file '%s'", FILE_NAME), e);
+        }
+        return builder.build();
+    }
+
+    public static boolean isReserved(String text)
+    {
+        return reservedKeywords.contains(text.toUpperCase());
     }
 }

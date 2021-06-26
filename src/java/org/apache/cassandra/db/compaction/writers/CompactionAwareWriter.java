@@ -66,17 +66,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
 
-    @Deprecated
-    public CompactionAwareWriter(ColumnFamilyStore cfs,
-                                 Directories directories,
-                                 LifecycleTransaction txn,
-                                 Set<SSTableReader> nonExpiredSSTables,
-                                 boolean offline,
-                                 boolean keepOriginals)
-    {
-        this(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
-    }
-
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
                                  LifecycleTransaction txn,

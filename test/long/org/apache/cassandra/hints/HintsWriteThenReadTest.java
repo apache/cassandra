@@ -28,25 +28,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.CRC32;
 
 import com.google.common.collect.Iterables;
+
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertTrue;
 
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class HintsWriteThenReadTest
 {
@@ -129,10 +129,10 @@ public class HintsWriteThenReadTest
 
                     Row row = mutation.getPartitionUpdates().iterator().next().iterator().next();
                     assertEquals(1, Iterables.size(row.cells()));
-                    assertEquals(bytes(index), row.clustering().get(0));
-                    Cell cell = row.cells().iterator().next();
+                    assertEquals(bytes(index), toByteBuffer(row.clustering().get(0)));
+                    Cell<?> cell = row.cells().iterator().next();
                     assertNotNull(cell);
-                    assertEquals(bytes(index), cell.value());
+                    assertEquals(bytes(index), toByteBuffer(cell.value()));
                     assertEquals(timestamp * 1000, cell.timestamp());
 
                     index++;
@@ -187,5 +187,13 @@ public class HintsWriteThenReadTest
         }
 
         return (int) crc.getValue();
+    }
+
+    private ByteBuffer toByteBuffer(Object obj)
+    {
+        if (obj instanceof ByteBuffer)
+           return (ByteBuffer) obj;
+
+        return ByteBuffer.wrap((byte[]) obj);
     }
 }

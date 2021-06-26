@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.serializers;
 
-import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public class UserTypeSerializer extends BytesSerializer
 {
@@ -33,35 +33,44 @@ public class UserTypeSerializer extends BytesSerializer
     }
 
     @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
     {
-        ByteBuffer input = bytes.duplicate();
-        int i = 0;
+        int i = -1;
+        int offset = 0;
         for (Entry<String, TypeSerializer<?>> entry : fields.entrySet())
         {
+            i++;
             // we allow the input to have less fields than declared so as to support field addition.
-            if (!input.hasRemaining())
+            if (accessor.isEmptyFromOffset(input, offset))
                 return;
 
-            if (input.remaining() < 4)
+            if (accessor.sizeFromOffset(input, offset) < 4)
                 throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, entry.getKey()));
 
-            int size = input.getInt();
+            int size = accessor.getInt(input, offset);
+            offset += TypeSizes.INT_SIZE;
 
             // size < 0 means null value
             if (size < 0)
                 continue;
 
-            if (input.remaining() < size)
+            if (accessor.sizeFromOffset(input, offset) < size)
                 throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, entry.getKey()));
 
-            ByteBuffer field = ByteBufferUtil.readBytes(input, size);
-            entry.getValue().validate(field);
-            i++;
+            V field = accessor.slice(input, offset, size);
+            try
+            {
+                offset += size;
+                entry.getValue().validate(field, accessor);
+            }
+            catch (MarshalException e)
+            {
+                throw new MarshalException(String.format("Failure validating the %dth field %s; %s", i, entry.getKey(), e.getMessage()), e);
+            }
         }
 
         // We're allowed to get less fields than declared, but not more
-        if (input.hasRemaining())
+        if (!accessor.isEmptyFromOffset(input, offset))
             throw new MarshalException("Invalid remaining data after end of UDT value");
     }
 }

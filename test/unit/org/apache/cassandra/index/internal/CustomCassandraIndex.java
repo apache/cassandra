@@ -253,7 +253,7 @@ public class CustomCassandraIndex implements Index
     }
 
     protected CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
+                                               ClusteringPrefix<?> prefix,
                                                CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
@@ -262,7 +262,7 @@ public class CustomCassandraIndex implements Index
     }
 
     protected ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path, ByteBuffer cellValue)
     {
         return cellValue;
@@ -278,11 +278,11 @@ public class CustomCassandraIndex implements Index
         if (row == null)
             return true;
 
-        Cell cell = row.getCell(indexedColumn);
+        Cell<?> cell = row.getCell(indexedColumn);
 
         return (cell == null
              || !cell.isLive(nowInSec)
-             || indexedColumn.type.compare(indexValue, cell.value()) != 0);
+             || indexedColumn.type.compare(indexValue, cell.buffer()) != 0);
     }
 
     public Indexer indexerFor(final DecoratedKey key,
@@ -360,16 +360,16 @@ public class CustomCassandraIndex implements Index
             {
             }
 
-            private void indexCells(Clustering clustering, Iterable<Cell> cells)
+            private void indexCells(Clustering<?> clustering, Iterable<Cell<?>> cells)
             {
                 if (cells == null)
                     return;
 
-                for (Cell cell : cells)
+                for (Cell<?> cell : cells)
                     indexCell(clustering, cell);
             }
 
-            private void indexCell(Clustering clustering, Cell cell)
+            private void indexCell(Clustering<?> clustering, Cell<?> cell)
             {
                 if (cell == null || !cell.isLive(nowInSec))
                     return;
@@ -381,16 +381,16 @@ public class CustomCassandraIndex implements Index
                        ctx);
             }
 
-            private void removeCells(Clustering clustering, Iterable<Cell> cells)
+            private void removeCells(Clustering<?> clustering, Iterable<Cell<?>> cells)
             {
                 if (cells == null)
                     return;
 
-                for (Cell cell : cells)
+                for (Cell<?> cell : cells)
                     removeCell(clustering, cell);
             }
 
-            private void removeCell(Clustering clustering, Cell cell)
+            private void removeCell(Clustering<?> clustering, Cell<?> cell)
             {
                 if (cell == null || !cell.isLive(nowInSec))
                     return;
@@ -398,7 +398,7 @@ public class CustomCassandraIndex implements Index
                 delete(key.getKey(), clustering, cell, ctx, nowInSec);
             }
 
-            private void indexPrimaryKey(final Clustering clustering,
+            private void indexPrimaryKey(final Clustering<?> clustering,
                                          final LivenessInfo liveness,
                                          final Row.Deletion deletion)
             {
@@ -413,7 +413,7 @@ public class CustomCassandraIndex implements Index
             {
                 long timestamp = row.primaryKeyLivenessInfo().timestamp();
                 int ttl = row.primaryKeyLivenessInfo().ttl();
-                for (Cell cell : row.cells())
+                for (Cell<?> cell : row.cells())
                 {
                     long cellTimestamp = cell.timestamp();
                     if (cell.isLive(nowInSec))
@@ -439,7 +439,7 @@ public class CustomCassandraIndex implements Index
      * @param ctx the context under which to perform the deletion
      */
     public void deleteStaleEntry(DecoratedKey indexKey,
-                                 Clustering indexClustering,
+                                 Clustering<?> indexClustering,
                                  DeletionTime deletion,
                                  WriteContext ctx)
     {
@@ -451,8 +451,8 @@ public class CustomCassandraIndex implements Index
      * Called when adding a new entry to the index
      */
     private void insert(ByteBuffer rowKey,
-                        Clustering clustering,
-                        Cell cell,
+                        Clustering<?> clustering,
+                        Cell<?> cell,
                         LivenessInfo info,
                         WriteContext ctx)
     {
@@ -469,8 +469,8 @@ public class CustomCassandraIndex implements Index
      * Called when deleting entries on non-primary key columns
      */
     private void delete(ByteBuffer rowKey,
-                        Clustering clustering,
-                        Cell cell,
+                        Clustering<?> clustering,
+                        Cell<?> cell,
                         WriteContext ctx,
                         int nowInSec)
     {
@@ -487,7 +487,7 @@ public class CustomCassandraIndex implements Index
      * Called when deleting entries from indexes on primary key columns
      */
     private void delete(ByteBuffer rowKey,
-                        Clustering clustering,
+                        Clustering<?> clustering,
                         DeletionTime deletion,
                         WriteContext ctx)
     {
@@ -501,7 +501,7 @@ public class CustomCassandraIndex implements Index
     }
 
     private void doDelete(DecoratedKey indexKey,
-                          Clustering indexClustering,
+                          Clustering<?> indexClustering,
                           DeletionTime deletion,
                           WriteContext ctx)
     {
@@ -534,9 +534,9 @@ public class CustomCassandraIndex implements Index
                 ComplexColumnData data = row.getComplexColumnData(indexedColumn);
                 if (data != null)
                 {
-                    for (Cell cell : data)
+                    for (Cell<?> cell : data)
                     {
-                        validateIndexedValue(getIndexedValue(null, null, cell.path(), cell.value()));
+                        validateIndexedValue(getIndexedValue(null, null, cell.path(), cell.buffer()));
                     }
                 }
             }
@@ -561,19 +561,19 @@ public class CustomCassandraIndex implements Index
     }
 
     private ByteBuffer getIndexedValue(ByteBuffer rowKey,
-                                       Clustering clustering,
-                                       Cell cell)
+                                       Clustering<?> clustering,
+                                       Cell<?> cell)
     {
         return getIndexedValue(rowKey,
                                clustering,
                                cell == null ? null : cell.path(),
-                               cell == null ? null : cell.value()
+                               cell == null ? null : cell.buffer()
         );
     }
 
-    private Clustering buildIndexClustering(ByteBuffer rowKey,
-                                            Clustering clustering,
-                                            Cell cell)
+    private Clustering<?> buildIndexClustering(ByteBuffer rowKey,
+                                            Clustering<?> clustering,
+                                            Cell<?> cell)
     {
         return buildIndexClusteringPrefix(rowKey,
                                           clustering,

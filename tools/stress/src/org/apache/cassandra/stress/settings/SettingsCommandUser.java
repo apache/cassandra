@@ -22,6 +22,7 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
@@ -73,7 +74,17 @@ public class SettingsCommandUser extends SettingsCommand
         for (String curYamlPath : yamlPaths)
         {
             File yamlFile = new File(curYamlPath);
-            StressProfile profile = StressProfile.load(yamlFile.exists() ? yamlFile.toURI() : URI.create(curYamlPath));
+            URI yamlURI;
+            if (yamlFile.exists()) {
+            	yamlURI = yamlFile.toURI();
+            } else {
+            	yamlURI = URI.create(curYamlPath);
+            	String uriScheme = yamlURI.getScheme();
+            	if (uriScheme == null || "file".equals(uriScheme)) {
+                    throw new IllegalArgumentException("File '" + yamlURI.getPath() + "' doesn't exist!");
+            	}
+            }
+            StressProfile profile = StressProfile.load(yamlURI);
             String specName = profile.specName;
             if (default_profile_name == null) {default_profile_name=specName;} //first file is default
             if (profiles.containsKey(specName))

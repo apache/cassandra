@@ -68,7 +68,7 @@ import static org.junit.Assert.fail;
 
 public class SecondaryIndexTest extends CQLTester
 {
-    private static final int TOO_BIG = 1024 * 65;
+    public static final int TOO_BIG = 1024 * 65;
 
     @Test
     public void testCreateAndDropIndex() throws Throwable
@@ -1012,7 +1012,7 @@ public class SecondaryIndexTest extends CQLTester
         validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
         newRow = index.rowsUpdated.get(0).right;
         assertEquals(1, newRow.columnCount());
-        Cell newCell = newRow.getCell(v1);
+        Cell<?> newCell = newRow.getCell(v1);
         assertTrue(newCell.isTombstone());
         assertEquals(3, newCell.timestamp());
         index.reset();
@@ -1483,8 +1483,8 @@ public class SecondaryIndexTest extends CQLTester
         Object udt2 = userType("a", 2);
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 1, set(udt1, udt2));
-        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (keys(v))");
-        assertInvalidMessage("Frozen collections only support full()", "CREATE INDEX idx ON %s (values(v))");
+        assertInvalidMessage("Frozen collections are immutable and must be fully indexed", "CREATE INDEX idx ON %s (keys(v))");
+        assertInvalidMessage("Frozen collections are immutable and must be fully indexed", "CREATE INDEX idx ON %s (values(v))");
         String indexName = createIndex("CREATE INDEX ON %s (full(v))");
 
         execute("INSERT INTO %s (k, v) VALUES (?, ?)", 2, set(udt2));
@@ -1599,10 +1599,10 @@ public class SecondaryIndexTest extends CQLTester
                                       ClientState.forInternalCalls());
     }
 
-    private void validateCell(Cell cell, ColumnMetadata def, ByteBuffer val, long timestamp)
+    private void validateCell(Cell<?> cell, ColumnMetadata def, ByteBuffer val, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, def.type.compare(cell.value(), val));
+        assertEquals(0, def.type.compare(cell.buffer(), val));
         assertEquals(timestamp, cell.timestamp());
     }
 
@@ -1610,7 +1610,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         ColumnMetadata col = cfm.getColumn(new ColumnIdentifier(name, true));
         AbstractType<?> type = col.type;
-        assertEquals(expected, type.compose(row.getCell(col).value()));
+        assertEquals(expected, type.compose(row.getCell(col).buffer()));
     }
 
     /**

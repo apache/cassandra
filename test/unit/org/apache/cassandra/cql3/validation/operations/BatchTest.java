@@ -33,14 +33,17 @@ public class BatchTest extends CQLTester
     {
         createTable("CREATE TABLE %s (userid text PRIMARY KEY, name text, password text)");
 
-        String query = "BEGIN BATCH\n"
-                       + "INSERT INTO %1$s (userid, password, name) VALUES ('user2', 'ch@ngem3b', 'second user');\n"
-                       + "UPDATE %1$s SET password = 'ps22dhds' WHERE userid = 'user3';\n"
-                       + "INSERT INTO %1$s (userid, password) VALUES ('user4', 'ch@ngem3c');\n"
-                       + "DELETE name FROM %1$s WHERE userid = 'user1';\n"
-                       + "APPLY BATCH;";
+        execute("BEGIN BATCH\n" +
+                "INSERT INTO %1$s (userid, password, name) VALUES ('user2', 'ch@ngem3b', 'second user');\n" + 
+                "UPDATE %1$s SET password = 'ps22dhds' WHERE userid = 'user3';\n" + 
+                "INSERT INTO %1$s (userid, password) VALUES ('user4', 'ch@ngem3c');\n" + 
+                "DELETE name FROM %1$s WHERE userid = 'user1';\n" + 
+                "APPLY BATCH;");
 
-        execute(query);
+        assertRows(execute("SELECT userid FROM %s"),
+                   row("user2"),
+                   row("user4"),
+                   row("user3"));
     }
 
     /**
@@ -52,22 +55,51 @@ public class BatchTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<int>)");
 
         execute("BEGIN BATCH " +
-                "UPDATE %1$s SET l = l +[ 1 ] WHERE k = 0; " +
-                "UPDATE %1$s SET l = l + [ 2 ] WHERE k = 0; " +
-                "UPDATE %1$s SET l = l + [ 3 ] WHERE k = 0; " +
+                "UPDATE %1$s SET l = l + [1] WHERE k = 0; " +
+                "UPDATE %1$s SET l = l + [2] WHERE k = 0; " +
+                "UPDATE %1$s SET l = l + [3] WHERE k = 0; " +
                 "APPLY BATCH");
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"),
                    row(list(1, 2, 3)));
 
         execute("BEGIN BATCH " +
-                "UPDATE %1$s SET l =[ 1 ] + l WHERE k = 1; " +
-                "UPDATE %1$s SET l = [ 2 ] + l WHERE k = 1; " +
-                "UPDATE %1$s SET l = [ 3 ] + l WHERE k = 1; " +
+                "UPDATE %1$s SET l = [1] + l WHERE k = 1; " +
+                "UPDATE %1$s SET l = [2] + l WHERE k = 1; " +
+                "UPDATE %1$s SET l = [3] + l WHERE k = 1; " +
                 "APPLY BATCH ");
 
         assertRows(execute("SELECT l FROM %s WHERE k = 1"),
                    row(list(3, 2, 1)));
+    }
+
+    @Test
+    public void testBatchAndMap() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<int, int>)");
+
+        execute("BEGIN BATCH " +
+                "UPDATE %1$s SET m[1] = 2 WHERE k = 0; " +
+                "UPDATE %1$s SET m[3] = 4 WHERE k = 0; " +
+                "APPLY BATCH");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map(1, 2, 3, 4)));
+    }
+
+    @Test
+    public void testBatchAndSet() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<int>)");
+
+        execute("BEGIN BATCH " +
+                "UPDATE %1$s SET s = s + {1} WHERE k = 0; " +
+                "UPDATE %1$s SET s = s + {2} WHERE k = 0; " +
+                "UPDATE %1$s SET s = s + {3} WHERE k = 0; " +
+                "APPLY BATCH");
+
+        assertRows(execute("SELECT s FROM %s WHERE k = 0"),
+                   row(set(1, 2, 3)));
     }
 
     /**

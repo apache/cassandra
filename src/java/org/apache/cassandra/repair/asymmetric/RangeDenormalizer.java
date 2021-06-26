@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.repair.asymmetric;
 
-import java.net.InetAddress;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -33,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 
 public class RangeDenormalizer
@@ -45,26 +44,17 @@ public class RangeDenormalizer
      * It makes sure that if there is an intersection between {{range}} and some of the ranges in {{incoming.keySet()}}
      * we know that all intersections are keys in the updated {{incoming}}
      */
-    public static Set<Range<Token>> denormalize(Range<Token> range, Map<Range<Token>, StreamFromOptions> incoming)
+    public static Set<Range<Token>> denormalize(Range<Token> range, RangeMap<StreamFromOptions> incoming)
     {
         logger.trace("Denormalizing range={} incoming={}", range, incoming);
-        Set<Range<Token>> existingRanges = new HashSet<>(incoming.keySet());
-        Map<Range<Token>, StreamFromOptions> existingOverlappingRanges = new HashMap<>();
-        // remove all overlapping ranges from the incoming map
-        for (Range<Token> existingRange : existingRanges)
-        {
-            if (range.intersects(existingRange))
-                existingOverlappingRanges.put(existingRange, incoming.remove(existingRange));
-        }
+        Set<Map.Entry<Range<Token>, StreamFromOptions>> existingOverlappingRanges = incoming.removeIntersecting(range);
 
-        Set<Range<Token>> intersections = intersection(existingRanges, range);
-        Set<Range<Token>> newExisting = Sets.union(subtractFromAllRanges(existingOverlappingRanges.keySet(), range), intersections);
-        Set<Range<Token>> newInput = Sets.union(range.subtractAll(existingOverlappingRanges.keySet()), intersections);
-        assertNonOverLapping(newExisting);
-        assertNonOverLapping(newInput);
+        Set<Range<Token>> intersections = intersection(existingOverlappingRanges, range);
+        Set<Range<Token>> newExisting = Sets.union(subtractFromAllRanges(existingOverlappingRanges, range), intersections);
+        Set<Range<Token>> newInput = Sets.union(subtractAll(existingOverlappingRanges, range), intersections);
         for (Range<Token> r : newExisting)
         {
-            for (Map.Entry<Range<Token>, StreamFromOptions> entry : existingOverlappingRanges.entrySet())
+            for (Map.Entry<Range<Token>, StreamFromOptions> entry : existingOverlappingRanges)
             {
                 if (r.intersects(entry.getKey()))
                     incoming.put(r, entry.getValue().copy(r));
@@ -72,7 +62,6 @@ public class RangeDenormalizer
         }
         logger.trace("denormalized {} to {}", range, newInput);
         logger.trace("denormalized incoming to {}", incoming);
-        assertNonOverLapping(incoming.keySet());
         return newInput;
     }
 
@@ -87,39 +76,48 @@ public class RangeDenormalizer
      *
      */
     @VisibleForTesting
-    static Set<Range<Token>> subtractFromAllRanges(Collection<Range<Token>> ranges, Range<Token> range)
+    static Set<Range<Token>> subtractFromAllRanges(Collection<Map.Entry<Range<Token>, StreamFromOptions>> ranges, Range<Token> range)
     {
         Set<Range<Token>> result = new HashSet<>();
-        for (Range<Token> r : ranges)
-            result.addAll(r.subtract(range)); // subtract can return two ranges if we remove the middle part
+        for (Map.Entry<Range<Token>, ?> r : ranges)
+            result.addAll(r.getKey().subtract(range)); // subtract can return two ranges if we remove the middle part
         return result;
-    }
-
-    /**
-     * Makes sure non of the input ranges are overlapping
-     */
-    private static void assertNonOverLapping(Set<Range<Token>> ranges)
-    {
-        List<Range<Token>> sortedRanges = Range.sort(ranges);
-        Token lastToken = null;
-        for (Range<Token> range : sortedRanges)
-        {
-            if (lastToken != null && lastToken.compareTo(range.left) > 0)
-            {
-                throw new AssertionError("Ranges are overlapping: "+ranges);
-            }
-            lastToken = range.right;
-        }
     }
 
     /**
      * Returns all intersections between the ranges in ranges and the given range
      */
-    private static Set<Range<Token>> intersection(Collection<Range<Token>> ranges, Range<Token> range)
+    private static Set<Range<Token>> intersection(Set<Map.Entry<Range<Token>, StreamFromOptions>> ranges, Range<Token> range)
     {
         Set<Range<Token>> result = new HashSet<>();
-        for (Range<Token> r : ranges)
-            result.addAll(range.intersectionWith(r));
+        for (Map.Entry<Range<Token>, StreamFromOptions> r : ranges)
+            result.addAll(range.intersectionWith(r.getKey()));
+        return result;
+    }
+
+    /**
+     * copied from Range - need to iterate over the map entries
+     */
+    public static Set<Range<Token>> subtractAll(Collection<Map.Entry<Range<Token>, StreamFromOptions>> ranges, Range<Token> toSubtract)
+    {
+        Set<Range<Token>> result = new HashSet<>();
+        result.add(toSubtract);
+        for(Map.Entry<Range<Token>, StreamFromOptions> range : ranges)
+        {
+            result = substractAllFromToken(result, range.getKey());
+        }
+
+        return result;
+    }
+
+    private static <T extends RingPosition<T>> Set<Range<T>> substractAllFromToken(Set<Range<T>> ranges, Range<T> subtract)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        for(Range<T> range : ranges)
+        {
+            result.addAll(range.subtract(subtract));
+        }
+
         return result;
     }
 }

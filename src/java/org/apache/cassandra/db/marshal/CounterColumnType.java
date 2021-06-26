@@ -44,10 +44,9 @@ public class CounterColumnType extends NumberType<Long>
         return true;
     }
 
-    @Override
-    public Long compose(ByteBuffer bytes)
+    public <V> Long compose(V value, ValueAccessor<V> accessor)
     {
-        return CounterContext.instance().total(bytes);
+        return CounterContext.instance().total(value, accessor);
     }
 
     @Override
@@ -57,14 +56,14 @@ public class CounterColumnType extends NumberType<Long>
     }
 
     @Override
-    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    public <V> void validateCellValue(V cellValue, ValueAccessor<V> accessor) throws MarshalException
     {
-        CounterContext.instance().validateContext(cellValue);
+        CounterContext.instance().validateContext(cellValue, accessor);
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
-        return ByteBufferUtil.bytesToHex(bytes);
+        return accessor.toHex(value);
     }
 
     public ByteBuffer fromString(String source)

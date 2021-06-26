@@ -32,7 +32,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 
 import net.openhft.chronicle.core.io.IORuntimeException;
-import net.openhft.chronicle.queue.ChronicleQueueBuilder;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptTailer;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
@@ -76,7 +76,7 @@ public class AuditLogViewer
         Pauser pauser = Pauser.millis(100);
         List<ExcerptTailer> tailers = pathList.stream()
                                               .distinct()
-                                              .map(path -> ChronicleQueueBuilder.single(new File(path)).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build())
+                                              .map(path -> SingleChronicleQueueBuilder.single(new File(path)).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build())
                                               .map(SingleChronicleQueue::createTailer)
                                               .collect(Collectors.toList());
         boolean hadWork = true;

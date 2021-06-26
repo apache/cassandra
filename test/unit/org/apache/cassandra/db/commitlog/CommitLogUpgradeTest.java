@@ -79,8 +79,6 @@ public class CommitLogUpgradeTest
 
     static TableMetadata metadata =
         TableMetadata.builder(KEYSPACE, TABLE)
-                     .isCompound(false)
-                     .isDense(true)
                      .addPartitionKeyColumn("key", AsciiType.instance)
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("val", BytesType.instance)
@@ -162,11 +160,11 @@ public class CommitLogUpgradeTest
             {
                 for (Row row : update)
                     if (row.clustering().size() > 0 &&
-                        AsciiType.instance.compose(row.clustering().get(0)).startsWith(CELLNAME))
+                        AsciiType.instance.compose(row.clustering().bufferAt(0)).startsWith(CELLNAME))
                     {
-                        for (Cell cell : row.cells())
+                        for (Cell<?> cell : row.cells())
                         {
-                            hash = hash(hash, cell.value());
+                            hash = hash(hash, cell.buffer());
                             ++cells;
                         }
                     }

@@ -18,15 +18,12 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,12 +38,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.PeekingIterator;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
@@ -57,15 +53,12 @@ import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -73,7 +66,6 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.WriteType;
-import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -82,9 +74,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.ViewUtils;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.exceptions.CasWriteUnknownResultException;
@@ -102,19 +91,15 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.CASClientWriteRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
@@ -136,12 +121,11 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.PrepareCallback;
 import org.apache.cassandra.service.paxos.ProposeCallback;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
-import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
-import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -183,7 +167,6 @@ public class StorageProxy implements StorageProxyMBean
         }
     };
     private static final ClientRequestMetrics readMetrics = new ClientRequestMetrics("Read");
-    private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
     private static final ClientWriteRequestMetrics writeMetrics = new ClientWriteRequestMetrics("Write");
     private static final CASClientWriteRequestMetrics casWriteMetrics = new CASClientWriteRequestMetrics("CASWrite");
     private static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
@@ -191,7 +174,9 @@ public class StorageProxy implements StorageProxyMBean
     private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
     private static final Map<ConsistencyLevel, ClientWriteRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
 
-    private static final double CONCURRENT_SUBREQUESTS_MARGIN = 0.10;
+    private static final String DISABLE_SERIAL_READ_LINEARIZABILITY_KEY = "cassandra.unsafe.disable-serial-reads-linearizability";
+    private static final boolean disableSerialReadLinearizability =
+        Boolean.parseBoolean(System.getProperty(DISABLE_SERIAL_READ_LINEARIZABILITY_KEY, "false"));
 
     private StorageProxy()
     {
@@ -201,7 +186,6 @@ public class StorageProxy implements StorageProxyMBean
     {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
         HintsService.instance.registerMBean();
-        HintedHandOffManager.instance.registerMBean();
 
         standardWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
@@ -237,6 +221,16 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         ReadRepairMetrics.init();
+
+        if (disableSerialReadLinearizability)
+        {
+            logger.warn("This node was started with -D{}. SERIAL (and LOCAL_SERIAL) reads coordinated by this node " +
+                        "will not offer linearizability (see CASSANDRA-12126 for details on what this mean) with " +
+                        "respect to other SERIAL operations. Please note that, with this flag, SERIAL reads will be " +
+                        "slower than QUORUM reads, yet offer no more guarantee. This flag should only be used in " +
+                        "the restricted case of upgrading from a pre-CASSANDRA-12126 version, and only if you " +
+                        "understand the tradeoff.", DISABLE_SERIAL_READ_LINEARIZABILITY_KEY);
+        }
     }
 
     /**
@@ -292,23 +286,12 @@ public class StorageProxy implements StorageProxyMBean
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
         final long startTimeForMetrics = System.nanoTime();
-        TableMetadata metadata = Schema.instance.getTableMetadata(keyspaceName, cfName);
-        int contentions = 0;
         try
         {
-            consistencyForPaxos.validateForCas();
-            consistencyForCommit.validateForCasCommit(keyspaceName);
+            TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
 
-            long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
-            while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
+            Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer = () ->
             {
-                // for simplicity, we'll do a single liveness check at the start of each attempt
-                ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(keyspaceName), key, consistencyForPaxos);
-
-                final PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime, key, metadata, replicaPlan, consistencyForPaxos, consistencyForCommit, true, state);
-                final UUID ballot = pair.ballot;
-                contentions += pair.contentions;
-
                 // read the current values and check they validate the conditions
                 Tracing.trace("Reading existing values for CAS precondition");
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
@@ -324,11 +307,10 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("CAS precondition does not match current values {}", current);
                     casWriteMetrics.conditionNotMet.inc();
-                    return current.rowIterator();
+                    return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
                 }
 
-                // finish the paxos round w/ the desired updates
-                // TODO turn null updates into delete?
+                // Create the desired updates
                 PartitionUpdate updates = request.makeUpdates(current);
 
                 long size = updates.dataSize();
@@ -344,34 +326,30 @@ public class StorageProxy implements StorageProxyMBean
                 // InvalidRequestException) any which aren't.
                 updates = TriggerExecutor.instance.execute(updates);
 
+                return Pair.create(updates, null);
+            };
 
-                Commit proposal = Commit.newProposal(ballot, updates);
-                Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
-                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
-                {
-                    commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
-                    Tracing.trace("CAS successful");
-                    return null;
-                }
+            return doPaxos(metadata,
+                           key,
+                           consistencyForPaxos,
+                           consistencyForCommit,
+                           consistencyForCommit,
+                           state,
+                           queryStartNanoTime,
+                           casWriteMetrics,
+                           updateProposer);
 
-                Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
-                contentions++;
-                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-                // continue to retry
-            }
-
-            throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(keyspaceName)));
         }
         catch (CasWriteUnknownResultException e)
         {
             casWriteMetrics.unknownResult.mark();
             throw e;
         }
-        catch (WriteTimeoutException wte)
+        catch (CasWriteTimeoutException wte)
         {
             casWriteMetrics.timeouts.mark();
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
-            throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, contentions);
+            throw new CasWriteTimeoutException(wte.writeType, wte.consistency, wte.received, wte.blockFor, wte.contentions);
         }
         catch (ReadTimeoutException e)
         {
@@ -379,7 +357,7 @@ public class StorageProxy implements StorageProxyMBean
             writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
             throw e;
         }
-        catch (WriteFailureException|ReadFailureException e)
+        catch (WriteFailureException | ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
             writeMetricsMap.get(consistencyForPaxos).failures.mark();
@@ -393,18 +371,139 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            recordCasContention(contentions);
-            Keyspace.open(keyspaceName).getColumnFamilyStore(cfName).metric.topCasPartitionContention.addSample(key.getKey(), contentions);
             final long latency = System.nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
             writeMetricsMap.get(consistencyForPaxos).addNano(latency);
         }
     }
 
-    private static void recordCasContention(int contentions)
+    private static void recordCasContention(TableMetadata table,
+                                            DecoratedKey key,
+                                            CASClientRequestMetrics casMetrics,
+                                            int contentions)
     {
-        if(contentions > 0)
-            casWriteMetrics.contention.update(contentions);
+        if (contentions == 0)
+            return;
+
+        casMetrics.contention.update(contentions);
+        Keyspace.open(table.keyspace)
+                .getColumnFamilyStore(table.name)
+                .metric
+                .topCasPartitionContention
+                .addSample(key.getKey(), contentions);
+    }
+
+    /**
+     * Performs the Paxos rounds for a given proposal, retrying when preempted until the timeout.
+     *
+     * <p>The main 'configurable' of this method is the {@code createUpdateProposal} method: it is called by the method
+     * once a ballot has been successfully 'prepared' to generate the update to 'propose' (and commit if the proposal is
+     * successful). That method also generates the result that the whole method will return. Note that due to retrying,
+     * this method may be called multiple times and does not have to return the same results.
+     *
+     * @param metadata the table to update with Paxos.
+     * @param key the partition updated.
+     * @param consistencyForPaxos the serial consistency of the operation (either {@link ConsistencyLevel#SERIAL} or
+     *     {@link ConsistencyLevel#LOCAL_SERIAL}).
+     * @param consistencyForReplayCommits the consistency for the commit phase of "replayed" in-progress operations.
+     * @param consistencyForCommit the consistency for the commit phase of _this_ operation update.
+     * @param state the client state.
+     * @param queryStartNanoTime the nano time for the start of the query this is part of. This is the base time for
+     *     timeouts.
+     * @param casMetrics the metrics to update for this operation.
+     * @param createUpdateProposal method called after a successful 'prepare' phase to obtain 1) the actual update of
+     *     this operation and 2) the result that the whole method should return. This can return {@code null} in the
+     *     special where, after having "prepared" (and thus potentially replayed in-progress upgdates), we don't want
+     *     to propose anything (the whole method then return {@code null}).
+     * @return the second element of the pair returned by {@code createUpdateProposal} (for the last call of that method
+     *     if that method is called multiple times due to retries).
+     */
+    private static RowIterator doPaxos(TableMetadata metadata,
+                                       DecoratedKey key,
+                                       ConsistencyLevel consistencyForPaxos,
+                                       ConsistencyLevel consistencyForReplayCommits,
+                                       ConsistencyLevel consistencyForCommit,
+                                       ClientState state,
+                                       long queryStartNanoTime,
+                                       CASClientRequestMetrics casMetrics,
+                                       Supplier<Pair<PartitionUpdate, RowIterator>> createUpdateProposal)
+    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
+    {
+        int contentions = 0;
+        Keyspace keyspace = Keyspace.open(metadata.keyspace);
+        AbstractReplicationStrategy latestRs = keyspace.getReplicationStrategy();
+        try
+        {
+            consistencyForPaxos.validateForCas();
+            consistencyForReplayCommits.validateForCasCommit(latestRs);
+            consistencyForCommit.validateForCasCommit(latestRs);
+
+            long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
+            while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
+            {
+                // for simplicity, we'll do a single liveness check at the start of each attempt
+                ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(keyspace, key, consistencyForPaxos);
+                latestRs = replicaPlan.replicationStrategy();
+                PaxosBallotAndContention pair = beginAndRepairPaxos(queryStartNanoTime,
+                                                                    key,
+                                                                    metadata,
+                                                                    replicaPlan,
+                                                                    consistencyForPaxos,
+                                                                    consistencyForReplayCommits,
+                                                                    casMetrics,
+                                                                    state);
+
+                final UUID ballot = pair.ballot;
+                contentions += pair.contentions;
+
+                Pair<PartitionUpdate, RowIterator> proposalPair = createUpdateProposal.get();
+                // See method javadoc: null here is code for "stop here and return null".
+                if (proposalPair == null)
+                    return null;
+
+                Commit proposal = Commit.newProposal(ballot, proposalPair.left);
+                Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
+                if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
+                {
+                    // We skip committing accepted updates when they are empty. This is an optimization which works
+                    // because we also skip replaying those same empty update in beginAndRepairPaxos (see the longer
+                    // comment there). As empty update are somewhat common (serial reads and non-applying CAS propose
+                    // them), this is worth bothering.
+                    if (!proposal.update.isEmpty())
+                        commitPaxos(proposal, consistencyForCommit, true, queryStartNanoTime);
+                    RowIterator result = proposalPair.right;
+                    if (result != null)
+                        Tracing.trace("CAS did not apply");
+                    else
+                        Tracing.trace("CAS applied successfully");
+                    return result;
+                }
+
+                Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
+                contentions++;
+                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), TimeUnit.MILLISECONDS);
+                // continue to retry
+            }
+        }
+        catch (CasWriteTimeoutException e)
+        {
+            // Might be thrown by beginRepairAndPaxos. In that case, any contention that happened within the method and
+            // led up to the timeout was not accounted in our local 'contentions' variable and we add it now so it the
+            // contention recorded in the finally is correct.
+            contentions += e.contentions;
+            throw e;
+        }
+        catch (WriteTimeoutException e)
+        {
+            // Might be thrown by proposePaxos or commitPaxos
+            throw new CasWriteTimeoutException(e.writeType, e.consistency, e.received, e.blockFor, contentions);
+        }
+        finally
+        {
+            recordCasContention(metadata, key, casMetrics, contentions);
+        }
+
+        throw new CasWriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(latestRs), contentions);
     }
 
     /**
@@ -419,7 +518,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                 ReplicaPlan.ForPaxosWrite paxosPlan,
                                                                 ConsistencyLevel consistencyForPaxos,
                                                                 ConsistencyLevel consistencyForCommit,
-                                                                final boolean isWrite,
+                                                                CASClientRequestMetrics casMetrics,
                                                                 ClientState state)
     throws WriteTimeoutException, WriteFailureException
     {
@@ -440,76 +539,87 @@ public class StorageProxy implements StorageProxyMBean
             UUID ballot = UUIDGen.getRandomTimeUUIDFromMicros(ballotMicros);
 
             // prepare
-            Tracing.trace("Preparing {}", ballot);
-            Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
-            summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime);
-            if (!summary.promised)
+            try
             {
-                Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
-                contentions++;
-                // sleep a random amount to give the other proposer a chance to finish
-                Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
-                continue;
-            }
-
-            Commit inProgress = summary.mostRecentInProgressCommitWithUpdate;
-            Commit mostRecent = summary.mostRecentCommit;
-
-            // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
-            // needs to be completed, so do it.
-            if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
-            {
-                Tracing.trace("Finishing incomplete paxos round {}", inProgress);
-                if(isWrite)
-                    casWriteMetrics.unfinishedCommit.inc();
-                else
-                    casReadMetrics.unfinishedCommit.inc();
-                Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
-                if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
+                Tracing.trace("Preparing {}", ballot);
+                Commit toPrepare = Commit.newPrepare(key, metadata, ballot);
+                summary = preparePaxos(toPrepare, paxosPlan, queryStartNanoTime);
+                if (!summary.promised)
                 {
-                    try
+                    Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+                    contentions++;
+                    // sleep a random amount to give the other proposer a chance to finish
+                    Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
+                    continue;
+                }
+
+                Commit inProgress = summary.mostRecentInProgressCommit;
+                Commit mostRecent = summary.mostRecentCommit;
+
+                // If we have an in-progress ballot greater than the MRC we know, then it's an in-progress round that
+                // needs to be completed, so do it.
+                // One special case we make is for update that are empty (which are proposed by serial reads and
+                // non-applying CAS). While we could handle those as any other updates, we can optimize this somewhat by
+                // neither committing those empty updates, nor replaying in-progress ones. The reasoning is this: as the
+                // update is empty, we have nothing to apply to storage in the commit phase, so the only reason to commit
+                // would be to update the MRC. However, if we skip replaying those empty updates, then we don't need to
+                // update the MRC for following updates to make progress (that is, if we didn't had the empty update skip
+                // below _but_ skipped updating the MRC on empty updates, then we'd be stuck always proposing that same
+                // empty update). And the reason skipping that replay is safe is that when an operation tries to propose
+                // an empty value, there can be only 2 cases:
+                //  1) the propose succeed, meaning a quorum of nodes accept it, in which case we are guaranteed no earlier
+                //     pending operation can ever be replayed (which is what we want to guarantee with the empty update).
+                //  2) the propose does not succeed. But then the operation proposing the empty update will not succeed
+                //     either (it will retry or ultimately timeout), and we're actually ok if earlier pending operation gets
+                //     replayed in that case.
+                // Tl;dr, it is safe to skip committing empty updates _as long as_ we also skip replying them below. And
+                // doing is more efficient, so we do so.
+                if (!inProgress.update.isEmpty() && inProgress.isAfter(mostRecent))
+                {
+                    Tracing.trace("Finishing incomplete paxos round {}", inProgress);
+                    casMetrics.unfinishedCommit.inc();
+                    Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
+                    if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
                     {
                         commitPaxos(refreshedInProgress, consistencyForCommit, false, queryStartNanoTime);
                     }
-                    catch (WriteTimeoutException e)
+                    else
                     {
-                        recordCasContention(contentions);
-                        // We're still doing preparation for the paxos rounds, so we want to use the CAS (see CASSANDRA-8672)
-                        throw new WriteTimeoutException(WriteType.CAS, e.consistency, e.received, e.blockFor);
+                        Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
+                        // sleep a random amount to give the other proposer a chance to finish
+                        contentions++;
+                        Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
                     }
+                    continue;
                 }
-                else
+
+                // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
+                // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
+                // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
+                // mean we lost messages), we pro-actively "repair" those nodes, and retry.
+                int nowInSec = Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(ballotMicros));
+                Iterable<InetAddressAndPort> missingMRC = summary.replicasMissingMostRecentCommit(metadata, nowInSec);
+                if (Iterables.size(missingMRC) > 0)
                 {
-                    Tracing.trace("Some replicas have already promised a higher ballot than ours; aborting");
-                    // sleep a random amount to give the other proposer a chance to finish
-                    contentions++;
-                    Uninterruptibles.sleepUninterruptibly(ThreadLocalRandom.current().nextInt(100), MILLISECONDS);
+                    Tracing.trace("Repairing replicas that missed the most recent commit");
+                    sendCommit(mostRecent, missingMRC);
+                    // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
+                    // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
+                    // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
+                    // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
+                    continue;
                 }
-                continue;
-            }
 
-            // To be able to propose our value on a new round, we need a quorum of replica to have learn the previous one. Why is explained at:
-            // https://issues.apache.org/jira/browse/CASSANDRA-5062?focusedCommentId=13619810&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13619810)
-            // Since we waited for quorum nodes, if some of them haven't seen the last commit (which may just be a timing issue, but may also
-            // mean we lost messages), we pro-actively "repair" those nodes, and retry.
-            int nowInSec = Ints.checkedCast(TimeUnit.MICROSECONDS.toSeconds(ballotMicros));
-            Iterable<InetAddressAndPort> missingMRC = summary.replicasMissingMostRecentCommit(metadata, nowInSec);
-            if (Iterables.size(missingMRC) > 0)
+                return new PaxosBallotAndContention(ballot, contentions);
+            }
+            catch (WriteTimeoutException e)
             {
-                Tracing.trace("Repairing replicas that missed the most recent commit");
-                sendCommit(mostRecent, missingMRC);
-                // TODO: provided commits don't invalid the prepare we just did above (which they don't), we could just wait
-                // for all the missingMRC to acknowledge this commit and then move on with proposing our value. But that means
-                // adding the ability to have commitPaxos block, which is exactly CASSANDRA-5442 will do. So once we have that
-                // latter ticket, we can pass CL.ALL to the commit above and remove the 'continue'.
-                continue;
+                // We're still doing preparation for the paxos rounds, so we want to use the CAS (see CASSANDRA-8672)
+                throw new CasWriteTimeoutException(WriteType.CAS, e.consistency, e.received, e.blockFor, contentions);
             }
-
-            return new PaxosBallotAndContention(ballot, contentions);
         }
 
-        recordCasContention(contentions);
-        throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.keyspace)));
+        throw new CasWriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(paxosPlan.replicationStrategy()), contentions);
     }
 
     /**
@@ -605,9 +715,8 @@ public class StorageProxy implements StorageProxyMBean
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeAll);
         if (shouldBlock)
         {
-            AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
+            AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
             responseHandler = rs.getWriteResponseHandler(replicaPlan, null, WriteType.SIMPLE, queryStartNanoTime);
-            responseHandler.setSupportsBackPressure(false);
         }
 
         Message<Commit> message = Message.outWithFlag(PAXOS_COMMIT_REQ, proposal, MessageFlag.CALL_BACK_ON_FAILURE);
@@ -860,7 +969,8 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     String keyspaceName = mutation.getKeyspaceName();
                     Token tk = mutation.key().getToken();
-                    Optional<Replica> pairedEndpoint = ViewUtils.getViewNaturalEndpoint(keyspaceName, baseToken, tk);
+                    AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
+                    Optional<Replica> pairedEndpoint = ViewUtils.getViewNaturalEndpoint(replicationStrategy, baseToken, tk);
                     EndpointsForToken pendingReplicas = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(tk, keyspaceName);
 
                     // if there are no paired endpoints there are probably range movements going on, so we write to the local batchlog to replay later
@@ -895,11 +1005,13 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     else
                     {
+                        ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(replicationStrategy,
+                                                                                              EndpointsForToken.of(tk, pairedEndpoint.get()),
+                                                                                              pendingReplicas);
                         wrappers.add(wrapViewBatchResponseHandler(mutation,
                                                                   consistencyLevel,
                                                                   consistencyLevel,
-                                                                  EndpointsForToken.of(tk, pairedEndpoint.get()),
-                                                                  pendingReplicas,
+                                                                  liveAndDown,
                                                                   baseComplete,
                                                                   WriteType.BATCH,
                                                                   cleanup,
@@ -970,7 +1082,7 @@ public class StorageProxy implements StorageProxyMBean
         Tracing.trace("Determining replicas for atomic batch");
         long startTime = System.nanoTime();
 
-        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<WriteResponseHandlerWrapper>(mutations.size());
+        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
 
         if (mutations.stream().anyMatch(mutation -> Keyspace.open(mutation.getKeyspaceName()).getReplicationStrategy().hasTransientReplicas()))
             throw new AssertionError("Logged batches are unsupported with transient replication");
@@ -1162,11 +1274,10 @@ public class StorageProxy implements StorageProxyMBean
     {
         String keyspaceName = mutation.getKeyspaceName();
         Keyspace keyspace = Keyspace.open(keyspaceName);
-        AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
-
         Token tk = mutation.key().getToken();
 
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+        AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> responseHandler = rs.getWriteResponseHandler(replicaPlan, callback, writeType, queryStartNanoTime);
 
         performer.apply(mutation, replicaPlan, responseHandler, localDataCenter);
@@ -1182,12 +1293,12 @@ public class StorageProxy implements StorageProxyMBean
                                                                         long queryStartNanoTime)
     {
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
         Token tk = mutation.key().getToken();
 
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, tk, ReplicaPlans.writeNormal);
+        AbstractReplicationStrategy rs = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan,null, writeType, queryStartNanoTime);
-        BatchlogResponseHandler<IMutation> batchHandler = new BatchlogResponseHandler<>(writeHandler, batchConsistencyLevel.blockFor(keyspace), cleanup, queryStartNanoTime);
+        BatchlogResponseHandler<IMutation> batchHandler = new BatchlogResponseHandler<>(writeHandler, batchConsistencyLevel.blockFor(rs), cleanup, queryStartNanoTime);
         return new WriteResponseHandlerWrapper(batchHandler, mutation);
     }
 
@@ -1198,24 +1309,20 @@ public class StorageProxy implements StorageProxyMBean
     private static WriteResponseHandlerWrapper wrapViewBatchResponseHandler(Mutation mutation,
                                                                             ConsistencyLevel consistencyLevel,
                                                                             ConsistencyLevel batchConsistencyLevel,
-                                                                            EndpointsForToken naturalEndpoints,
-                                                                            EndpointsForToken pendingEndpoints,
+                                                                            ReplicaLayout.ForTokenWrite liveAndDown,
                                                                             AtomicLong baseComplete,
                                                                             WriteType writeType,
                                                                             BatchlogResponseHandler.BatchlogCleanup cleanup,
                                                                             long queryStartNanoTime)
     {
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
-
-        ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(naturalEndpoints, pendingEndpoints);
         ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, liveAndDown, ReplicaPlans.writeAll);
-
-        AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(replicaPlan, () -> {
+        AbstractReplicationStrategy replicationStrategy = replicaPlan.replicationStrategy();
+        AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, () -> {
             long delay = Math.max(0, System.currentTimeMillis() - baseComplete.get());
             viewWriteMetrics.viewWriteLatency.update(delay, MILLISECONDS);
         }, writeType, queryStartNanoTime);
-        BatchlogResponseHandler<IMutation> batchHandler = new ViewWriteMetricsWrapped(writeHandler, batchConsistencyLevel.blockFor(keyspace), cleanup, queryStartNanoTime);
+        BatchlogResponseHandler<IMutation> batchHandler = new ViewWriteMetricsWrapped(writeHandler, batchConsistencyLevel.blockFor(replicationStrategy), cleanup, queryStartNanoTime);
         return new WriteResponseHandlerWrapper(batchHandler, mutation);
     }
 
@@ -1328,9 +1435,6 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         }
-
-        if (backPressureHosts != null)
-            MessagingService.instance().applyBackPressure(backPressureHosts, responseHandler.currentTimeoutNanos());
 
         if (endpointsToHint != null)
             submitHint(mutation, EndpointsForToken.copyOf(mutation.key().getToken(), endpointsToHint), responseHandler);
@@ -1513,14 +1617,15 @@ public class StorageProxy implements StorageProxyMBean
     {
         Keyspace keyspace = Keyspace.open(keyspaceName);
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        EndpointsForToken replicas = keyspace.getReplicationStrategy().getNaturalReplicasForToken(key);
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
+        EndpointsForToken replicas = replicationStrategy.getNaturalReplicasForToken(key);
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
 
         // TODO have a way to compute the consistency level
         if (replicas.isEmpty())
-            throw UnavailableException.create(cl, cl.blockFor(keyspace), 0);
+            throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
 
         List<Replica> localReplicas = new ArrayList<>(replicas.size());
 
@@ -1532,7 +1637,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             // If the consistency required is local then we should not involve other DCs
             if (cl.isDatacenterLocal())
-                throw UnavailableException.create(cl, cl.blockFor(keyspace), 0);
+                throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
 
             // No endpoint in local DC, pick the closest endpoint according to the snitch
             replicas = snitch.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
@@ -1635,34 +1740,48 @@ public class StorageProxy implements StorageProxyMBean
         SinglePartitionReadCommand command = group.queries.get(0);
         TableMetadata metadata = command.metadata();
         DecoratedKey key = command.partitionKey();
+        // calculate the blockFor before repair any paxos round to avoid RS being altered in between.
+        int blockForRead = consistencyLevel.blockFor(Keyspace.open(metadata.keyspace).getReplicationStrategy());
 
         PartitionIterator result = null;
         try
         {
-            // make sure any in-progress paxos writes are done (i.e., committed to a majority of replicas), before performing a quorum read
-            ReplicaPlan.ForPaxosWrite replicaPlan = ReplicaPlans.forPaxos(Keyspace.open(metadata.keyspace), key, consistencyLevel);
-
-            // does the work of applying in-progress writes; throws UAE or timeout if it can't
-            final ConsistencyLevel consistencyForCommitOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
-                                                                                   ? ConsistencyLevel.LOCAL_QUORUM
-                                                                                   : ConsistencyLevel.QUORUM;
+            final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
+                                                                        ? ConsistencyLevel.LOCAL_QUORUM
+                                                                        : ConsistencyLevel.QUORUM;
 
             try
             {
-                final PaxosBallotAndContention pair = beginAndRepairPaxos(start, key, metadata, replicaPlan, consistencyLevel, consistencyForCommitOrFetch, false, state);
-                if (pair.contentions > 0)
-                    casReadMetrics.contention.update(pair.contentions);
+                // Commit an empty update to make sure all in-progress updates that should be finished first is, _and_
+                // that no other in-progress can get resurrected.
+                Supplier<Pair<PartitionUpdate, RowIterator>> updateProposer =
+                    disableSerialReadLinearizability
+                    ? () -> null
+                    : () -> Pair.create(PartitionUpdate.emptyUpdate(metadata, key), null);
+                // When replaying, we commit at quorum/local quorum, as we want to be sure the following read (done at
+                // quorum/local_quorum) sees any replayed updates. Our own update is however empty, and those don't even
+                // get committed due to an optimiation described in doPaxos/beingRepairAndPaxos, so the commit
+                // consistency is irrelevant (we use ANY just to emphasis that we don't wait on our commit).
+                doPaxos(metadata,
+                        key,
+                        consistencyLevel,
+                        consistencyForReplayCommitsOrFetch,
+                        ConsistencyLevel.ANY,
+                        state,
+                        start,
+                        casReadMetrics,
+                        updateProposer);
             }
             catch (WriteTimeoutException e)
             {
-                throw new ReadTimeoutException(consistencyLevel, 0, consistencyLevel.blockFor(Keyspace.open(metadata.keyspace)), false);
+                throw new ReadTimeoutException(consistencyLevel, 0, blockForRead, false);
             }
             catch (WriteFailureException e)
             {
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            result = fetchRows(group.queries, consistencyForCommitOrFetch, queryStartNanoTime);
+            result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime);
         }
         catch (UnavailableException e)
         {
@@ -1743,7 +1862,7 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair> repairs)
+    public static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair<?, ?>> repairs)
     {
         PartitionIterator concatenated = PartitionIterators.concat(iterators);
 
@@ -1833,7 +1952,7 @@ public class StorageProxy implements StorageProxyMBean
         // if we didn't do a read repair, return the contents of the data response, if we did do a read
         // repair, merge the full data reads
         List<PartitionIterator> results = new ArrayList<>(cmdCount);
-        List<ReadRepair> repairs = new ArrayList<>(cmdCount);
+        List<ReadRepair<?, ?>> repairs = new ArrayList<>(cmdCount);
         for (int i=0; i<cmdCount; i++)
         {
             results.add(reads[i].getResult());
@@ -1897,347 +2016,11 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    /**
-     * Estimate the number of result rows per range in the ring based on our local data.
-     * <p>
-     * This assumes that ranges are uniformly distributed across the cluster and
-     * that the queried data is also uniformly distributed.
-     */
-    private static float estimateResultsPerRange(PartitionRangeReadCommand command, Keyspace keyspace)
+    public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command,
+                                                  ConsistencyLevel consistencyLevel,
+                                                  long queryStartNanoTime)
     {
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
-        Index index = command.getIndex(cfs);
-        float maxExpectedResults = index == null
-                                 ? command.limits().estimateTotalResults(cfs)
-                                 : index.getEstimatedResultRows();
-
-        // adjust maxExpectedResults by the number of tokens this node has and the replication factor for this ks
-        return (maxExpectedResults / DatabaseDescriptor.getNumTokens()) / keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
-    }
-
-    private static class RangeIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
-    {
-        private final Keyspace keyspace;
-        private final ConsistencyLevel consistency;
-        private final Iterator<? extends AbstractBounds<PartitionPosition>> ranges;
-        private final int rangeCount;
-
-        public RangeIterator(PartitionRangeReadCommand command, Keyspace keyspace, ConsistencyLevel consistency)
-        {
-            this.keyspace = keyspace;
-            this.consistency = consistency;
-
-            List<? extends AbstractBounds<PartitionPosition>> l = keyspace.getReplicationStrategy() instanceof LocalStrategy
-                                                          ? command.dataRange().keyRange().unwrap()
-                                                          : getRestrictedRanges(command.dataRange().keyRange());
-            this.ranges = l.iterator();
-            this.rangeCount = l.size();
-        }
-
-        public int rangeCount()
-        {
-            return rangeCount;
-        }
-
-        protected ReplicaPlan.ForRangeRead computeNext()
-        {
-            if (!ranges.hasNext())
-                return endOfData();
-
-            return ReplicaPlans.forRangeRead(keyspace, consistency, ranges.next());
-        }
-    }
-
-    private static class RangeMerger extends AbstractIterator<ReplicaPlan.ForRangeRead>
-    {
-        private final Keyspace keyspace;
-        private final ConsistencyLevel consistency;
-        private final PeekingIterator<ReplicaPlan.ForRangeRead> ranges;
-
-        private RangeMerger(Iterator<ReplicaPlan.ForRangeRead> iterator, Keyspace keyspace, ConsistencyLevel consistency)
-        {
-            this.keyspace = keyspace;
-            this.consistency = consistency;
-            this.ranges = Iterators.peekingIterator(iterator);
-        }
-
-        protected ReplicaPlan.ForRangeRead computeNext()
-        {
-            if (!ranges.hasNext())
-                return endOfData();
-
-            ReplicaPlan.ForRangeRead current = ranges.next();
-
-            // getRestrictedRange has broken the queried range into per-[vnode] token ranges, but this doesn't take
-            // the replication factor into account. If the intersection of live endpoints for 2 consecutive ranges
-            // still meets the CL requirements, then we can merge both ranges into the same RangeSliceCommand.
-            while (ranges.hasNext())
-            {
-                // If the current range right is the min token, we should stop merging because CFS.getRangeSlice
-                // don't know how to deal with a wrapping range.
-                // Note: it would be slightly more efficient to have CFS.getRangeSlice on the destination nodes unwraps
-                // the range if necessary and deal with it. However, we can't start sending wrapped range without breaking
-                // wire compatibility, so It's likely easier not to bother;
-                if (current.range().right.isMinimum())
-                    break;
-
-                ReplicaPlan.ForRangeRead next = ranges.peek();
-                ReplicaPlan.ForRangeRead merged = ReplicaPlans.maybeMerge(keyspace, consistency, current, next);
-                if (merged == null)
-                    break;
-
-                current = merged;
-                ranges.next(); // consume the range we just merged since we've only peeked so far
-            }
-            return current;
-        }
-    }
-
-    private static class SingleRangeResponse extends AbstractIterator<RowIterator> implements PartitionIterator
-    {
-        private final DataResolver resolver;
-        private final ReadCallback handler;
-        private final ReadRepair readRepair;
-        private PartitionIterator result;
-
-        private SingleRangeResponse(DataResolver resolver, ReadCallback handler, ReadRepair readRepair)
-        {
-            this.resolver = resolver;
-            this.handler = handler;
-            this.readRepair = readRepair;
-        }
-
-        private void waitForResponse() throws ReadTimeoutException
-        {
-            if (result != null)
-                return;
-
-            handler.awaitResults();
-            result = resolver.resolve();
-        }
-
-        protected RowIterator computeNext()
-        {
-            waitForResponse();
-            return result.hasNext() ? result.next() : endOfData();
-        }
-
-        public void close()
-        {
-            if (result != null)
-                result.close();
-        }
-    }
-
-    private static class RangeCommandIterator extends AbstractIterator<RowIterator> implements PartitionIterator
-    {
-        private final Iterator<ReplicaPlan.ForRangeRead> ranges;
-        private final int totalRangeCount;
-        private final PartitionRangeReadCommand command;
-        private final boolean enforceStrictLiveness;
-
-        private final long startTime;
-        private final long queryStartNanoTime;
-        private DataLimits.Counter counter;
-        private PartitionIterator sentQueryIterator;
-
-        private int concurrencyFactor;
-        // The two following "metric" are maintained to improve the concurrencyFactor
-        // when it was not good enough initially.
-        private int liveReturned;
-        private int rangesQueried;
-
-        public RangeCommandIterator(RangeIterator ranges, PartitionRangeReadCommand command, int concurrencyFactor, Keyspace keyspace, ConsistencyLevel consistency, long queryStartNanoTime)
-        {
-            this.command = command;
-            this.concurrencyFactor = concurrencyFactor;
-            this.startTime = System.nanoTime();
-            this.ranges = new RangeMerger(ranges, keyspace, consistency);
-            this.totalRangeCount = ranges.rangeCount();
-            this.queryStartNanoTime = queryStartNanoTime;
-            this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
-        }
-
-        public RowIterator computeNext()
-        {
-            try
-            {
-                while (sentQueryIterator == null || !sentQueryIterator.hasNext())
-                {
-                    // If we don't have more range to handle, we're done
-                    if (!ranges.hasNext())
-                        return endOfData();
-
-                    // else, sends the next batch of concurrent queries (after having close the previous iterator)
-                    if (sentQueryIterator != null)
-                    {
-                        liveReturned += counter.counted();
-                        sentQueryIterator.close();
-
-                        // It's not the first batch of queries and we're not done, so we we can use what has been
-                        // returned so far to improve our rows-per-range estimate and update the concurrency accordingly
-                        updateConcurrencyFactor();
-                    }
-                    sentQueryIterator = sendNextRequests();
-                }
-
-                return sentQueryIterator.next();
-            }
-            catch (UnavailableException e)
-            {
-                rangeMetrics.unavailables.mark();
-                throw e;
-            }
-            catch (ReadTimeoutException e)
-            {
-                rangeMetrics.timeouts.mark();
-                throw e;
-            }
-            catch (ReadFailureException e)
-            {
-                rangeMetrics.failures.mark();
-                throw e;
-            }
-        }
-
-        private void updateConcurrencyFactor()
-        {
-            if (liveReturned == 0)
-            {
-                // we haven't actually gotten any results, so query all remaining ranges at once
-                concurrencyFactor = totalRangeCount - rangesQueried;
-                return;
-            }
-
-            // Otherwise, compute how many rows per range we got on average and pick a concurrency factor
-            // that should allow us to fetch all remaining rows with the next batch of (concurrent) queries.
-            int remainingRows = command.limits().count() - liveReturned;
-            float rowsPerRange = (float)liveReturned / (float)rangesQueried;
-            concurrencyFactor = Math.max(1, Math.min(totalRangeCount - rangesQueried, Math.round(remainingRows / rowsPerRange)));
-            logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
-                         rowsPerRange, remainingRows, concurrencyFactor);
-        }
-
-        /**
-         * Queries the provided sub-range.
-         *
-         * @param replicaPlan the subRange to query.
-         * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
-         * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
-         * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
-         * that it's the query that "continues" whatever we're previously queried).
-         */
-        private SingleRangeResponse query(ReplicaPlan.ForRangeRead replicaPlan, boolean isFirst)
-        {
-            PartitionRangeReadCommand rangeCommand = command.forSubRange(replicaPlan.range(), isFirst);
-            // If enabled, request repaired data tracking info from full replicas but
-            // only if there are multiple full replicas to compare results from
-            if (DatabaseDescriptor.getRepairedDataTrackingForRangeReadsEnabled()
-                && replicaPlan.contacts().filter(Replica::isFull).size() > 1)
-            {
-                command.trackRepairedStatus();
-                rangeCommand.trackRepairedStatus();
-            }
-
-            ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
-            ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair
-                    = ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
-            DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver
-                    = new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime);
-            ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler
-                    = new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
-
-
-            if (replicaPlan.contacts().size() == 1 && replicaPlan.contacts().get(0).isSelf())
-            {
-                Stage.READ.execute(new LocalReadRunnable(rangeCommand, handler));
-            }
-            else
-            {
-                for (Replica replica : replicaPlan.contacts())
-                {
-                    Tracing.trace("Enqueuing request to {}", replica);
-                    ReadCommand command = replica.isFull() ? rangeCommand : rangeCommand.copyAsTransientQuery(replica);
-                    Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && replica.isFull());
-                    MessagingService.instance().sendWithCallback(message, replica.endpoint(), handler);
-                }
-            }
-
-            return new SingleRangeResponse(resolver, handler, readRepair);
-        }
-
-        private PartitionIterator sendNextRequests()
-        {
-            List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
-            List<ReadRepair> readRepairs = new ArrayList<>(concurrencyFactor);
-
-            try
-            {
-                for (int i = 0; i < concurrencyFactor && ranges.hasNext(); i++)
-                {
-                    @SuppressWarnings("resource") // response will be closed by concatAndBlockOnRepair, or in the catch block below
-                    SingleRangeResponse response = query(ranges.next(), i == 0);
-                    concurrentQueries.add(response);
-                    readRepairs.add(response.readRepair);
-                    ++rangesQueried;
-                }
-            }
-            catch (Throwable t)
-            {
-                for (PartitionIterator response: concurrentQueries)
-                    response.close();
-                throw t;
-            }
-
-            Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
-            // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor) but we don't want to
-            // enforce any particular limit at this point (this could break code than rely on postReconciliationProcessing), hence the DataLimits.NONE.
-            counter = DataLimits.NONE.newCounter(command.nowInSec(), true, command.selectsFullPartition(), enforceStrictLiveness);
-            return counter.applyTo(concatAndBlockOnRepair(concurrentQueries, readRepairs));
-        }
-
-        public void close()
-        {
-            try
-            {
-                if (sentQueryIterator != null)
-                    sentQueryIterator.close();
-            }
-            finally
-            {
-                long latency = System.nanoTime() - startTime;
-                rangeMetrics.addNano(latency);
-                Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
-            }
-        }
-    }
-
-    @SuppressWarnings("resource")
-    public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
-    {
-        Tracing.trace("Computing ranges to query");
-
-        Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        RangeIterator ranges = new RangeIterator(command, keyspace, consistencyLevel);
-
-        // our estimate of how many result rows there will be per-range
-        float resultsPerRange = estimateResultsPerRange(command, keyspace);
-        // underestimate how many rows we will get per-range in order to increase the likelihood that we'll
-        // fetch enough rows in the first round
-        resultsPerRange -= resultsPerRange * CONCURRENT_SUBREQUESTS_MARGIN;
-        int concurrencyFactor = resultsPerRange == 0.0
-                              ? 1
-                              : Math.max(1, Math.min(ranges.rangeCount(), (int) Math.ceil(command.limits().count() / resultsPerRange)));
-        logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
-                     resultsPerRange, command.limits().count(), ranges.rangeCount(), concurrencyFactor);
-        Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)", ranges.rangeCount(), concurrencyFactor, resultsPerRange);
-
-        // Note that in general, a RangeCommandIterator will honor the command limit for each range, but will not enforce it globally.
-
-        return command.limits().filter(command.postReconciliationProcessing(new RangeCommandIterator(ranges, command, concurrencyFactor, keyspace, consistencyLevel, queryStartNanoTime)),
-                                       command.nowInSec(),
-                                       command.selectsFullPartition(),
-                                       command.metadata().enforceStrictLiveness());
+        return RangeCommands.partitions(command, consistencyLevel, queryStartNanoTime);
     }
 
     public Map<String, List<String>> getSchemaVersions()
@@ -2314,53 +2097,6 @@ public class StorageProxy implements StorageProxyMBean
             logger.debug("Schemas are in agreement.");
 
         return results;
-    }
-
-    /**
-     * Compute all ranges we're going to query, in sorted order. Nodes can be replica destinations for many ranges,
-     * so we need to restrict each scan to the specific range we want, or else we'd get duplicate results.
-     */
-    static <T extends RingPosition<T>> List<AbstractBounds<T>> getRestrictedRanges(final AbstractBounds<T> queryRange)
-    {
-        // special case for bounds containing exactly 1 (non-minimum) token
-        if (queryRange instanceof Bounds && queryRange.left.equals(queryRange.right) && !queryRange.left.isMinimum())
-        {
-            return Collections.singletonList(queryRange);
-        }
-
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-
-        List<AbstractBounds<T>> ranges = new ArrayList<AbstractBounds<T>>();
-        // divide the queryRange into pieces delimited by the ring and minimum tokens
-        Iterator<Token> ringIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), queryRange.left.getToken(), true);
-        AbstractBounds<T> remainder = queryRange;
-        while (ringIter.hasNext())
-        {
-            /*
-             * remainder can be a range/bounds of token _or_ keys and we want to split it with a token:
-             *   - if remainder is tokens, then we'll just split using the provided token.
-             *   - if remainder is keys, we want to split using token.upperBoundKey. For instance, if remainder
-             *     is [DK(10, 'foo'), DK(20, 'bar')], and we have 3 nodes with tokens 0, 15, 30. We want to
-             *     split remainder to A=[DK(10, 'foo'), 15] and B=(15, DK(20, 'bar')]. But since we can't mix
-             *     tokens and keys at the same time in a range, we uses 15.upperBoundKey() to have A include all
-             *     keys having 15 as token and B include none of those (since that is what our node owns).
-             * asSplitValue() abstracts that choice.
-             */
-            Token upperBoundToken = ringIter.next();
-            T upperBound = (T)upperBoundToken.upperBound(queryRange.left.getClass());
-            if (!remainder.left.equals(upperBound) && !remainder.contains(upperBound))
-                // no more splits
-                break;
-            Pair<AbstractBounds<T>,AbstractBounds<T>> splits = remainder.split(upperBound);
-            if (splits == null)
-                continue;
-
-            ranges.add(splits.left);
-            remainder = splits.right;
-        }
-        ranges.add(remainder);
-
-        return ranges;
     }
 
     public boolean getHintedHandoffEnabled()
@@ -2766,7 +2502,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public String getIdealConsistencyLevel()
     {
-        return DatabaseDescriptor.getIdealConsistencyLevel().toString();
+        return Objects.toString(DatabaseDescriptor.getIdealConsistencyLevel(), "");
     }
 
     public String setIdealConsistencyLevel(String cl)

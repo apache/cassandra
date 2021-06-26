@@ -46,7 +46,7 @@ public class UnfilteredRowsGenerator
     {
         if (curr == null)
             return "null";
-        String val = Int32Type.instance.getString(curr.clustering().get(0));
+        String val = Int32Type.instance.getString(curr.clustering().bufferAt(0));
         if (curr instanceof RangeTombstoneMarker)
         {
             RangeTombstoneMarker marker = (RangeTombstoneMarker) curr;
@@ -221,27 +221,27 @@ public class UnfilteredRowsGenerator
 
     static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
-        final Clustering clustering = clusteringFor(pos);
+        final Clustering<?> clustering = clusteringFor(pos);
         final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
     static Row emptyRowAt(int pos, int time, int deletionTime)
     {
-        final Clustering clustering = clusteringFor(pos);
+        final Clustering<?> clustering = clusteringFor(pos);
         final LivenessInfo live = LivenessInfo.create(time, UnfilteredRowIteratorsMergeTest.nowInSec);
         final DeletionTime delTime = deletionTime == -1 ? DeletionTime.LIVE : new DeletionTime(deletionTime, deletionTime);
         return BTreeRow.create(clustering, live, Row.Deletion.regular(delTime), BTree.empty());
     }
 
-    static Clustering clusteringFor(int i)
+    static Clustering<?> clusteringFor(int i)
     {
         return Clustering.make(Int32Type.instance.decompose(i));
     }
 
-    static ClusteringBound boundFor(int pos, boolean start, boolean inclusive)
+    static ClusteringBound<?> boundFor(int pos, boolean start, boolean inclusive)
     {
-        return ClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
+        return BufferClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
     static void attachBoundaries(List<Unfiltered> content)
@@ -257,10 +257,10 @@ public class UnfilteredRowsGenerator
             if (prev != null && curr != null && prev.isClose(false) && curr.isOpen(false) && prev.clustering().invert().equals(curr.clustering()))
             {
                 // Join. Prefer not to use merger to check its correctness.
-                ClusteringBound b = (ClusteringBound) prev.clustering();
+                ClusteringBound<?> b = (ClusteringBound) prev.clustering();
                 ClusteringBoundary boundary = ClusteringBoundary.create(
                         b.isInclusive() ? ClusteringBound.Kind.INCL_END_EXCL_START_BOUNDARY : ClusteringBound.Kind.EXCL_END_INCL_START_BOUNDARY,
-                        b.getRawValues());
+                        b);
                 prev = new RangeTombstoneBoundaryMarker(boundary, prev.closeDeletionTime(false), curr.openDeletionTime(false));
                 currUnfiltered = prev;
                 --di;
@@ -284,8 +284,8 @@ public class UnfilteredRowsGenerator
 
     private static RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
     {
-        return new RangeTombstoneBoundMarker(ClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
-                                                                    new ByteBuffer[] {clusteringFor(pos).get(0)}),
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
+                                                                    new ByteBuffer[] {clusteringFor(pos).bufferAt(0)}),
                                              new DeletionTime(delTime, delTime));
     }
 

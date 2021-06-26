@@ -13,7 +13,7 @@ the Python native protocol driver, and connects to the single node specified on 
 Compatibility
 ^^^^^^^^^^^^^
 
-cqlsh is compatible with Python 2.7.
+cqlsh is compatible with Python 3.6+ (and 2.7, deprecated).
 
 In general, a given version of cqlsh is only guaranteed to work with the version of Cassandra that it was released with.
 In some cases, cqlsh make work with older or newer versions of Cassandra, but this is not officially supported.
@@ -65,7 +65,7 @@ Options:
 
 ``--browser``
   Specify the browser to use for displaying cqlsh help.  This can be one of the `supported browser names
-  <https://docs.python.org/2/library/webbrowser.html>`__ (e.g. ``firefox``) or a browser path followed by ``%s`` (e.g.
+  <https://docs.python.org/3/library/webbrowser.html>`__ (e.g. ``firefox``) or a browser path followed by ``%s`` (e.g.
   ``/usr/bin/google-chrome-stable %s``).
 
 ``--ssl``

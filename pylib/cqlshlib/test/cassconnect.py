@@ -18,12 +18,15 @@
 import contextlib
 import io
 import os.path
-import tempfile
+import random
+import string
+from nose.tools import nottest
 
-from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, rundir
+from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, test_dir
 from .run_cqlsh import run_cqlsh, call_cqlsh
 
-test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
+test_keyspace_init = os.path.join(test_dir, 'test_keyspace_init.cql')
+
 
 def get_cassandra_connection(cql_version=None):
     conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version, load_balancing_policy=policy)
@@ -31,17 +34,31 @@ def get_cassandra_connection(cql_version=None):
     conn.cql_version = cql_version
     return conn
 
+
 def get_cassandra_cursor(cql_version=None):
     return get_cassandra_connection(cql_version=cql_version).cursor()
 
+
 TEST_KEYSPACES_CREATED = []
+
 
 def get_keyspace():
     return None if len(TEST_KEYSPACES_CREATED) == 0 else TEST_KEYSPACES_CREATED[-1]
 
+
+_used_ks_names = set()
+
+
 def make_ks_name():
-    # abuse mktemp to get a quick random-ish name
-    return os.path.basename(tempfile.mktemp(prefix='CqlshTests_'))
+    def random_ks():
+        return 'cqlshtests_' + ''.join(random.choice(string.ascii_lowercase) for _ in range(10))
+
+    s = random_ks()
+    while s in _used_ks_names:
+        s = random_ks()
+    _used_ks_names.add(s)
+    return s
+
 
 def create_keyspace(cursor):
     ksname = make_ks_name().lower()
@@ -54,6 +71,7 @@ def create_keyspace(cursor):
     TEST_KEYSPACES_CREATED.append(ksname)
     return ksname
 
+
 def split_cql_commands(source):
     ruleset = cql_rule_set()
     statements, endtoken_escaped = ruleset.cql_split_statements(source)
@@ -62,14 +80,17 @@ def split_cql_commands(source):
 
     return [ruleset.cql_extract_orig(toks, source) for toks in statements if toks]
 
+
 def execute_cql_commands(cursor, source, logprefix='INIT: '):
     for cql in split_cql_commands(source):
         cqlshlog.debug((logprefix + cql).encode("utf-8"))
         cursor.execute(cql)
 
+
 def execute_cql_file(cursor, fname):
     with io.open(fname, "r", encoding="utf-8") as f:
         return execute_cql_commands(cursor, f.read())
+
 
 def create_db():
     with cassandra_cursor(ks=None) as c:
@@ -77,9 +98,11 @@ def create_db():
         execute_cql_file(c, test_keyspace_init)
     return k
 
+
 def remove_db():
     with cassandra_cursor(ks=None) as c:
         c.execute('DROP KEYSPACE %s' % quote_name(TEST_KEYSPACES_CREATED.pop(-1)))
+
 
 @contextlib.contextmanager
 def cassandra_connection(cql_version=None):
@@ -121,11 +144,15 @@ def cassandra_cursor(cql_version=None, ks=''):
     finally:
         conn.shutdown()
 
+
 def cql_rule_set():
     return cqlsh.cql3handling.CqlRuleSet
 
+
 class DEFAULTVAL: pass
 
+
+@nottest
 def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
@@ -133,9 +160,11 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
         keyspace = get_keyspace()
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
+
+@nottest
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
         keyspace = get_keyspace()
-    if ('input' in kwargs.keys() and isinstance(kwargs['input'], str)):
+    if 'input' in kwargs.keys() and isinstance(kwargs['input'], str):
         kwargs['input'] = kwargs['input'].encode('utf-8')
     return call_cqlsh(keyspace=keyspace, **kwargs)

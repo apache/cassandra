@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
-import javax.net.ssl.SSLSession;
-
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,7 +50,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionSettings.Framing;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.async.StreamingInboundHandler;
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Math.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -61,7 +59,6 @@ import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.SocketFactory.WIRETRACE;
-import static org.apache.cassandra.net.SocketFactory.encryptionLogStatement;
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 
 public class InboundConnectionInitiator
@@ -97,20 +94,20 @@ public class InboundConnectionInitiator
             pipelineInjector.accept(pipeline);
 
             // order of handlers: ssl -> logger -> handshakeHandler
-            if (settings.encryption.enabled)
+            // For either unencrypted or transitional modes, allow Ssl optionally.
+            switch(settings.encryption.tlsEncryptionPolicy())
             {
-                if (settings.encryption.optional)
-                {
+                case UNENCRYPTED:
+                    // Handler checks for SSL connection attempts and cleanly rejects them if encryption is disabled
+                    pipeline.addFirst("rejectssl", new RejectSslHandler());
+                    break;
+                case OPTIONAL:
                     pipeline.addFirst("ssl", new OptionalSslHandler(settings.encryption));
-                }
-                else
-                {
-                    SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true, SSLFactory.SocketType.SERVER);
-                    InetSocketAddress peer = settings.encryption.require_endpoint_verification ? channel.remoteAddress() : null;
-                    SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
-                    logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+                    break;
+                case ENCRYPTED:
+                    SslHandler sslHandler = getSslHandler("creating", channel, settings.encryption);
                     pipeline.addFirst("ssl", sslHandler);
-                }
+                    break;
             }
 
             if (WIRETRACE)
@@ -216,7 +213,6 @@ public class InboundConnectionInitiator
                 failHandshake(ctx);
             }, HandshakeProtocol.TIMEOUT_MILLIS, MILLISECONDS);
 
-            logSsl(ctx);
             authenticate(ctx.channel().remoteAddress());
         }
 
@@ -231,17 +227,6 @@ public class InboundConnectionInitiator
             InetSocketAddress addr = (InetSocketAddress)socketAddress;
             if (!settings.authenticate(addr.getAddress(), addr.getPort()))
                 throw new IOException("Authentication failure for inbound connection from peer " + addr);
-        }
-
-        private void logSsl(ChannelHandlerContext ctx)
-        {
-            SslHandler sslHandler = ctx.pipeline().get(SslHandler.class);
-            if (sslHandler != null)
-            {
-                SSLSession session = sslHandler.engine().getSession();
-                logger.info("connection from peer {} to {}, protocol = {}, cipher suite = {}",
-                            ctx.channel().remoteAddress(), ctx.channel().localAddress(), session.getProtocol(), session.getCipherSuite());
-            }
         }
 
         @Override
@@ -259,6 +244,14 @@ public class InboundConnectionInitiator
                 return;
 
             logger.trace("Received handshake initiation message from peer {}, message = {}", ctx.channel().remoteAddress(), initiate);
+
+            if (isEncryptionRequired(initiate.from) && !isChannelEncrypted(ctx))
+            {
+                logger.warn("peer {} attempted to establish an unencrypted connection (broadcast address {})",
+                            ctx.channel().remoteAddress(), initiate.from);
+                failHandshake(ctx);
+            }
+
             if (initiate.acceptVersions != null)
             {
                 logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
@@ -331,6 +324,16 @@ public class InboundConnectionInitiator
             }
         }
 
+        private boolean isEncryptionRequired(InetAddressAndPort peer)
+        {
+            return !settings.encryption.isExplicitlyOptional() && settings.encryption.shouldEncrypt(peer);
+        }
+
+        private boolean isChannelEncrypted(ChannelHandlerContext ctx)
+        {
+            return ctx.pipeline().get(SslHandler.class) != null;
+        }
+
         /**
          * Handles the third (and last) message in the internode messaging handshake protocol for pre40 nodes.
          * Grabs the protocol version and IP addr the peer wants to use.
@@ -391,8 +394,19 @@ public class InboundConnectionInitiator
                 from = InetAddressAndPort.getByAddressOverrideDefaults(address.getAddress(), address.getPort());
             }
 
-            BufferPool.setRecycleWhenFreeForCurrentThread(false);
+            BufferPools.forNetworking().setRecycleWhenFreeForCurrentThread(false);
             pipeline.replace(this, "streamInbound", new StreamingInboundHandler(from, current_version, null));
+
+            logger.info("{} streaming connection established, version = {}, framing = {}, encryption = {}",
+                        SocketFactory.channelId(from,
+                                                (InetSocketAddress) channel.remoteAddress(),
+                                                settings.bindAddress,
+                                                (InetSocketAddress) channel.localAddress(),
+                                                ConnectionType.STREAMING,
+                                                channel.id().asShortText()),
+                        current_version,
+                        initiate.framing,
+                        SocketFactory.encryptionConnectionSummary(pipeline.channel()));
         }
 
         @VisibleForTesting
@@ -402,7 +416,7 @@ public class InboundConnectionInitiator
             // record the "true" endpoint, i.e. the one the peer is identified with, as opposed to the socket it connected over
             instance().versions.set(from, maxMessagingVersion);
 
-            BufferPool.setRecycleWhenFreeForCurrentThread(false);
+            BufferPools.forNetworking().setRecycleWhenFreeForCurrentThread(false);
             BufferPoolAllocator allocator = GlobalBufferPoolAllocator.instance;
             if (initiate.type == ConnectionType.LARGE_MESSAGES)
             {
@@ -447,16 +461,26 @@ public class InboundConnectionInitiator
             InboundMessageHandler handler =
                 settings.handlers.apply(from).createHandler(frameDecoder, initiate.type, pipeline.channel(), useMessagingVersion);
 
-            logger.info("{} connection established, version = {}, framing = {}, encryption = {}",
+            logger.info("{} messaging connection established, version = {}, framing = {}, encryption = {}",
                         handler.id(true),
                         useMessagingVersion,
                         initiate.framing,
-                        pipeline.get("ssl") != null ? encryptionLogStatement(settings.encryption) : "disabled");
+                        SocketFactory.encryptionConnectionSummary(pipeline.channel()));
 
             pipeline.addLast("deserialize", handler);
 
             pipeline.remove(this);
         }
+    }
+
+    private static SslHandler getSslHandler(String description, Channel channel, EncryptionOptions.ServerEncryptionOptions encryptionOptions) throws IOException
+    {
+        final boolean buildTrustStore = true;
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, buildTrustStore, SSLFactory.SocketType.SERVER);
+        InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
+        SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+        logger.trace("{} inbound netty SslContext: context={}, engine={}", description, sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
+        return sslHandler;
     }
 
     private static class OptionalSslHandler extends ByteToMessageDecoder
@@ -480,15 +504,39 @@ public class InboundConnectionInitiator
             if (SslHandler.isEncrypted(in))
             {
                 // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use encryption.
-                SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, true, SSLFactory.SocketType.SERVER);
-                Channel channel = ctx.channel();
-                InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+                SslHandler sslHandler = getSslHandler("replacing optional", ctx.channel(), encryptionOptions);
                 ctx.pipeline().replace(this, "ssl", sslHandler);
             }
             else
             {
                 // Connection use no TLS/SSL encryption, just remove the detection handler and continue without
+                // SslHandler in the pipeline.
+                ctx.pipeline().remove(this);
+            }
+        }
+    }
+
+    private static class RejectSslHandler extends ByteToMessageDecoder
+    {
+        protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
+        {
+            if (in.readableBytes() < 5)
+            {
+                // To detect if SSL must be used we need to have at least 5 bytes, so return here and try again
+                // once more bytes a ready.
+                return;
+            }
+
+            if (SslHandler.isEncrypted(in))
+            {
+                logger.info("Rejected incoming TLS connection before negotiating from {} to {}. TLS is explicitly disabled by configuration.",
+                            ctx.channel().remoteAddress(), ctx.channel().localAddress());
+                in.readBytes(in.readableBytes()); // discard the readable bytes so not called again
+                ctx.close();
+            }
+            else
+            {
+                // Incoming connection did not attempt TLS/SSL encryption, just remove the detection handler and continue without
                 // SslHandler in the pipeline.
                 ctx.pipeline().remove(this);
             }

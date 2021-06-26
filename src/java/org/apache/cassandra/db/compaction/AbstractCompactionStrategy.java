@@ -209,10 +209,10 @@ public abstract class AbstractCompactionStrategy
     public abstract long getMaxSSTableBytes();
 
     /**
-     * Filters SSTables that are to be blacklisted from the given collection
+     * Filters SSTables that are to be excluded from the given collection
      *
-     * @param originalCandidates The collection to check for blacklisted SSTables
-     * @return list of the SSTables with blacklisted ones filtered out
+     * @param originalCandidates The collection to check for excluded SSTables
+     * @return list of the SSTables with excluded ones filtered out
      */
     public static List<SSTableReader> filterSuspectSSTables(Iterable<SSTableReader> originalCandidates)
     {
@@ -252,34 +252,46 @@ public abstract class AbstractCompactionStrategy
         return new ScannerList(scanners);
     }
 
-    public boolean shouldDefragment()
-    {
-        return false;
-    }
-
     public String getName()
     {
         return getClass().getSimpleName();
     }
 
+    /**
+     * Replaces sstables in the compaction strategy
+     *
+     * Note that implementations must be able to handle duplicate notifications here (that removed are already gone and
+     * added have already been added)
+     * */
     public synchronized void replaceSSTables(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
         for (SSTableReader remove : removed)
             removeSSTable(remove);
-        for (SSTableReader add : added)
-            addSSTable(add);
+        addSSTables(added);
     }
 
+    /**
+     * Adds sstable, note that implementations must handle duplicate notifications here (added already being in the compaction strategy)
+     */
     public abstract void addSSTable(SSTableReader added);
 
+    /**
+     * Adds sstables, note that implementations must handle duplicate notifications here (added already being in the compaction strategy)
+     */
     public synchronized void addSSTables(Iterable<SSTableReader> added)
     {
         for (SSTableReader sstable : added)
             addSSTable(sstable);
     }
 
+    /**
+     * Removes sstable from the strategy, implementations must be able to handle the sstable having already been removed.
+     */
     public abstract void removeSSTable(SSTableReader sstable);
 
+    /**
+     * Removes sstables from the strategy, implementations must be able to handle the sstables having already been removed.
+     */
     public void removeSSTables(Iterable<SSTableReader> removed)
     {
         for (SSTableReader sstable : removed)

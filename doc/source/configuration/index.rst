@@ -22,4 +22,10 @@ This section describes how to configure Apache Cassandra.
 .. toctree::
    :maxdepth: 1
 
-   cassandra_config_file
+   cass_yaml_file
+   cass_rackdc_file
+   cass_env_sh_file
+   cass_topo_file
+   cass_cl_archive_file
+   cass_logback_xml_file
+   cass_jvm_options_file

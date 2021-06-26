@@ -26,6 +26,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -37,7 +38,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * Unless you have a very good reason not to, every cell implementation
  * should probably extend this class.
  */
-public abstract class AbstractCell extends Cell
+public abstract class AbstractCell<V> extends Cell<V>
 {
     protected AbstractCell(ColumnMetadata column)
     {
@@ -64,17 +65,17 @@ public abstract class AbstractCell extends Cell
         return ttl() != NO_TTL;
     }
 
-    public Cell markCounterLocalToBeCleared()
+    public Cell<?> markCounterLocalToBeCleared()
     {
         if (!isCounterCell())
             return this;
 
-        ByteBuffer value = value();
+        ByteBuffer value = buffer();
         ByteBuffer marked = CounterContext.instance().markLocalToBeCleared(value);
         return marked == value ? this : new BufferCell(column, timestamp(), ttl(), localDeletionTime(), marked, path());
     }
 
-    public Cell purge(DeletionPurger purger, int nowInSec)
+    public Cell<?> purge(DeletionPurger purger, int nowInSec)
     {
         if (!isLive(nowInSec))
         {
@@ -97,16 +98,16 @@ public abstract class AbstractCell extends Cell
         return this;
     }
 
-    public Cell copy(AbstractAllocator allocator)
+    public Cell<?> copy(AbstractAllocator allocator)
     {
         CellPath path = path();
-        return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), allocator.clone(value()), path == null ? null : path.copy(allocator));
+        return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), allocator.clone(buffer()), path == null ? null : path.copy(allocator));
     }
 
     // note: while the cell returned may be different, the value is the same, so if the value is offheap it must be referenced inside a guarded context (or copied)
-    public Cell updateAllTimestamp(long newTimestamp)
+    public Cell<?> updateAllTimestamp(long newTimestamp)
     {
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), value(), path());
+        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), path());
     }
 
     public int dataSize()
@@ -115,16 +116,16 @@ public abstract class AbstractCell extends Cell
         return TypeSizes.sizeof(timestamp())
                + TypeSizes.sizeof(ttl())
                + TypeSizes.sizeof(localDeletionTime())
-               + value().remaining()
+               + valueSize()
                + (path == null ? 0 : path.dataSize());
     }
 
     public void digest(Digest digest)
     {
         if (isCounterCell())
-            digest.updateWithCounterContext(value());
+            digest.updateWithCounterContext(value(), accessor());
         else
-            digest.update(value());
+            digest.update(value(), accessor());
 
         digest.updateWithLong(timestamp())
               .updateWithInt(ttl())
@@ -161,6 +162,17 @@ public abstract class AbstractCell extends Cell
         return timestamp();
     }
 
+    public static <V1, V2> boolean equals(Cell<V1> left, Cell<V2> right)
+    {
+        return left.column().equals(right.column())
+               && left.isCounterCell() == right.isCounterCell()
+               && left.timestamp() == right.timestamp()
+               && left.ttl() == right.ttl()
+               && left.localDeletionTime() == right.localDeletionTime()
+               && ValueAccessor.equals(left.value(), left.accessor(), right.value(), right.accessor())
+               && Objects.equals(left.path(), right.path());
+    }
+
     @Override
     public boolean equals(Object other)
     {
@@ -170,27 +182,20 @@ public abstract class AbstractCell extends Cell
         if(!(other instanceof Cell))
             return false;
 
-        Cell that = (Cell)other;
-        return this.column().equals(that.column())
-            && this.isCounterCell() == that.isCounterCell()
-            && this.timestamp() == that.timestamp()
-            && this.ttl() == that.ttl()
-            && this.localDeletionTime() == that.localDeletionTime()
-            && Objects.equals(this.value(), that.value())
-            && Objects.equals(this.path(), that.path());
+        return equals(this, (Cell<?>) other);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(column(), isCounterCell(), timestamp(), ttl(), localDeletionTime(), value(), path());
+        return Objects.hash(column(), isCounterCell(), timestamp(), ttl(), localDeletionTime(), accessor().hashCode(value()), path());
     }
 
     @Override
     public String toString()
     {
         if (isCounterCell())
-            return String.format("[%s=%d ts=%d]", column().name, CounterContext.instance().total(value()), timestamp());
+            return String.format("[%s=%d ts=%d]", column().name, CounterContext.instance().total(value(), accessor()), timestamp());
 
         AbstractType<?> type = column().type;
         if (type instanceof CollectionType && type.isMultiCell())
@@ -199,24 +204,24 @@ public abstract class AbstractCell extends Cell
             return String.format("[%s[%s]=%s %s]",
                                  column().name,
                                  ct.nameComparator().getString(path().get(0)),
-                                 ct.valueComparator().getString(value()),
+                                 ct.valueComparator().getString(value(), accessor()),
                                  livenessInfoString());
         }
         if (isTombstone())
             return String.format("[%s=<tombstone> %s]", column().name, livenessInfoString());
         else
-            return String.format("[%s=%s %s]", column().name, safeToString(type, value()), livenessInfoString());
+            return String.format("[%s=%s %s]", column().name, safeToString(type), livenessInfoString());
     }
 
-    private static String safeToString(AbstractType<?> type, ByteBuffer data)
+    private String safeToString(AbstractType<?> type)
     {
         try
         {
-            return type.getString(data);
+            return type.getString(value(), accessor());
         }
         catch (Exception e)
         {
-            return "0x" + ByteBufferUtil.bytesToHex(data);
+            return "0x" + ByteBufferUtil.bytesToHex(buffer());
         }
     }
 

@@ -54,7 +54,7 @@ public class DeleteStatement extends ModificationStatement
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
     throws InvalidRequestException
     {
         TableMetadata metadata = metadata();
@@ -130,7 +130,7 @@ public class DeleteStatement extends ModificationStatement
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
                       WhereClause whereClause,
-                      List<Pair<ColumnMetadata.Raw, ColumnCondition.Raw>> conditions,
+                      List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
                       boolean ifExists)
         {
             super(name, StatementType.DELETE, attrs, conditions, false, ifExists);
@@ -151,7 +151,7 @@ public class DeleteStatement extends ModificationStatement
 
             for (Operation.RawDeletion deletion : deletions)
             {
-                ColumnMetadata def = getColumnDefinition(metadata, deletion.affectedColumn());
+                ColumnMetadata def = metadata.getExistingColumn(deletion.affectedColumn());
 
                 // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
                 // list. However, we support having the value name for coherence with the static/sparse case

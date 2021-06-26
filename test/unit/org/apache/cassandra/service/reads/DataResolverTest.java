@@ -26,15 +26,7 @@ import java.util.UUID;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -62,9 +54,15 @@ import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.service.StorageService;
@@ -704,7 +702,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             return rt;
 
         Slice slice = rt.deletedSlice();
-        ClusteringBound newStart = ClusteringBound.create(Kind.EXCL_START_BOUND, slice.start().getRawValues());
+        ClusteringBound<?> newStart = ClusteringBound.create(Kind.EXCL_START_BOUND, slice.start());
         return condition
                ? new RangeTombstone(Slice.make(newStart, slice.end()), rt.deletionTime())
                : rt;
@@ -717,7 +715,7 @@ public class DataResolverTest extends AbstractReadResponseTest
             return rt;
 
         Slice slice = rt.deletedSlice();
-        ClusteringBound newEnd = ClusteringBound.create(Kind.EXCL_END_BOUND, slice.end().getRawValues());
+        ClusteringBound<?> newEnd = ClusteringBound.create(Kind.EXCL_END_BOUND, slice.end());
         return condition
                ? new RangeTombstone(Slice.make(slice.start(), newEnd), rt.deletionTime())
                : rt;
@@ -728,7 +726,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         return ByteBufferUtil.bytes(b);
     }
 
-    private Cell mapCell(int k, int v, long ts)
+    private Cell<?> mapCell(int k, int v, long ts)
     {
         return BufferCell.live(m, ts, bb(v), CellPath.create(bb(k)));
     }
@@ -754,7 +752,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
-        Cell expectedCell = mapCell(1, 1, ts[1]);
+        Cell<?> expectedCell = mapCell(1, 1, ts[1]);
         builder.addCell(expectedCell);
 
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
@@ -844,7 +842,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[0] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
-        Cell expectedCell = mapCell(0, 0, ts[0]);
+        Cell<?> expectedCell = mapCell(0, 0, ts[0]);
         builder.addCell(expectedCell);
 
         // empty map column
@@ -901,7 +899,7 @@ public class DataResolverTest extends AbstractReadResponseTest
         builder.newRow(Clustering.EMPTY);
         DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
         builder.addComplexDeletion(m, expectedCmplxDelete);
-        Cell expectedCell = mapCell(1, 1, ts[1]);
+        Cell<?> expectedCell = mapCell(1, 1, ts[1]);
         builder.addCell(expectedCell);
 
         InetAddressAndPort peer2 = replicas.get(1).endpoint();
@@ -1323,7 +1321,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForRangeRead plan(EndpointsForRange replicas, ConsistencyLevel consistencyLevel)
     {
-        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas));
+        return ReplicaPlan.shared(new ReplicaPlan.ForRangeRead(ks, ks.getReplicationStrategy(), consistencyLevel, ReplicaUtils.FULL_BOUNDS, replicas, replicas, 1));
     }
 
     private static void resolveAndConsume(DataResolver resolver)

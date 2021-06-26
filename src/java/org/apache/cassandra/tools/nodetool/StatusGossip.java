@@ -28,7 +28,7 @@ public class StatusGossip extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.println(
+        probe.output().out.println(
                 probe.isGossipRunning()
                 ? "running"
                 : "not running");

@@ -173,7 +173,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         InetAddressAndPort src = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.2", PORT);
         InetAddressAndPort dest = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.3", PORT);
 
-        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE);
+        SyncRequest message = new SyncRequest(DESC, local, src, dest, Collections.singleton(FULL_RANGE), PreviewKind.NONE, false);
         testRepairMessageWrite("service.SyncRequest.bin", SyncRequest.serializer, message);
     }
 
@@ -195,6 +195,7 @@ public class SerializationsTest extends AbstractSerializationsTester
             assert src.equals(message.src);
             assert dest.equals(message.dst);
             assert message.ranges.size() == 1 && message.ranges.contains(FULL_RANGE);
+            assert !message.asymmetric;
         }
     }
 

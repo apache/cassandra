@@ -81,7 +81,7 @@ public interface ReadQuery
                 return false;
             }
 
-            public boolean selectsClustering(DecoratedKey key, Clustering clustering)
+            public boolean selectsClustering(DecoratedKey key, Clustering<?> clustering)
             {
                 return false;
             }
@@ -192,7 +192,7 @@ public interface ReadQuery
      * @return true if the read query would select the given clustering, including checks against the row filter, if
      * checkRowFilter is true
      */
-    public boolean selectsClustering(DecoratedKey key, Clustering clustering);
+    public boolean selectsClustering(DecoratedKey key, Clustering<?> clustering);
 
     /**
      * The time in seconds to use as "now" for this query.

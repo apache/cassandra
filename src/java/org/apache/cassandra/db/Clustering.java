@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -29,20 +30,17 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 import static org.apache.cassandra.db.AbstractBufferClusteringPrefix.EMPTY_VALUES_ARRAY;
 
-public interface Clustering extends ClusteringPrefix
+public interface Clustering<V> extends ClusteringPrefix<V>
 {
-    static final long EMPTY_SIZE = ObjectSizes.measure(new BufferClustering(EMPTY_VALUES_ARRAY));
-
     public static final Serializer serializer = new Serializer();
 
     public long unsharedHeapSizeExcludingData();
 
-    public default Clustering copy(AbstractAllocator allocator)
+    public default Clustering<?> copy(AbstractAllocator allocator)
     {
         // Important for STATIC_CLUSTERING (but must copy empty native clustering types).
         if (size() == 0)
@@ -51,7 +49,7 @@ public interface Clustering extends ClusteringPrefix
         ByteBuffer[] newValues = new ByteBuffer[size()];
         for (int i = 0; i < size(); i++)
         {
-            ByteBuffer val = get(i);
+            ByteBuffer val = accessor().toBuffer(get(i));
             newValues[i] = val == null ? null : allocator.clone(val);
         }
         return new BufferClustering(newValues);
@@ -63,7 +61,7 @@ public interface Clustering extends ClusteringPrefix
         for (int i = 0; i < size(); i++)
         {
             ColumnMetadata c = metadata.clusteringColumns().get(i);
-            sb.append(i == 0 ? "" : ", ").append(c.name).append('=').append(get(i) == null ? "null" : c.type.getString(get(i)));
+            sb.append(i == 0 ? "" : ", ").append(c.name).append('=').append(get(i) == null ? "null" : c.type.getString(get(i), accessor()));
         }
         return sb.toString();
     }
@@ -74,12 +72,12 @@ public interface Clustering extends ClusteringPrefix
         for (int i = 0; i < size(); i++)
         {
             ColumnMetadata c = metadata.clusteringColumns().get(i);
-            sb.append(i == 0 ? "" : ", ").append(c.type.getString(get(i)));
+            sb.append(i == 0 ? "" : ", ").append(c.type.getString(get(i), accessor()));
         }
         return sb.toString();
     }
 
-    public static Clustering make(ByteBuffer... values)
+    public static Clustering<ByteBuffer> make(ByteBuffer... values)
     {
         return values.length == 0 ? EMPTY : new BufferClustering(values);
     }
@@ -88,7 +86,7 @@ public interface Clustering extends ClusteringPrefix
      * The special cased clustering used by all static rows. It is a special case in the
      * sense that it's always empty, no matter how many clustering columns the table has.
      */
-    public static final Clustering STATIC_CLUSTERING = new BufferClustering(EMPTY_VALUES_ARRAY)
+    public static final Clustering<ByteBuffer> STATIC_CLUSTERING = new BufferClustering(EMPTY_VALUES_ARRAY)
     {
         @Override
         public Kind kind()
@@ -110,7 +108,7 @@ public interface Clustering extends ClusteringPrefix
     };
 
     /** Empty clustering for tables having no clustering columns. */
-    public static final Clustering EMPTY = new BufferClustering(EMPTY_VALUES_ARRAY)
+    public static final Clustering<ByteBuffer> EMPTY = new BufferClustering(EMPTY_VALUES_ARRAY)
     {
         @Override
         public String toString(TableMetadata metadata)
@@ -127,14 +125,14 @@ public interface Clustering extends ClusteringPrefix
      */
     public static class Serializer
     {
-        public void serialize(Clustering clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
+        public void serialize(Clustering<?> clustering, DataOutputPlus out, int version, List<AbstractType<?>> types) throws IOException
         {
             assert clustering != STATIC_CLUSTERING : "We should never serialize a static clustering";
             assert clustering.size() == types.size() : "Invalid clustering for the table: " + clustering;
             ClusteringPrefix.serializer.serializeValuesWithoutSize(clustering, out, version, types);
         }
 
-        public ByteBuffer serialize(Clustering clustering, int version, List<AbstractType<?>> types)
+        public ByteBuffer serialize(Clustering<?> clustering, int version, List<AbstractType<?>> types)
         {
             try (DataOutputBuffer buffer = new DataOutputBuffer((int)serializedSize(clustering, version, types)))
             {
@@ -147,7 +145,7 @@ public interface Clustering extends ClusteringPrefix
             }
         }
 
-        public long serializedSize(Clustering clustering, int version, List<AbstractType<?>> types)
+        public long serializedSize(Clustering<?> clustering, int version, List<AbstractType<?>> types)
         {
             return ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(clustering, version, types);
         }
@@ -158,16 +156,16 @@ public interface Clustering extends ClusteringPrefix
                 ClusteringPrefix.serializer.skipValuesWithoutSize(in, types.size(), version, types);
         }
 
-        public Clustering deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        public Clustering<byte[]> deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
             if (types.isEmpty())
-                return EMPTY;
+                return ByteArrayAccessor.factory.clustering();
 
-            ByteBuffer[] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, types.size(), version, types);
-            return new BufferClustering(values);
+            byte[][] values = ClusteringPrefix.serializer.deserializeValuesWithoutSize(in, types.size(), version, types);
+            return ByteArrayAccessor.factory.clustering(values);
         }
 
-        public Clustering deserialize(ByteBuffer in, int version, List<AbstractType<?>> types)
+        public Clustering<byte[]> deserialize(ByteBuffer in, int version, List<AbstractType<?>> types)
         {
             try (DataInputBuffer buffer = new DataInputBuffer(in, true))
             {

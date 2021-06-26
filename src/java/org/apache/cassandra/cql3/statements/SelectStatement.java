@@ -232,7 +232,7 @@ public class SelectStatement implements CQLStatement
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
 
-        cl.validateForRead(keyspace());
+        cl.validateForRead();
 
         int nowInSec = options.getNowInSeconds(state);
         int userLimit = getLimit(options);
@@ -512,7 +512,7 @@ public class SelectStatement implements CQLStatement
             return ReadQuery.empty(table);
 
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
-        if (filter == null)
+        if (filter == null || filter.isEmpty(table.comparator))
             return ReadQuery.empty(table);
 
         RowFilter rowFilter = getRowFilter(options);
@@ -544,7 +544,7 @@ public class SelectStatement implements CQLStatement
             return ((ClusteringIndexSliceFilter)filter).requestedSlices();
 
         Slices.Builder builder = new Slices.Builder(table.comparator);
-        for (Clustering clustering: ((ClusteringIndexNamesFilter)filter).requestedRows())
+        for (Clustering<?> clustering: ((ClusteringIndexNamesFilter)filter).requestedRows())
             builder.add(Slice.make(clustering));
         return builder.build();
     }
@@ -616,7 +616,7 @@ public class SelectStatement implements CQLStatement
             return new ClusteringIndexSliceFilter(slices, isReversed);
         }
 
-        NavigableSet<Clustering> clusterings = getRequestedRows(options);
+        NavigableSet<Clustering<?>> clusterings = getRequestedRows(options);
         // We can have no clusterings if either we're only selecting the static columns, or if we have
         // a 'IN ()' for clusterings. In that case, we still want to query if some static columns are
         // queried. But we're fine otherwise.
@@ -630,27 +630,27 @@ public class SelectStatement implements CQLStatement
     public Slices makeSlices(QueryOptions options)
     throws InvalidRequestException
     {
-        SortedSet<ClusteringBound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
-        SortedSet<ClusteringBound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
+        SortedSet<ClusteringBound<?>> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
+        SortedSet<ClusteringBound<?>> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
         assert startBounds.size() == endBounds.size();
 
         // The case where startBounds == 1 is common enough that it's worth optimizing
         if (startBounds.size() == 1)
         {
-            ClusteringBound start = startBounds.first();
-            ClusteringBound end = endBounds.first();
+            ClusteringBound<?> start = startBounds.first();
+            ClusteringBound<?> end = endBounds.first();
             return Slice.isEmpty(table.comparator, start, end)
                  ? Slices.NONE
                  : Slices.with(table.comparator, Slice.make(start, end));
         }
 
         Slices.Builder builder = new Slices.Builder(table.comparator, startBounds.size());
-        Iterator<ClusteringBound> startIter = startBounds.iterator();
-        Iterator<ClusteringBound> endIter = endBounds.iterator();
+        Iterator<ClusteringBound<?>> startIter = startBounds.iterator();
+        Iterator<ClusteringBound<?>> endIter = endBounds.iterator();
         while (startIter.hasNext() && endIter.hasNext())
         {
-            ClusteringBound start = startIter.next();
-            ClusteringBound end = endIter.next();
+            ClusteringBound<?> start = startIter.next();
+            ClusteringBound<?> end = endIter.next();
 
             // Ignore slices that are nonsensical
             if (Slice.isEmpty(table.comparator, start, end))
@@ -748,7 +748,7 @@ public class SelectStatement implements CQLStatement
         return userLimit;
     }
 
-    private NavigableSet<Clustering> getRequestedRows(QueryOptions options) throws InvalidRequestException
+    private NavigableSet<Clustering<?>> getRequestedRows(QueryOptions options) throws InvalidRequestException
     {
         // Note: getRequestedColumns don't handle static columns, but due to CASSANDRA-5762
         // we always do a slice for CQL3 tables, so it's ok to ignore them here
@@ -804,18 +804,6 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    // Determines whether, when we have a partition result with not rows, we still return the static content (as a
-    // result set row with null for all other regular columns.)
-    private boolean returnStaticContentOnPartitionWithNoRows()
-    {
-        // The general rational is that if some rows are specifically selected by the query (have clustering or
-        // regular columns restrictions), we ignore partitions that are empty outside of static content, but if it's a full partition
-        // query, then we include that content.
-        // We make an exception for "static compact" table are from a CQL standpoint we always want to show their static
-        // content for backward compatiblity.
-        return queriesFullPartitions() || table.isStaticCompactTable();
-    }
-
     // Used by ModificationStatement for CAS operations
     void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
     throws InvalidRequestException
@@ -828,7 +816,7 @@ public class SelectStatement implements CQLStatement
         // If there is no rows, we include the static content if we should and we're done.
         if (!partition.hasNext())
         {
-            if (!staticRow.isEmpty() && returnStaticContentOnPartitionWithNoRows())
+            if (!staticRow.isEmpty() && restrictions.returnStaticContentOnPartitionWithNoRows())
             {
                 result.newRow(partition.partitionKey(), staticRow.clustering());
                 for (ColumnMetadata def : selection.getColumns())
@@ -862,7 +850,7 @@ public class SelectStatement implements CQLStatement
                         result.add(keyComponents[def.position()]);
                         break;
                     case CLUSTERING:
-                        result.add(row.clustering().get(def.position()));
+                        result.add(row.clustering().bufferAt(def.position()));
                         break;
                     case REGULAR:
                         addValue(result, def, row, nowInSec, protocolVersion);
@@ -873,15 +861,6 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
-    }
-
-    /**
-     * Checks if the query is a full partitions selection.
-     * @return {@code true} if the query is a full partitions selection, {@code false} otherwise.
-     */
-    private boolean queriesFullPartitions()
-    {
-        return !restrictions.hasClusteringColumnsRestrictions() && !restrictions.hasRegularColumnsRestrictions();
     }
 
     private static void addValue(ResultSetBuilder result, ColumnMetadata def, Row row, int nowInSec, ProtocolVersion protocolVersion)
@@ -1020,8 +999,8 @@ public class SelectStatement implements CQLStatement
 
             if (selectables.isEmpty()) // wildcard query
             {
-                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson)
-                                  : Selection.wildcard(table, parameters.isJson);
+                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows())
+                                  : Selection.wildcard(table, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows());
             }
 
             return Selection.fromSelectors(table,
@@ -1030,7 +1009,8 @@ public class SelectStatement implements CQLStatement
                                            resultSetOrderingColumns,
                                            restrictions.nonPKRestrictedColumns(false),
                                            hasGroupBy,
-                                           parameters.isJson);
+                                           parameters.isJson,
+                                           restrictions.returnStaticContentOnPartitionWithNoRows());
         }
 
         /**
@@ -1043,7 +1023,10 @@ public class SelectStatement implements CQLStatement
          */
         private boolean selectOnlyStaticColumns(TableMetadata table, List<Selectable> selectables)
         {
-            if (table.isStaticCompactTable() || !table.hasStaticColumns() || selectables.isEmpty())
+            if (table.isStaticCompactTable())
+                return false;
+
+            if (!table.hasStaticColumns() || selectables.isEmpty())
                 return false;
 
             return Selectable.selectColumns(selectables, (column) -> column.isStatic())
@@ -1060,9 +1043,9 @@ public class SelectStatement implements CQLStatement
                 return Collections.emptyMap();
 
             Map<ColumnMetadata, Boolean> orderingColumns = new LinkedHashMap<>();
-            for (Map.Entry<ColumnMetadata.Raw, Boolean> entry : parameters.orderings.entrySet())
+            for (Map.Entry<ColumnIdentifier, Boolean> entry : parameters.orderings.entrySet())
             {
-                orderingColumns.put(entry.getKey().prepare(table), entry.getValue());
+                orderingColumns.put(table.getExistingColumn(entry.getKey()), entry.getValue());
             }
             return orderingColumns;
         }
@@ -1154,9 +1137,9 @@ public class SelectStatement implements CQLStatement
             int clusteringPrefixSize = 0;
 
             Iterator<ColumnMetadata> pkColumns = metadata.primaryKeyColumns().iterator();
-            for (ColumnMetadata.Raw raw : parameters.groups)
+            for (ColumnIdentifier id : parameters.groups)
             {
-                ColumnMetadata def = raw.prepare(metadata);
+                ColumnMetadata def = metadata.getExistingColumn(id);
 
                 checkTrue(def.isPartitionKey() || def.isClusteringColumn(),
                           "Group by is currently only supported on the columns of the PRIMARY KEY, got %s", def.name);
@@ -1288,14 +1271,14 @@ public class SelectStatement implements CQLStatement
     public static class Parameters
     {
         // Public because CASSANDRA-9858
-        public final Map<ColumnMetadata.Raw, Boolean> orderings;
-        public final List<ColumnMetadata.Raw> groups;
+        public final Map<ColumnIdentifier, Boolean> orderings;
+        public final List<ColumnIdentifier> groups;
         public final boolean isDistinct;
         public final boolean allowFiltering;
         public final boolean isJson;
 
-        public Parameters(Map<ColumnMetadata.Raw, Boolean> orderings,
-                          List<ColumnMetadata.Raw> groups,
+        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+                          List<ColumnIdentifier> groups,
                           boolean isDistinct,
                           boolean allowFiltering,
                           boolean isJson)

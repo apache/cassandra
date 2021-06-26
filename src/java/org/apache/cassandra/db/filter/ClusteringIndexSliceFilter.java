@@ -56,12 +56,19 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return slices.size() == 1 && !slices.hasLowerBound() && !slices.hasUpperBound();
     }
 
-    public boolean selects(Clustering clustering)
+    // Whether or not it is guaranteed that slices are empty. Since we'd like to avoid iteration in general case,
+    // we rely on Slices#forPaging and SelectStatement#makeSlices to skip empty bounds.
+    public boolean isEmpty(ClusteringComparator comparator)
+    {
+        return slices.isEmpty();
+    }
+
+    public boolean selects(Clustering<?> clustering)
     {
         return slices.selects(clustering);
     }
 
-    public ClusteringIndexSliceFilter forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive)
+    public ClusteringIndexSliceFilter forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive)
     {
         Slices newSlices = slices.forPaging(comparator, lastReturned, inclusive, reversed);
         return slices == newSlices

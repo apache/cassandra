@@ -58,7 +58,6 @@ public class OutgoingStreamMessage extends StreamMessage
     };
 
     public final StreamMessageHeader header;
-    private final TableId tableId;
     public final OutgoingStream stream;
     private boolean completed = false;
     private boolean transferring = false;
@@ -66,12 +65,12 @@ public class OutgoingStreamMessage extends StreamMessage
     public OutgoingStreamMessage(TableId tableId, StreamSession session, OutgoingStream stream, int sequenceNumber)
     {
         super(Type.STREAM);
-        this.tableId = tableId;
 
         this.stream = stream;
         this.header = new StreamMessageHeader(tableId,
                                               FBUtilities.getBroadcastAddressAndPort(),
                                               session.planId(),
+                                              session.isFollower(),
                                               session.sessionIndex(),
                                               sequenceNumber,
                                               stream.getRepairedAt(),

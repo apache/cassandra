@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool.stats;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 
 public class TpStatsHolder implements StatsHolder
 {
@@ -39,7 +39,7 @@ public class TpStatsHolder implements StatsHolder
         HashMap<String, Object> result = new HashMap<>();
         HashMap<String, Map<String, Object>> threadPools = new HashMap<>();
         HashMap<String, Object> droppedMessage = new HashMap<>();
-        HashMap<String, double[]> waitLatencies = new HashMap<>();
+        HashMap<String, String[]> waitLatencies = new HashMap<>();
 
         for (Map.Entry<String, String> tp : probe.getThreadPools().entries())
         {
@@ -58,7 +58,10 @@ public class TpStatsHolder implements StatsHolder
             droppedMessage.put(entry.getKey(), entry.getValue());
             try
             {
-                waitLatencies.put(entry.getKey(), probe.metricPercentilesAsArray(probe.getMessagingQueueWaitMetrics(entry.getKey())));
+                String[] strValues = (String[]) Arrays.stream(probe.metricPercentilesAsArray(probe.getMessagingQueueWaitMetrics(entry.getKey())))
+                                                      .map(D -> D.toString())
+                                                      .toArray();
+                waitLatencies.put(entry.getKey(), strValues);
             }
             catch (RuntimeException e)
             {

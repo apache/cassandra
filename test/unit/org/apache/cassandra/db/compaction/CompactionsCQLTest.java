@@ -23,8 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,10 +36,13 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Cell;
@@ -49,6 +53,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.schema.CompactionParams;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -455,6 +460,115 @@ public class CompactionsCQLTest extends CQLTester
         act.execute(ActiveCompactionsTracker.NOOP);
     }
 
+    @Test
+    public void testAbortNotifications() throws Throwable
+    {
+        createTable("create table %s (id int primary key, x blob) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1}");
+        Random r = new Random();
+        byte [] b = new byte[100 * 1024];
+        for (int i = 0; i < 1000; i++)
+        {
+            r.nextBytes(b);
+            execute("insert into %s (id, x) values (?, ?)", i, ByteBuffer.wrap(b));
+        }
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+        for (int i = 0; i < 1000; i++)
+        {
+            r.nextBytes(b);
+            execute("insert into %s (id, x) values (?, ?)", i, ByteBuffer.wrap(b));
+        }
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) getCurrentColumnFamilyStore().getCompactionStrategyManager().getUnrepairedUnsafe().first();
+        LeveledCompactionTask lcsTask;
+        while (true)
+        {
+            lcsTask = (LeveledCompactionTask) lcs.getNextBackgroundTask(0);
+            if (lcsTask != null)
+            {
+                lcsTask.execute(CompactionManager.instance.active);
+                break;
+            }
+            Thread.sleep(1000);
+        }
+        // now all sstables are non-overlapping in L1 - we need them to be in L2:
+        for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
+        {
+            lcs.removeSSTable(sstable);
+            sstable.mutateLevelAndReload(2);
+            lcs.addSSTable(sstable);
+        }
+
+        for (int i = 0; i < 1000; i++)
+        {
+            r.nextBytes(b);
+            execute("insert into %s (id, x) values (?, ?)", i, ByteBuffer.wrap(b));
+        }
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        // now we have a bunch of sstables in L2 and one in L0 - bump the L0 one to L1:
+        for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
+        {
+            if (sstable.getSSTableLevel() == 0)
+            {
+                lcs.removeSSTable(sstable);
+                sstable.mutateLevelAndReload(1);
+                lcs.addSSTable(sstable);
+            }
+        }
+        // at this point we have a single sstable in L1, and a bunch of sstables in L2 - a background compaction should
+        // trigger an L1 -> L2 compaction which we abort after creating 5 sstables - this notifies LCS that MOVED_START
+        // sstables have been removed.
+        try
+        {
+            AbstractCompactionTask task = new NotifyingCompactionTask((LeveledCompactionTask) lcs.getNextBackgroundTask(0));
+            task.execute(CompactionManager.instance.active);
+            fail("task should throw exception");
+        }
+        catch (Exception ignored)
+        {
+            // ignored
+        }
+
+        lcsTask = (LeveledCompactionTask) lcs.getNextBackgroundTask(0);
+        try
+        {
+            assertNotNull(lcsTask);
+        }
+        finally
+        {
+            if (lcsTask != null)
+                lcsTask.transaction.abort();
+        }
+    }
+
+    private static class NotifyingCompactionTask extends LeveledCompactionTask
+    {
+        public NotifyingCompactionTask(LeveledCompactionTask task)
+        {
+            super(task.cfs, task.transaction, task.getLevel(), task.gcBefore, task.getLevel(), false);
+        }
+
+        @Override
+        public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs,
+                                                              Directories directories,
+                                                              LifecycleTransaction txn,
+                                                              Set<SSTableReader> nonExpiredSSTables)
+        {
+            return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, 1 << 20, 1)
+            {
+                int switchCount = 0;
+                public void switchCompactionLocation(Directories.DataDirectory directory)
+                {
+                    switchCount++;
+                    if (switchCount > 5)
+                        throw new RuntimeException("Throw after a few sstables have had their starts moved");
+                    super.switchCompactionLocation(directory);
+                }
+            };
+        }
+    }
+
     private void prepareWide() throws Throwable
     {
         createTable("CREATE TABLE %s (id int, id2 int, b text, primary key (id, id2))");
@@ -586,7 +700,7 @@ public class CompactionsCQLTest extends CQLTester
                     {
                         Unfiltered unfiltered = iter.next();
                         assertTrue(unfiltered instanceof Row);
-                        for (Cell c : ((Row)unfiltered).cells())
+                        for (Cell<?> c : ((Row)unfiltered).cells())
                         {
                             if (c.isTombstone())
                                 foundTombstone = true;
@@ -598,6 +712,29 @@ public class CompactionsCQLTest extends CQLTester
         }
         assertEquals(expectTS, foundTombstone);
     }
+
+     @Test(expected = IllegalArgumentException.class)
+     public void testBadProvidesTombstoneOption()
+     {
+         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+         Map<String, String> localOptions = new HashMap<>();
+         localOptions.put("class","SizeTieredCompactionStrategy");
+         localOptions.put("provide_overlapping_tombstones","IllegalValue");
+
+         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
+     }
+     @Test
+     public void testProvidesTombstoneOptionverifiation()
+     {
+         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+         Map<String, String> localOptions = new HashMap<>();
+         localOptions.put("class","SizeTieredCompactionStrategy");
+         localOptions.put("provide_overlapping_tombstones","row");
+
+         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
+         assertEquals(CompactionParams.TombstoneOption.ROW, getCurrentColumnFamilyStore().getCompactionStrategyManager().getCompactionParams().tombstoneOption());
+     }
+
 
     public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
     {

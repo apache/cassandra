@@ -21,25 +21,29 @@ package org.apache.cassandra.distributed.upgrade;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import com.google.common.base.Preconditions;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.distributed.impl.InstanceConfig;
-import org.apache.cassandra.distributed.shared.Builder;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
-import static org.apache.cassandra.distributed.shared.Versions.Version;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static org.apache.cassandra.distributed.shared.Versions.Major;
+import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
+import static org.apache.commons.lang3.ArrayUtils.isNotEmpty;
 
 public class UpgradeTestBase extends DistributedTestBase
 {
@@ -57,9 +61,9 @@ public class UpgradeTestBase extends DistributedTestBase
     }
 
 
-    public <I extends IInstance, C extends ICluster> Builder<I, C> builder()
+    public UpgradeableCluster.Builder builder()
     {
-        return (Builder<I, C>) UpgradeableCluster.build();
+        return UpgradeableCluster.build();
     }
 
     public static interface RunOnCluster
@@ -79,6 +83,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
         public TestVersions(Version initial, Version ... upgrade)
         {
+            Preconditions.checkArgument(isNotEmpty(upgrade), "TestVersions must be constructed with one or more target upgrade versions.");
             this.initial = initial;
             this.upgrade = upgrade;
         }
@@ -90,9 +95,10 @@ public class UpgradeTestBase extends DistributedTestBase
         private final List<TestVersions> upgrade = new ArrayList<>();
         private int nodeCount = 3;
         private RunOnCluster setup;
+        private RunOnClusterAndNode runBeforeNodeRestart;
         private RunOnClusterAndNode runAfterNodeUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
-        private final Set<Integer> nodesToUpgrade = new HashSet<>();
+        private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
 
         public TestCase()
@@ -132,6 +138,12 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase runBeforeNodeRestart(RunOnClusterAndNode runBeforeNodeRestart)
+        {
+            this.runBeforeNodeRestart = runBeforeNodeRestart;
+            return this;
+        }
+
         public TestCase runAfterNodeUpgrade(RunOnClusterAndNode runAfterNodeUpgrade)
         {
             this.runAfterNodeUpgrade = runAfterNodeUpgrade;
@@ -158,6 +170,8 @@ public class UpgradeTestBase extends DistributedTestBase
                 throw new AssertionError();
             if (runAfterClusterUpgrade == null && runAfterNodeUpgrade == null)
                 throw new AssertionError();
+            if (runBeforeNodeRestart == null)
+                runBeforeNodeRestart = (c, n) -> {};
             if (runAfterClusterUpgrade == null)
                 runAfterClusterUpgrade = (c) -> {};
             if (runAfterNodeUpgrade == null)
@@ -178,6 +192,7 @@ public class UpgradeTestBase extends DistributedTestBase
                         {
                             cluster.get(n).shutdown().get();
                             cluster.get(n).setVersion(version);
+                            runBeforeNodeRestart.run(cluster, n);
                             cluster.get(n).startup();
                             runAfterNodeUpgrade.run(cluster, n);
                         }
@@ -185,10 +200,20 @@ public class UpgradeTestBase extends DistributedTestBase
                         runAfterClusterUpgrade.run(cluster);
                     }
                 }
-
             }
         }
         public TestCase nodesToUpgrade(int ... nodes)
+        {
+            Set<Integer> set = new HashSet<>(nodes.length);
+            for (int n : nodes)
+            {
+                set.add(n);
+            }
+            nodesToUpgrade.addAll(set);
+            return this;
+        }
+
+        public TestCase nodesToUpgradeOrdered(int ... nodes)
         {
             for (int n : nodes)
             {
@@ -196,6 +221,44 @@ public class UpgradeTestBase extends DistributedTestBase
             }
             return this;
         }
+     }
+
+    protected TestCase allUpgrades(int nodes, int... toUpgrade)
+    {
+        return new TestCase().nodes(nodes)
+                             .upgrade(Versions.Major.v22, Versions.Major.v30)
+                             .upgrade(Versions.Major.v22, Versions.Major.v3X)
+                             .upgrade(Versions.Major.v30, Versions.Major.v3X)
+                             .upgrade(Versions.Major.v30, Versions.Major.v4)
+                             .upgrade(Versions.Major.v3X, Versions.Major.v4)
+                             .nodesToUpgrade(toUpgrade);
     }
 
+    protected static int primaryReplica(List<Long> initialTokens, Long token)
+    {
+        int primary = 1;
+
+        for (Long initialToken : initialTokens)
+        {
+            if (token <= initialToken)
+            {
+                break;
+            }
+
+            primary++;
+        }
+
+        return primary;
+    }
+
+    protected static Long tokenFrom(int key)
+    {
+        DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
+        return (Long) dk.getToken().getTokenValue();
+    }
+
+    protected static int nextNode(int current, int numNodes)
+    {
+        return current == numNodes ? 1 : current + 1;
+    }
 }

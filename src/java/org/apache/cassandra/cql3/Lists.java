@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.cql3.functions.Function;
@@ -36,6 +37,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -57,7 +59,17 @@ public abstract class Lists
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((ListType<?>)column.type).getElementsType());
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
+    }
+
+    private static AbstractType<?> unwrap(AbstractType<?> type)
+    {
+        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
+    }
+
+    private static AbstractType<?> elementsType(AbstractType<?> type)
+    {
+        return ((ListType) unwrap(type)).getElementsType();
     }
 
     /**
@@ -154,7 +166,9 @@ public abstract class Lists
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!(receiver.type instanceof ListType))
+            AbstractType<?> type = unwrap(receiver.type);
+
+            if (!(type instanceof ListType))
                 throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
@@ -197,7 +211,7 @@ public abstract class Lists
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, version);
+                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
                 List<ByteBuffer> elements = new ArrayList<>(l.size());
                 for (Object element : l)
                     // elements can be null in lists that represent a set of IN values
@@ -563,9 +577,9 @@ public abstract class Lists
             // the read-before-write this operation requires limits its usefulness on big lists, so in practice
             // toDiscard will be small and keeping a list will be more efficient.
             List<ByteBuffer> toDiscard = ((Value)value).elements;
-            for (Cell cell : complexData)
+            for (Cell<?> cell : complexData)
             {
-                if (toDiscard.contains(cell.value()))
+                if (toDiscard.contains(cell.buffer()))
                     params.addTombstone(column, cell.path());
             }
         }

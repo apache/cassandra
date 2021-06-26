@@ -21,15 +21,17 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Set;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
 import com.datastax.driver.core.AuthProvider;
-import com.datastax.driver.core.JdkSSLOptions;
+import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
 import com.datastax.driver.core.SSLOptions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
+import com.datastax.shaded.netty.channel.socket.SocketChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -246,7 +248,7 @@ public class BulkLoader
     private static SSLOptions buildSSLOptions(EncryptionOptions clientEncryptionOptions)
     {
 
-        if (!clientEncryptionOptions.enabled)
+        if (!clientEncryptionOptions.isEnabled())
         {
             return null;
         }
@@ -261,10 +263,22 @@ public class BulkLoader
             throw new RuntimeException("Could not create SSL Context.", e);
         }
 
-        return JdkSSLOptions.builder()
-                            .withSSLContext(sslContext)
-                            .withCipherSuites(clientEncryptionOptions.cipher_suites.toArray(new String[0]))
-                            .build();
+        // Temporarily override newSSLEngine to set accepted protocols until it is added to
+        // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
+        RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
+        {
+            protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)
+            {
+                SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
+
+                String[] acceptedProtocols = clientEncryptionOptions.acceptedProtocolsArray();
+                if (acceptedProtocols != null && acceptedProtocols.length > 0)
+                    engine.setEnabledProtocols(acceptedProtocols);
+
+                return engine;
+            }
+        };
+        return sslOptions;
     }
 
     static class ExternalClient extends NativeSSTableLoaderClient

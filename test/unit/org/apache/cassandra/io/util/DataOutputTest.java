@@ -29,6 +29,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.util.ArrayDeque;
@@ -42,6 +43,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DataOutputTest
@@ -179,8 +181,9 @@ public class DataOutputTest
                 while (true)
                     write.publicFlush();
             }
-            catch (RuntimeException e) {
-                if (e.getClass() == RuntimeException.class)
+            catch (BufferOverflowException e)
+            {
+                if (e.getClass() == BufferOverflowException.class)
                     threw = true;
             }
             Assert.assertTrue(threw);
@@ -204,22 +207,21 @@ public class DataOutputTest
             write.write(new byte[7]);
 
             //Should fail due to validation
-            checkThrowsRuntimeException(validateReallocationCallable( write, DataOutputBuffer.MAX_ARRAY_SIZE + 1));
+            checkThrowsException(validateReallocationCallable(write, DataOutputBuffer.MAX_ARRAY_SIZE + 1),
+                                 BufferOverflowException.class);
             //Check that it does throw
-            checkThrowsRuntimeException(new Callable<Object>()
-            {
-                public Object call() throws Exception
-                {
-                    write.write(42);
-                    return null;
-                }
-            });
+            checkThrowsException(() -> 
+                                 {
+                                     write.write(42);
+                                     return null;
+                                 }, 
+                                 BufferOverflowException.class);
         }
     }
 
     //Can't test it for real without tons of heap so test as much validation as possible
     @Test
-    public void testDataOutputBufferBigReallocation() throws Exception
+    public void testDataOutputBufferBigReallocation()
     {
         //Check saturating cast behavior
         Assert.assertEquals(DataOutputBuffer.MAX_ARRAY_SIZE, DataOutputBuffer.saturatedArraySizeCast(DataOutputBuffer.MAX_ARRAY_SIZE + 1L));
@@ -244,8 +246,8 @@ public class DataOutputTest
             Assert.assertEquals(DataOutputBuffer.MAX_ARRAY_SIZE, write.validateReallocation(DataOutputBuffer.MAX_ARRAY_SIZE + 1L));
             Assert.assertEquals(DataOutputBuffer.MAX_ARRAY_SIZE, write.validateReallocation(DataOutputBuffer.MAX_ARRAY_SIZE));
             Assert.assertEquals(DataOutputBuffer.MAX_ARRAY_SIZE - 1, write.validateReallocation(DataOutputBuffer.MAX_ARRAY_SIZE - 1));
-            checkThrowsRuntimeException(validateReallocationCallable( write, 0));
-            checkThrowsRuntimeException(validateReallocationCallable( write, 1));
+            checkThrowsException(validateReallocationCallable( write, 0), BufferOverflowException.class);
+            checkThrowsException(validateReallocationCallable( write, 1), BufferOverflowException.class);
             checkThrowsIAE(validateReallocationCallable( write, -1));
         }
     }
@@ -289,11 +291,6 @@ public class DataOutputTest
     private static void checkThrowsIAE(Callable<Object> c)
     {
         checkThrowsException(c, IllegalArgumentException.class);
-    }
-
-    private static void checkThrowsRuntimeException(Callable<Object> c)
-    {
-        checkThrowsException(c, RuntimeException.class);
     }
 
     private static void checkThrowsException(Callable<Object> c, Class<?> exceptionClass)
@@ -408,33 +405,33 @@ public class DataOutputTest
         int size = 50;
         byte[] bytes = new byte[size];
         rnd.nextBytes(bytes);
-        ByteBufferUtil.writeWithLength(bytes, test);
-        ByteBufferUtil.writeWithLength(bytes, canon);
+        ByteArrayUtil.writeWithLength(bytes, test);
+        ByteArrayUtil.writeWithLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(wrap(bytes, false), test);
-        ByteBufferUtil.writeWithLength(bytes, canon);
+        ByteArrayUtil.writeWithLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithLength(wrap(bytes, true), test);
-        ByteBufferUtil.writeWithLength(bytes, canon);
+        ByteArrayUtil.writeWithLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
-        ByteBufferUtil.writeWithShortLength(bytes, test);
-        ByteBufferUtil.writeWithShortLength(bytes, canon);
+        ByteArrayUtil.writeWithShortLength(bytes, test);
+        ByteArrayUtil.writeWithShortLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(wrap(bytes, false), test);
-        ByteBufferUtil.writeWithShortLength(bytes, canon);
+        ByteArrayUtil.writeWithShortLength(bytes, canon);
 
         bytes = new byte[size];
         rnd.nextBytes(bytes);
         ByteBufferUtil.writeWithShortLength(wrap(bytes, true), test);
-        ByteBufferUtil.writeWithShortLength(bytes, canon);
+        ByteArrayUtil.writeWithShortLength(bytes, canon);
         // 318
 
         {

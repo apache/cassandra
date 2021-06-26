@@ -43,7 +43,7 @@ Prerequisites
 - **NOTE**: *Experimental* support for Java 11 was added in Cassandra 4.0 (`CASSANDRA-9608 <https://issues.apache.org/jira/browse/CASSANDRA-9608>`__).
   Running Cassandra on Java 11 is *experimental*. Do so at your own risk. For more information, see
   `NEWS.txt <https://github.com/apache/cassandra/blob/trunk/NEWS.txt>`__.
-- For using cqlsh, the latest version of `Python 2.7 <https://www.python.org/downloads/>`__ or Python 3.6+. To verify that you have
+- For using cqlsh, the latest version of `Python 3.6+ <https://www.python.org/downloads/>`__ or Python 2.7 (support deprecated). To verify that you have
   the correct version of Python installed, type ``python --version``.
 
 Choosing an installation method
@@ -77,7 +77,7 @@ Installing the binary tarball
 
 ::
 
-   $ curl -OL http://apache.mirror.digitalpacific.com.au/cassandra/4.0.0/apache-cassandra-4.0.0-bin.tar.gz
+   $ curl -OL http://apache.mirror.digitalpacific.com.au/cassandra/4.0-beta1/apache-cassandra-4.0-beta1-bin.tar.gz
 
 NOTE: The mirrors only host the latest versions of each major supported release. To download an earlier
 version of Cassandra, visit the `Apache Archives <http://archive.apache.org/dist/cassandra/>`__.
@@ -87,24 +87,24 @@ version of Cassandra, visit the `Apache Archives <http://archive.apache.org/dist
 
 ::
 
-   $ gpg --print-md SHA256 apache-cassandra-4.0.0-bin.tar.gz 
-   apache-cassandra-4.0.0-bin.tar.gz: 28757DDE 589F7041 0F9A6A95 C39EE7E6
+   $ gpg --print-md SHA256 apache-cassandra-4.0-beta1-bin.tar.gz
+   apache-cassandra-4.0-beta1-bin.tar.gz: 28757DDE 589F7041 0F9A6A95 C39EE7E6
                                       CDE63440 E2B06B91 AE6B2006 14FA364D
 
 Compare the signature with the SHA256 file from the Downloads site:
 
 ::
 
-   $ curl -L https://downloads.apache.org/cassandra/4.0.0/apache-cassandra-4.0.0-bin.tar.gz.sha256
+   $ curl -L https://downloads.apache.org/cassandra/4.0-beta1/apache-cassandra-4.0-beta1-bin.tar.gz.sha256
    28757dde589f70410f9a6a95c39ee7e6cde63440e2b06b91ae6b200614fa364d
 
 4. Unpack the tarball:
 
 ::
 
-   $ tar xzvf apache-cassandra-4.0.0-bin.tar.gz
+   $ tar xzvf apache-cassandra-4.0-beta1-bin.tar.gz
 
-The files will be extracted to the ``apache-cassandra-4.0.0/`` directory. This is the tarball installation
+The files will be extracted to the ``apache-cassandra-4.0-beta1/`` directory. This is the tarball installation
 location.
 
 5. Located in the tarball installation location are the directories for the scripts, binaries, utilities, configuration, data and log files:
@@ -130,7 +130,7 @@ For information on how to configure your installation, see
 
 ::
 
-   $ cd apache-cassandra-4.0.0/
+   $ cd apache-cassandra-4.0-beta1/
    $ bin/cassandra
 
 NOTE: This will run Cassandra as the authenticated Linux user.
@@ -180,14 +180,14 @@ Installing the Debian packages
 
 ::
 
-   $ echo "deb http://www.apache.org/dist/cassandra/debian 40x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
-   deb http://www.apache.org/dist/cassandra/debian 40x main
+   $ echo "deb http://downloads.apache.org/cassandra/debian 40x main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+   deb http://downloads.apache.org/cassandra/debian 40x main
 
 3. Add the Apache Cassandra repository keys to the list of trusted keys on the server:
 
 ::
 
-   $ curl https://www.apache.org/dist/cassandra/KEYS | sudo apt-key add -
+   $ curl https://downloads.apache.org/cassandra/KEYS | sudo apt-key add -
      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
                                     Dload  Upload   Total   Spent    Left  Speed
    100  266k  100  266k    0     0   320k      0 --:--:-- --:--:-- --:--:--  320k

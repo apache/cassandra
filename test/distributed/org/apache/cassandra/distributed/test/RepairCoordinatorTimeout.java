@@ -1,3 +1,21 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.cassandra.distributed.test;
 
 import java.time.Duration;
@@ -42,19 +60,19 @@ public abstract class RepairCoordinatorTimeout extends RepairCoordinatorBase
             NodeToolResult result = repair(1, KEYSPACE, table);
             result.asserts()
                   .failure()
-                  .errorContains("Got negative replies from endpoints [127.0.0.2:7012]");
+                  .errorContains("Did not get replies from all endpoints.");
             if (withNotifications)
             {
                 result.asserts()
                       .notificationContains(NodeToolResult.ProgressEventType.START, "Starting repair command")
                       .notificationContains(NodeToolResult.ProgressEventType.START, "repairing keyspace " + KEYSPACE + " with repair options")
-                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Got negative replies from endpoints [127.0.0.2:7012]")
+                      .notificationContains(NodeToolResult.ProgressEventType.ERROR, "Did not get replies from all endpoints.")
                       .notificationContains(NodeToolResult.ProgressEventType.COMPLETE, "finished with error");
             }
 
             if (repairType != RepairType.PREVIEW)
             {
-                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Got negative replies from endpoints [127.0.0.2:7012]");
+                assertParentRepairFailedWithMessageContains(CLUSTER, KEYSPACE, table, "Did not get replies from all endpoints.");
             }
             else
             {

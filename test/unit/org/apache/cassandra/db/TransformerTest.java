@@ -182,7 +182,7 @@ public class TransformerTest
 
         public Row applyToRow(Row row)
         {
-            Assert.assertEquals(cur++, ByteBufferUtil.toInt(row.clustering().get(0)));
+            Assert.assertEquals(cur++, ByteBufferUtil.toInt(row.clustering().bufferAt(0)));
             return row;
         }
 
@@ -319,7 +319,7 @@ public class TransformerTest
             {
                 Unfiltered u = iter.next();
                 assert u instanceof Row;
-                Assert.assertEquals(i, ByteBufferUtil.toInt(u.clustering().get(0)));
+                Assert.assertEquals(i, ByteBufferUtil.toInt(u.clustering().bufferAt(0)));
             }
             iter.close();
 

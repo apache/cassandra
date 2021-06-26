@@ -205,9 +205,9 @@ final class HintsDispatchExecutor
             // the goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
             // not total outgoing hints traffic from this node - this is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints() - 1);
-            int throttleInKB = DatabaseDescriptor.getHintedHandoffThrottleInKB() / nodesCount;
-            this.rateLimiter = RateLimiter.create(throttleInKB == 0 ? Double.MAX_VALUE : throttleInKB * 1024);
+            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKB() * 1024.0 / nodesCount;
+            this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
         }
 
         public void run()
@@ -242,7 +242,7 @@ final class HintsDispatchExecutor
                 {
                     logger.error(String.format("Failed to dispatch hints file %s: file is corrupted", descriptor.fileName()), e);
                     store.cleanUp(descriptor);
-                    store.blacklist(descriptor);
+                    store.markCorrupted(descriptor);
                     throw e;
                 }
             }

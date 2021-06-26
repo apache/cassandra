@@ -40,7 +40,6 @@ import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.Estimate
 import static org.apache.cassandra.cql3.statements.BatchStatement.metrics;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.*;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.Generate.intArrays;
 import static org.quicktheories.generators.SourceDSL.integers;

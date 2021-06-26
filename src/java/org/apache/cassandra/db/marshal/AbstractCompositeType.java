@@ -43,72 +43,81 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         super(ComparisonType.CUSTOM);
     }
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        if (!o1.hasRemaining() || !o2.hasRemaining())
-            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
+        if (accessorL.isEmpty(left) || accessorR.isEmpty(right))
+            return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
 
-        ByteBuffer bb1 = o1.duplicate();
-        ByteBuffer bb2 = o2.duplicate();
-
-        boolean isStatic1 = readIsStatic(bb1);
-        boolean isStatic2 = readIsStatic(bb2);
-        if (isStatic1 != isStatic2)
-            return isStatic1 ? -1 : 1;
+        boolean isStaticL = readIsStatic(left, accessorL);
+        boolean isStaticR = readIsStatic(right, accessorR);
+        if (isStaticL != isStaticR)
+            return isStaticL ? -1 : 1;
 
         int i = 0;
 
-        ByteBuffer previous = null;
+        VL previous = null;
+        int offsetL = startingOffset(isStaticL);
+        int offsetR = startingOffset(isStaticR);
 
-        while (bb1.remaining() > 0 && bb2.remaining() > 0)
+        while (!accessorL.isEmptyFromOffset(left, offsetL) && !accessorR.isEmptyFromOffset(right, offsetL))
         {
-            AbstractType<?> comparator = getComparator(i, bb1, bb2);
+            AbstractType<?> comparator = getComparator(i, left, accessorL, right, accessorR, offsetL, offsetR);
+            offsetL += getComparatorSize(i, left, accessorL, offsetL);
+            offsetR += getComparatorSize(i, right, accessorR, offsetR);
 
-            ByteBuffer value1 = ByteBufferUtil.readBytesWithShortLength(bb1);
-            ByteBuffer value2 = ByteBufferUtil.readBytesWithShortLength(bb2);
+            VL value1 = accessorL.sliceWithShortLength(left, offsetL);
+            offsetL += accessorL.sizeWithShortLength(value1);
+            VR value2 = accessorR.sliceWithShortLength(right, offsetR);
+            offsetR += accessorR.sizeWithShortLength(value2);
 
-            int cmp = comparator.compareCollectionMembers(value1, value2, previous);
+            int cmp = comparator.compareCollectionMembers(value1, accessorL, value2, accessorR, previous);
             if (cmp != 0)
                 return cmp;
 
             previous = value1;
 
-            byte b1 = bb1.get();
-            byte b2 = bb2.get();
-            if (b1 != b2)
-                return b1 - b2;
+            byte bL = accessorL.getByte(left, offsetL++);
+            byte bR = accessorR.getByte(right, offsetR++);
+            if (bL != bR)
+                return bL - bR;
 
             ++i;
         }
 
-        if (bb1.remaining() == 0)
-            return bb2.remaining() == 0 ? 0 : -1;
+        if (accessorL.isEmptyFromOffset(left, offsetL))
+            return accessorR.sizeFromOffset(right, offsetR) == 0 ? 0 : -1;
 
-        // bb1.remaining() > 0 && bb2.remaining() == 0
+        // left.remaining() > 0 && right.remaining() == 0
         return 1;
     }
 
     // Check if the provided BB represents a static name and advance the
     // buffer to the real beginning if so.
-    protected abstract boolean readIsStatic(ByteBuffer bb);
+    protected abstract <V> boolean readIsStatic(V value, ValueAccessor<V> accessor);
+
+    protected abstract int startingOffset(boolean isStatic);
 
     /**
      * Split a composite column names into it's components.
      */
-    public ByteBuffer[] split(ByteBuffer name)
+    public ByteBuffer[] split(ByteBuffer bb)
     {
         List<ByteBuffer> l = new ArrayList<ByteBuffer>();
-        ByteBuffer bb = name.duplicate();
-        readIsStatic(bb);
+        boolean isStatic = readIsStatic(bb, ByteBufferAccessor.instance);
+        int offset = startingOffset(isStatic);
+
         int i = 0;
-        while (bb.remaining() > 0)
+        while (!ByteBufferAccessor.instance.isEmptyFromOffset(bb, offset))
         {
-            getComparator(i++, bb);
-            l.add(ByteBufferUtil.readBytesWithShortLength(bb));
-            bb.get(); // skip end-of-component
+            offset += getComparatorSize(i++, bb, ByteBufferAccessor.instance, offset);
+            ByteBuffer value = ByteBufferAccessor.instance.sliceWithShortLength(bb, offset);
+            offset += ByteBufferAccessor.instance.sizeWithShortLength(value);
+            l.add(value);
+            offset++; // skip end-of-component
         }
         return l.toArray(new ByteBuffer[l.size()]);
     }
+
     private static final String COLON = ":";
     private static final Pattern COLON_PAT = Pattern.compile(COLON);
     private static final String ESCAPED_COLON = "\\\\:";
@@ -165,24 +174,27 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return res;
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V input, ValueAccessor<V> accessor)
     {
         StringBuilder sb = new StringBuilder();
-        ByteBuffer bb = bytes.duplicate();
-        readIsStatic(bb);
+        boolean isStatic  = readIsStatic(input, accessor);
+        int offset = startingOffset(isStatic);
+        int startOffset = offset;
 
         int i = 0;
-        while (bb.remaining() > 0)
+        while (!accessor.isEmptyFromOffset(input, offset))
         {
-            if (bb.remaining() != bytes.remaining())
+            if (offset != startOffset)
                 sb.append(":");
 
-            AbstractType<?> comparator = getAndAppendComparator(i, bb, sb);
-            ByteBuffer value = ByteBufferUtil.readBytesWithShortLength(bb);
+            AbstractType<?> comparator = getAndAppendComparator(i, input, accessor, sb, offset);
+            offset += getComparatorSize(i, input, accessor, offset);
+            V value = accessor.sliceWithShortLength(input, offset);
+            offset += accessor.sizeWithShortLength(value);
 
-            sb.append(escape(comparator.getString(value)));
+            sb.append(escape(comparator.getString(value, accessor)));
 
-            byte b = bb.get();
+            byte b = accessor.getByte(input, offset++);
             if (b != 0)
             {
                 sb.append(b < 0 ? ":_" : ":!");
@@ -258,31 +270,39 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     }
 
     @Override
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public void validate(ByteBuffer bb) throws MarshalException
     {
-        ByteBuffer bb = bytes.duplicate();
-        readIsStatic(bb);
+        validate(bb, ByteBufferAccessor.instance);
+    }
+
+    public  <V> void validate(V input, ValueAccessor<V> accessor)
+    {
+        boolean isStatic = readIsStatic(input, accessor);
+        int offset = startingOffset(isStatic);
 
         int i = 0;
-        ByteBuffer previous = null;
-        while (bb.remaining() > 0)
+        V previous = null;
+        while (!accessor.isEmptyFromOffset(input, offset))
         {
-            AbstractType<?> comparator = validateComparator(i, bb);
+            AbstractType<?> comparator = validateComparator(i, input, accessor, offset);
+            offset += getComparatorSize(i, input, accessor, offset);
 
-            if (bb.remaining() < 2)
+            if (accessor.sizeFromOffset(input, offset) < 2)
                 throw new MarshalException("Not enough bytes to read value size of component " + i);
-            int length = ByteBufferUtil.readShortLength(bb);
+            int length = accessor.getShort(input, offset);
+            offset += 2;
 
-            if (bb.remaining() < length)
+            if (accessor.sizeFromOffset(input, offset) < length)
                 throw new MarshalException("Not enough bytes to read value of component " + i);
-            ByteBuffer value = ByteBufferUtil.readBytes(bb, length);
+            V value = accessor.slice(input, offset, length);
+            offset += length;
 
-            comparator.validateCollectionMember(value, previous);
+            comparator.validateCollectionMember(value, previous, accessor);
 
-            if (bb.remaining() == 0)
+            if (accessor.isEmptyFromOffset(input, offset))
                 throw new MarshalException("Not enough bytes to read the end-of-component byte of component" + i);
-            byte b = bb.get();
-            if (b != 0 && bb.remaining() != 0)
+            byte b = accessor.getByte(input, offset++);
+            if (b != 0 && !accessor.isEmptyFromOffset(input, offset))
                 throw new MarshalException("Invalid bytes remaining after an end-of-component at component" + i);
 
             previous = value;
@@ -297,28 +317,29 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return BytesSerializer.instance;
     }
 
+    abstract protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset);
     /**
      * @return the comparator for the given component. static CompositeType will consult
      * @param i DynamicCompositeType will read the type information from @param bb
-     * @param bb name of type definition
+     * @param value name of type definition
      */
-    abstract protected AbstractType<?> getComparator(int i, ByteBuffer bb);
+    abstract protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> accessor, int offset);
 
     /**
      * Adds DynamicCompositeType type information from @param bb1 to @param bb2.
      * @param i is ignored.
      */
-    abstract protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2);
+    abstract protected <VL, VR> AbstractType<?> getComparator(int i, VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR, int offsetL, int offsetR);
 
     /**
      * Adds type information from @param bb to @param sb.  @param i is ignored.
      */
-    abstract protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb);
+    abstract protected <V> AbstractType<?> getAndAppendComparator(int i, V value, ValueAccessor<V> accessor, StringBuilder sb, int offset);
 
     /**
      * Like getComparator, but validates that @param i does not exceed the defined range
      */
-    abstract protected AbstractType<?> validateComparator(int i, ByteBuffer bb) throws MarshalException;
+    abstract protected <V> AbstractType<?> validateComparator(int i, V value, ValueAccessor<V> accessor, int offset) throws MarshalException;
 
     /**
      * Used by fromString

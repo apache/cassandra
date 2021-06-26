@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.*;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -114,7 +115,7 @@ public class BigTableWriter extends SSTableWriter
      */
     private CompressionParams compressionFor(final OperationType opType)
     {
-        CompressionParams compressionParams = metadata().params.compression;
+        CompressionParams compressionParams = metadata.getLocal().params.compression;
         final ICompressor compressor = compressionParams.getSstableCompressor();
 
         if (null != compressor && opType == OperationType.FLUSH)
@@ -234,6 +235,10 @@ public class BigTableWriter extends SSTableWriter
             afterAppend(key, endPosition, entry, columnIndexWriter.buffer());
             return entry;
         }
+        catch (BufferOverflowException boe)
+        {
+            throw new PartitionSerializationException(iterator, boe);
+        }
         catch (IOException e)
         {
             throw new FSWriteError(e, dataFile.getPath());
@@ -333,8 +338,13 @@ public class BigTableWriter extends SSTableWriter
         invalidateCacheAtBoundary(dfile);
         SSTableReader sstable = SSTableReader.internalOpen(descriptor,
                                                            components, metadata,
-                                                           ifile, dfile, indexSummary,
-                                                           iwriter.bf.sharedCopy(), maxDataAge, stats, SSTableReader.OpenReason.EARLY, header);
+                                                           ifile, dfile,
+                                                           indexSummary,
+                                                           iwriter.bf.sharedCopy(), 
+                                                           maxDataAge, 
+                                                           stats, 
+                                                           SSTableReader.OpenReason.EARLY, 
+                                                           header);
 
         // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
         sstable.first = getMinimalKey(first);
