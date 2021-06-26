@@ -42,7 +42,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import afu.org.checkerframework.checker.oigj.qual.O;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionTasks;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -87,7 +86,6 @@ import org.apache.cassandra.utils.FilterFactory;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class Util
@@ -817,6 +815,15 @@ public class Util
 
         Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION,
                                                    VersionedValue.unsafeMakeVersionedValue(version, v + 1));
+        try
+        {
+            // add dummy host to avoid returning early in Gossiper.instance.upgradeFromVersionSupplier
+            Gossiper.instance.initializeNodeUnsafe(InetAddressAndPort.getByName("127.0.0.2"), UUID.randomUUID(), 1);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
         Gossiper.instance.expireUpgradeFromVersion();
     }
 }

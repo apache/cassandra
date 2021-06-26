@@ -1,4 +1,5 @@
 4.0-rc2
+ * Avoid memoizing the wrong min cluster version during upgrades (CASSANDRA-16759)
  * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
  * Fix queries on empty partitions with static data (CASSANDRA-16686)
  * Keep python driver in artifacts (CASSANDRA-16700)

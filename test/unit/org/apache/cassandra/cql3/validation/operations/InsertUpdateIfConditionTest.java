@@ -64,11 +64,11 @@ public class InsertUpdateIfConditionTest extends CQLTester
                                  assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
                              } },
                              new Object[]{ "3.11", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("4.0")));
+                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
                                  assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
                              } },
                              new Object[]{ SystemKeyspace.CURRENT_VERSION.toString(), (Runnable) () -> {
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("4.0")));
+                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
                              } });
     }
 
