@@ -51,6 +51,12 @@ public class GarbageCollect extends NodeToolCmd
     @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined garbagecollect")
     private boolean userDefined = false;
 
+    @Option(title = "oldest-fraction",
+            name = {"-of", "--oldest-fraction"},
+            description = "Fraction of sstable data to clean.  Prioritizes the oldest sstables, processing at least one.  Valid values are between"
+                + "0.0 (only the oldest sstable) and 1.0 (all the sstables, ordered from oldest to newest).  Ignored if --user-defined is set.")
+    private double oldestFraction = Double.NaN;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -72,7 +78,10 @@ public class GarbageCollect extends NodeToolCmd
         {
             try
             {
-                probe.garbageCollect(probe.output().out, tombstoneOption, jobs, keyspace, tableNames);
+                if (Double.isNaN(oldestFraction))
+                    probe.garbageCollect(probe.output().out, tombstoneOption, jobs, keyspace, tableNames);
+                else
+                    probe.garbageCollect(probe.output().out, tombstoneOption, jobs, oldestFraction, keyspace, tableNames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during garbage collection", e);

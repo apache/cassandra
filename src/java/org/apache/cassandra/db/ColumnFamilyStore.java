@@ -1654,6 +1654,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
     }
 
+    public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, double fraction, int jobs) throws ExecutionException, InterruptedException
+    {
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, fraction);
+    }
+
     public CompactionManager.AllSSTableOpStatus partialGarbageCollect(TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> sstables) throws ExecutionException, InterruptedException
     {
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, sstables);

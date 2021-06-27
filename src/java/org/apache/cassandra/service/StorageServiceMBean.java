@@ -322,6 +322,13 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Rewrites a fraction of the sstables from the given tables to remove deleted data.
+     * The tombstone option defines the granularity of the procedure: ROW removes deleted partitions and rows, CELL also removes overwritten or deleted cells.
+     * The fraction argument defines what percentage of the sstable data will be rewritten, with a minimum of one sstable rewritten.  Valid values are between 0.0 and 1.0, or NaN
+     */
+    public int garbageCollect(String tombstoneOption, int jobs, double fraction, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Rewrites all sstables from the given list of SSTable Data.db files.
      * The tombstone option defines the granularity of the procedure: ROW removes deleted partitions and rows, CELL also removes overwritten or deleted cells.
      */

@@ -3228,6 +3228,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
+    public int garbageCollect(String tombstoneOptionString, int jobs, double fraction, String keyspaceName, String ... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);
+        for (ColumnFamilyStore cfs : getValidColumnFamilies(false, false, keyspaceName, columnFamilies))
+        {
+            CompactionManager.AllSSTableOpStatus oneStatus = cfs.garbageCollect(tombstoneOption, fraction, jobs);
+            if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
+                return oneStatus.statusCode;
+        }
+        return CompactionManager.AllSSTableOpStatus.SUCCESSFUL.statusCode;
+    }
+
     public int userDefinedGarbageCollect(String tombstoneOptionString, int jobs, Collection<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
     {
         TombstoneOption tombstoneOption = TombstoneOption.valueOf(tombstoneOptionString);

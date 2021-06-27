@@ -524,17 +524,21 @@ public class CompactionManager implements CompactionManagerMBean
 
     public AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
     {
-        return performGarbageCollection(cfStore, tombstoneOption, jobs, descriptor -> true);
+        return performGarbageCollection(cfStore, tombstoneOption, jobs, Double.NaN, descriptor -> true);
     }
 
     public AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> dataFiles) throws InterruptedException, ExecutionException
     {
         Set<Descriptor> files = new HashSet<>(dataFiles);
-        return performGarbageCollection(cfStore, tombstoneOption, jobs, files::contains);
+        return performGarbageCollection(cfStore, tombstoneOption, jobs, Double.NaN, files::contains);
     }
 
-    @VisibleForTesting
-    AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, Predicate<Descriptor> allowedFile) throws InterruptedException, ExecutionException
+    public AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, double fraction) throws InterruptedException, ExecutionException
+    {
+        return performGarbageCollection(cfStore, tombstoneOption, jobs, fraction, descriptor -> true);
+    }
+
+    private AllSSTableOpStatus performGarbageCollection(ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs, double fraction, Predicate<Descriptor> allowedFile) throws InterruptedException, ExecutionException
     {
         assert !cfStore.isIndex();
 
@@ -547,11 +551,36 @@ public class CompactionManager implements CompactionManagerMBean
                     ? SSTableReader::isRepaired
                     : reader -> true;
 
-                return transaction.originals().stream()
+                Comparator<SSTableReader> tableOrder = SSTableReader.maxTimestampAscending;
+                if (!Double.isNaN(fraction))
+                {
+                    if (fraction > 1 || fraction < 0)
+                      throw new IllegalArgumentException("garbagecollect fraction must be between 0 and 1, but was " + fraction);
+
+                    tableOrder = SSTableReader.generationAscending;
+                }
+
+                List<SSTableReader> tables = transaction.originals().stream()
                     .filter(reader -> allowedFile.test(reader.descriptor))
                     .filter(onlyRepaired)
-                    .sorted(SSTableReader.maxTimestampAscending)
+                    .sorted(tableOrder)
                     .collect(Collectors.toList());
+
+                if (Double.isNaN(fraction))
+                  return tables;
+
+                long totalSize = SSTableReader.getTotalBytes(tables);
+                long sizeLimit = (long) (totalSize * fraction);
+
+                List<SSTableReader> fractionalTables = new ArrayList<>();
+                for (SSTableReader table: tables)
+                {
+                  fractionalTables.add(table);
+                  sizeLimit -= table.onDiskLength();
+                  if (sizeLimit <= 0)
+                    break;
+                }
+                return fractionalTables;
             }
 
             @Override

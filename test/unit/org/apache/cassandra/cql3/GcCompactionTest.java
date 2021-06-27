@@ -27,7 +27,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.junit.Test;
 
@@ -270,6 +272,126 @@ public class GcCompactionTest extends CQLTester
       }
 
       assertEquals(new HashSet<>(Arrays.asList(4, 5, 6, 7, 8)), gens); // first three were GC'd, one output was empty
+    }
+
+    @Test
+    public void testFractionalGarbageCollect() throws Throwable
+    {
+        createTable("CREATE TABLE %s(" +
+                    "  key int," +
+                    "  column int," +
+                    "  data int," +
+                    "  PRIMARY KEY ((key), column)" +
+                    ");");
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
+
+        for (int i = 0; i < KEY_COUNT; ++i)
+          for (int j = 0; j < CLUSTERING_COUNT; ++j)
+              execute("INSERT INTO %s (key, column, data) VALUES (?, ?, ?)", i, j, i * j + j);
+        flush();
+
+        execute("INSERT INTO %s (key, column, data) VALUES (999, 999, 999)");
+        flush();
+
+        execute("INSERT INTO %s (key, column, data) VALUES (888, 888, 888)");
+        flush();
+
+        assertEquals(3, cfs.getLiveSSTables().size());
+
+        Set<Integer> gens = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+
+        // three tables, generation 1, 2, 3.
+        assertEquals(ImmutableSet.of(1, 2, 3), gens);
+        long totalSize = SSTableReader.getTotalBytes(cfs.getLiveSSTables());
+        logger.info("##### total size {} ######", totalSize);
+        long sizeOfFirst = cfs.getLiveSSTables().stream().filter(sstable -> sstable.descriptor.generation == 1).findFirst().get().onDiskLength();
+        logger.info("##### size of largest {} ######", sizeOfFirst);
+        assertTrue("first SSTable must be more than half of total size for the test to work", (totalSize / 2) < sizeOfFirst);
+
+        CompactionManager.AllSSTableOpStatus status;
+
+        // compact all of them, should be done in the same order as originally written, resulting in generation 4, 5, 6
+        status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 1.0);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+        gens = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of(4, 5, 6), gens);
+
+        // compact 0.0 will compact only one of them, the lowest generation number.
+        status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 0.0);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+        gens = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of(5, 6, 7), gens);
+
+        // because one sstable is much larger than the rest (was gen 1, then 4, now 7, it represents more than half the data.
+        // because the current order is (5, 6, 7) and the files are (small, small, very large), asking for half of the data to be
+        // garbagecollected will result in all three being garbagecollected.
+        status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 0.5);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+        gens = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of(8, 9, 10), gens);
+
+        // now collect the first two, so that we have (10, 11, 12) that are (very large, small, small)
+        status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 0.0);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+        status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 0.0);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+        gens = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of(10, 11, 12), gens);
+
+        // and now collect 50% (0.5 fraction) again, this time it should only collect the first, very large one
+        status = CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 0.5);
+        assertEquals(CompactionManager.AllSSTableOpStatus.SUCCESSFUL, status);
+
+        gens = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        assertEquals(ImmutableSet.of(11, 12, 13), gens);
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testFractionalGarbageCollectFractionTooSmall() throws Throwable
+    {
+      createTable("CREATE TABLE %s(" +
+          "  key int," +
+          "  column int," +
+          "  data int," +
+          "  PRIMARY KEY ((key), column)" +
+          ");");
+
+      ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+      cfs.disableAutoCompaction();
+
+      execute("INSERT INTO %s (key, column, data) VALUES (888, 888, 888)");
+      flush();
+
+      assertEquals(1, cfs.getLiveSSTables().size());
+
+      CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, -0.01);
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testFractionalGarbageCollectFractionTooLarge() throws Throwable
+    {
+      createTable("CREATE TABLE %s(" +
+          "  key int," +
+          "  column int," +
+          "  data int," +
+          "  PRIMARY KEY ((key), column)" +
+          ");");
+
+      ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+      cfs.disableAutoCompaction();
+
+      execute("INSERT INTO %s (key, column, data) VALUES (888, 888, 888)");
+      flush();
+
+      assertEquals(1, cfs.getLiveSSTables().size());
+
+      CompactionManager.instance.performGarbageCollection(cfs, TombstoneOption.ROW, 1, 1.01);
     }
 
     @Test

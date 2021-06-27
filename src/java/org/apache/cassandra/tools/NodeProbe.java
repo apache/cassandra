@@ -297,6 +297,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
     }
 
+    public int garbageCollect(String tombstoneOption, int jobs, double fraction, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.garbageCollect(tombstoneOption, jobs, fraction, keyspaceName, tableNames);
+    }
+
     public int userDefinedGarbageCollect(String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables);
@@ -392,7 +397,16 @@ public class NodeProbe implements AutoCloseable
 
     public void garbageCollect(PrintStream out, String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        if (garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames) != 0)
+      if (garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames) != 0)
+      {
+          failed = true;
+          out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+      }
+    }
+
+    public void garbageCollect(PrintStream out, String tombstoneOption, int jobs, double fraction, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        if (garbageCollect(tombstoneOption, jobs, fraction, keyspaceName, tableNames) != 0)
         {
             failed = true;
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
@@ -407,6 +421,7 @@ public class NodeProbe implements AutoCloseable
             out.println("Aborted garbage collection for at least one table, check server logs for more information.");
         }
     }
+
 
     public void forceUserDefinedCompaction(String datafiles) throws IOException, ExecutionException, InterruptedException
     {
