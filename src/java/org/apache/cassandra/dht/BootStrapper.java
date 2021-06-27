@@ -74,7 +74,10 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    stateStore,
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost());
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
+        final List<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+        if (nonLocalStrategyKeyspaces.isEmpty())
+            logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
+        for (String keyspaceName : nonLocalStrategyKeyspaces)
         {
             AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
             streamer.addRanges(keyspaceName, strategy.getPendingAddressRanges(tokenMetadata, tokens, address));
