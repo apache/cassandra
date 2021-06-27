@@ -150,13 +150,12 @@ If successful, take note of the email text output which can be used in the next 
 The output will also list the next steps that are required.
 
 
-Promote Nexus Repository
+Release Nexus Repository
 ------------------------
 
 * Login to `Nexus repository <https://repository.apache.org>`_ again.
-* Click on "Staging" and then on the repository with id "cassandra-staging".
-* Find your closed staging repository, right click on it and choose "Promote".
-* Select the "Releases" repository and click "Promote".
+* Click on "Staging Repositories".
+* Find your closed staging repository, select it and then click "Release".
 * Next click on "Repositories", select the "Releases" repository and validate that your artifacts exist as you expect them.
 
 
