@@ -12,6 +12,7 @@ Merged from 3.0:
  * Clean transaction log leftovers at the beginning of sstablelevelreset and sstableofflinerelevel (CASSANDRA-12519)
 
 4.0-rc2
+ * Avoid memoizing the wrong min cluster version during upgrades (CASSANDRA-16759)
  * Fix queries on empty partitions with static data (CASSANDRA-16686)
  * Keep python driver in artifacts (CASSANDRA-16700)
  * Improve AuditLogging documentation and logback.xml(CASSANDRA-16682)
