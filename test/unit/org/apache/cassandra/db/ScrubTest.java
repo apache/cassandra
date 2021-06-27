@@ -64,6 +64,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -124,6 +125,42 @@ public class ScrubTest
 
         // check data is still there
         assertOrderedAll(cfs, 1);
+    }
+
+    @Test
+    public void testScrubOneFile() throws ExecutionException, InterruptedException
+    {
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        cfs.clearUnsafe();
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, 1);
+        cfs.forceBlockingFlush();
+        fillCF(cfs, 1);
+        cfs.forceBlockingFlush();
+
+        Set<SSTableReader> sstables = cfs.getLiveSSTables();
+        assertEquals(2, sstables.size());
+        // pick one to scrub, collect existing gen ids
+        Iterator<SSTableReader> iter = sstables.iterator();
+        SSTableReader chosen = iter.next();
+        SSTableReader leftAlone = iter.next();
+        List<Descriptor> toScrub = Arrays.asList(chosen.descriptor);
+        CompactionManager.instance.performScrub(cfs, false, true, false, 2, toScrub);
+
+        // the one we chose to scrub should be re-written, so we still have two sstables
+        sstables = cfs.getLiveSSTables();
+        assertEquals(2, sstables.size());
+        boolean wasLeftAlone = false;
+        for(SSTableReader sstable: sstables)
+        {
+            if (sstable.descriptor.equals(leftAlone.descriptor))
+                wasLeftAlone = true;
+            assertNotEquals("file should have been scrubbed", chosen.descriptor, sstable.descriptor);
+        }
+        assertTrue("file should not have been scrubbed" + leftAlone.descriptor, wasLeftAlone);
     }
 
     @Test
@@ -624,7 +661,7 @@ public class ScrubTest
                 { //make sure the next scrub fails
                     overrideWithGarbage(indexCfs.getLiveSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L));
                 }
-                CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, false, true, false,0);
+                CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, false, true, false,0, null);
                 assertEquals(failure ?
                              CompactionManager.AllSSTableOpStatus.ABORTED :
                              CompactionManager.AllSSTableOpStatus.SUCCESSFUL,
@@ -703,7 +740,7 @@ public class ScrubTest
 
         cfs.loadNewSSTables();
 
-        cfs.scrub(true, true, false, false, false, 1);
+        cfs.scrub(true, true, false, false, false, 1, null);
 
         UntypedResultSet rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".cf_with_duplicates_3_0", KEYSPACE));
         assertEquals(1, rs.size());

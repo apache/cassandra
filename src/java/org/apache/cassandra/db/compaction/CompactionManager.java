@@ -389,12 +389,27 @@ public class CompactionManager implements CompactionManagerMBean
                                            final boolean reinsertOverflowedTTL, int jobs)
     throws InterruptedException, ExecutionException
     {
+        return performScrub(cfs, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, descriptor -> true);
+    }
+
+    public AllSSTableOpStatus performScrub(ColumnFamilyStore cfs, boolean skipCorrupted, boolean checkData,
+                                           boolean reinsertOverflowedTTL, int jobs, Collection<Descriptor> sstables) throws InterruptedException, ExecutionException
+    {
+      Set<Descriptor> files = new HashSet<>(sstables);
+      return performScrub(cfs, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, files::contains);
+    }
+
+    private AllSSTableOpStatus performScrub(ColumnFamilyStore cfs, boolean skipCorrupted, boolean checkData,
+                                            boolean reinsertOverflowedTTL, int jobs, Predicate<Descriptor> allowedFile) throws InterruptedException, ExecutionException
+    {
         return parallelAllSSTableOperation(cfs, new OneSSTableOperation()
         {
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction input)
             {
-                return input.originals();
+                return input.originals().stream()
+                  .filter(reader -> allowedFile.test(reader.descriptor))
+                  .collect(Collectors.toList());
             }
 
             @Override

@@ -342,6 +342,22 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public void userDefinedScrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        checkJobs(out, jobs);
+        switch (ssProxy.userDefinedScrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, userDefinedTables))
+        {
+            case 1:
+                failed = true;
+                out.println("Aborted scrubbing at least one table, check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting, check server logs for more information");
+                break;
+        }
+    }
+
     public void verify(PrintStream out, boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         switch (verify(extendedVerify, keyspaceName, tableNames))

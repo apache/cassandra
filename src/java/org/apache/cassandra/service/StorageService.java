@@ -3147,6 +3147,20 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
+    public int userDefinedScrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, Collection<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+      for (Map.Entry<ColumnFamilyStore, Collection<Descriptor>> entry: Descriptor.fromFilenamesGrouped(userDefinedTables).asMap().entrySet())
+      {
+          ColumnFamilyStore cfs = entry.getKey();
+          Collection<Descriptor> sstables = entry.getValue();
+          CompactionManager.AllSSTableOpStatus oneStatus = cfs.partialScrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, checkData, jobs, sstables);
+          if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL) {
+              return oneStatus.statusCode;
+          }
+      }
+      return CompactionManager.AllSSTableOpStatus.SUCCESSFUL.statusCode;
+  }
+
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
@@ -3223,7 +3237,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Collection<Descriptor> sstables = entry.getValue();
             CompactionManager.AllSSTableOpStatus oneStatus = cfs.partialGarbageCollect(tombstoneOption, jobs, sstables);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL) {
-              return oneStatus.statusCode;
+                return oneStatus.statusCode;
             }
         }
         return CompactionManager.AllSSTableOpStatus.SUCCESSFUL.statusCode;

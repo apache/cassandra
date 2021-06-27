@@ -1579,11 +1579,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs) throws ExecutionException, InterruptedException
     {
-        return scrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, false, checkData, jobs);
+        return scrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, false, checkData, jobs, null);
+    }
+
+    public CompactionManager.AllSSTableOpStatus partialScrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, Collection<Descriptor> sstables) throws ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, false, checkData, jobs, sstables);
     }
 
     @VisibleForTesting
-    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean reinsertOverflowedTTL, boolean alwaysFail, boolean checkData, int jobs) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean reinsertOverflowedTTL, boolean alwaysFail, boolean checkData, int jobs, Collection<Descriptor> sstables) throws ExecutionException, InterruptedException
     {
         // skip snapshot creation during scrub, SEE JIRA 5891
         if(!disableSnapshot)
@@ -1591,8 +1596,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            return CompactionManager.instance.performScrub(ColumnFamilyStore.this, skipCorrupted, checkData, reinsertOverflowedTTL, jobs);
-        }
+            if (sstables == null)
+                return CompactionManager.instance.performScrub(ColumnFamilyStore.this, skipCorrupted, checkData, reinsertOverflowedTTL, jobs);
+            else
+                return CompactionManager.instance.performScrub(ColumnFamilyStore.this, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, sstables);
+                    }
         catch(Throwable t)
         {
             if (!rebuildOnFailedScrub(t))

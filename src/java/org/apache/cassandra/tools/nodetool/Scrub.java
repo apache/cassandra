@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.StandaloneScrubber;
 @Command(name = "scrub", description = "Scrub (rebuild sstables for) one or more tables")
 public class Scrub extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @Arguments(usage = "[<keyspace> <tables>...] or <SSTable file>...", description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "disable_snapshot",
@@ -59,9 +59,28 @@ public class Scrub extends NodeToolCmd
             description = "Number of sstables to scrub simultanously, set to 0 to use all available compaction threads")
     private int jobs = 2;
 
+    @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined garbagecollect")
+    private boolean userDefined = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if(userDefined)
+        {
+            try
+            {
+                probe.userDefinedScrub(probe.output().out, disableSnapshot, skipCorrupted, !noValidation, reinsertOverflowedTTL, jobs, args);
+            }
+            catch (IllegalArgumentException e)
+            {
+                throw e;
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException("Error occurred during scrubbing", e);
+            }
+            return;
+        }
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
