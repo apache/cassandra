@@ -554,6 +554,11 @@ public class MigrationCoordinator
         if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
             Gossiper.waitToSettle();
 
+        if (versionInfo.isEmpty())
+        {
+            logger.debug("Nothing in versionInfo - so no schemas to wait for");
+        }
+
         WaitQueue.Signal signal = null;
         try
         {

@@ -2378,6 +2378,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         break;
                 }
             }
+            else
+            {
+                logger.debug("Ignoring application state {} from {} because it is not a member in token metadata",
+                             state, endpoint);
+            }
         }
     }
 
@@ -3253,10 +3258,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return changedRanges.build();
     }
 
+
     public void onJoin(InetAddressAndPort endpoint, EndpointState epState)
     {
+        // Explicitly process STATUS or STATUS_WITH_PORT before the other
+        // application states to maintain pre-4.0 semantics with the order
+        // they are processed.  Otherwise the endpoint will not be added
+        // to TokenMetadata so non-STATUS* appstates will be ignored.
+        ApplicationState statusState = ApplicationState.STATUS_WITH_PORT;
+        VersionedValue statusValue;
+        statusValue = epState.getApplicationState(statusState);
+        if (statusValue == null)
+        {
+            statusState = ApplicationState.STATUS;
+            statusValue = epState.getApplicationState(statusState);
+        }
+        if (statusValue != null)
+            onChange(endpoint, statusState, statusValue);
+
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.states())
         {
+            if (entry.getKey() == ApplicationState.STATUS_WITH_PORT || entry.getKey() == ApplicationState.STATUS)
+                continue;
             onChange(endpoint, entry.getKey(), entry.getValue());
         }
     }
