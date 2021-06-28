@@ -238,6 +238,14 @@ public class PartitionUpdate extends AbstractBTreePartition
         return fromIterator(iterator, filter, true,  null);
     }
 
+    public static PartitionUpdate fromIteratorExplicitColumns(UnfilteredRowIterator iterator, ColumnFilter filter)
+    {
+        iterator = UnfilteredRowIterators.withOnlyQueriedData(iterator, filter);
+        Holder holder = build(iterator, 16, true, null, filter.fetchedColumns());
+        MutableDeletionInfo deletionInfo = (MutableDeletionInfo) holder.deletionInfo;
+        return new PartitionUpdate(iterator.metadata(), iterator.partitionKey(), holder, deletionInfo, false, FBUtilities.nowInSeconds());
+    }
+
     private static final NoSpamLogger rowMergingLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
     /**
      * Removes duplicate rows from incoming iterator, to be used when we can't trust the underlying iterator (like when reading legacy sstables)
