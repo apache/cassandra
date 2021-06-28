@@ -1,0 +1,54 @@
+NAME
+       nodetool snapshot - Take a snapshot of specified keyspaces or a snapshot
+       of the specified table
+
+SYNOPSIS
+       nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+               [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+               [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+               [(-u <username> | --username <username>)] snapshot
+               [(-cf <table> | --column-family <table> | --table <table>)]
+               [(-kt <ktlist> | --kt-list <ktlist> | -kc <ktlist> | --kc.list <ktlist>)]
+               [(-sf | --skip-flush)] [(-t <tag> | --tag <tag>)] [--] [<keyspaces...>]
+
+OPTIONS
+       -cf <table>, --column-family <table>, --table <table>
+           The table name (you must specify one and only one keyspace for using
+           this option)
+
+       -h <host>, --host <host>
+           Node hostname or ip address
+
+       -kt <ktlist>, --kt-list <ktlist>, -kc <ktlist>, --kc.list <ktlist>
+           The list of Keyspace.table to take snapshot.(you must not specify
+           only keyspace)
+
+       -p <port>, --port <port>
+           Remote jmx agent port number
+
+       -pp, --print-port
+           Operate in 4.0 mode with hosts disambiguated by port number
+
+       -pw <password>, --password <password>
+           Remote jmx agent password
+
+       -pwf <passwordFilePath>, --password-file <passwordFilePath>
+           Path to the JMX password file
+
+       -sf, --skip-flush
+           Do not flush memtables before snapshotting (snapshot will not
+           contain unflushed data)
+
+       -t <tag>, --tag <tag>
+           The name of the snapshot
+
+       -u <username>, --username <username>
+           Remote jmx agent username
+
+       --
+           This option can be used to separate command-line options from the
+           list of argument, (useful when arguments might be mistaken for
+           command-line options
+
+       [<keyspaces...>]
+           List of keyspaces. By default, all keyspaces

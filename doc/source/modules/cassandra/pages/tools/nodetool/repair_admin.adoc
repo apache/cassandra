@@ -1,0 +1,7 @@
+== repair_admin
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/repair_admin.txt[]
+----

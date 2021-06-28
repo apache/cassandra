@@ -1,0 +1,7 @@
+== rebuild_index
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/rebuild_index.txt[]
+----

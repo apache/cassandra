@@ -1,0 +1,7 @@
+== status
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/status.txt[]
+----

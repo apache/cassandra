@@ -1,0 +1,64 @@
+NAME
+        nodetool import - Import new SSTables to the system
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] import
+                [(-c | --no-invalidate-caches)] [(-e | --extended-verify)]
+                [(-l | --keep-level)] [(-q | --quick)] [(-r | --keep-repaired)]
+                [(-t | --no-tokens)] [(-v | --no-verify)] [--] <keyspace> <table>
+                <directory> ...
+
+OPTIONS
+        -c, --no-invalidate-caches
+            Don't invalidate the row cache when importing
+
+        -e, --extended-verify
+            Run an extended verify, verifying all values in the new sstables
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -l, --keep-level
+            Keep the level on the new sstables
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -q, --quick
+            Do a quick import without verifying sstables, clearing row cache or
+            checking in which data directory to put the file
+
+        -r, --keep-repaired
+            Keep any repaired information from the sstables
+
+        -t, --no-tokens
+            Don't verify that all tokens in the new sstable are owned by the
+            current node
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        -v, --no-verify
+            Don't verify new sstables
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <keyspace> <table> <directory> ...
+            The keyspace, table name and directories to import sstables from
+
+

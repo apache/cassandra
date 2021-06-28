@@ -1,0 +1,135 @@
+= Working on Documentation
+
+== How Cassandra is documented
+
+The official Cassandra documentation lives in the project's git
+repository. 
+We use a static site generator, http://www.antora.org/[Antora], to create pages hosted at
+https://cassandra.apache.org/doc/latest/[cassandra.apache.org]. 
+
+<!-- You'll also find developer-centric content about Cassandra internals in our
+retired https://wiki.apache.org/cassandra[wiki] (not covered by this
+guide). -->
+
+Using a static site generator often requires the use of a markup language
+instead of visual editors (which some people would call good news).
+Antora processes http://www.asciidoc.org[Ascidoc], the markup language used to generate our documentation.
+Markup languages allow you to format text using certain syntax elements. 
+Your document structure will also have to follow specific conventions. 
+Feel free to take a look at http://cassandra.apache.org/docs[existing documents] to get a better idea how we structure our documents.
+
+So how do you actually start making contributions?
+
+== GitHub based work flow
+
+_Recommended for shorter documents and minor changes on existing content
+(e.g. fixing typos or updating descriptions)_
+
+Follow these steps to contribute using GitHub. It's assumed that you're
+logged in with an existing account.
+
+[arabic]
+. Fork the GitHub mirror of the
+https://github.com/apache/cassandra[Cassandra repository]
+
+image::docs_fork.png[image]
+
+[arabic, start=2]
+. Create a new branch that you can use to make your edits. It's
+recommended to have a separate branch for each of your working projects.
+It will also make it easier to create a pull request later to when you
+decide you’re ready to contribute your work.
+
+image::docs_create_branch.png[image]
+
+[arabic, start=3]
+. Navigate to document sources `doc/source/modules` to find the `.adoc` file to
+edit. The URL of the document should correspond to the directory
+structure within the modules, where first the `component` name, such as `cassandra` is listed, and then the actual pages inside the `pages` directory. New files can be created using the "Create new file" button:
+
+image::docs_create_file.png[image]
+
+[arabic, start=4]
+. At this point you should be able to edit the file using the GitHub web
+editor. Start by naming your file and add some content. Have a look at
+other existing `.adoc` files to get a better idea what format elements to
+use.
+
+image::docs_editor.png[image]
+
+Make sure to preview added content before committing any changes.
+
+image::docs_preview.png[image]
+
+[arabic, start=5]
+. Commit your work when you're done. Make sure to add a short
+description of all your edits since the last time you committed before.
+
+image::docs_commit.png[image]
+
+[arabic, start=6]
+. Finally if you decide that you're done working on your branch, it's
+time to create a pull request!
+
+image::docs_pr.png[image]
+
+Afterwards the GitHub Cassandra mirror will list your pull request and
+you're done. Congratulations! Please give us some time to look at your
+suggested changes before we get back to you.
+
+== Jira based work flow
+
+_Recommended for major changes_
+
+Significant changes to the documentation are best managed through our
+Jira issue tracker. Please follow the same
+https://cassandra.apache.org/doc/latest/development/patches.html[contribution
+guides] as for regular code contributions. Creating high quality content
+takes a lot of effort. It’s therefore always a good idea to create a
+ticket before you start and explain what you’re planning to do. This will
+create the opportunity for other contributors and committers to comment
+on your ideas and work so far. Eventually your patch gets a formal
+review before it is committed.
+
+== Working on documents locally using Antora
+
+_Recommended for advanced editing_
+
+Using the GitHub web interface should allow you to use most common
+layout elements including images. More advanced formatting options and
+navigation elements depend on Antora to render correctly. Therefore, it’s
+a good idea to setup Antora locally for any serious editing. Please
+follow the instructions in the Cassandra source directory at
+`doc/README.md`. Setup is very easy (at least on OSX and Linux).
+
+== Notes for committers
+
+Please feel free to get involved and merge pull requests created on the
+GitHub mirror if you're a committer. As this is a read-only repository,
+you won't be able to merge a PR directly on GitHub. You'll have to
+commit the changes against the Apache repository with a comment that
+will close the PR when the committ syncs with GitHub.
+
+You may use a git work flow like this:
+
+....
+git remote add github https://github.com/apache/cassandra.git
+git fetch github pull/<PR-ID>/head:<PR-ID>
+git checkout <PR-ID>
+....
+
+Now either rebase or squash the commit, e.g. for squashing:
+
+....
+git reset --soft origin/trunk
+git commit --author <PR Author>
+....
+
+Make sure to add a proper commit message including a "Closes #<PR-ID>"
+text to automatically close the PR.
+
+=== Publishing
+
+Details for building and publishing of the site at cassandra.apache.org
+can be found
+https://github.com/apache/cassandra-website/blob/master/README.md[here].

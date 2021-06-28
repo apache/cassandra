@@ -1,0 +1,7 @@
+name: Cassandra
+version: '4.0'
+prerelease: -beta1
+nav:
+- modules/ROOT/nav.adoc
+- modules/sitestuff/nav.adoc
+- modules/cassandra/nav.adoc

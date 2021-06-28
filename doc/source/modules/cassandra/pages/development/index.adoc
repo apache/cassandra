@@ -1,0 +1,13 @@
+= Contributing to Cassandra
+
+* xref:development/gettingstarted.adoc[Getting started]
+* xref:development/ide.adoc[IDE]
+* xref:development/testing.adoc[Testing]
+* xref:development/code_style.adoc[Code style]
+* xref:development/how_to_commit.adoc[How to commit]
+* xref:development/how_to_review.adoc[How to review]
+* xref:development/patches.adoc[Patches]
+* xref:development/ci.adoc[CI]
+* xref:development/dependencies.adoc[Dependencies]
+* xref:development/documentation.adoc[Documentation]
+* xref:development/release_process.adoc[Release process]

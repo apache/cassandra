@@ -1,0 +1,8 @@
+constant::= string | integer | float | boolean | uuid | blob | NULL
+string::= ''' (any character where ' can appear if doubled)+ ''' : '$$' (any character other than '$$') '$$'
+integer::= re('-?[0-9]+')
+float::= re('-?[0-9]+(.[0-9]*)?([eE][+-]?[0-9+])?') | NAN | INFINITY
+boolean::= TRUE | FALSE
+uuid::= hex\{8}-hex\{4}-hex\{4}-hex\{4}-hex\{12}
+hex::= re("[0-9a-fA-F]")
+blob::= '0' ('x' | 'X') hex+

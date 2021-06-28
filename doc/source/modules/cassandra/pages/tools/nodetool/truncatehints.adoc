@@ -1,0 +1,7 @@
+== truncatehints
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/truncatehints.txt[]
+----

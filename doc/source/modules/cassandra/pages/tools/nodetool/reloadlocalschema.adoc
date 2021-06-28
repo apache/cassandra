@@ -1,0 +1,7 @@
+== reloadlocalschema
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/reloadlocalschema.txt[]
+----

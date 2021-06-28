@@ -1,0 +1,50 @@
+= Welcome to Apache Cassandra's documentation!
+
+:description: Starting page for Apache Cassandra documentation.
+:keywords: Apache, Cassandra, NoSQL, database
+:cass-url: http://cassandra.apache.org
+:cass-contrib-url: https://wiki.apache.org/cassandra/HowToContribute
+
+This is the official documentation for {cass-url}[Apache Cassandra]. 
+If you would like to contribute to this documentation, you are welcome 
+to do so by submitting your contribution like any other patch following
+{cass-contrib-url}[these instructions].
+
+== Main documentation
+
+[cols="a,a"]
+|===
+
+| xref:cassandra:getting_started/index.adoc[Getting started] | Newbie starting point
+
+| xref:cassandra:new/index.adoc[What's new in 4.0] | What's new in Cassandra 4.0
+
+| xref:cassandra:architecture/index.adoc[Architecture] | Cassandra's big picture
+
+| xref:cassandra:data_modeling/index.adoc[Data modeling] | Hint: it's not relational
+
+| xref:cassandra:cql/index.adoc[Cassandra Query Language (CQL)] | CQL reference documentation
+
+| xref:cassandra:configuration/index.adoc[Configuration] | Cassandra's handles and knobs
+
+| xref:cassandra:operating/index.adoc[Operation] | The operator's corner
+
+| xref:cassandra:tools/index.adoc[Tools] | cqlsh, nodetool, and others
+
+| xref:cassandra:troubleshooting/index.adoc[Troubleshooting] | What to look for when you have a problem
+
+| xref:cassandra:faq/index.adoc[FAQ] | Frequently asked questions
+
+| xref:cassandra:plugins/index.adoc[Plug-ins] | Third-party plug-ins
+
+| xref:master@Website:ROOT:native_protocol.adoc[Native Protocols] | Native Cassandra protocol specifications
+
+|===
+
+== Meta information
+* xref:master@Website:ROOT:bugs.adoc[Reporting bugs]
+* xref:master@Website:ROOT:contactus.adoc[Contact us]
+* xref:master@Website:ROOT:development/index.adoc[Contributing code]
+* xref:master@Website:ROOT:docdev/index.adoc[Contributing to the docs]
+* xref:master@Website:ROOT:community.adoc[Community]
+* xref:master@Website:ROOT:download.adoc[Download]

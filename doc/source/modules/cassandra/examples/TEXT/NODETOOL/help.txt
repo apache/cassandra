@@ -1,0 +1,16 @@
+NAME
+        nodetool help - Display help information
+
+SYNOPSIS
+        nodetool help [--] [<command>...]
+
+OPTIONS
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <command>
+
+
+

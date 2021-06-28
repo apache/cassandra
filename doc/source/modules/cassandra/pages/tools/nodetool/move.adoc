@@ -1,0 +1,7 @@
+== move
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/move.txt[]
+----

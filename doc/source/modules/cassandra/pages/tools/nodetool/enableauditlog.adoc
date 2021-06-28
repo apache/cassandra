@@ -1,0 +1,7 @@
+== enableauditlog
+
+== Usage
+[source,plaintext]
+----
+include::example$TEXT/NODETOOL/enableauditlog.txt[]
+----

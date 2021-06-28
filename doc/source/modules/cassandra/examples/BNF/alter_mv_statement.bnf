@@ -1,0 +1,1 @@
+alter_materialized_view_statement::= ALTER MATERIALIZED VIEW view_name WITH table_options

@@ -1,0 +1,11 @@
+<tarball_installation>/
+    bin/		<1>
+    conf/		<2>
+    data/		<3>
+    doc/
+    interface/
+    javadoc/
+    lib/
+    logs/		<4>
+    pylib/
+    tools/		<5>

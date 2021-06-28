@@ -1,0 +1,47 @@
+NAME
+        nodetool toppartitions - Sample and print the most active partitions
+
+SYNOPSIS
+        nodetool [(-h <host> | --host <host>)] [(-p <port> | --port <port>)]
+                [(-pp | --print-port)] [(-pw <password> | --password <password>)]
+                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]
+                [(-u <username> | --username <username>)] toppartitions [-a <samplers>]
+                [-k <topCount>] [-s <capacity>] [--] <keyspace> <cfname> <duration>
+
+OPTIONS
+        -a <samplers>
+            Comma separated list of samplers to use (Default: all)
+
+        -h <host>, --host <host>
+            Node hostname or ip address
+
+        -k <topCount>
+            Number of the top samples to list (Default: 10)
+
+        -p <port>, --port <port>
+            Remote jmx agent port number
+
+        -pp, --print-port
+            Operate in 4.0 mode with hosts disambiguated by port number
+
+        -pw <password>, --password <password>
+            Remote jmx agent password
+
+        -pwf <passwordFilePath>, --password-file <passwordFilePath>
+            Path to the JMX password file
+
+        -s <capacity>
+            Capacity of the sampler, higher for more accuracy (Default: 256)
+
+        -u <username>, --username <username>
+            Remote jmx agent username
+
+        --
+            This option can be used to separate command-line options from the
+            list of argument, (useful when arguments might be mistaken for
+            command-line options
+
+        <keyspace> <cfname> <duration>
+            The keyspace, column family name, and duration in milliseconds
+
+
