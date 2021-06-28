@@ -381,11 +381,6 @@ public class AllowFilteringTest extends SAITester
         assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_MULTI, "[b, c]"), "SELECT * FROM %s WHERE c > 'Test' AND b < 'Test3'");
         assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_MULTI, "[b, d]"), "SELECT * FROM %s WHERE d > 'Test' AND b < 'Test3'");
 
-        // IN restriction
-        assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "b"), "SELECT * FROM %s WHERE b IN ('Test1', 'Test2')");
-        assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "c"), "SELECT * FROM %s WHERE c IN ('Test1', 'Test2')");
-        assertInvalidMessage(String.format(StatementRestrictions.HAS_UNSUPPORTED_INDEX_RESTRICTION_MESSAGE_SINGLE, "d"), "SELECT * FROM %s WHERE d IN ('Test1', 'Test2')");
-
         // The same queries with ALLOW FILTERING should work
 
         // Single restriction
@@ -411,14 +406,6 @@ public class AllowFilteringTest extends SAITester
                                                                                                                     row("Test2", "Test2", "Test2", "Test2"));
         assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE d > 'Test' AND b < 'Test3' ALLOW FILTERING"), row("Test1", "Test1", "Test1", "Test1"),
                                                                                                                     row("Test2", "Test2", "Test2", "Test2"));
-
-        // IN restriction
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE b IN ('Test1', 'Test2') ALLOW FILTERING"), row("Test1", "Test1", "Test1", "Test1"),
-                                                                                                                 row("Test2", "Test2", "Test2", "Test2"));
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE c IN ('Test1', 'Test2') ALLOW FILTERING"), row("Test1", "Test1", "Test1", "Test1"),
-                                                                                                                 row("Test2", "Test2", "Test2", "Test2"));
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE d IN ('Test1', 'Test2') ALLOW FILTERING"), row("Test1", "Test1", "Test1", "Test1"),
-                                                                                                                 row("Test2", "Test2", "Test2", "Test2"));
     }
 
     @Test

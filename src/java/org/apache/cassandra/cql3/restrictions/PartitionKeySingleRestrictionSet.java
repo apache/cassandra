@@ -123,7 +123,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter,
+    public void addToRowFilter(RowFilter.Builder filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
@@ -166,12 +166,19 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
             this.clusteringComparator = clusteringComparator;
         }
 
-        public Builder addRestriction(Restriction restriction) {
+        public Builder addRestriction(Restriction restriction)
+        {
             restrictions.add(restriction);
             return this;
         }
 
-        public PartitionKeyRestrictions build() {
+        public PartitionKeyRestrictions build()
+        {
+            return build(false);
+        }
+
+        public PartitionKeyRestrictions build(boolean isDisjunction)
+        {
             RestrictionSet.Builder restrictionSet = RestrictionSet.builder();
 
             for (int i = 0; i < restrictions.size(); i++) {
@@ -181,13 +188,14 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
                 if (restriction.isOnToken())
                     return buildWithTokens(restrictionSet, i);
 
-                restrictionSet.addRestriction((SingleRestriction) restriction);
+                restrictionSet.addRestriction((SingleRestriction) restriction, isDisjunction);
             }
 
             return buildPartitionKeyRestrictions(restrictionSet);
         }
 
-        private PartitionKeyRestrictions buildWithTokens(RestrictionSet.Builder restrictionSet, int i) {
+        private PartitionKeyRestrictions buildWithTokens(RestrictionSet.Builder restrictionSet, int i)
+        {
             PartitionKeyRestrictions merged = buildPartitionKeyRestrictions(restrictionSet);
 
             for (; i < restrictions.size(); i++) {
@@ -199,7 +207,8 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
             return merged;
         }
 
-        private PartitionKeySingleRestrictionSet buildPartitionKeyRestrictions(RestrictionSet.Builder restrictionSet) {
+        private PartitionKeySingleRestrictionSet buildPartitionKeyRestrictions(RestrictionSet.Builder restrictionSet)
+        {
             return new PartitionKeySingleRestrictionSet(restrictionSet.build(), clusteringComparator);
         }
     }

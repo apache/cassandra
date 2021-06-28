@@ -149,6 +149,12 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     }
 
     @Override
+    public boolean supportsDisjunction()
+    {
+        return true;
+    }
+
+    @Override
     public boolean containsIndex(Index index)
     {
         return index instanceof StorageAttachedIndex && indices.contains(index);

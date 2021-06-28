@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -45,11 +44,11 @@ class RestrictionSetWrapper implements Restrictions
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter,
+    public void addToRowFilter(RowFilter.Builder rowFilter,
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
-        restrictions.addToRowFilter(filter, indexRegistry, options);
+        restrictions.addToRowFilter(rowFilter, indexRegistry, options);
     }
 
     @Override

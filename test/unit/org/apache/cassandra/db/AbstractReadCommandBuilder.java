@@ -43,7 +43,7 @@ public abstract class AbstractReadCommandBuilder
     protected boolean reversed = false;
 
     protected Set<ColumnIdentifier> columns;
-    protected final RowFilter filter = RowFilter.create();
+    protected final RowFilter.Builder filter = RowFilter.builder();
 
     private ClusteringBound<?> lowerClusteringBound;
     private ClusteringBound<?> upperClusteringBound;
@@ -233,7 +233,7 @@ public abstract class AbstractReadCommandBuilder
         @Override
         public ReadCommand build()
         {
-            return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
+            return SinglePartitionReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter.build(), makeLimits(), partitionKey, makeFilter());
         }
     }
 
@@ -307,7 +307,7 @@ public abstract class AbstractReadCommandBuilder
             else
                 bounds = new ExcludingBounds<>(start, end);
 
-            return PartitionRangeReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter, makeLimits(), new DataRange(bounds, makeFilter()));
+            return PartitionRangeReadCommand.create(cfs.metadata(), nowInSeconds, makeColumnFilter(), filter.build(), makeLimits(), new DataRange(bounds, makeFilter()));
         }
 
         static DecoratedKey makeKey(TableMetadata metadata, Object... partitionKey)
