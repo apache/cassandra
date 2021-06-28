@@ -1,0 +1,13 @@
+Snapshot Details:
+Snapshot name Keyspace name   Column family name True size Size on disk
+multi-table   cqlkeyspace     t2                 4.86 KiB  5.67 KiB
+multi-table   cqlkeyspace     t                  4.89 KiB  5.7 KiB
+multi-ks      cqlkeyspace     t                  4.89 KiB  5.7 KiB
+multi-ks      catalogkeyspace journal            4.9 KiB   5.73 KiB
+magazine      catalogkeyspace magazine           4.9 KiB   5.73 KiB
+multi-table-2 cqlkeyspace     t2                 4.86 KiB  5.67 KiB
+multi-table-2 cqlkeyspace     t                  4.89 KiB  5.7 KiB
+catalog-ks    catalogkeyspace journal            4.9 KiB   5.73 KiB
+catalog-ks    catalogkeyspace magazine           4.9 KiB   5.73 KiB
+
+Total TrueDiskSpaceUsed: 44.02 KiB

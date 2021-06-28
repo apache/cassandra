@@ -1,0 +1,1 @@
+describe_keyspace_statement::= DESCRIBE [ONLY] KEYSPACE [keyspace_name] [WITH INTERNALS];

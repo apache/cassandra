@@ -1,0 +1,799 @@
+= Data Definition
+:tabs:
+
+CQL stores data in _tables_, whose schema defines the layout of the
+data in the table. Tables are located in _keyspaces_. 
+A keyspace defines options that apply to all the keyspace's tables. 
+The xref:cql/ddl.adoc#replication-strategy[replication strategy] is an important keyspace option, as is the replication factor. 
+A good general rule is one keyspace per application.
+It is common for a cluster to define only one keyspace for an actie application.
+
+This section describes the statements used to create, modify, and remove
+those keyspace and tables.
+
+== Common definitions
+
+The names of the keyspaces and tables are defined by the following
+grammar:
+
+[source,bnf]
+----
+include::example$BNF/ks_table.bnf[]
+----
+
+Both keyspace and table name should be comprised of only alphanumeric
+characters, cannot be empty and are limited in size to 48 characters
+(that limit exists mostly to avoid filenames (which may include the
+keyspace and table name) to go over the limits of certain file systems).
+By default, keyspace and table names are case-insensitive (`myTable` is
+equivalent to `mytable`) but case sensitivity can be forced by using
+double-quotes (`"myTable"` is different from `mytable`).
+
+Further, a table is always part of a keyspace and a table name can be
+provided fully-qualified by the keyspace it is part of. If is is not
+fully-qualified, the table is assumed to be in the _current_ keyspace
+(see xref:cql/ddl.adoc#use-statement[USE] statement.
+
+Further, the valid names for columns are defined as:
+
+[source,bnf]
+----
+include::example$BNF/column.bnf[]
+----
+
+We also define the notion of statement options for use in the following
+section:
+
+[source,bnf]
+----
+include::example$BNF/options.bnf[]
+----
+
+[[create-keyspace-statement]]
+== CREATE KEYSPACE
+
+A keyspace is created with a `CREATE KEYSPACE` statement:
+
+[source,bnf]
+----
+include::example$BNF/create_ks.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/create_ks.cql[]
+----
+
+Attempting to create a keyspace that already exists will return an error
+unless the `IF NOT EXISTS` option is used. If it is used, the statement
+will be a no-op if the keyspace already exists.
+
+The supported `options` are:
+
+[cols=",,,,",options="header",]
+|===
+|name | kind | mandatory | default | description
+|`replication` | _map_ | yes | n/a | The replication strategy and options to use for the keyspace (see
+details below).
+|`durable_writes` | _simple_ | no | true | Whether to use the commit log for updates on this keyspace (disable this
+option at your own risk!).
+|===
+
+The `replication` property is mandatory and must contain the `'class'` sub-option that defines the desired
+xref:cql/ddl.adoc#replication-strategy[replication strategy] class. 
+The rest of the sub-options depend on which replication strategy is used. 
+By default, Cassandra supports the following `'class'` values:
+
+[[replication-strategy]]
+=== `SimpleStrategy`
+
+A simple strategy that defines a replication factor for data to be
+spread across the entire cluster. This is generally not a wise choice
+for production, as it does not respect datacenter layouts and can
+lead to wildly varying query latency. For production, use
+`NetworkTopologyStrategy`. `SimpleStrategy` supports a single
+mandatory argument:
+
+[cols=",,,",options="header",]
+|===
+|sub-option |type |since |description
+|`'replication_factor'` | int | all | The number of replicas to store per range
+|===
+
+=== `NetworkTopologyStrategy`
+
+A production-ready replication strategy that sets the
+replication factor independently for each data-center. The rest of the
+sub-options are key-value pairs, with a key set to a data-center name and
+its value set to the associated replication factor. Options:
+
+[cols=",,,",options="header",]
+|===
+|sub-option |type |description
+|`'<datacenter>'` | int | The number of replicas to store per range in the provided datacenter.
+|`'replication_factor'` | int | The number of replicas to use as a default per datacenter if not
+specifically provided. Note that this always defers to existing
+definitions or explicit datacenter settings. For example, to have three
+replicas per datacenter, set a value of 3.
+|===
+
+When later altering keyspaces and changing the `replication_factor`,
+auto-expansion will only _add_ new datacenters for safety, it will not
+alter existing datacenters or remove any, even if they are no longer in
+the cluster. If you want to remove datacenters while setting the 
+`replication_factor`, explicitly zero out the datacenter you want to
+have zero replicas.
+
+An example of auto-expanding datacenters with two datacenters: `DC1` and
+`DC2`:
+
+[source,cql]
+----
+include::example$CQL/autoexpand_ks.cql[]
+----
+will result in:
+[source,plaintext]
+----
+include::example$RESULTS/autoexpand_ks.result[]
+----
+
+An example of auto-expanding and overriding a datacenter:
+
+[source,cql]
+----
+include::example$CQL/autoexpand_ks_override.cql[]
+----
+will result in:
+[source,plaintext]
+----
+include::example$RESULTS/autoexpand_ks_override.result[]
+----
+
+An example that excludes a datacenter while using `replication_factor`:
+
+[source,cql]
+----
+include::example$CQL/autoexpand_exclude_dc.cql[]
+----
+will result in:
+[source,plaintext]
+----
+include::example$RESULTS/autoexpand_exclude_dc.result[]
+----
+
+If xref:new/transientreplication.adoc[transient replication] has been enabled, transient replicas can be
+configured for both `SimpleStrategy` and `NetworkTopologyStrategy` by
+defining replication factors in the format
+`'<total_replicas>/<transient_replicas>'`
+
+For instance, this keyspace will have 3 replicas in DC1, 1 of which is
+transient, and 5 replicas in DC2, 2 of which are transient:
+
+[source,cql]
+----
+include::example$CQL/create_ks_trans_repl.cql[]
+----
+
+[[use-statement]]
+== USE
+
+The `USE` statement changes the _current_ keyspace to the specified keyspace. 
+A number of objects in CQL are bound to a keyspace (tables, user-defined types, functions, etc.) and the
+current keyspace is the default keyspace used when those objects are
+referred to in a query without a fully-qualified name (without a prefixed keyspace name). 
+A `USE` statement specifies the keyspace to use as an argument:
+
+[source,bnf]
+----
+include::example$BNF/use_ks.bnf[]
+----
+Using CQL:
+[source,cql]
+----
+include::example$CQL/use_ks.cql[]
+----
+
+[[alter-keyspace-statement]]
+== ALTER KEYSPACE
+
+An `ALTER KEYSPACE` statement modifies the options of a keyspace:
+
+[source,bnf]
+----
+include::example$BNF/alter_ks.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/alter_ks.cql[]
+----
+
+The supported options are the same as for xref:cql/ddl.adoc#create-keyspace-statement[creating a keyspace].
+
+[[drop-keyspace-statement]]
+== DROP KEYSPACE
+
+Dropping a keyspace is done with the `DROP KEYSPACE` statement:
+
+[source,bnf]
+----
+include::example$BNF/drop_ks.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/drop_ks.cql[]
+----
+
+Dropping a keyspace results in the immediate, irreversible removal of
+that keyspace, including all the tables, user-defined types, user-defined functions, and
+all the data contained in those tables.
+
+If the keyspace does not exists, the statement will return an error,
+unless `IF EXISTS` is used in which case the operation is a no-op.
+
+[[create-table-statement]]
+== CREATE TABLE
+
+Creating a new table uses the `CREATE TABLE` statement:
+
+[source,bnf]
+----
+include::example$BNF/create_table.bnf[]
+----
+
+For example, here are some CQL statements to create tables:
+
+[source,cql]
+----
+include::example$CQL/create_table.cql[]
+----
+
+A CQL table has a name and is composed of a set of _rows_. 
+Creating a table amounts to defining which xref:cql/ddl.adoc#column-definition[columns] each rows will have, 
+which of those columns comprise the xref:cql/ddl.adoc#primary-key[primary key], as well as defined
+xref:cql/ddl.adoc#create-table-options[options] for the table.
+
+Attempting to create an already existing table will return an error
+unless the `IF NOT EXISTS` directive is used. If it is used, the
+statement will be a no-op if the table already exists.
+
+[[column-definition]]
+=== Column definitions
+
+Every row in a CQL table will have the predefined columns defined at table creation. 
+Columns can be added later using an xref:cql/ddl.adoc#alter-table-statement[alter statement].
+
+A `column_definition` is comprised of the name of the column and its xref:cql/ddl.adoc#data-type[type], 
+restricting the  values that are accepted for that column. Additionally, a column definition can have the
+following modifiers:
+
+* `STATIC`: declares the column as a xref:cql/ddl.adoc#static-column[static column]
+* `PRIMARY KEY`: declares the column as the sole component of the xref:cql/ddl.adoc#primary-key[primary key] of the table
+
+[[static-column]]
+==== Static columns
+
+Some columns can be declared as `STATIC` in a table definition. A column
+that is static will be “shared” by all the rows belonging to the same
+partition (having the same xref:cql/ddl.adoc#partition-key[partition key]. 
+
+For example:
+
+[{tabs}] 
+==== 
+Code:: 
++ 
+-- 
+[source,cql]
+----
+include::example$CQL/create_static_column.cql[]
+include::example$CQL/insert_static_data.cql[]
+include::example$CQL/select_static_data.cql[]
+----
+--
+
+Results::
++
+--
+[source,cql]
+----
+include::example$RESULTS/select_static_data.result[]
+----
+--
+====
+
+As can be seen, the `s` value is the same (`static1`) for both of the
+rows in the partition (the partition key being `pk`, and both
+rows are in the same partition): the second insertion overrides the
+value for `s`.
+
+The use of static columns has the following restrictions:
+
+* A table without clustering columns cannot have static columns. 
+In a table without clustering columns, every partition has only one row, and
+so every column is inherently static)
+* Only non-primary key columns can be static.
+
+[[primary-key]]
+=== The Primary key
+
+Within a table, a row is uniquely identified by its `PRIMARY KEY`, and
+hence all tables *must* define a single PRIMARY KEY. 
+A `PRIMARY KEY` is composed of one or more of the defined columns in the table. 
+Syntactically, the primary key is defined with the phrase `PRIMARY KEY` 
+followed by a comma-separated list of the column names within parenthesis.
+If the primary key has only one column, you can alternatively add the `PRIMARY KEY` phrase to
+that column in the table definition. 
+The order of the columns in the primary key definition defines the partition key and 
+clustering columns.
+
+A CQL primary key is composed of two parts:
+
+xref:cql/ddl.adoc#partition-key[partition key]::
+* It is the first component of the primary key definition. 
+It can be a single column or, using an additional set of parenthesis, can be multiple columns. 
+A table must have at least one partition key, the smallest possible table definition is:
++
+[source,cql]
+----
+include::example$CQL/create_table_single_pk.cql[]
+----
+xref:cql/ddl.adoc#clustering-columns[clustering columns]::
+* The columns are the columns that follow the partition key in the primary key definition.
+The order of those columns define the _clustering order_.
+
+Some examples of primary key definition are:
+
+* `PRIMARY KEY (a)`: `a` is the single partition key and there are no clustering columns
+* `PRIMARY KEY (a, b, c)` : `a` is the single partition key and `b` and `c` are the clustering columns
+* `PRIMARY KEY ((a, b), c)` : `a` and `b` compose the _composite_ partition key and `c` is the clustering column
+
+[IMPORTANT]
+====
+The primary key uniquely identifies a row in the table, as described above. 
+A consequence of this uniqueness is that if another row is inserted using the same primary key, 
+then an `UPSERT` occurs and an existing row with the same primary key is replaced. 
+Columns that are not part of the primary key cannot define uniqueness.
+====
+
+[[partition-key]]
+==== Partition key
+
+Within a table, CQL defines the notion of a _partition_ that defines the location of data within a Cassandra cluster.
+A partition is the set of rows that share the same value for their partition key. 
+
+Note that if the partition key is composed of multiple columns, then rows belong to the same partition 
+when they have the same values for all those partition key columns. 
+A hash is computed from the partition key columns and that hash value defines the partition location.
+So, for instance, given the following table definition and content:
+
+[source,cql]
+----
+include::example$CQL/create_table_compound_pk.cql[]
+include::example$CQL/insert_table_compound_pk.cql[]
+include::example$CQL/select_table_compound_pk.cql[]
+----
+
+will result in
+[source,cql]
+----
+include::example$RESULTS/select_table_compound_pk.result[]
+----
+<1> Rows 1 and 2 are in the same partition, because both columns `a` and `b` are zero.
+<2> Rows 3 and 4 are in the same partition, but a different one, because column `a` is zero and column `b` is 1 in both rows.
+<3> Row 5 is in a third partition by itself, because both columns `a` and `b` are 1.
+
+Note that a table always has a partition key, and that if the table has
+no `clustering columns`, then every partition of that table has a single row.
+because the partition key, compound or otherwise, identifies a single location.
+
+The most important property of partition is that all the rows belonging
+to the same partition are guaranteed to be stored on the same set of
+replica nodes. 
+In other words, the partition key of a table defines which rows will be localized on the same 
+node in the cluster. 
+The localization of data is important to the efficient retrieval of data, requiring the Cassandra coordinator
+to contact as few nodes as possible.
+However, there is a flip-side to this guarantee, and all rows sharing a partition key will be stored on the same 
+node, creating a hotspot for both reading and writing.
+While selecting a primary key that groups table rows assists batch updates and can ensure that the updates are 
+_atomic_ and done in _isolation_, the partitions must be sized "just right, not too big nor too small".
+
+Data modeling that considers the querying patterns and assigns primary keys based on the queries will have the lowest 
+latency in fetching data.
+
+[[clustering-columns]]
+==== Clustering columns
+
+The clustering columns of a table define the clustering order for the partition of that table. 
+For a given `partition`, all rows are ordered by that clustering order. Clustering columns also add uniqueness to
+a row in a table.
+
+For instance, given:
+
+[source,cql]
+----
+include::example$CQL/create_table_clustercolumn.cql[]
+include::example$CQL/insert_table_clustercolumn.cql[]
+include::example$CQL/select_table_clustercolumn.cql[]
+----
+
+will result in
+[source,cql]
+----
+include::example$RESULTS/select_table_clustercolumn.result[]
+----
+<1> Row 1 is in one partition, and Rows 2-5 are in a different one. The display order is also different.
+
+Looking more closely at the four rows in the same partition, the `b` clustering column defines the order in which those rows 
+are displayed. 
+Whereas the partition key of the table groups rows on the same node, the clustering columns control 
+how those rows are stored on the node. 
+
+That sorting allows the very efficient retrieval of a range of rows within a partition:
+
+[source,cql]
+----
+include::example$CQL/select_range.cql[]
+----
+
+will result in
+[source,cql]
+----
+include::example$RESULTS/select_range.result[]
+----
+
+[[create-table-options]]
+=== Table options
+
+A CQL table has a number of options that can be set at creation (and,
+for most of them, altered later). These options are specified after the
+`WITH` keyword.
+
+One important option that cannot be changed after creation, `CLUSTERING ORDER BY`, influences how queries can be done against the table. It is worth discussing in more detail here.
+
+[[clustering-order]]
+==== Clustering order
+
+The clustering order of a table is defined by the clustering columns. 
+By default, the clustering order is ascending for the clustering column's data types. 
+For example, integers order from 1, 2, ... n, while text orders from A to Z. 
+
+The `CLUSTERING ORDER BY` table option uses a comma-separated list of the
+clustering columns, each set for either `ASC` (for _ascending_ order) or `DESC` (for _descending order).
+The default is ascending for all clustering columns if the `CLUSTERING ORDER BY` option is not set. 
+
+This option is basically a hint for the storage engine that changes the order in which it stores the row.
+Beware of the consequences of setting this option:
+
+* It changes the default ascending order of results when queried with a `SELECT` statement with no `ORDER BY` clause.
+
+* It limits how the `ORDER BY` clause is used in `SELECT` statements on that table. 
+Results can only be ordered with either the original clustering order or the reverse clustering order.
+Suppose you create a table with two clustering columns `a` and `b`, defined `WITH CLUSTERING ORDER BY (a DESC, b ASC)`.
+Queries on the table can use `ORDER BY (a DESC, b ASC)` or `ORDER BY (a ASC, b DESC)`. 
+Mixed order, such as `ORDER BY (a ASC, b ASC)` or `ORDER BY (a DESC, b DESC)` will not return expected order.
+
+* It has a performance impact on queries. Queries in reverse clustering order are slower than the default ascending order.
+If you plan to query mostly in descending order, declare the clustering order in the table schema using `WITH CLUSTERING ORDER BY ()`. 
+This optimization is common for time series, to retrieve the data from newest to oldest.
+
+[[create-table-general-options]]
+==== Other table options
+
+A table supports the following options:
+
+[width="100%",cols="30%,9%,11%,50%",options="header",]
+|===
+|option | kind | default | description
+
+| `comment` | _simple_ | none | A free-form, human-readable comment
+| xref:cql/ddl.adoc#spec_retry[`speculative_retry`] | _simple_ | 99PERCENTILE | Speculative retry options
+| `cdc` |_boolean_ |false |Create a Change Data Capture (CDC) log on the table
+| `additional_write_policy` |_simple_ |99PERCENTILE | Same as `speculative_retry`
+| `gc_grace_seconds` |_simple_ |864000 |Time to wait before garbage collecting tombstones (deletion markers)
+| `bloom_filter_fp_chance` |_simple_ |0.00075 |The target probability of
+false positive of the sstable bloom filters. Said bloom filters will be
+sized to provide the provided probability, thus lowering this value
+impact the size of bloom filters in-memory and on-disk.
+| `default_time_to_live` |_simple_ |0 |Default expiration time (“TTL”) in seconds for a table
+| `compaction` |_map_ |_see below_ | xref:operating/compaction/index.adoc#cql-compaction-options[Compaction options]
+| `compression` |_map_ |_see below_ | xref:operating/compression/index.adoc#cql-compression-options[Compression options]
+| `caching` |_map_ |_see below_ |Caching options
+| `memtable_flush_period_in_ms` |_simple_ |0 |Time (in ms) before Cassandra flushes memtables to disk
+| `read_repair` |_simple_ |BLOCKING |Sets read repair behavior (see below)
+|===
+
+[[spec_retry]]
+===== Speculative retry options
+
+By default, Cassandra read coordinators only query as many replicas as
+necessary to satisfy consistency levels: one for consistency level
+`ONE`, a quorum for `QUORUM`, and so on. `speculative_retry` determines
+when coordinators may query additional replicas, a useful action when
+replicas are slow or unresponsive. Speculative retries reduce the latency. 
+The speculative_retry option configures rapid read protection, where a coordinator sends more
+requests than needed to satisfy the consistency level.
+
+[IMPORTANT]
+====
+Frequently reading from additional replicas can hurt cluster
+performance. When in doubt, keep the default `99PERCENTILE`.
+====
+
+Pre-Cassandra 4.0 speculative retry policy takes a single string as a parameter:
+
+* `NONE`
+* `ALWAYS`
+* `99PERCENTILE` (PERCENTILE)
+* `50MS` (CUSTOM)
+
+An example of setting speculative retry sets a custom value:
+
+[source,cql]
+----
+include::example$CQL/alter_table_spec_retry.cql[]
+----
+
+This example uses a percentile for the setting:
+
+[source,cql]
+----
+include::example$CQL/alter_table_spec_retry_percent.cql[]
+----
+
+A percentile setting can backfire. If a single host becomes unavailable, it can
+force up the percentiles. A value of `p99` will not speculate as intended because the 
+value at the specified percentile has increased too much. If the consistency level is set to `ALL`, all 
+replicas are queried regardless of the speculative retry setting. 
+
+Cassandra 4.0 supports case-insensitivity for speculative retry values (https://issues.apache.org/jira/browse/CASSANDRA-14293[CASSANDRA-14293]). For example, assigning the value as `none`, `None`, or `NONE` has the same effect.
+
+Additionally, the following values are added:
+
+[cols=",,",options="header",]
+|===
+|Format |Example |Description
+| `XPERCENTILE` | 90.5PERCENTILE | Coordinators record average per-table response times
+for all replicas. If a replica takes longer than `X` percent of this
+table's average response time, the coordinator queries an additional
+replica. `X` must be between 0 and 100.
+| `XP` | 90.5P | Same as `XPERCENTILE`
+| `Yms` | 25ms | If a replica takes more than `Y` milliseconds to respond, the
+coordinator queries an additional replica.
+| `MIN(XPERCENTILE,YMS)` | MIN(99PERCENTILE,35MS) | A hybrid policy that uses either the
+specified percentile or fixed milliseconds depending on which value is
+lower at the time of calculation. Parameters are `XPERCENTILE`, `XP`, or
+`Yms`. This setting helps protect against a single slow instance.
+
+| `MAX(XPERCENTILE,YMS)` `ALWAYS` `NEVER` | MAX(90.5P,25ms) | A hybrid policy that uses either the specified
+percentile or fixed milliseconds depending on which value is higher at
+the time of calculation. 
+|===
+
+Cassandra 4.0 adds support for hybrid `MIN()` and `MAX()` speculative retry policies, with a mix and match of either `MIN(), MAX()`, `MIN(), MIN()`, or `MAX(), MAX()` (https://issues.apache.org/jira/browse/CASSANDRA-14293[CASSANDRA-14293]).
+The hybrid mode will still speculate if the normal `p99` for the table is < 50ms, the minimum value.
+But if the `p99` level goes higher than the maximum value, then that value can be used. 
+In a hybrid value, one value must be a fixed time (ms) value and the other a percentile value.
+
+To illustrate variations, the following examples are all valid:
+
+[source,cql]
+----
+include::example$CQL/spec_retry_values.cql[]
+----
+
+The `additional_write_policy` setting specifies the threshold at which a cheap
+quorum write will be upgraded to include transient replicas.
+
+[[cql-compaction-options]]
+===== Compaction options
+
+The `compaction` options must minimally define the `'class'` sub-option,
+to specify the compaction strategy class to use. 
+The supported classes are: 
+
+* `'SizeTieredCompactionStrategy'`, xref:operating/compaction/stcs.adoc#stcs[STCS] (Default)
+* `'LeveledCompactionStrategy'`, xref:operating/compaction/lcs.adoc#lcs[LCS]
+* `'TimeWindowCompactionStrategy'`, xref:operating/compaction/twcs.adoc#twcs[TWCS] 
+
+The `'DateTieredCompactionStrategy'` is also supported but deprecated;
+`'TimeWindowCompactionStrategy'` should be used. 
+If a custom strategies is required, specify the full class name as a xref:cql/definitions.adoc#constants[string constant].  
+
+All default strategies support a number of xref:operating/compaction/index.adoc#compaction-options[common options], as well as options specific to the strategy chosen. See the section corresponding to your strategy for details: xref:operating/compaction/stcs.adoc#stcs_options[STCS], xref:operating/compaction/lcs.adoc#lcs_options[LCS], xref:operating/compaction/twcs.adoc#twcs_options[TWCS].
+
+[[cql-compression-options]]
+===== Compression options
+
+The `compression` options define if and how the SSTables of the table
+are compressed. Compression is configured on a per-table basis as an
+optional argument to `CREATE TABLE` or `ALTER TABLE`. The following
+sub-options are available:
+
+[cols=",,",options="header",]
+|===
+|Option |Default |Description
+| `class` | LZ4Compressor | The compression algorithm to use. Default compressor are: LZ4Compressor,
+SnappyCompressor, DeflateCompressor and ZstdCompressor. 
+Use `'enabled' : false` to disable compression. 
+Custom compressor can be provided by specifying the full class name as a xref:cql/definitions.adoc#constants[string constant].
+
+| `enabled` | true | Enable/disable sstable compression. 
+If the `enabled` option is set to `false`, no other options must be specified.
+
+| `chunk_length_in_kb` | 64 | On disk SSTables are compressed by block (to allow random reads). 
+This option defines the size (in KB) of said block. See xref:cql/ddl.adoc#chunk_note[note] for further information.
+
+| `crc_check_chance` | 1.0 | Determines how likely Cassandra is to verify the checksum on each
+compression chunk during reads.
+
+| `compression_level` | 3 | Compression level. Only applicable for `ZstdCompressor`.  
+Accepts values between `-131072` and `22`.
+|===
+
+[[chunk_note]]
+[NOTE]
+====
+Bigger values may improve the compression rate, but will increase the minimum size of data to be read from
+disk for a read. 
+The default value is an optimal value for compressing tables. 
+Chunk length must be a power of 2 when computing the chunk number from an uncompressed file offset. 
+Block size may be adjusted based on read/write access patterns such as:
+
+* How much data is typically requested at once
+* Average size of rows in the table
+====
+
+For instance, to create a table with LZ4Compressor and a `chunk_length_in_kb` of 4 KB:
+
+[source,cql]
+----
+include::example$CQL/chunk_length.cql[]
+----
+
+[[cql-caching-options]]
+===== Caching options
+
+Caching optimizes the use of cache memory of a table. The cached data is
+weighed by size and access frequency. 
+The `caching` options can configure both the `key cache` and the `row cache` for the table. 
+The following sub-options are available:
+
+[cols=",,",options="header",]
+|===
+|Option |Default |Description
+| `keys` | ALL | Whether to cache keys (key cache) for this table. Valid values are: `ALL` and `NONE`.
+
+| `rows_per_partition` | NONE | The amount of rows to cache per partition (row cache). 
+If an integer `n` is specified, the first `n` queried rows of a partition will be cached. 
+Valid values are: `ALL`, to cache all rows of a queried partition, or `NONE` to disable row caching.
+|===
+
+For instance, to create a table with both a key cache and 10 rows cached per partition:
+
+[source,cql]
+----
+include::example$CQL/caching_option.cql[]
+----
+
+[[read-repair-options]]
+===== Read Repair options
+
+The `read_repair` options configure the read repair behavior, tuning for various performance and consistency behaviors. 
+
+The values are:
+[cols=",,",options="header",]
+|===
+|Option |Default |Description
+|`BLOCKING` | yes | If a read repair is triggered, the read blocks writes sent to other replicas until the consistency level is reached by the writes.
+
+|`NONE` | no | If set, the coordinator reconciles any differences between replicas, but doesn't attempt to repair them.
+|===
+
+Two consistency properties are affected by read repair behavior.
+
+* Monotonic quorum reads: Monotonic quorum reads
+prevents reads from appearing to go back in time in some circumstances.
+When monotonic quorum reads are not provided and a write fails to reach
+a quorum of replicas, the read values may be visible in one read, and then disappear
+in a subsequent read. `BLOCKING` provides this behavior.
+* Write atomicity: Write atomicity prevents reads
+from returning partially-applied writes. Cassandra attempts to provide
+partition-level write atomicity, but since only the data covered by a
+SELECT statement is repaired by a read repair, read repair can break
+write atomicity when data is read at a more granular level than it is
+written. For example, read repair can break write atomicity if you write
+multiple rows to a clustered partition in a batch, but then select a
+single row by specifying the clustering column in a SELECT statement.
+`NONE` provides this behavior.
+
+===== Other considerations:
+
+* Adding new columns (see `ALTER TABLE` below) is a constant time
+operation. Thus, there is no need to anticipate future usage while initially creating a table.
+
+[[alter-table-statement]]
+== ALTER TABLE
+
+Altering an existing table uses the `ALTER TABLE` statement:
+
+[source,bnf]
+----
+include::example$BNF/alter_table.bnf[]
+----
+
+For example:
+
+[source,cql]
+----
+include::example$CQL/alter_table_add_column.cql[]
+include::example$CQL/alter_table_with_comment.cql[]
+----
+
+The `ALTER TABLE` statement can:
+
+* `ADD` a new column to a table. The primary key of a table cannot ever be altered.
+A new column, thus, cannot be part of the primary key. 
+Adding a column is a constant-time operation based on the amount of data in the table.
+* `DROP` a column from a table. This command drops both the column and all
+its content. Be aware that, while the column becomes immediately
+unavailable, its content are removed lazily during compaction. Because of this lazy removal,
+the command is a constant-time operation based on the amount of data in the table. 
+Also, it is important to know that once a column is dropped, a column with the same name can be re-added,
+unless the dropped column was a non-frozen column like a collection. 
+
+[WARNING]
+.Warning
+====
+Dropping a column assumes that the timestamps used for the value of this
+column are "real" timestamp in microseconds. Using "real" timestamps in
+microseconds is the default is and is *strongly* recommended but as
+Cassandra allows the client to provide any timestamp on any table, it is
+theoretically possible to use another convention. Please be aware that
+if you do so, dropping a column will not correctly execute.
+====
+
+* Use `WITH` to change a table option. The xref:CQL/ddl.adoc#create-table-options[supported options]
+are the same as those used when creating a table, with the exception of `CLUSTERING ORDER`.
+However, setting any `compaction` sub-options will erase *ALL* previous `compaction` options, so you need to re-specify
+all the sub-options you wish to keep. The same is true for `compression` sub-options.
+
+[[drop-table-statement]]
+== DROP TABLE
+
+Dropping a table uses the `DROP TABLE` statement:
+
+[source,bnf]
+----
+include::example$BNF/drop_table.bnf[]
+----
+
+Dropping a table results in the immediate, irreversible removal of the
+table, including all data it contains.
+
+If the table does not exist, the statement will return an error, unless
+`IF EXISTS` is used, when the operation is a no-op.
+
+[[truncate-statement]]
+== TRUNCATE
+
+A table can be truncated using the `TRUNCATE` statement:
+
+[source,bnf]
+----
+include::example$BNF/truncate_table.bnf[]
+----
+
+`TRUNCATE TABLE foo` is the preferred syntax for consistency with other DDL
+statements. 
+However, tables are the only object that can be truncated currently, and the `TABLE` keyword can be omitted.
+
+Truncating a table permanently removes all existing data from the table, but without removing the table itself.

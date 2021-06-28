@@ -1,0 +1,326 @@
+= Cassandra Stress
+
+The `cassandra-stress` tool is used to benchmark and load-test a Cassandra
+cluster. 
+`cassandra-stress` supports testing arbitrary CQL tables and queries, allowing users to benchmark their own data model.
+
+This documentation focuses on user mode to test personal schema.
+
+== Usage
+
+There are several operation types:
+
+* write-only, read-only, and mixed workloads of standard data
+* write-only and read-only workloads for counter columns
+* user configured workloads, running custom queries on custom schemas
+
+The syntax is `cassandra-stress <command> [options]`. 
+For more information on a given command or options, run `cassandra-stress help <command|option>`.
+
+Commands:::
+  read:;;
+    Multiple concurrent reads - the cluster must first be populated by a
+    write test
+  write:;;
+    Multiple concurrent writes against the cluster
+  mixed:;;
+    Interleaving of any basic commands, with configurable ratio and
+    distribution - the cluster must first be populated by a write test
+  counter_write:;;
+    Multiple concurrent updates of counters.
+  counter_read:;;
+    Multiple concurrent reads of counters. The cluster must first be
+    populated by a counterwrite test.
+  user:;;
+    Interleaving of user provided queries, with configurable ratio and
+    distribution.
+  help:;;
+    Print help for a command or option
+  print:;;
+    Inspect the output of a distribution definition
+  legacy:;;
+    Legacy support mode
+Primary Options:::
+  -pop:;;
+    Population distribution and intra-partition visit order
+  -insert:;;
+    Insert specific options relating to various methods for batching and
+    splitting partition updates
+  -col:;;
+    Column details such as size and count distribution, data generator,
+    names, comparator and if super columns should be used
+  -rate:;;
+    Thread count, rate limit or automatic mode (default is auto)
+  -mode:;;
+    Thrift or CQL with options
+  -errors:;;
+    How to handle errors when encountered during stress
+  -sample:;;
+    Specify the number of samples to collect for measuring latency
+  -schema:;;
+    Replication settings, compression, compaction, etc.
+  -node:;;
+    Nodes to connect to
+  -log:;;
+    Where to log progress to, and the interval at which to do it
+  -transport:;;
+    Custom transport factories
+  -port:;;
+    The port to connect to cassandra nodes on
+  -sendto:;;
+    Specify a stress server to send this command to
+  -graph:;;
+    Graph recorded metrics
+  -tokenrange:;;
+    Token range settings
+Suboptions:::
+  Every command and primary option has its own collection of suboptions.
+  These are too numerous to list here. For information on the suboptions
+  for each command or option, please use the help command,
+  `cassandra-stress help <command|option>`.
+
+== User mode
+
+User mode allows you to stress your own schemas, to save you time
+in the long run. Find out if your application can scale using stress test with your schema.
+
+=== Profile
+
+User mode defines a profile using YAML. 
+Multiple YAML files may be specified, in which case operations in the ops argument are referenced as
+specname.opname.
+
+An identifier for the profile:
+
+[source,yaml]
+----
+specname: staff_activities
+----
+
+The keyspace for the test:
+
+[source,yaml]
+----
+keyspace: staff
+----
+
+CQL for the keyspace. Optional if the keyspace already exists:
+
+[source,yaml]
+----
+keyspace_definition: |
+ CREATE KEYSPACE stresscql WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 3};
+----
+
+The table to be stressed:
+
+[source,yaml]
+----
+table: staff_activities
+----
+
+CQL for the table. Optional if the table already exists:
+
+[source,yaml]
+----
+table_definition: |
+  CREATE TABLE staff_activities (
+      name text,
+      when timeuuid,
+      what text,
+      PRIMARY KEY(name, when, what)
+  ) 
+----
+
+Optional meta-information on the generated columns in the above table.
+The min and max only apply to text and blob types. The distribution
+field represents the total unique population distribution of that column
+across rows:
+
+[source,yaml]
+----
+columnspec:
+  - name: name
+    size: uniform(5..10) # The names of the staff members are between 5-10 characters
+    population: uniform(1..10) # 10 possible staff members to pick from
+  - name: when
+    cluster: uniform(20..500) # Staff members do between 20 and 500 events
+  - name: what
+    size: normal(10..100,50)
+----
+
+Supported types are:
+
+An exponential distribution over the range [min..max]:
+
+[source,yaml]
+----
+EXP(min..max)
+----
+
+An extreme value (Weibull) distribution over the range [min..max]:
+
+[source,yaml]
+----
+EXTREME(min..max,shape)
+----
+
+A gaussian/normal distribution, where mean=(min+max)/2, and stdev is
+(mean-min)/stdvrng:
+
+[source,yaml]
+----
+GAUSSIAN(min..max,stdvrng)
+----
+
+A gaussian/normal distribution, with explicitly defined mean and stdev:
+
+[source,yaml]
+----
+GAUSSIAN(min..max,mean,stdev)
+----
+
+A uniform distribution over the range [min, max]:
+
+[source,yaml]
+----
+UNIFORM(min..max)
+----
+
+A fixed distribution, always returning the same value:
+
+[source,yaml]
+----
+FIXED(val)
+----
+
+If preceded by ~, the distribution is inverted
+
+Defaults for all columns are size: uniform(4..8), population:
+uniform(1..100B), cluster: fixed(1)
+
+Insert distributions:
+
+[source,yaml]
+----
+insert:
+  # How many partition to insert per batch
+  partitions: fixed(1)
+  # How many rows to update per partition
+  select: fixed(1)/500
+  # UNLOGGED or LOGGED batch for insert
+  batchtype: UNLOGGED
+----
+
+Currently all inserts are done inside batches.
+
+Read statements to use during the test:
+
+[source,yaml]
+----
+queries:
+   events:
+      cql: select *  from staff_activities where name = ?
+      fields: samerow
+   latest_event:
+      cql: select * from staff_activities where name = ?  LIMIT 1
+      fields: samerow
+----
+
+Running a user mode test:
+
+[source,yaml]
+----
+cassandra-stress user profile=./example.yaml duration=1m "ops(insert=1,latest_event=1,events=1)" truncate=once
+----
+
+This will create the schema then run tests for 1 minute with an equal
+number of inserts, latest_event queries and events queries. Additionally
+the table will be truncated once before the test.
+
+The full example can be found here:
+[source, yaml]
+----
+include::example$YAML/stress-example.yaml[]
+---- 
+
+Running a user mode test with multiple yaml files::::
+  cassandra-stress user profile=./example.yaml,./example2.yaml
+  duration=1m "ops(ex1.insert=1,ex1.latest_event=1,ex2.insert=2)"
+  truncate=once
+This will run operations as specified in both the example.yaml and
+example2.yaml files. example.yaml and example2.yaml can reference the
+same table, although care must be taken that the table definition is identical
+ (data generation specs can be different).
+
+=== Lightweight transaction support
+
+cassandra-stress supports lightweight transactions. 
+To use this feature, the command will first read current data from Cassandra, and then uses read values to
+fulfill lightweight transaction conditions.
+
+Lightweight transaction update query:
+
+[source,yaml]
+----
+queries:
+  regularupdate:
+      cql: update blogposts set author = ? where domain = ? and published_date = ?
+      fields: samerow
+  updatewithlwt:
+      cql: update blogposts set author = ? where domain = ? and published_date = ? IF body = ? AND url = ?
+      fields: samerow
+----
+
+The full example can be found here:
+[source, yaml]
+----
+include::example$YAML/stress-lwt-example.yaml[]
+----
+
+== Graphing
+
+Graphs can be generated for each run of stress.
+
+image::example-stress-graph.png[example cassandra-stress graph]
+
+To create a new graph:
+
+[source,yaml]
+----
+cassandra-stress user profile=./stress-example.yaml "ops(insert=1,latest_event=1,events=1)" -graph file=graph.html title="Awesome graph"
+----
+
+To add a new run to an existing graph point to an existing file and add
+a revision name:
+
+[source,yaml]
+----
+cassandra-stress user profile=./stress-example.yaml duration=1m "ops(insert=1,latest_event=1,events=1)" -graph file=graph.html title="Awesome graph" revision="Second run"
+----
+
+== FAQ
+
+*How do you use NetworkTopologyStrategy for the keyspace?*
+
+Use the schema option making sure to either escape the parenthesis or
+enclose in quotes:
+
+[source,yaml]
+----
+cassandra-stress write -schema "replication(strategy=NetworkTopologyStrategy,datacenter1=3)"
+----
+
+*How do you use SSL?*
+
+Use the transport option:
+
+[source,yaml]
+----
+cassandra-stress "write n=100k cl=ONE no-warmup" -transport "truststore=$HOME/jks/truststore.jks truststore-password=cassandra"
+----
+
+*Is Cassandra Stress a secured tool?*
+
+Cassandra stress is not a secured tool. Serialization and other aspects
+of the tool offer no security guarantees.

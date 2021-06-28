@@ -1,0 +1,1 @@
+describe_tables_statement::= DESCRIBE TABLES;

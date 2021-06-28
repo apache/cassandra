@@ -1,0 +1,20 @@
+= SSTable Tools
+
+This section describes the functionality of the various sstable tools.
+
+Cassandra must be stopped before these tools are executed, or unexpected
+results will occur. Note: the scripts do not verify that Cassandra is
+stopped.
+
+* xref:tools/sstable/sstabledump.adoc[sstabledump]
+* xref:tools/sstable/sstableexpiredblockers.adoc[sstableexpiredblockers]
+* xref:tools/sstable/sstablelevelreset.adoc[sstablelevelreset]
+* xref:tools/sstable/sstableloader.adoc[sstableloader]
+* xref:tools/sstable/sstablemetadata.adoc[sstablemetadata]
+* xref:tools/sstable/sstableofflinerelevel.adoc[sstableofflinerelevel]
+* xref:tools/sstable/sstablerepairedset.adoc[sstablerepairdset]
+* xref:tools/sstable/sstablescrub.adoc[sstablescrub]
+* xref:tools/sstable/sstablesplit.adoc[sstablesplit]
+* xref:tools/sstable/sstableupgrade.adoc[sstableupgrade]
+* xref:tools/sstable/sstableutil.adoc[sstableutil]
+* xref:tools/sstable/sstableverify.adoc[sstableverify]
