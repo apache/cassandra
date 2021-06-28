@@ -48,7 +48,7 @@ public class Expression
 
     public enum Op
     {
-        EQ, MATCH, PREFIX, NOT_EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE;
+        EQ, MATCH, PREFIX, NOT_EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, IN;
 
         public static Op valueOf(Operator operator)
         {
@@ -77,6 +77,9 @@ public class Expression
 
                 case LIKE_MATCHES:
                     return MATCH;
+
+                case IN:
+                    return IN;
 
                 default:
                     return null;

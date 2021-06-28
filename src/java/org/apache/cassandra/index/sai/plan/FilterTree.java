@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -47,131 +48,30 @@ public class FilterTree
 {
     protected final OperationType op;
     protected final ListMultimap<ColumnMetadata, Expression> expressions;
-
-    protected final FilterTree left;
-    protected final FilterTree right;
+    protected final List<FilterTree> children = new ArrayList<>();
 
     FilterTree(OperationType operation,
-               ListMultimap<ColumnMetadata, Expression> expressions,
-               FilterTree left, FilterTree right)
+               ListMultimap<ColumnMetadata, Expression> expressions)
     {
         this.op = operation;
         this.expressions = expressions;
-
-        this.left = left;
-        this.right = right;
     }
 
-    /**
-     * Recursive "satisfies" checks based on operation
-     * and data from the lower level members using depth-first search
-     * and bubbling the results back to the top level caller.
-     *
-     * Most of the work here is done by localSatisfiedBy(Unfiltered, Row, boolean)
-     * see it's comment for details, if there are no local expressions
-     * assigned to Operation it will call satisfiedBy(Row) on it's children.
-     *
-     * Query: first_name = X AND (last_name = Y OR address = XYZ AND street = IL AND city = C) OR (state = 'CA' AND country = 'US')
-     * Row: key1: (first_name: X, last_name: Z, address: XYZ, street: IL, city: C, state: NY, country:US)
-     *
-     * #1                       OR
-     *                        /    \
-     * #2       (first_name) AND   AND (state, country)
-     *                          \
-     * #3            (last_name) OR
-     *                             \
-     * #4                          AND (address, street, city)
-     *
-     *
-     * Evaluation of the key1 is top-down depth-first search:
-     *
-     * --- going down ---
-     * Level #1 is evaluated, OR expression has to pull results from it's children which are at level #2 and OR them together,
-     * Level #2 AND (state, country) could be be evaluated right away, AND (first_name) refers to it's "right" child from level #3
-     * Level #3 OR (last_name) requests results from level #4
-     * Level #4 AND (address, street, city) does logical AND between it's 3 fields, returns result back to level #3.
-     * --- bubbling up ---
-     * Level #3 computes OR between AND (address, street, city) result and it's "last_name" expression
-     * Level #2 computes AND between "first_name" and result of level #3, AND (state, country) which is already computed
-     * Level #1 does OR between results of AND (first_name) and AND (state, country) and returns final result.
-     *
-     * @param key The partition key for the row.
-     * @param currentCluster The row cluster to check.
-     * @param staticRow The static row associated with current cluster.
-     * @return true if give Row satisfied all of the expressions in the tree,
-     *         false otherwise.
-     */
-    public boolean satisfiedBy(DecoratedKey key, Unfiltered currentCluster, Row staticRow)
+    void addChild(FilterTree child)
     {
-        boolean sideL, sideR;
-
-        if (expressions == null || expressions.isEmpty())
-        {
-            sideL =  left != null &&  left.satisfiedBy(key, currentCluster, staticRow);
-            sideR = right != null && right.satisfiedBy(key, currentCluster, staticRow);
-
-            // one of the expressions was skipped
-            // because it had no indexes attached
-            if (left == null)
-                return sideR;
-        }
-        else
-        {
-            sideL = localSatisfiedBy(key, currentCluster, staticRow);
-
-            // if there is no right it means that this expression
-            // is last in the sequence, we can just return result from local expressions
-            if (right == null)
-                return sideL;
-
-            sideR = right.satisfiedBy(key, currentCluster, staticRow);
-        }
-
-        return op.apply(sideL, sideR);
+        children.add(child);
     }
 
-    /**
-     * Check every expression in the analyzed list to figure out if the
-     * columns in the give row match all of the based on the operation
-     * set to the current operation node.
-     *
-     * The algorithm is as follows: for every given expression from analyzed
-     * list get corresponding column from the Row:
-     *   - apply {@link Expression#isSatisfiedBy(ByteBuffer)}
-     *     method to figure out if it's satisfied;
-     *   - apply logical operation between boolean accumulator and current boolean result;
-     *   - if result == false and node's operation is AND return right away;
-     *
-     * After all of the expressions have been evaluated return resulting accumulator variable.
-     *
-     * Example:
-     *
-     * Operation = (op: AND, columns: [first_name = p, 5 < age < 7, last_name: y])
-     * Row = (first_name: pavel, last_name: y, age: 6, timestamp: 15)
-     *
-     * #1 get "first_name" = p (expressions)
-     *      - row-get "first_name"                      => "pavel"
-     *      - compare "pavel" against "p"               => true (current)
-     *      - set accumulator current                   => true (because this is expression #1)
-     *
-     * #2 get "last_name" = y (expressions)
-     *      - row-get "last_name"                       => "y"
-     *      - compare "y" against "y"                   => true (current)
-     *      - set accumulator to accumulator & current  => true
-     *
-     * #3 get 5 < "age" < 7 (expressions)
-     *      - row-get "age"                             => "6"
-     *      - compare 5 < 6 < 7                         => true (current)
-     *      - set accumulator to accumulator & current  => true
-     *
-     * #4 return accumulator => true (row satisfied all of the conditions)
-     *
-     * @param key The partition key for the row.
-     * @param currentCluster The row cluster to check.
-     * @param staticRow The static row associated with current cluster.
-     * @return true if give Row satisfied all of the analyzed expressions,
-     *         false otherwise.
-     */
+    public boolean isSatisfiedBy(DecoratedKey key, Unfiltered currentCluster, Row staticRow)
+    {
+        boolean result = localSatisfiedBy(key, currentCluster, staticRow);
+
+        for (FilterTree child : children)
+            result = op.apply(result, child.isSatisfiedBy(key, currentCluster, staticRow));
+
+        return result;
+    }
+
     private boolean localSatisfiedBy(DecoratedKey key, Unfiltered currentCluster, Row staticRow)
     {
         if (currentCluster == null || !currentCluster.isRow())
@@ -211,6 +111,8 @@ public class FilterTree
                 // If the operation is an AND then exit early if we get a single false
                 if (op == OperationType.AND && !result)
                     return false;
+                else if (op == OperationType.OR && result)
+                    return true;
             }
         }
         return result;

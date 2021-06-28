@@ -658,7 +658,8 @@
           <dependency groupId="org.hamcrest" artifactId="hamcrest" version="2.2" scope="test"/>
           <dependency groupId="org.agrona" artifactId="agrona" version="0.9.26" />
           <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="7.5.0" />
-          <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2">
+          <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
+          <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
               <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
         </dependencyManagement>
@@ -737,6 +738,7 @@
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
 
         <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
+        <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
       </artifact:pom>
 
@@ -823,6 +825,7 @@
         <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
         <dependency groupId="org.agrona" artifactId="agrona"/>
         <dependency groupId="org.apache.lucene" artifactId="lucene-core"/>
+        <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.23" scope="test"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
         <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>

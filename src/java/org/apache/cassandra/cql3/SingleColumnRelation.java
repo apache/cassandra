@@ -150,7 +150,7 @@ public final class SingleColumnRelation extends Relation
             entityAsString = String.format("%s[%s]", entityAsString, mapKey);
 
         if (isIN())
-            return String.format("%s IN %s", entityAsString, Tuples.tupleToString(inValues));
+            return String.format("%s IN %s", entityAsString, inValues == null ? value : Tuples.tupleToString(inValues));
 
         return String.format("%s %s %s", entityAsString, relationType, value);
     }

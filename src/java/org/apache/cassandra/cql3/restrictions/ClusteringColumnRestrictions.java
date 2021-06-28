@@ -127,7 +127,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter,
+    public void addToRowFilter(RowFilter.Builder filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options) throws InvalidRequestException
     {
@@ -181,6 +181,11 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
         public ClusteringColumnRestrictions.Builder addRestriction(Restriction restriction)
         {
+            return addRestriction(restriction, false);
+        }
+
+        public ClusteringColumnRestrictions.Builder addRestriction(Restriction restriction, boolean isDisjunction)
+        {
             SingleRestriction newRestriction = (SingleRestriction) restriction;
             boolean isEmpty = restrictions.isEmpty();
 
@@ -189,7 +194,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
                 SingleRestriction lastRestriction = restrictions.lastRestriction();
                 ColumnMetadata lastRestrictionStart = lastRestriction.getFirstColumn();
                 ColumnMetadata newRestrictionStart = newRestriction.getFirstColumn();
-                restrictions.addRestriction(newRestriction);
+                restrictions.addRestriction(newRestriction, isDisjunction);
 
                 checkFalse(lastRestriction.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position(),
                            "Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
@@ -203,7 +208,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             }
             else
             {
-                restrictions.addRestriction(newRestriction);
+                restrictions.addRestriction(newRestriction, isDisjunction);
             }
 
             return this;

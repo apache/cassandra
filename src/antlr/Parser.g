@@ -443,12 +443,22 @@ sident returns [Selectable.RawIdentifier id]
 
 whereClause returns [WhereClause.Builder clause]
     @init{ $clause = new WhereClause.Builder(); }
-    : relationOrExpression[$clause] (K_AND relationOrExpression[$clause])*
+    : expression[$clause]
     ;
 
-relationOrExpression [WhereClause.Builder clause]
-    : relation[$clause]
+expression [WhereClause.Builder clause]
+    : primaryExpression[$clause] (booleanOp[$clause] primaryExpression[$clause])*
+    ;
+
+primaryExpression [WhereClause.Builder clause]
+    : '(' {clause.startEnclosure(); } expression[$clause] ')' { clause.endEnclosure(); }
+    | relation[$clause]
     | customIndexExpression[$clause]
+    ;
+
+booleanOp [WhereClause.Builder clause]
+    : op=K_AND { clause.setCurrentOperator(op.getText()); }
+    | op=K_OR { clause.setCurrentOperator(op.getText()); }
     ;
 
 customIndexExpression [WhereClause.Builder clause]
@@ -1713,7 +1723,6 @@ relation[WhereClause.Builder clauses]
       | type=relationType tupleMarker=markerForTuple /* (a, b, c) >= ? */
           { $clauses.add(MultiColumnRelation.createNonInRelation(ids, type, tupleMarker)); }
       )
-    | '(' relation[$clauses] ')'
     ;
 
 containsOperator returns [Operator o]

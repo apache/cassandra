@@ -1370,14 +1370,14 @@ public class SASIIndexTest
 
         ColumnFamilyStore store = loadData(data1, true);
 
-        RowFilter filter = RowFilter.create();
+        RowFilter.Builder filter = RowFilter.builder();
         filter.add(store.metadata().getColumn(firstName), Operator.LIKE_CONTAINS, AsciiType.instance.fromString("a"));
 
         ReadCommand command =
             PartitionRangeReadCommand.create(store.metadata(),
                                              FBUtilities.nowInSeconds(),
                                              ColumnFilter.all(store.metadata()),
-                                             filter,
+                                             filter.build(),
                                              DataLimits.NONE,
                                              DataRange.allData(store.metadata().partitioner));
         try
@@ -2595,7 +2595,7 @@ public class SASIIndexTest
                             ? DataRange.allData(PARTITIONER)
                             : DataRange.forKeyRange(new Range<>(startKey, PARTITIONER.getMinimumToken().maxKeyBound()));
 
-        RowFilter filter = RowFilter.create();
+        RowFilter.Builder filter = RowFilter.builder();
         for (Expression e : expressions)
             filter.add(store.metadata().getColumn(e.name), e.op, e.value);
 
@@ -2603,7 +2603,7 @@ public class SASIIndexTest
             PartitionRangeReadCommand.create(store.metadata(),
                                              FBUtilities.nowInSeconds(),
                                              columnFilter,
-                                             filter,
+                                             filter.build(),
                                              DataLimits.cqlLimits(maxResults),
                                              range);
 
