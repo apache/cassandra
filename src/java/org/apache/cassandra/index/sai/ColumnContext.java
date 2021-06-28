@@ -390,6 +390,9 @@ public class ColumnContext
 
         AbstractType<?> validator = getValidator();
 
+        if (operator == Expression.Op.IN)
+            return true;
+
         if (operator != Expression.Op.EQ && EQ_ONLY_TYPES.contains(validator)) return false;
 
         // RANGE only applicable to non-literal indexes

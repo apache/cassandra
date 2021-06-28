@@ -24,10 +24,8 @@
 
 package org.apache.cassandra.index.sai.plan;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -36,21 +34,19 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.index.sai.ColumnContext;
-import org.apache.cassandra.index.sai.SSTableIndex;
-import org.apache.cassandra.index.sai.Token;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
-import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 
-public class Operation extends RangeIterator
+public class Operation
 {
     public enum OperationType
     {
@@ -70,24 +66,6 @@ public class Operation extends RangeIterator
                     throw new AssertionError();
             }
         }
-    }
-
-    final FilterTree filterTree;
-    final RangeIterator range;
-
-    final QueryController controller;
-
-    private Operation(RangeIterator range, FilterTree filterTree, QueryController controller)
-    {
-        super(range);
-        this.filterTree = filterTree;
-        this.range = range;
-        this.controller = controller;
-    }
-
-    public boolean satisfiedBy(DecoratedKey key, Unfiltered currentCluster, Row staticRow)
-    {
-        return filterTree.satisfiedBy(key, currentCluster, staticRow);
     }
 
     @VisibleForTesting
@@ -210,269 +188,211 @@ public class Operation extends RangeIterator
         }
     }
 
-    @Override
-    protected Token computeNext()
+    static RangeIterator buildIterator(QueryController controller)
     {
-        return range != null && range.hasNext() ? range.next() : endOfData();
+        return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
     }
 
-    @Override
-    protected void performSkipTo(Long nextToken)
+    static FilterTree buildFilter(QueryController controller)
     {
-        if (range != null)
-            range.skipTo(nextToken);
+        return Node.buildTree(controller.filterOperation()).buildFilter(controller);
     }
 
-    @Override
-    public void close() throws IOException
+    public static abstract class Node
     {
-        if (range != null)
-            range.close();
+        ListMultimap<ColumnMetadata, Expression> expressionMap;
 
-        controller.releaseIndexes(filterTree.expressions);
-    }
-
-    /**
-     * @param controller current query controller
-     * @return tree builder with query expressions added from query controller.
-     */
-    static TreeBuilder initTreeBuilder(QueryController controller)
-    {
-        TreeBuilder tree = new TreeBuilder(controller);
-        tree.add(controller.getExpressions());
-        return tree;
-    }
-
-    /**
-     * A builder on which like expressions are built as subtrees using {@link OperationType} OR to
-     * keep their correct semantics. Remaining expressions are added into the root AND OperationType.
-     *
-     *  Example:
-     *
-     *   3 Like expressions:
-     *
-     *                    AND (expressions)
-     *                  /   \
-     *                AND   OR (like)
-     *               /   \
-     *      (like) OR   OR (like)
-     *
-     **/
-    public static class TreeBuilder
-    {
-        private final QueryController controller;
-        final Builder root;
-        Builder subtree;
-
-        TreeBuilder(QueryController controller)
+        boolean canFilter()
         {
-            this.controller = controller;
-            this.root = new Builder(OperationType.AND, controller);
-            this.subtree = root;
+            return (expressionMap != null && !expressionMap.isEmpty()) || !children().isEmpty() ;
         }
 
-        public TreeBuilder add(Collection<RowFilter.Expression> expressions)
+        List<Node> children()
         {
-            if (expressions != null)
-                expressions.forEach(this::add);
-            return this;
+            return Collections.emptyList();
         }
 
-        public TreeBuilder add(RowFilter.Expression exp)
+        void add(Node child)
         {
-            if (exp.operator().isLike())
-                addToSubTree(exp);
-            else
-                root.add(exp);
-
-            return this;
+            throw new UnsupportedOperationException();
         }
 
-        private void addToSubTree(RowFilter.Expression exp)
+        RowFilter.Expression expression()
         {
-            Builder likeOperation = new Builder(OperationType.OR, controller);
-            likeOperation.add(exp);
-            if (subtree.right == null)
+            throw new UnsupportedOperationException();
+        }
+
+        abstract void analyze(List<RowFilter.Expression> expressionList, QueryController controller);
+
+        abstract FilterTree filterTree();
+
+        abstract RangeIterator rangeIterator(QueryController controller);
+
+        static Node buildTree(RowFilter.FilterElement filterOperation)
+        {
+            OperatorNode node = filterOperation.isDisjunction() ? new OrNode() : new AndNode();
+            for (RowFilter.Expression expression : filterOperation.expressions())
+                node.add(buildExpression(expression));
+            for (RowFilter.FilterElement child : filterOperation.children())
+                node.add(buildTree(child));
+            return node;
+        }
+
+        static Node buildExpression(RowFilter.Expression expression)
+        {
+            if (expression.operator() == Operator.IN)
             {
-                subtree.setRight(likeOperation);
-            }
-            else if (subtree.left == null)
-            {
-                Builder newSubtree = new Builder(OperationType.AND, controller);
-                subtree.setLeft(newSubtree);
-                newSubtree.setRight(likeOperation);
-                subtree = newSubtree;
+                OperatorNode node = new OrNode();
+                int size = ListSerializer.readCollectionSize(expression.getIndexValue(), ByteBufferAccessor.instance, ProtocolVersion.V3);
+                int offset = ListSerializer.sizeOfCollectionSize(size, ProtocolVersion.V3);
+                for (int index = 0; index < size; index++)
+                {
+                    node.add(new ExpressionNode(new RowFilter.SimpleExpression(expression.column(),
+                                                                               Operator.EQ,
+                                                                               ListSerializer.readValue(expression.getIndexValue(),
+                                                                                                        ByteBufferAccessor.instance,
+                                                                                                        offset,
+                                                                                                        ProtocolVersion.V3))));
+                    offset += TypeSizes.INT_SIZE + ByteBufferAccessor.instance.getInt(expression.getIndexValue(), offset);
+                }
+                return node;
             }
             else
+                return new ExpressionNode(expression);
+        }
+
+        Node analyzeTree(QueryController controller)
+        {
+            List<RowFilter.Expression> expressionList = new ArrayList<>();
+            doTreeAnalysis(this, expressionList, controller);
+            if (!expressionList.isEmpty())
+                this.analyze(expressionList, controller);
+            return this;
+        }
+
+        void doTreeAnalysis(Node node, List<RowFilter.Expression> expressions, QueryController controller)
+        {
+            if (node.children().isEmpty())
+                expressions.add(node.expression());
+            else
             {
-                throw new IllegalStateException("Both trees are full");
+                List<RowFilter.Expression> expressionList = new ArrayList<>();
+                for (Node child : node.children())
+                    doTreeAnalysis(child, expressionList, controller);
+                node.analyze(expressionList, controller);
             }
         }
 
-        public Operation complete()
+        FilterTree buildFilter(QueryController controller)
         {
-            return root.complete();
-        }
-
-        FilterTree completeFilter()
-        {
-            return root.completeFilter();
+            analyzeTree(controller);
+            FilterTree tree = filterTree();
+            for (Node child : children())
+                if (child.canFilter())
+                    tree.addChild(child.buildFilter(controller));
+            return tree;
         }
     }
 
-    public static class Builder
+    public static abstract class OperatorNode extends Node
     {
-        private final QueryController controller;
+        List<Node> children = new ArrayList<>();
 
-        protected final OperationType op;
-        private final List<RowFilter.Expression> expressions;
-
-        protected Builder left, right;
-
-        public Builder(OperationType operation, QueryController controller, RowFilter.Expression... columns)
+        @Override
+        public List<Node> children()
         {
-            this.op = operation;
-            this.controller = controller;
-            this.expressions = new ArrayList<>();
-            Collections.addAll(expressions, columns);
+            return children;
         }
 
-        public Builder setRight(Builder operation)
+        @Override
+        public void add(Node child)
         {
-            this.right = operation;
-            return this;
+            children.add(child);
+        }
+    }
+
+    public static class AndNode extends OperatorNode
+    {
+        @Override
+        public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
+        {
+            expressionMap = analyzeGroup(controller, OperationType.AND, expressionList);
         }
 
-        public Builder setLeft(Builder operation)
+        @Override
+        FilterTree filterTree()
         {
-            this.left = operation;
-            return this;
+            return new FilterTree(OperationType.AND, expressionMap);
         }
 
-        public void add(RowFilter.Expression e)
+        @Override
+        RangeIterator rangeIterator(QueryController controller)
         {
-            expressions.add(e);
+            RangeIterator.Builder builder = controller.getIndexes(OperationType.AND, expressionMap.values());
+            for (Node child : children)
+                if (child.canFilter())
+                    builder.add(child.rangeIterator(controller));
+            return builder.build();
+        }
+    }
+
+    public static class OrNode extends OperatorNode
+    {
+        @Override
+        public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
+        {
+            expressionMap = analyzeGroup(controller, OperationType.OR, expressionList);
         }
 
-        public void add(Collection<RowFilter.Expression> newExpressions)
+        @Override
+        FilterTree filterTree()
         {
-            if (expressions != null)
-                expressions.addAll(newExpressions);
+            return new FilterTree(OperationType.OR, expressionMap);
         }
 
-        @SuppressWarnings("resource")
-        public Operation complete()
+        @Override
+        RangeIterator rangeIterator(QueryController controller)
         {
-            if (!expressions.isEmpty())
-            {
-                ListMultimap<ColumnMetadata, Expression> analyzedExpressions = analyzeGroup(controller, op, expressions);
-                RangeIterator.Builder range = controller.getIndexes(op, analyzedExpressions.values());
+            RangeIterator.Builder builder = controller.getIndexes(OperationType.OR, expressionMap.values());
+            for (Node child : children)
+                if (child.canFilter())
+                    builder.add(child.rangeIterator(controller));
+            return builder.build();
+        }
+    }
 
-                Operation rightOp = null;
-                if (right != null)
-                {
-                    rightOp = right.complete();
-                    range.add(rightOp);
-                }
+    public static class ExpressionNode extends Node
+    {
+        RowFilter.Expression expression;
 
-                FilterTree filterTree  = new FilterTree(op, analyzedExpressions, null, rightOp != null ? rightOp.filterTree : null);
-                return new Operation(range.build(), filterTree, controller);
-            }
-            else // when OR is used
-            {
-                Operation leftOp = null, rightOp = null;
-                boolean leftIndexes = false, rightIndexes = false;
-
-                if (left != null)
-                {
-                    leftOp = left.complete();
-                    leftIndexes = leftOp != null && leftOp.range != null;
-                }
-
-                if (right != null)
-                {
-                    rightOp = right.complete();
-                    rightIndexes = rightOp != null && rightOp.range != null;
-                }
-
-                RangeIterator join;
-                /**
-                 * Operation should allow one of it's sub-trees to wrap no indexes, that is related  to the fact that we
-                 * have to accept defined-but-not-indexed columns as well as key range as IndexExpressions.
-                 *
-                 * Two cases are possible:
-                 *
-                 * only left child produced indexed iterators, that could happen when there are two columns
-                 * or key range on the right:
-                 *
-                 *                AND
-                 *              /     \
-                 *            OR       \
-                 *           /   \     AND
-                 *          a     b   /   \
-                 *                  key   key
-                 *
-                 * only right child produced indexed iterators:
-                 *
-                 *               AND
-                 *              /    \
-                 *            AND     a
-                 *           /   \
-                 *         key  key
-                 */
-                if (leftIndexes && !rightIndexes)
-                    join = leftOp;
-                else if (!leftIndexes && rightIndexes)
-                    join = rightOp;
-                else if (leftIndexes)
-                {
-                    RangeIterator.Builder builder = op == OperationType.OR
-                                                                 ? RangeUnionIterator.builder()
-                                                                 : RangeIntersectionIterator.selectiveBuilder();
-
-                    join = builder.add(leftOp).add(rightOp).build();
-                }
-                else
-                    throw new AssertionError("both sub-trees have 0 indexes.");
-
-                return new Operation(join,
-                                     new FilterTree(op, null,
-                                                    leftOp == null ? null : leftOp.filterTree,
-                                                    leftOp == null ? null : leftOp.filterTree),
-                                     controller);
-            }
+        @Override
+        public void analyze(List<RowFilter.Expression> expressionList, QueryController controller)
+        {
+            expressionMap = analyzeGroup(controller, OperationType.AND, expressionList);
         }
 
-        /**
-         * To build a filter tree used to filter data using indexed expressions and non-user-defined expressions.
-         *
-         * Similar to {@link #complete()}, except that this method won't reference {@link SSTableIndex} and avoids
-         * complexity of RangeIterator.
-         *
-         * @return the filter tree
-         */
-        FilterTree completeFilter()
+        @Override
+        FilterTree filterTree()
         {
-            if (!expressions.isEmpty())
-            {
-                ListMultimap<ColumnMetadata, Expression> analyzedExpressions = analyzeGroup(controller, op, expressions);
-                if (right != null)
-                {
-                    FilterTree ro = right.completeFilter();
-                    return new FilterTree(op, analyzedExpressions, null, ro);
-                }
-                return new FilterTree(op, analyzedExpressions, null, null);
-            }
-            else
-            {
-                FilterTree leftOperation = left != null ? left.completeFilter() : null;
-                FilterTree rightOperation = right != null ? right.completeFilter() : null;
+            return new FilterTree(OperationType.AND, expressionMap);
+        }
 
-                if (leftOperation == null && rightOperation == null)
-                    throw new AssertionError("both sub-trees have 0 indexes.");
+        public ExpressionNode(RowFilter.Expression expression)
+        {
+            this.expression = expression;
+        }
 
-                return new FilterTree(op, null, leftOperation, rightOperation);
-            }
+        @Override
+        public RowFilter.Expression expression()
+        {
+            return expression;
+        }
+
+        @Override
+        RangeIterator rangeIterator(QueryController controller)
+        {
+            assert canFilter();
+            return controller.getIndexes(OperationType.AND, expressionMap.values()).build();
         }
     }
 }

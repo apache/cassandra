@@ -211,7 +211,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public final void addToRowFilter(RowFilter.Builder filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             Tuples.Value t = ((Tuples.Value) value.bind(options));
             List<ByteBuffer> values = t.getElements();
@@ -265,7 +265,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addToRowFilter(RowFilter filter,
+        public final void addToRowFilter(RowFilter.Builder filter,
                                          IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
@@ -491,7 +491,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addToRowFilter(RowFilter filter,
+        public final void addToRowFilter(RowFilter.Builder filter,
                                          IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
@@ -577,7 +577,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public final void addToRowFilter(RowFilter.Builder filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             throw new UnsupportedOperationException("Secondary indexes do not support IS NOT NULL restrictions");
         }

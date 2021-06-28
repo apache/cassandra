@@ -197,7 +197,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                    VariableSpecifications.empty(),
                                    defaultParameters,
                                    selection,
-                                   StatementRestrictions.empty(StatementType.SELECT, table),
+                                   StatementRestrictions.empty(table),
                                    false,
                                    null,
                                    null,
@@ -288,7 +288,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               int perPartitionLimit,
                               int pageSize)
     {
-        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
+        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing() || restrictions.isDisjunction();
 
         DataLimits limit = getDataLimits(userLimit, perPartitionLimit, pageSize);
 
@@ -627,6 +627,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             // so that it's hard to really optimize properly internally. So to keep it simple, we simply query
             // for the first row of the partition and hence uses Slices.ALL. We'll limit it to the first live
             // row however in getLimit().
+            return new ClusteringIndexSliceFilter(Slices.ALL, false);
+        }
+
+        if (restrictions.isDisjunction())
+        {
             return new ClusteringIndexSliceFilter(Slices.ALL, false);
         }
 
@@ -998,6 +1003,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                     orderingComparator = Collections.reverseOrder(orderingComparator);
             }
 
+            checkDisjunctionIsSupported(table, restrictions);
+
             checkNeedsFiltering(table, restrictions);
 
             return new SelectStatement(table,
@@ -1087,13 +1094,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                                           boolean selectsOnlyStaticColumns,
                                                           boolean forView) throws InvalidRequestException
         {
-            return new StatementRestrictions(StatementType.SELECT,
-                                             metadata,
-                                             whereClause,
-                                             boundNames,
-                                             selectsOnlyStaticColumns,
-                                             parameters.allowFiltering,
-                                             forView);
+            return StatementRestrictions.create(StatementType.SELECT,
+                                                metadata,
+                                                whereClause,
+                                                boundNames,
+                                                selectsOnlyStaticColumns,
+                                                parameters.allowFiltering,
+                                                forView);
         }
 
         /** Returns a Term for the limit or null if no limit is set */
@@ -1254,6 +1261,17 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             }
             assert isReversed != null;
             return isReversed;
+        }
+
+        /**
+         * This verifies that if the expression contains a disjunction - "value = 1 or value = 2" or "value in (1, 2)"
+         * the indexes involved in the query support disjunction.
+         */
+        private void checkDisjunctionIsSupported(TableMetadata table, StatementRestrictions restrictions) throws InvalidRequestException
+        {
+            if (restrictions.usesSecondaryIndexing())
+                if (restrictions.needsDisjunctionSupport(table))
+                    restrictions.throwsRequiresIndexSupportingDisjunctionError(table);
         }
 
         /** If ALLOW FILTERING was not specified, this verifies that it is not needed */

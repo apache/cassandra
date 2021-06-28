@@ -769,6 +769,14 @@ public interface Index
         {
             return false;
         }
+
+        /**
+         * @return true is this index group supports disjunction queries of "a = 1 OR a = 2" or "a IN (1, 2)"
+         */
+        default boolean supportsDisjunction()
+        {
+            return false;
+        }
     }
 
     /**

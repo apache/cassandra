@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.plan;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
@@ -30,7 +29,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -73,17 +71,16 @@ public class QueryController
 
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
-    private final Set<Collection<Expression>> resources = new HashSet<>();
     private final QueryContext queryContext;
     private final TableQueryMetrics tableQueryMetrics;
-    private final List<RowFilter.Expression> expressions;
+    private final RowFilter.FilterElement filterOperation;
 
     private final List<DataRange> ranges;
     private final AbstractBounds<PartitionPosition> mergeRange;
 
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
-                           List<RowFilter.Expression> expressions,
+                           RowFilter.FilterElement filterOperation,
                            QueryContext queryContext,
                            TableQueryMetrics tableQueryMetrics)
     {
@@ -91,8 +88,7 @@ public class QueryController
         this.command = command;
         this.queryContext = queryContext;
         this.tableQueryMetrics = tableQueryMetrics;
-        this.expressions = expressions;
-
+        this.filterOperation = filterOperation;
         this.ranges = dataRanges(command);
         DataRange first = ranges.get(0);
         DataRange last = ranges.get(ranges.size() - 1);
@@ -104,12 +100,9 @@ public class QueryController
         return command.metadata();
     }
 
-    /**
-     * @return non-user defined expressions used in the read command
-     */
-    List<RowFilter.Expression> getExpressions()
+    RowFilter.FilterElement filterOperation()
     {
-        return expressions;
+        return this.filterOperation;
     }
 
     /**
@@ -172,7 +165,6 @@ public class QueryController
     /**
      * Build a {@link RangeIterator.Builder} from the given list of expressions by applying given operation (OR/AND).
      * Building of such builder involves index search, results of which are persisted in the internal resources list
-     * and can be released later via {@link QueryController#releaseIndexes(ListMultimap)}}.
      *
      * @param op The operation type to coalesce expressions with.
      * @param expressions The expressions to build range iterator from (expressions with not results are ignored).
@@ -181,9 +173,6 @@ public class QueryController
      */
     public RangeIterator.Builder getIndexes(Operation.OperationType op, Collection<Expression> expressions)
     {
-        if (resources.contains(expressions))
-            throw new IllegalArgumentException("Can't process the same expressions multiple times.");
-
         boolean defer = op == Operation.OperationType.OR || RangeIntersectionIterator.shouldDefer(expressions.size());
 
         RangeIterator.Builder builder = op == Operation.OperationType.OR
@@ -209,8 +198,6 @@ public class QueryController
             view.forEach(e -> e.getValue().forEach(SSTableIndex::release));
             throw t;
         }
-
-        resources.add(expressions);
         return builder;
     }
 
@@ -224,12 +211,6 @@ public class QueryController
         {
             logger.error(index.getColumnContext().logMessage("Failed to release index on SSTable {}"), index.getSSTable().descriptor, e);
         }
-    }
-
-    public void releaseIndexes(ListMultimap<?, Expression> expressions)
-    {
-        if (expressions != null)
-            resources.remove(expressions.values());
     }
 
     /**

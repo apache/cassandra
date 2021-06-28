@@ -40,19 +40,19 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     private final ColumnFamilyStore cfs;
     private final TableQueryMetrics queryMetrics;
     private final RowFilter postIndexFilter;
-    private final List<RowFilter.Expression> expressions;
+    private final RowFilter.FilterElement filterOperation;
     private final Set<Index> indexes;
 
     private StorageAttachedIndexQueryPlan(ColumnFamilyStore cfs,
                                           TableQueryMetrics queryMetrics,
                                           RowFilter postIndexFilter,
-                                          List<RowFilter.Expression> expressions,
+                                          RowFilter.FilterElement filterOperation,
                                           ImmutableSet<Index> indexes)
     {
         this.cfs = cfs;
         this.queryMetrics = queryMetrics;
         this.postIndexFilter = postIndexFilter;
-        this.expressions = expressions;
+        this.filterOperation = filterOperation;
         this.indexes = indexes;
     }
 
@@ -65,7 +65,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
         List<RowFilter.Expression> acceptedExpressions = new ArrayList<>();
 
-        for (RowFilter.Expression expression : rowFilter.getExpressions())
+        for (RowFilter.Expression expression : rowFilter)
         {
             // we ignore user-defined expressions here because we don't have a way to translate their #isSatifiedBy
             // method, they will be included in the filter returned by QueryPlan#postIndexQueryFilter()
@@ -92,7 +92,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
          * at {@link RowFilter.UserExpression}s like those used by RLAC.
          */
         RowFilter postIndexFilter = rowFilter.restrict(e -> e.isUserDefined());
-        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, acceptedExpressions, selectedIndexes);
+        return new StorageAttachedIndexQueryPlan(cfs, queryMetrics, postIndexFilter, rowFilter.root(), selectedIndexes);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     @Override
     public Index.Searcher searcherFor(ReadCommand command)
     {
-        return new StorageAttachedIndexSearcher(cfs, queryMetrics, command, expressions, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
+        return new StorageAttachedIndexSearcher(cfs, queryMetrics, command, filterOperation, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS));
     }
 
     /**

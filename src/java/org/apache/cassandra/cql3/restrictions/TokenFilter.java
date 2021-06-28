@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import com.google.common.collect.BoundType;
 import com.google.common.collect.ImmutableRangeSet;
@@ -338,7 +337,7 @@ abstract class TokenFilter implements PartitionKeyRestrictions
     }
 
     @Override
-    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+    public void addToRowFilter(RowFilter.Builder filter, IndexRegistry indexRegistry, QueryOptions options)
     {
         restrictions.addToRowFilter(filter, indexRegistry, options);
     }

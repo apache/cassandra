@@ -46,6 +46,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
+import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -59,12 +60,12 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
                                         ReadCommand command,
-                                        List<RowFilter.Expression> expressions,
+                                        RowFilter.FilterElement filterOperation,
                                         long executionQuotaMs)
     {
         this.command = command;
         this.queryContext = new QueryContext(executionQuotaMs);
-        this.controller = new QueryController(cfs, command, expressions, queryContext, tableQueryMetrics);
+        this.controller = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
     }
 
     @Override
@@ -76,7 +77,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public PartitionIterator filterReplicaFilteringProtection(PartitionIterator fullResponse)
     {
-        for (RowFilter.Expression expression : controller.getExpressions())
+        for (RowFilter.Expression expression : controller.filterOperation())
         {
             if (controller.getContext(expression).getAnalyzer().transformValue())
                 return applyIndexFilter(fullResponse, analyzeFilter(), queryContext);
@@ -89,7 +90,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return  new ResultRetriever(analyze(), controller, executionController, queryContext);
+        return  new ResultRetriever(analyze(), analyzeFilter(), controller, executionController, queryContext);
     }
 
     /**
@@ -97,9 +98,9 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      *
      * @return operation
      */
-    private Operation analyze()
+    private RangeIterator analyze()
     {
-        return Operation.initTreeBuilder(controller).complete();
+        return Operation.buildIterator(controller);
     }
 
     /**
@@ -113,7 +114,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      */
     private FilterTree analyzeFilter()
     {
-        return Operation.initTreeBuilder(controller).completeFilter();
+        return Operation.buildFilter(controller);
     }
 
     private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
@@ -123,7 +124,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final Iterator<DataRange> keyRanges;
         private AbstractBounds<PartitionPosition> current;
 
-        private final Operation operation;
+        private final RangeIterator operation;
+        private final FilterTree filterTree;
         private final QueryController controller;
         private final ReadExecutionController executionController;
         private final QueryContext queryContext;
@@ -131,13 +133,14 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private Iterator<DecoratedKey> currentKeys = null;
         private DecoratedKey lastKey;
 
-        private ResultRetriever(Operation operation, QueryController controller,
+        private ResultRetriever(RangeIterator operation, FilterTree filterTree, QueryController controller,
                                 ReadExecutionController executionController, QueryContext queryContext)
         {
             this.keyRanges = controller.dataRanges().iterator();
             this.current = keyRanges.next().keyRange();
 
             this.operation = operation;
+            this.filterTree = filterTree;
             this.controller = controller;
             this.executionController = executionController;
             this.queryContext = queryContext;
@@ -221,7 +224,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             {
                 queryContext.partitionsRead++;
 
-                return applyIndexFilter(key, partition, operation.filterTree, queryContext);
+                return applyIndexFilter(key, partition, filterTree, queryContext);
             }
         }
 
@@ -235,14 +238,14 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 Unfiltered row = partition.next();
 
                 queryContext.rowsFiltered++;
-                if (tree.satisfiedBy(key, row, staticRow))
+                if (tree.isSatisfiedBy(key, row, staticRow))
                     clusters.add(row);
             }
 
             if (clusters.isEmpty())
             {
                 queryContext.rowsFiltered++;
-                if (tree.satisfiedBy(key, staticRow, staticRow))
+                if (tree.isSatisfiedBy(key, staticRow, staticRow))
                     clusters.add(staticRow);
             }
 
@@ -371,7 +374,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         {
                             next = delegate.next();
                             queryContext.rowsFiltered++;
-                            if (tree.satisfiedBy(delegate.partitionKey(), next, staticRow))
+                            if (tree.isSatisfiedBy(delegate.partitionKey(), next, staticRow))
                                 return true;
                         }
                         return false;

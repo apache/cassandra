@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -89,7 +88,7 @@ public interface Restriction
      * @param indexRegistry the index registry
      * @param options the query options
      */
-    public void addToRowFilter(RowFilter filter,
+    public void addToRowFilter(RowFilter.Builder filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options);
 }
