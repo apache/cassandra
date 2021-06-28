@@ -278,8 +278,12 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered, BTree.Builder.QuickResolver<Row> quickResolver)
     {
+        return build(iterator, initialRowCapacity, ordered, quickResolver, iterator.columns());
+    }
+
+    protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered, BTree.Builder.QuickResolver<Row> quickResolver, PartitionColumns columns)
+    {
         CFMetaData metadata = iterator.metadata();
-        PartitionColumns columns = iterator.columns();
         boolean reversed = iterator.isReverseOrder();
 
         BTree.Builder<Row> builder = BTree.builder(metadata.comparator, initialRowCapacity);

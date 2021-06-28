@@ -419,8 +419,8 @@ public final class SchemaKeyspace
 
     /**
      * Creates a PartitionUpdate from a partition containing some schema table content.
-     * This is mainly calling {@code PartitionUpdate.fromIterator} except for the fact that it deals with
-     * the problem described in #12236.
+     * This is mainly calling {@code PartitionUpdate.fromIterator} except if cdc is not enabled to handle the problem
+     * in #12236/#16770.
      */
     private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
     {
@@ -432,14 +432,14 @@ public final class SchemaKeyspace
 
         // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
         // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
-        ColumnFilter.Builder builder = ColumnFilter.allColumnsBuilder(partition.metadata());
+        ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
         for (ColumnDefinition column : filter.fetchedColumns())
         {
             if (!column.name.toString().equals("cdc"))
                 builder.add(column);
         }
 
-        return PartitionUpdate.fromIterator(partition, builder.build());
+        return PartitionUpdate.fromIteratorExplicitColumns(partition, builder.build());
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
