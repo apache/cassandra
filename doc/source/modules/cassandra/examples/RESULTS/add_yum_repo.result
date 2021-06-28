@@ -1,6 +1,0 @@
-[cassandra]
-name=Apache Cassandra
-baseurl=https://downloads.apache.org/cassandra/redhat/40x/
-gpgcheck=1
-repo_gpgcheck=1
-gpgkey=https://downloads.apache.org/cassandra/KEYS

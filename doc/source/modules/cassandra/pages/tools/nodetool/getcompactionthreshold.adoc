@@ -1,7 +1,0 @@
-== getcompactionthreshold
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/getcompactionthreshold.txt[]
-----

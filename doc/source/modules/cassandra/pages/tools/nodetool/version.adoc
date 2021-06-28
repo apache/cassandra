@@ -1,7 +1,0 @@
-== version
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/version.txt[]
-----

@@ -1,7 +1,0 @@
-== statusautocompaction
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/statusautocompaction.txt[]
-----

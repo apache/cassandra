@@ -1,0 +1,18 @@
+name: Cassandra
+title: Cassandra
+version: '3.11'
+display_version: '3.11'
+asciidoc:
+  attributes:
+    sectanchors: ''
+    sectlinks: ''
+    cass_url: 'http://cassandra.apache.org/'
+    cass-docker-tag-3x: latest
+    cass-tag-3x: '3.11'
+    311_version: '3.11.10'
+    30_version: '3.0.24'
+    22_version: '2.2.19'
+    21_version: '2.1.22'
+nav:
+- modules/ROOT/nav.adoc
+- modules/cassandra/nav.adoc

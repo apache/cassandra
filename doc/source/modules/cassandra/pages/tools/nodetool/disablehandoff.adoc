@@ -1,7 +1,0 @@
-== disablehandoff
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/disablehandoff.txt[]
-----

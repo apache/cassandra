@@ -1,7 +1,0 @@
-== tablestats
-
-== Usage
-[source,plaintext]
-----
-include::example$TEXT/NODETOOL/tablestats.txt[]
-----

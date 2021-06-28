@@ -1,0 +1,1 @@
+describe_functions_statement::= DESCRIBE FUNCTIONS;

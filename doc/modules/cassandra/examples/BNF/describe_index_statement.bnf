@@ -1,0 +1,1 @@
+describe_index_statement::= DESCRIBE INDEX index;

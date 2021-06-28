@@ -21,7 +21,7 @@ the online documentation.
 Usage:
 
 YAML_INPUT=conf/cassandra.yaml
-YAML_OUTPUT=source/modules/cassandra/pages/configuration/cass_yaml_file.adoc
+YAML_OUTPUT=modules/cassandra/pages/configuration/cass_yaml_file.adoc
 
     convert_yaml_to_adoc.py $YAML_INPUT $YAML_OUTPUT
 """
@@ -44,7 +44,6 @@ commented_re = re.compile(r"^# ?(.*)")
 # that these can be commented out (making it useless to use a yaml parser).
 COMPLEX_OPTIONS = (
     'seed_provider',
-    'request_scheduler_options',
     'data_file_directories',
     'commitlog_compression',
     'hints_compression',

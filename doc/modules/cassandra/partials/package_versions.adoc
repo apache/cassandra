@@ -1,0 +1,5 @@
+The latest major version is {311_version} and the
+corresponding distribution name is `311x` (with an "x" as the suffix).
+For older releases use `30x` for {30_version}, `22x` for {22_version} and
+`21x` for {21_version}. 
+For example, to add the repository for version {311_version} (`311x`):
