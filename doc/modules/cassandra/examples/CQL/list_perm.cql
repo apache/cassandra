@@ -1,0 +1,1 @@
+LIST ALL PERMISSIONS OF alice;

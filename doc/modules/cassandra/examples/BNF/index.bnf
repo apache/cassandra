@@ -1,0 +1,1 @@
+index::= [keyspace_name '.' ] index_name

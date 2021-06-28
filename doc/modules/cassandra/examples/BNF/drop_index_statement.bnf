@@ -1,0 +1,1 @@
+drop_index_statement::= DROP INDEX [ IF EXISTS ] index_name

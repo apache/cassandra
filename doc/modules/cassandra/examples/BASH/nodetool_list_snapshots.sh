@@ -1,0 +1,1 @@
+$ nodetool listsnapshots

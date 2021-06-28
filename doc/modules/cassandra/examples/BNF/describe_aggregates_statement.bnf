@@ -1,0 +1,1 @@
+describe_aggregates_statement::= DESCRIBE AGGREGATES;

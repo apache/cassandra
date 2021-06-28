@@ -1,0 +1,1 @@
+index_name::= re('[a-zA-Z_0-9]+')

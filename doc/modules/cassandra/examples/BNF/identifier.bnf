@@ -1,0 +1,3 @@
+identifier::= unquoted_identifier | quoted_identifier
+unquoted_identifier::= re('[a-zA-Z][link:[a-zA-Z0-9]]*')
+quoted_identifier::= '"' (any character where " can appear if doubled)+ '"'

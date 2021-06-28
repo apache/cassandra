@@ -1,0 +1,90 @@
+= Client drivers
+
+Here are known Cassandra client drivers organized by language. Before
+choosing a driver, you should verify the Cassandra version and
+functionality supported by a specific driver.
+
+== Java
+
+* http://achilles.archinnov.info/[Achilles]
+* https://github.com/Netflix/astyanax/wiki/Getting-Started[Astyanax]
+* https://github.com/noorq/casser[Casser]
+* https://github.com/datastax/java-driver[Datastax Java driver]
+* https://github.com/impetus-opensource/Kundera[Kundera]
+* https://github.com/deanhiller/playorm[PlayORM]
+
+== Python
+
+* https://github.com/datastax/python-driver[Datastax Python driver]
+
+== Ruby
+
+* https://github.com/datastax/ruby-driver[Datastax Ruby driver]
+
+== C# / .NET
+
+* https://github.com/pchalamet/cassandra-sharp[Cassandra Sharp]
+* https://github.com/datastax/csharp-driver[Datastax C# driver]
+* https://github.com/managedfusion/fluentcassandra[Fluent Cassandra]
+
+== Nodejs
+
+* https://github.com/datastax/nodejs-driver[Datastax Nodejs driver]
+
+== PHP
+
+* http://code.google.com/a/apache-extras.org/p/cassandra-pdo[CQL | PHP]
+* https://github.com/datastax/php-driver/[Datastax PHP driver]
+* https://github.com/aparkhomenko/php-cassandra[PHP-Cassandra]
+* https://github.com/duoshuo/php-cassandra[PHP Library for Cassandra]
+
+== C++
+
+* https://github.com/datastax/cpp-driver[Datastax C++ driver]
+* http://sourceforge.net/projects/libqtcassandra[libQTCassandra]
+
+== Scala
+
+* https://github.com/datastax/spark-cassandra-connector[Datastax Spark
+connector]
+* https://github.com/newzly/phantom[Phantom]
+* https://github.com/getquill/quill[Quill]
+
+== Clojure
+
+* https://github.com/mpenet/alia[Alia]
+* https://github.com/clojurewerkz/cassaforte[Cassaforte]
+* https://github.com/mpenet/hayt[Hayt]
+
+== Erlang
+
+* https://github.com/matehat/cqerl[CQerl]
+* https://github.com/silviucpp/erlcass[Erlcass]
+
+== Go
+
+* https://github.com/relops/cqlc[CQLc]
+* https://github.com/hailocab/gocassa[Gocassa]
+* https://github.com/gocql/gocql[GoCQL]
+
+== Haskell
+
+* https://github.com/ozataman/cassy[Cassy]
+
+== Rust
+
+* https://github.com/neich/rust-cql[Rust CQL]
+
+== Perl
+
+* https://github.com/tvdw/perl-dbd-cassandra[Cassandra::Client and
+DBD::Cassandra]
+
+== Elixir
+
+* https://github.com/lexhide/xandra[Xandra]
+* https://github.com/matehat/cqex[CQEx]
+
+== Dart
+
+* https://github.com/achilleasa/dart_cassandra_cql[dart_cassandra_cql]

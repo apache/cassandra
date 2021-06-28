@@ -1,0 +1,4 @@
+create_materialized_view_statement::= CREATE MATERIALIZED VIEW [ IF NOT EXISTS ] view_name
+	AS select_statement
+	PRIMARY KEY '(' primary_key')' 
+	WITH table_options
