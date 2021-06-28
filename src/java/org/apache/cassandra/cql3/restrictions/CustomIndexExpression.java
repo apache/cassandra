@@ -47,7 +47,7 @@ public class CustomIndexExpression
         value.collectMarkerSpecification(boundNames);
     }
 
-    public void addToRowFilter(RowFilter filter, TableMetadata table, QueryOptions options)
+    public void addToRowFilter(RowFilter.Builder filter, TableMetadata table, QueryOptions options)
     {
         filter.addCustomIndexExpression(table,
                                         table.indexes

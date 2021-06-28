@@ -151,6 +151,19 @@ public final class IndexRestrictions
         return false;
     }
 
+    public boolean indexBeingUsed(Index.Group indexGroup)
+    {
+        for (Restrictions restrictions : regularRestrictions)
+            if (!restrictions.needsFiltering(indexGroup))
+                return true;
+
+        for (CustomIndexExpression restriction : externalRestrictions)
+            if (!restriction.needsFiltering(indexGroup))
+                return true;
+
+        return false;
+    }
+
     static InvalidRequestException invalidIndex(QualifiedName indexName, TableMetadata table)
     {
         return new InvalidRequestException(String.format(INVALID_INDEX, indexName.getName(), table));

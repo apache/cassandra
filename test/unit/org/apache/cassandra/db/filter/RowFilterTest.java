@@ -63,10 +63,10 @@ public class RowFilterTest
         ColumnMetadata r = metadata.getColumn(new ColumnIdentifier("r", true));
 
         ByteBuffer one = Int32Type.instance.decompose(1);
-        RowFilter filter = RowFilter.NONE.withNewExpressions(new ArrayList<>());
+        RowFilter.Builder filter = RowFilter.builder();
         filter.add(s, Operator.NEQ, one);
         AtomicBoolean closed = new AtomicBoolean();
-        UnfilteredPartitionIterator iter = filter.filter(new SingletonUnfilteredPartitionIterator(new UnfilteredRowIterator()
+        UnfilteredPartitionIterator iter = filter.build().filter(new SingletonUnfilteredPartitionIterator(new UnfilteredRowIterator()
         {
             public DeletionTime partitionLevelDeletion() { return null; }
             public EncodingStats stats() { return null; }
@@ -91,10 +91,10 @@ public class RowFilterTest
         Assert.assertFalse(iter.hasNext());
         Assert.assertTrue(closed.get());
 
-        filter = RowFilter.NONE.withNewExpressions(new ArrayList<>());
+        filter = RowFilter.builder();
         filter.add(r, Operator.NEQ, one);
         closed.set(false);
-        iter = filter.filter(new SingletonUnfilteredPartitionIterator(new UnfilteredRowIterator()
+        iter = filter.build().filter(new SingletonUnfilteredPartitionIterator(new UnfilteredRowIterator()
         {
             boolean hasNext = true;
             public DeletionTime partitionLevelDeletion() { return null; }

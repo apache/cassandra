@@ -274,15 +274,14 @@ public final class CreateViewStatement extends AlterSchemaStatement
         if (whereClause.containsCustomExpressions())
             throw ire("WHERE clause for materialized view '%s' cannot contain custom index expressions", viewName);
 
-        StatementRestrictions restrictions =
-            new StatementRestrictions(StatementType.SELECT,
-                                      table,
-                                      whereClause,
-                                      VariableSpecifications.empty(),
-                                      false,
-                                      false,
-                                      true,
-                                      true);
+        StatementRestrictions restrictions = StatementRestrictions.create(StatementType.SELECT,
+                                                                          table,
+                                                                          whereClause,
+                                                                          VariableSpecifications.empty(),
+                                                                          false,
+                                                                          false,
+                                                                          true,
+                                                                          true);
 
         List<ColumnIdentifier> nonRestrictedPrimaryKeyColumns =
             Lists.newArrayList(filter(primaryKeyColumns, name -> !restrictions.isRestricted(table.getColumn(name))));
