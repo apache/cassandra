@@ -32,7 +32,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.MX4JPORT;
  * If mx4j-tools is in the classpath call maybeLoad to load the HTTP interface of mx4j.
  *
  * The default port is 8081. To override that provide e.g. -Dmx4jport=8082
- * The default listen address is 0.0.0.0. To override that provide -Dmx4jaddress=127.0.0.1
+ * The default listen address is the broadcast_address. To override that provide -Dmx4jaddress=127.0.0.1
  */
 public class Mx4jTool
 {
