@@ -156,7 +156,7 @@ public class MessagingServiceTest
         addDCLatency(sentAt, now);
         assertNotNull(dcLatency.get("datacenter1"));
         assertEquals(1, dcLatency.get("datacenter1").dcLatency.getCount());
-        long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, MILLISECONDS.toNanos(latency))) - 1];
+        long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, MILLISECONDS.toMicros(latency))) - 1];
         assertEquals(expectedBucket, dcLatency.get("datacenter1").dcLatency.getSnapshot().getMax());
     }
 
@@ -186,7 +186,7 @@ public class MessagingServiceTest
         Map<Verb, Timer> queueWaitLatency = MessagingService.instance().metrics.internalLatency;
         MessagingService.instance().metrics.recordInternalLatency(verb, latency, MILLISECONDS);
         assertEquals(1, queueWaitLatency.get(verb).getCount());
-        long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, MILLISECONDS.toNanos(latency))) - 1];
+        long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, MILLISECONDS.toMicros(latency))) - 1];
         assertEquals(expectedBucket, queueWaitLatency.get(verb).getSnapshot().getMax());
     }
 
