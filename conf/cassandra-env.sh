@@ -276,7 +276,7 @@ JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/
 # To use mx4j, an HTML interface for JMX, add mx4j-tools.jar to the lib/
 # directory.
 # See http://cassandra.apache.org/doc/latest/operating/metrics.html#jmx
-# By default mx4j listens on 0.0.0.0:8081. Uncomment the following lines
+# By default mx4j listens on the broadcast_address, port 8081. Uncomment the following lines
 # to control its listen address and port.
 #MX4J_ADDRESS="127.0.0.1"
 #MX4J_PORT="8081"
