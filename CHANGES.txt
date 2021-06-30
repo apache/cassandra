@@ -1,3 +1,7 @@
+4.0-rc3
+Merged from 3.11:
+Merged from 3.0:
+
 4.0-rc2
  * Avoid memoizing the wrong min cluster version during upgrades (CASSANDRA-16759)
  * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
