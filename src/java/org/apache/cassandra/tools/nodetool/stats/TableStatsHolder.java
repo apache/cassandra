@@ -118,6 +118,7 @@ public class TableStatsHolder implements StatsHolder
     {
         Map<String, Object> mpTable = new HashMap<>();
         mpTable.put("sstables_in_each_level", table.sstablesInEachLevel);
+        mpTable.put("sstable_bytes_in_each_level", table.sstableBytesInEachLevel);
         mpTable.put("space_used_live", table.spaceUsedLive);
         mpTable.put("space_used_total", table.spaceUsedTotal);
         mpTable.put("space_used_by_snapshots_total", table.spaceUsedBySnapshotsTotal);
@@ -232,6 +233,17 @@ public class TableStatsHolder implements StatsHolder
                             maxCount = (long) Math.pow(table.getLevelFanoutSize(), level);
                         // show max threshold for level when exceeded
                         statsTable.sstablesInEachLevel.add(count + ((count > maxCount) ? "/" + maxCount : ""));
+                    }
+                }
+
+                long[] leveledSSTablesBytes = table.getPerLevelSizeBytes();
+                if (leveledSSTablesBytes != null)
+                {
+                    statsTable.isLeveledSstable = true;
+                    for (int level = 0; level < leveledSSTablesBytes.length; level++)
+                    {
+                        long size = leveledSSTablesBytes[level];
+                        statsTable.sstableBytesInEachLevel.add(format(size, humanReadable));
                     }
                 }
 

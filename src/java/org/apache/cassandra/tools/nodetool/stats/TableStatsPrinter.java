@@ -79,8 +79,12 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "SSTable count: " + table.sstableCount);
             out.println(indent + "Old SSTable count: " + table.oldSSTableCount);
             if (table.isLeveledSstable)
+            {
                 out.println(indent + "SSTables in each level: [" + String.join(", ",
-                                                                          table.sstablesInEachLevel) + "]");
+                                                                               table.sstablesInEachLevel) + "]");
+                out.println(indent + "SSTable bytes in each level: [" + String.join(", ",
+                                                                                    table.sstableBytesInEachLevel) + "]");
+            }
 
             out.println(indent + "Space used (live): " + table.spaceUsedLive);
             out.println(indent + "Space used (total): " + table.spaceUsedTotal);
