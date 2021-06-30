@@ -1,4 +1,5 @@
 4.1
+ * Log when compacting many tombstones (CASSANDRA-16780)
  * Display bytes per level in tablestats for LCS tables (CASSANDRA-16799)
  * Add isolated flush timer to CommitLogMetrics and ensure writes correspond to single WaitingOnCommit data points (CASSANDRA-16701)
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
