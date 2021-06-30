@@ -226,6 +226,14 @@ class LeveledGenerations
         return counts;
     }
 
+    long[] getAllLevelSizeBytes()
+    {
+        long[] sums = new long[levelCount()];
+        for (int i = 0; i < sums.length; i++)
+            sums[i] = get(i).stream().map(SSTableReader::onDiskLength).reduce(0L, Long::sum);
+        return sums;
+    }
+
     Set<SSTableReader> allSSTables()
     {
         ImmutableSet.Builder<SSTableReader> builder = ImmutableSet.builder();

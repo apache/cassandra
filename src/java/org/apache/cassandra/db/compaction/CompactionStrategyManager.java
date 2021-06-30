@@ -587,9 +587,47 @@ public class CompactionStrategyManager implements INotificationConsumer
         return null;
     }
 
+    public long[] getPerLevelSizeBytes()
+    {
+        readLock.lock();
+        try
+        {
+            if (repaired.first() instanceof LeveledCompactionStrategy)
+            {
+                long [] res = new long[LeveledGenerations.MAX_LEVEL_COUNT];
+                for (AbstractCompactionStrategy strategy : getAllStrategies())
+                {
+                    long[] repairedCountPerLevel = ((LeveledCompactionStrategy) strategy).getAllLevelSizeBytes();
+                    res = sumArrays(res, repairedCountPerLevel);
+                }
+                return res;
+            }
+            return null;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
+    }
+
     static int[] sumArrays(int[] a, int[] b)
     {
         int[] res = new int[Math.max(a.length, b.length)];
+        for (int i = 0; i < res.length; i++)
+        {
+            if (i < a.length && i < b.length)
+                res[i] = a[i] + b[i];
+            else if (i < a.length)
+                res[i] = a[i];
+            else
+                res[i] = b[i];
+        }
+        return res;
+    }
+
+    static long[] sumArrays(long[] a, long[] b)
+    {
+        long[] res = new long[Math.max(a.length, b.length)];
         for (int i = 0; i < res.length; i++)
         {
             if (i < a.length && i < b.length)

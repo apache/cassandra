@@ -203,6 +203,12 @@ public interface ColumnFamilyStoreMBean
     public int[] getSSTableCountPerLevel();
 
     /**
+     * @return total size on disk for each level. null unless leveled compaction is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public long[] getPerLevelSizeBytes();
+
+    /**
      * @return sstable fanout size for level compaction strategy.
      */
     public int getLevelFanoutSize();
