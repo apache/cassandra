@@ -856,4 +856,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     void setTableCountWarnThreshold(int value);
     int getKeyspaceCountWarnThreshold();
     void setKeyspaceCountWarnThreshold(int value);
+
+    public void setCompactionTombstoneWarningThreshold(int count);
+    public int getCompactionTombstoneWarningThreshold();
 }

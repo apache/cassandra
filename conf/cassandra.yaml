@@ -1288,6 +1288,9 @@ unlogged_batch_across_partitions_warn_threshold: 10
 # Log a warning when compacting partitions larger than this value
 compaction_large_partition_warning_threshold_mb: 100
 
+# Log a warning when writing more tombstones than this value to a partition
+compaction_tombstone_warning_threshold: 100000
+
 # GC Pauses greater than 200 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
 # gc_log_threshold_in_ms: 200
