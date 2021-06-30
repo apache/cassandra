@@ -44,8 +44,10 @@ import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.Util.spinAssertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -73,7 +75,9 @@ public class ClientResourceLimitsTest extends CQLTester
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytesPerIp(LOW_LIMIT);
         DatabaseDescriptor.setNativeTransportMaxConcurrentRequestsInBytes(LOW_LIMIT);
-        requireNetwork();
+
+        // The driver control connections would send queries that might interfere with the tests.
+        requireNetworkWithoutDriver();
     }
 
     @AfterClass
@@ -139,18 +143,18 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testQueryExecutionWithThrowOnOverload() throws Throwable
+    public void testQueryExecutionWithThrowOnOverload()
     {
         testQueryExecution(true);
     }
 
     @Test
-    public void testQueryExecutionWithoutThrowOnOverload() throws Throwable
+    public void testQueryExecutionWithoutThrowOnOverload()
     {
         testQueryExecution(false);
     }
 
-    private void testQueryExecution(boolean throwOnOverload) throws Throwable
+    private void testQueryExecution(boolean throwOnOverload)
     {
         try (SimpleClient client = client(throwOnOverload))
         {
@@ -239,7 +243,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitExceeded() throws Throwable
+    public void testOverloadedExceptionWhenGlobalLimitExceeded()
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
@@ -247,7 +251,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitExceeded() throws Throwable
+    public void testOverloadedExceptionWhenEndpointLimitExceeded()
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
@@ -255,7 +259,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage() throws Throwable
+    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage()
     {
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
@@ -263,7 +267,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage() throws Throwable
+    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage()
     {
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
@@ -300,7 +304,7 @@ public class ClientResourceLimitsTest extends CQLTester
         return new QueryMessage(query.toString(), V5_DEFAULT_OPTIONS);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     private Gauge<Integer> getPausedConnectionsGauge()
     {
         String metricName = "org.apache.cassandra.metrics.Client.PausedConnections";
@@ -316,6 +320,12 @@ public class ClientResourceLimitsTest extends CQLTester
     {
         try (SimpleClient client = client(true))
         {
+            // wait for the completion of the intial messages created by the client connection
+            Awaitility.await()
+                      .pollDelay(1, TimeUnit.SECONDS)
+                      .atMost(30, TimeUnit.SECONDS)
+                      .untilAsserted(() -> assertEquals(0, ClientResourceLimits.getCurrentGlobalUsage()));
+
             CyclicBarrier barrier = new CyclicBarrier(2);
             String table = createTableName();
 
@@ -345,8 +355,6 @@ public class ClientResourceLimitsTest extends CQLTester
 
             final QueryMessage queryMessage = new QueryMessage(String.format("SELECT * FROM %s.%s", table, table),
                                                                V5_DEFAULT_OPTIONS);
-
-            Assert.assertEquals(0L, ClientResourceLimits.getCurrentGlobalUsage());
             try
             {
                 Thread tester = new Thread(() -> client.execute(queryMessage));
@@ -355,7 +363,8 @@ public class ClientResourceLimitsTest extends CQLTester
                 // block until query in progress
                 barrier.await(30, TimeUnit.SECONDS);
                 assertTrue(ClientResourceLimits.getCurrentGlobalUsage() > 0);
-            } finally
+            }
+            finally
             {
                 // notify query thread that metric has been checked. This will also throw TimeoutException if both
                 // the query threads barriers are not reached
@@ -365,7 +374,7 @@ public class ClientResourceLimitsTest extends CQLTester
     }
 
     @Test
-    public void testChangingLimitsAtRuntime() throws Throwable
+    public void testChangingLimitsAtRuntime()
     {
         SimpleClient client = client(true);
         try
