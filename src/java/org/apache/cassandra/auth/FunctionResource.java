@@ -157,6 +157,7 @@ public class FunctionResource implements IResource
                                               "explictly qualified by a keyspace");
         List<AbstractType<?>> abstractTypes = new ArrayList<>(argTypes.size());
         for (CQL3Type.Raw cqlType : argTypes)
+            if (cqlType == null) continue;
             abstractTypes.add(cqlType.prepare(keyspace).getType());
 
         return new FunctionResource(keyspace, name, abstractTypes);
