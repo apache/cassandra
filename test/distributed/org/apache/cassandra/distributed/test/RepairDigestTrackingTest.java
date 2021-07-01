@@ -28,6 +28,12 @@ import java.util.stream.Stream;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.concurrent.SEPExecutor;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaLayout;
+import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.utils.Throwables;
 import org.junit.Assert;
 import org.junit.Test;
@@ -53,6 +59,7 @@ import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -359,6 +366,9 @@ public class RepairDigestTrackingTest extends TestBaseImpl
      * entirely within the scope of single {@link LocalReadRunnable}, but this test still attempts to validate some
      * assumptions about the cleanliness of the logs and the correctness of queries made when initial local reads and
      * local reads triggered by read repair (after speculative reads) execute at roughly the same time.
+     *
+     * This test depends on whether node1 gets a data or a digest request first, we force it to be a digest request
+     * in the forTokenReadLiveSorted ByteBuddy rule below.
      */
     @Test
     public void testLocalDataAndRemoteRequestConcurrency() throws Exception
@@ -397,7 +407,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     public static class BBHelper
     {
         private static final CyclicBarrier barrier = new CyclicBarrier(2);
-        
+
         public static void install(ClassLoader classLoader, Integer num)
         {
             // Only install on the coordinating node, which is also a replica...
@@ -411,6 +421,12 @@ public class RepairDigestTrackingTest extends TestBaseImpl
 
                 new ByteBuddy().rebase(SinglePartitionReadCommand.class)
                                .method(named("executeLocally"))
+                               .intercept(MethodDelegation.to(BBHelper.class))
+                               .make()
+                               .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+
+                new ByteBuddy().rebase(ReplicaLayout.class)
+                               .method(named("forTokenReadLiveSorted").and(takesArguments(AbstractReplicationStrategy.class, Token.class)))
                                .intercept(MethodDelegation.to(BBHelper.class))
                                .make()
                                .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
@@ -437,6 +453,23 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                     barrier.await();
                 }
                 return zuperCall.call();
+            }
+            catch (Exception e)
+            {
+                throw Throwables.unchecked(e);
+            }
+        }
+
+        @SuppressWarnings({ "unused" })
+        public static ReplicaLayout.ForTokenRead forTokenReadLiveSorted(AbstractReplicationStrategy replicationStrategy, Token token)
+        {
+            try
+            {
+                EndpointsForToken.Builder builder = EndpointsForToken.builder(token, 3);
+                builder.add(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.3")));
+                builder.add(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.2")));
+                builder.add(ReplicaUtils.full(InetAddressAndPort.getByName("127.0.0.1")));
+                return new ReplicaLayout.ForTokenRead(replicationStrategy, builder.build());
             }
             catch (Exception e)
             {
