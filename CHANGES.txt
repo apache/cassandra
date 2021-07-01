@@ -1,4 +1,5 @@
 4.0.2
+ * Delay auth setup until after gossip has settled to avoid unavailables on startup (CASSANDRA-16783)
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
 
 4.0.1

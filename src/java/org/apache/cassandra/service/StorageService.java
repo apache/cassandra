@@ -1130,6 +1130,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             try
             {
                 joinTokenRing(0);
+                doAuthSetup(false);
             }
             catch (ConfigurationException e)
             {
@@ -1144,6 +1145,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing(resumedBootstrap, SystemKeyspace.getSavedTokens());
+                doAuthSetup(false);
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1176,10 +1178,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setTokens(tokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
-        doAuthSetup(false);
     }
 
-    private void doAuthSetup(boolean setUpSchema)
+    @VisibleForTesting
+    public void doAuthSetup(boolean setUpSchema)
     {
         if (!authSetupCalled.getAndSet(true))
         {
@@ -1202,6 +1204,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         return authSetupComplete;
     }
+
+    @VisibleForTesting
+    public boolean authSetupCalled()
+    {
+        return authSetupCalled.get();
+    }
+
 
     @VisibleForTesting
     public void setUpDistributedSystemKeyspaces()
@@ -1847,6 +1856,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             isSurveyMode = false;
                             progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
                             finishJoiningRing(true, bootstrapTokens);
+                            doAuthSetup(false);
                         }
                         progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                         if (!isNativeTransportRunning())
