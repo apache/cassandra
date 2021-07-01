@@ -3,6 +3,7 @@
  * Add a system property to set hostId if not yet initialized (CASSANDRA-14582)
  * GossiperTest.testHasVersion3Nodes didn't take into account trunk version changes, fixed to rely on latest version (CASSANDRA-16651)
 Merged from 4.0:
+ * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
  * Upgrade lz4-java to 1.8.0 to add RH6 support back (CASSANDRA-16753)
  * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
  * Obfuscate passwords in statements in QueryEvents (CASSANDRA-16669)
