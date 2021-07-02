@@ -1,4 +1,5 @@
 4.0-rc3
+ * BinLog does not close chronicle queue leaving this to GC to cleanup (CASSANDRA-16774)
 Merged from 3.11:
 Merged from 3.0:
 
