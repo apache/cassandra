@@ -128,7 +128,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         Reservoir reservoir;
         if (durationUnit != TimeUnit.NANOSECONDS)
         {
-            Reservoir underlying = new DecayingEstimatedHistogramReservoir(false,
+            Reservoir underlying = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
                                                                            EstimatedHistogram.DEFAULT_BUCKET_COUNT,
                                                                            DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT);
             // less buckets (90) should suffice if timer is not based on nanos

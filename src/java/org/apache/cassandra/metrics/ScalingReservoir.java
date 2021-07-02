@@ -15,10 +15,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.metrics;
+
 import com.codahale.metrics.Reservoir;
 import com.codahale.metrics.Snapshot;
+
 /**
  * A reservoir that scales the values before updating.
  */
@@ -26,23 +27,31 @@ public class ScalingReservoir implements Reservoir
 {
     private final Reservoir delegate;
     private final ScaleFunction scaleFunc;
+
     public ScalingReservoir(Reservoir reservoir, ScaleFunction scaleFunc)
     {
         this.delegate = reservoir;
         this.scaleFunc = scaleFunc;
     }
+
     @Override
-    public int size() {
+    public int size()
+    {
         return delegate.size();
     }
+
     @Override
-    public void update(long value) {
+    public void update(long value)
+    {
         delegate.update(scaleFunc.apply(value));
     }
+
     @Override
-    public Snapshot getSnapshot() {
+    public Snapshot getSnapshot()
+    {
         return delegate.getSnapshot();
     }
+
     /**
      * Scale the input value.
      *
