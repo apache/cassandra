@@ -29,6 +29,7 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.InetAddresses;
+import org.apache.cassandra.service.CassandraDaemon;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -416,6 +417,34 @@ public class GossiperTest
             if (stateChangeListener != null)
                 Gossiper.instance.unregister(stateChangeListener);
         }
+    }
+
+    // Regression test for CASSANDRA-14811
+    @Test
+    public void testRpcReadySetToFalseWhenNativeTransportIsStopped() throws Exception
+    {
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
+        CassandraDaemon daemon = CassandraDaemon.getInstanceForTesting();
+        daemon.activate();
+
+        assertTrue(es.isRpcReady());
+        StorageService.instance.stopNativeTransport();
+        assertFalse(es.isRpcReady());
+
+        daemon.stop();
+    }
+
+    // Regression test for CASSANDRA-14811
+    @Test
+    public void testRpcReadySetToTrueWhenNativeTransportIsStarted() throws Exception
+    {
+        EndpointState es = new EndpointState((HeartBeatState) null);
+        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
+
+        assertFalse(es.isRpcReady());
+        StorageService.instance.startNativeTransport();
+        assertTrue(es.isRpcReady());
     }
 
     static class SimpleStateChangeListener implements IEndpointStateChangeSubscriber
