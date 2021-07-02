@@ -6,6 +6,7 @@
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
+ * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
  * Clean transaction log leftovers at the beginning of sstablelevelreset and sstableofflinerelevel (CASSANDRA-12519)
