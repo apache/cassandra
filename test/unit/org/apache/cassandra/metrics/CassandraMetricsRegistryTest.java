@@ -119,7 +119,7 @@ public class CassandraMetricsRegistryTest
     public void testTimer()
     {
         long[] offsets = new EstimatedHistogram().getBucketOffsets();
-        Timer timer = CassandraMetricsRegistry.Metrics.createTimer(TimeUnit.MICROSECONDS);
+        Timer timer = new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
         timer.update(42, TimeUnit.NANOSECONDS);
         timer.update(100, TimeUnit.NANOSECONDS);
         timer.update(42, TimeUnit.MICROSECONDS);

@@ -109,7 +109,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Timer timer(MetricName name, TimeUnit durationUnit)
     {
-        Timer timer = register(name, createTimer(durationUnit));
+        Timer timer = register(name, new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS)));
         registerMBean(timer, name.getMBeanName());
 
         return timer;
@@ -122,8 +122,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return timer;
     }
 
-    @VisibleForTesting
-    Timer createTimer(TimeUnit durationUnit)
+    public static Reservoir createReservoir(TimeUnit durationUnit)
     {
         Reservoir reservoir;
         if (durationUnit != TimeUnit.NANOSECONDS)
@@ -141,7 +140,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
             // Use more buckets if timer is created with nanos resolution.
             reservoir = new DecayingEstimatedHistogramReservoir();
         }
-        return new Timer(reservoir);
+        return reservoir;
     }
 
     public <T extends Metric> T register(MetricName name, T metric)
