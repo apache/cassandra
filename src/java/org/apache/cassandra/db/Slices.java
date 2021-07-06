@@ -24,6 +24,8 @@ import java.util.*;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -141,7 +143,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues);
 
-    public abstract String toCQLString(TableMetadata metadata);
+    public abstract String toCQLString(TableMetadata metadata, RowFilter rowFilter);
 
     /**
      * Checks if this <code>Slices</code> is empty.
@@ -549,7 +551,8 @@ public abstract class Slices implements Iterable<Slice>
             return sb.append("}").toString();
         }
 
-        public String toCQLString(TableMetadata metadata)
+        @Override
+        public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -593,7 +596,7 @@ public abstract class Slices implements Iterable<Slice>
                         sb.append(" AND ");
                     needAnd = true;
 
-                    sb.append(column.name);
+                    sb.append(column.name.toCQLString());
 
                     Set<ByteBuffer> values = new LinkedHashSet<>();
                     for (int j = 0; j < componentInfo.size(); j++)
@@ -601,20 +604,25 @@ public abstract class Slices implements Iterable<Slice>
 
                     if (values.size() == 1)
                     {
-                        sb.append(" = ").append(column.type.getString(first.startValue));
+                        sb.append(" = ").append(column.type.toCQLString(first.startValue));
+                        rowFilter = rowFilter.without(column, Operator.EQ, first.startValue);
                     }
                     else
                     {
                         sb.append(" IN (");
                         int j = 0;
                         for (ByteBuffer value : values)
-                            sb.append(j++ == 0 ? "" : ", ").append(column.type.getString(value));
+                        {
+                            sb.append(j++ == 0 ? "" : ", ").append(column.type.toCQLString(value));
+                            rowFilter = rowFilter.without(column, Operator.EQ, value);
+                        }
                         sb.append(")");
                     }
                 }
                 else
                 {
                     boolean isReversed = column.isReversedType();
+                    Operator operator;
 
                     // As said above, we assume (without checking) that this means all ComponentOfSlice for this column
                     // are the same, so we only bother about the first.
@@ -623,27 +631,39 @@ public abstract class Slices implements Iterable<Slice>
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
-                        sb.append(column.name);
+                        sb.append(column.name.toCQLString());
                         if (isReversed)
-                            sb.append(first.startInclusive ? " <= " : " < ");
+                            operator = first.startInclusive ? Operator.LTE : Operator.LT;
                         else
-                            sb.append(first.startInclusive ? " >= " : " > ");
-                        sb.append(column.type.getString(first.startValue));
+                            operator = first.startInclusive ? Operator.GTE : Operator.GT;
+                        sb.append(' ').append(operator.toString()).append(' ')
+                          .append(column.type.toCQLString(first.startValue));
+                        rowFilter = rowFilter.without(column, operator, first.startValue);
                     }
                     if (first.endValue != null)
                     {
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
-                        sb.append(column.name);
+                        sb.append(column.name.toCQLString());
                         if (isReversed)
-                            sb.append(first.endInclusive ? " >= " : " > ");
+                            operator = first.endInclusive ? Operator.GTE : Operator.GT;
                         else
-                            sb.append(first.endInclusive ? " <= " : " < ");
-                        sb.append(column.type.getString(first.endValue));
+                            operator = first.endInclusive ? Operator.LTE : Operator.LT;
+                        sb.append(' ').append(operator.toString()).append(' ')
+                          .append(column.type.toCQLString(first.endValue));
+                        rowFilter = rowFilter.without(column, operator, first.endValue);
                     }
                 }
             }
+
+            if (!rowFilter.isEmpty())
+            {
+                if (needAnd)
+                    sb.append(" AND ");
+                sb.append(rowFilter.toCQLString());
+            }
+
             return sb.toString();
         }
 
@@ -764,9 +784,10 @@ public abstract class Slices implements Iterable<Slice>
             return "ALL";
         }
 
-        public String toCQLString(TableMetadata metadata)
+        @Override
+        public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
         {
-            return "";
+            return rowFilter.toCQLString();
         }
     }
 
@@ -839,7 +860,8 @@ public abstract class Slices implements Iterable<Slice>
             return "NONE";
         }
 
-        public String toCQLString(TableMetadata metadata)
+        @Override
+        public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
         {
             return "";
         }

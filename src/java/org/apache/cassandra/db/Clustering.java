@@ -72,7 +72,7 @@ public interface Clustering<V> extends ClusteringPrefix<V>
         for (int i = 0; i < size(); i++)
         {
             ColumnMetadata c = metadata.clusteringColumns().get(i);
-            sb.append(i == 0 ? "" : ", ").append(c.type.getString(get(i), accessor()));
+            sb.append(i == 0 ? "" : ", ").append(c.type.toCQLString(bufferAt(i)));
         }
         return sb.toString();
     }

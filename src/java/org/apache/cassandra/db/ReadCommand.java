@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
@@ -727,13 +728,21 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public String toCQLString()
     {
-        StringBuilder sb = new StringBuilder();
-        sb.append("SELECT ").append(columnFilter().toCQLString());
-        sb.append(" FROM ").append(metadata().keyspace).append('.').append(metadata().name);
+        StringBuilder sb = new StringBuilder().append("SELECT ")
+                                              .append(columnFilter().toCQLString())
+                                              .append(" FROM ")
+                                              .append(ColumnIdentifier.maybeQuote(metadata().keyspace))
+                                              .append('.')
+                                              .append(ColumnIdentifier.maybeQuote(metadata().name));
+
         appendCQLWhereClause(sb);
 
         if (limits() != DataLimits.NONE)
             sb.append(' ').append(limits());
+
+        // ALLOW FILTERING might not be strictly necessary
+        sb.append(" ALLOW FILTERING");
+
         return sb.toString();
     }
 
