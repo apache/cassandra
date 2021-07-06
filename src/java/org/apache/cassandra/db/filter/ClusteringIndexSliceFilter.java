@@ -30,6 +30,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.stringtemplate.v4.ST;
 
 /**
  * A filter over a single partition.
@@ -142,13 +143,12 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return String.format("slice(slices=%s, reversed=%b)", slices, reversed);
     }
 
-    public String toCQLString(TableMetadata metadata)
+    @Override
+    public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
     {
         StringBuilder sb = new StringBuilder();
 
-        if (!selectsAllPartition())
-            sb.append(slices.toCQLString(metadata));
-
+        sb.append(slices.toCQLString(metadata, rowFilter));
         appendOrderByToCQLString(metadata, sb);
 
         return sb.toString();

@@ -33,7 +33,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.github.jamm.Unmetered;
 
 @Unmetered
@@ -447,9 +446,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             return "";
 
         StringBuilder sb = new StringBuilder();
-        sb.append(defs.next().name);
+        sb.append(defs.next().name.toCQLString());
         while (defs.hasNext())
-            sb.append(", ").append(defs.next().name);
+            sb.append(", ").append(defs.next().name.toCQLString());
         return sb.toString();
     }
 

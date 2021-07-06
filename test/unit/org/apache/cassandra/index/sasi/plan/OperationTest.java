@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.*;
@@ -650,6 +651,15 @@ public class OperationTest extends SchemaLoader
         public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String toString(boolean cql)
+        {
+            return String.format("%s %s %s",
+                                 cql ? column.name.toCQLString() : column.name.toString(),
+                                 operator,
+                                 ByteBufferUtil.bytesToHex(value));
         }
     }
 

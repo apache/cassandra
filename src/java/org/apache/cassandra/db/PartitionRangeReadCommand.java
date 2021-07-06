@@ -22,7 +22,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,7 +40,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageProxy;
@@ -360,19 +358,9 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
 
     protected void appendCQLWhereClause(StringBuilder sb)
     {
-        if (dataRange.isUnrestricted() && rowFilter().isEmpty())
-            return;
-
-        sb.append(" WHERE ");
-        // We put the row filter first because the data range can end by "ORDER BY"
-        if (!rowFilter().isEmpty())
-        {
-            sb.append(rowFilter());
-            if (!dataRange.isUnrestricted())
-                sb.append(" AND ");
-        }
-        if (!dataRange.isUnrestricted())
-            sb.append(dataRange.toCQLString(metadata()));
+        String filterString = dataRange().toCQLString(metadata(), rowFilter());
+        if (!filterString.isEmpty())
+            sb.append(" WHERE ").append(filterString);
     }
 
     /**

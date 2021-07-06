@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -102,13 +103,17 @@ abstract class AbstractReadQuery extends MonitorableImpl implements ReadQuery
         StringBuilder sb = new StringBuilder().append("SELECT ")
                                               .append(columnFilter().toCQLString())
                                               .append(" FROM ")
-                                              .append(metadata().keyspace)
+                                              .append(ColumnIdentifier.maybeQuote(metadata().keyspace))
                                               .append('.')
-                                              .append(metadata().name);
+                                              .append(ColumnIdentifier.maybeQuote(metadata().name));
         appendCQLWhereClause(sb);
 
         if (limits() != DataLimits.NONE)
             sb.append(' ').append(limits());
+
+        // ALLOW FILTERING might not be strictly necessary
+        sb.append(" ALLOW FILTERING");
+
         return sb.toString();
     }
 

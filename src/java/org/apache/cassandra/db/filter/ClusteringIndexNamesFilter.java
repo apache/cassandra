@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -167,18 +168,36 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return sb.append(')').toString();
     }
 
-    public String toCQLString(TableMetadata metadata)
+    @Override
+    public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
     {
         if (metadata.clusteringColumns().isEmpty() || clusterings.isEmpty())
-            return "";
+            return rowFilter.toCQLString();
+
+        boolean isSingleColumn = metadata.clusteringColumns().size() == 1;
+        boolean isSingleClustering = clusterings.size() == 1;
 
         StringBuilder sb = new StringBuilder();
-        sb.append('(').append(ColumnMetadata.toCQLString(metadata.clusteringColumns())).append(')');
-        sb.append(clusterings.size() == 1 ? " = " : " IN (");
+        sb.append(isSingleColumn ? "" : '(')
+          .append(ColumnMetadata.toCQLString(metadata.clusteringColumns()))
+          .append(isSingleColumn ? "" : ')');
+
+        sb.append(isSingleClustering ? " = " : " IN (");
         int i = 0;
         for (Clustering<?> clustering : clusterings)
-            sb.append(i++ == 0 ? "" : ", ").append('(').append(clustering.toCQLString(metadata)).append(')');
-        sb.append(clusterings.size() == 1 ? "" : ")");
+        {
+            sb.append(i++ == 0 ? "" : ", ")
+              .append(isSingleColumn ? "" : '(')
+              .append(clustering.toCQLString(metadata))
+              .append(isSingleColumn ? "" : ')');
+
+            for (int j = 0; j < clustering.size(); j++)
+                rowFilter = rowFilter.without(metadata.clusteringColumns().get(j), Operator.EQ, clustering.bufferAt(j));
+        }
+        sb.append(isSingleClustering ? "" : ")");
+
+        if (!rowFilter.isEmpty())
+            sb.append(" AND ").append(rowFilter.toCQLString());
 
         appendOrderByToCQLString(metadata, sb);
         return sb.toString();

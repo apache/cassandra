@@ -19,7 +19,6 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.filter.*;
@@ -186,9 +185,10 @@ public class DataRange
      *
      * @return Whether this {@code DataRange} queries everything.
      */
-    public boolean isUnrestricted()
+    public boolean isUnrestricted(TableMetadata metadata)
     {
-        return startKey().isMinimum() && stopKey().isMinimum() && clusteringIndexFilter.selectsAllPartition();
+        return startKey().isMinimum() && stopKey().isMinimum() &&
+               (clusteringIndexFilter.selectsAllPartition() || metadata.clusteringColumns().isEmpty());
     }
 
     public boolean selectsAllPartition()
@@ -257,10 +257,10 @@ public class DataRange
         return String.format("range=%s pfilter=%s", keyRange.getString(metadata.partitionKeyType), clusteringIndexFilter.toString(metadata));
     }
 
-    public String toCQLString(TableMetadata metadata)
+    public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
     {
-        if (isUnrestricted())
-            return "UNRESTRICTED";
+        if (isUnrestricted(metadata))
+            return rowFilter.toCQLString();
 
         StringBuilder sb = new StringBuilder();
 
@@ -278,7 +278,7 @@ public class DataRange
             needAnd = true;
         }
 
-        String filterString = clusteringIndexFilter.toCQLString(metadata);
+        String filterString = clusteringIndexFilter.toCQLString(metadata, rowFilter);
         if (!filterString.isEmpty())
             sb.append(needAnd ? " AND " : "").append(filterString);
 
@@ -312,20 +312,18 @@ public class DataRange
              : (isInclusive ? "<=" : "<");
     }
 
-    // TODO: this is reused in SinglePartitionReadCommand but this should not really be here. Ideally
-    // we need a more "native" handling of composite partition keys.
-    public static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key)
+    private static void appendKeyString(StringBuilder sb, AbstractType<?> type, ByteBuffer key)
     {
         if (type instanceof CompositeType)
         {
             CompositeType ct = (CompositeType)type;
             ByteBuffer[] values = ct.split(key);
             for (int i = 0; i < ct.types.size(); i++)
-                sb.append(i == 0 ? "" : ", ").append(ct.types.get(i).getString(values[i]));
+                sb.append(i == 0 ? "" : ", ").append(ct.types.get(i).toCQLString(values[i]));
         }
         else
         {
-            sb.append(type.getString(key));
+            sb.append(type.toCQLString(key));
         }
     }
 
@@ -393,7 +391,7 @@ public class DataRange
         }
 
         @Override
-        public boolean isUnrestricted()
+        public boolean isUnrestricted(TableMetadata metadata)
         {
             return false;
         }

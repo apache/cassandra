@@ -32,7 +32,6 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 
@@ -77,18 +76,15 @@ public class VirtualTableSinglePartitionReadQuery extends VirtualTableReadQuery 
     @Override
     protected void appendCQLWhereClause(StringBuilder sb)
     {
-        sb.append(" WHERE ");
+        sb.append(" WHERE ").append(partitionKey().toCQLString(metadata()));
 
-        sb.append(ColumnMetadata.toCQLString(metadata().partitionKeyColumns())).append(" = ");
-        DataRange.appendKeyString(sb, metadata().partitionKeyType, partitionKey().getKey());
-
-        // We put the row filter first because the clustering index filter can end by "ORDER BY"
-        if (!rowFilter().isEmpty())
-            sb.append(" AND ").append(rowFilter());
-
-        String filterString = clusteringIndexFilter().toCQLString(metadata());
+        String filterString = clusteringIndexFilter().toCQLString(metadata(), rowFilter());
         if (!filterString.isEmpty())
-            sb.append(" AND ").append(filterString);
+        {
+            if (!clusteringIndexFilter().selectsAllPartition() || !rowFilter().isEmpty())
+                sb.append(" AND ");
+            sb.append(filterString);
+        }
     }
 
     @Override
