@@ -8,6 +8,7 @@
  * Add StorageServiceMBean.getKeyspaceReplicationInfo(keyspaceName) (CASSANDRA-16447)
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
+ * Remove drivers dependency and bring cql_keywords_reserved on server side (CASSANDRA-16659)
 Merged from 3.0:
  * Adding columns via ALTER TABLE can generate corrupt sstables (CASSANDRA-16735)
  * Add flag to disable ALTER...DROP COMPACT STORAGE statements (CASSANDRA-16733)

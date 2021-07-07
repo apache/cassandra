@@ -108,7 +108,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
 
     def set_reserved_keywords(self):
         """
-        We cannot let resreved cql keywords be simple 'identifier' since this caused
+        We cannot let reserved cql keywords be simple 'identifier' since this caused
         problems with completion, see CASSANDRA-10415
         """
         cassandra.metadata.cql_keywords = cql_keywords
