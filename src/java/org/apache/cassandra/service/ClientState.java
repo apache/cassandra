@@ -100,8 +100,8 @@ public class ClientState
             }
             catch (Exception e)
             {
-                JVMStabilityInspector.inspectThrowable(e);
-                logger.info("Cannot use class {} as query handler ({}), ignoring by defaulting on normal query handling", customHandlerClass, e.getMessage());
+                logger.error("Cannot use class {} as query handler", customHandlerClass, e);
+                JVMStabilityInspector.killCurrentJVM(e, true);
             }
         }
         cqlQueryHandler = handler;
