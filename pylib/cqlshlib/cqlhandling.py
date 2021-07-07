@@ -25,41 +25,49 @@ Hint = pylexotron.Hint
 
 cql_keywords = set((
     'add', 'aggregate', 'all', 'allow', 'alter', 'and', 'apply', 'as', 'asc', 'ascii', 'authorize', 'batch', 'begin',
-    'bigint', 'blob', 'boolean', 'by', 'called', 'clustering', 'columnfamily', 'compact', 'contains', 'count',
-    'counter', 'create', 'custom', 'date', 'decimal', 'default', 'delete', 'desc', 'describe', 'deterministic', 'distinct', 'double', 'drop',
-    'entries', 'execute', 'exists', 'filtering', 'finalfunc', 'float', 'from', 'frozen', 'full', 'function',
-    'functions', 'grant', 'if', 'in', 'index', 'inet', 'infinity', 'initcond', 'input', 'insert', 'int', 'into', 'is', 'json',
-    'key', 'keys', 'keyspace', 'keyspaces', 'language', 'limit', 'list', 'login', 'map', 'materialized', 'mbean', 'mbeans', 'modify', 'monotonic',
-    'nan', 'nologin', 'norecursive', 'nosuperuser', 'not', 'null', 'of', 'on', 'options', 'or', 'order', 'password', 'permission',
-    'permissions', 'primary', 'rename', 'replace', 'returns', 'revoke', 'role', 'roles', 'schema', 'select', 'set',
-    'sfunc', 'smallint', 'static', 'storage', 'stype', 'superuser', 'table', 'text', 'time', 'timestamp', 'timeuuid',
-    'tinyint', 'to', 'token', 'trigger', 'truncate', 'ttl', 'tuple', 'type', 'unlogged', 'unset', 'update', 'use', 'user',
-    'users', 'using', 'uuid', 'values', 'varchar', 'varint', 'view', 'where', 'with', 'writetime'
+    'bigint', 'blob', 'boolean', 'by', 'called', 'cast', 'clustering', 'columnfamily', 'compact', 'contains', 'count',
+    'counter', 'create', 'custom', 'date', 'decimal', 'default', 'delete', 'desc', 'describe', 'distinct', 'double',
+    'drop', 'duration', 'entries', 'execute', 'exists', 'filtering', 'finalfunc', 'float', 'from', 'frozen', 'full',
+    'function', 'functions', 'grant', 'group', 'if', 'in', 'index', 'inet', 'infinity', 'initcond', 'input', 'insert',
+    'int', 'into', 'is', 'json', 'key', 'keys', 'keyspace', 'keyspaces', 'language', 'like', 'limit', 'list', 'login',
+    'map', 'materialized', 'mbean', 'mbeans', 'modify', 'nan', 'nologin', 'norecursive', 'nosuperuser', 'not', 'null',
+    'of', 'on', 'options', 'or', 'order', 'partition', 'password', 'per', 'permission', 'permissions', 'primary',
+    'rename', 'replace', 'returns', 'revoke', 'role', 'roles', 'schema', 'select', 'set', 'sfunc', 'smallint', 'static',
+    'storage', 'stype', 'superuser', 'table', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'to', 'token',
+    'trigger', 'truncate', 'ttl', 'tuple', 'type', 'unlogged', 'unset', 'update', 'use', 'user', 'users', 'using',
+    'uuid', 'values', 'varchar', 'varint', 'view', 'where', 'with', 'writetime'
 ))
 """
 Set of keywords in CQL.
 
-Derived from .../cassandra/src/java/org/apache/cassandra/cql3/Cql.g
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/Lexer.g
 """
 
 cql_keywords_unreserved = set((
-    'aggregate', 'all', 'as', 'ascii', 'bigint', 'blob', 'boolean', 'called', 'clustering', 'compact', 'contains',
-    'count', 'counter', 'custom', 'date', 'decimal', 'deterministic', 'distinct', 'double', 'exists', 'filtering', 'finalfunc', 'float',
-    'frozen', 'function', 'functions', 'inet', 'initcond', 'input', 'int', 'json', 'key', 'keys', 'keyspaces',
-    'language', 'list', 'login', 'map', 'monotonic', 'nologin', 'nosuperuser', 'options', 'password', 'permission', 'permissions',
-    'returns', 'role', 'roles', 'sfunc', 'smallint', 'static', 'storage', 'stype', 'superuser', 'text', 'time',
-    'timestamp', 'timeuuid', 'tinyint', 'trigger', 'ttl', 'tuple', 'type', 'user', 'users', 'uuid', 'values', 'varchar',
-    'varint', 'writetime'
+    'aggregate', 'all', 'as', 'called', 'clustering', 'compact', 'contains', 'custom', 'exists', 'filtering',
+    'finalfunc', 'frozen', 'function', 'functions', 'group', 'initcond', 'input', 'keys', 'keyspaces', 'language',
+    'like', 'list', 'login', 'map', 'nologin', 'nosuperuser', 'options', 'partition', 'password', 'per', 'permission',
+    'permissions', 'returns', 'role', 'roles', 'sfunc', 'static', 'storage', 'stype', 'superuser', 'trigger', 'tuple',
+    'type', 'user', 'users', 'values'
 ))
 """
 Set of unreserved keywords in CQL.
 
-Derived from .../cassandra/src/java/org/apache/cassandra/cql3/Cql.g
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/Parser.g
 """
 
-cql_keywords_reserved = cql_keywords - cql_keywords_unreserved
+cql_keywords_reserved = set((
+    'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by', 'columnfamily', 'create',
+    'default', 'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from', 'full', 'grant', 'if', 'in', 'index',
+    'infinity', 'insert', 'into', 'is', 'keyspace', 'limit', 'materialized', 'mbean', 'mbeans', 'modify', 'nan',
+    'norecursive', 'not', 'null', 'of', 'on', 'or', 'order', 'primary', 'rename', 'replace', 'revoke', 'schema',
+    'select', 'set', 'table', 'to', 'token', 'truncate', 'unlogged', 'unset', 'update', 'use', 'using', 'view', 'where',
+    'with'
+))
 """
 Set of reserved keywords in CQL.
+
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/ReservedKeywords.java
 """
 
 
