@@ -210,6 +210,20 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         reBufferAt(newPosition);
     }
 
+    @Override
+    public int skipBytes(int n) throws IOException
+    {
+        if (n <= 0)
+            return 0;
+        if (buffer == null)
+            throw new IOException("Attempted skipBytes() on a closed RAR");
+        long current = current();
+        long newPosition = Math.min(current + n, length());
+        n = (int)(newPosition - current);
+        seek(newPosition);
+        return n;
+    }
+
     /**
      * Reads a line of text form the current position in this file. A line is
      * represented by zero or more characters followed by {@code '\n'}, {@code
