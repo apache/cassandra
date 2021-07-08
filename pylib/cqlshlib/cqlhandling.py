@@ -18,20 +18,57 @@
 # i.e., stuff that's not necessarily cqlsh-specific
 
 import traceback
-
+import cassandra
 from cqlshlib import pylexotron, util
 
 Hint = pylexotron.Hint
 
-# CASSANDRA-16659 - to keep things compact cql_keywords_reserved will not be imported from the drivers anymore
-cql_reserved_keywords = set((
-    'authorize', 'rename', 'set', 'revoke', 'into', 'describe', 'primary', 'columnfamily', 'apply',
-    'table', 'null', 'select', 'if', 'index', 'use', 'from', 'and', 'unlogged', 'create', 'nan', 'to', 'add',
-    'alter', 'schema', 'begin', 'full', 'infinity', 'grant', 'truncate', 'on', 'modify', 'update',
-    'asc', 'entries', 'not', 'using', 'with', 'by', 'is', 'desc', 'insert', 'execute', 'in',
-    'materialized', 'drop', 'batch', 'order', 'keyspace', 'token', 'limit', 'allow', 'of', 'norecursive', 'delete',
-    'where', 'or', 'view'
+cql_keywords = set((
+    'add', 'aggregate', 'all', 'allow', 'alter', 'and', 'apply', 'as', 'asc', 'ascii', 'authorize', 'batch', 'begin',
+    'bigint', 'blob', 'boolean', 'by', 'called', 'cast', 'clustering', 'columnfamily', 'compact', 'contains', 'count',
+    'counter', 'create', 'custom', 'date', 'decimal', 'default', 'delete', 'desc', 'describe', 'distinct', 'double',
+    'drop', 'duration', 'entries', 'execute', 'exists', 'filtering', 'finalfunc', 'float', 'from', 'frozen', 'full',
+    'function', 'functions', 'grant', 'group', 'if', 'in', 'index', 'inet', 'infinity', 'initcond', 'input', 'insert',
+    'int', 'into', 'is', 'json', 'key', 'keys', 'keyspace', 'keyspaces', 'language', 'like', 'limit', 'list', 'login',
+    'map', 'materialized', 'mbean', 'mbeans', 'modify', 'nan', 'nologin', 'norecursive', 'nosuperuser', 'not', 'null',
+    'of', 'on', 'options', 'or', 'order', 'partition', 'password', 'per', 'permission', 'permissions', 'primary',
+    'rename', 'replace', 'returns', 'revoke', 'role', 'roles', 'schema', 'select', 'set', 'sfunc', 'smallint', 'static',
+    'storage', 'stype', 'superuser', 'table', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'to', 'token',
+    'trigger', 'truncate', 'ttl', 'tuple', 'type', 'unlogged', 'unset', 'update', 'use', 'user', 'users', 'using',
+    'uuid', 'values', 'varchar', 'varint', 'view', 'where', 'with', 'writetime'
 ))
+"""
+Set of keywords in CQL.
+
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/Cql.g
+"""
+
+cql_keywords_unreserved = set((
+    'access', 'aggregate', 'aggregates', 'all', 'as', 'called', 'cluster', 'clustering', 'compact', 'contains',
+    'custom', 'datacenters', 'default', 'exists', 'filtering', 'finalfunc', 'frozen', 'function', 'functions',
+    'group', 'initcond', 'input', 'internals', 'keys', 'keyspaces', 'language', 'like', 'list', 'login', 'map',
+    'mbean', 'mbeans', 'nologin', 'nosuperuser', 'only', 'options', 'partition', 'password', 'per', 'permission',
+    'permissions', 'replace', 'returns', 'role', 'roles', 'sfunc', 'static', 'storage', 'stype', 'superuser',
+    'tables', 'trigger', 'tuple', 'type', 'types', 'unset', 'user', 'users', 'values'
+))
+"""
+Set of unreserved keywords in CQL.
+
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/Parser.g
+"""
+
+cql_keywords_reserved = set((
+    'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by', 'columnfamily', 'create',
+    'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from', 'full', 'grant', 'if', 'in', 'index',
+    'infinity', 'insert', 'into', 'is', 'keyspace', 'limit', 'materialized', 'modify', 'nan', 'norecursive', 'not',
+    'null', 'of', 'on', 'or', 'order', 'primary', 'rename', 'revoke', 'schema', 'select', 'set', 'table', 'to', 'token',
+    'truncate', 'unlogged', 'update', 'use', 'using', 'view', 'where', 'with'
+))
+"""
+Set of reserved keywords in CQL.
+
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/ReservedKeywords.java
+"""
 
 
 class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
@@ -67,7 +104,10 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         We cannot let reserved cql keywords be simple 'identifier' since this caused
         problems with completion, see CASSANDRA-10415
         """
-        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in cql_reserved_keywords) + ')/ ;'
+        cassandra.metadata.cql_keywords = cql_keywords
+        cassandra.metadata.cql_keywords_reserved = cql_keywords_reserved
+        cassandra.metadata.cql_keywords_unreserved = cql_keywords_unreserved
+        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in cql_keywords_reserved) + ')/ ;'
         self.append_rules(syntax)
 
     def completer_for(self, rulename, symname):
