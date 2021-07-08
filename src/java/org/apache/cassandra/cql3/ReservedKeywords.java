@@ -35,6 +35,7 @@ class ReservedKeywords
 
     private static final String FILE_NAME = "reserved_keywords.txt";
 
+    @VisibleForTesting
     static final Set<String> reservedKeywords = getFromResource();
 
     private static Set<String> getFromResource()

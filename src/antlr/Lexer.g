@@ -56,11 +56,9 @@ lexer grammar Lexer;
 }
 
 // Case-insensitive keywords
-// When adding a new keyword, add entry to pylib/cqlshlib/cqlhandling.py::cql_keywords.
 // When adding a new reserved keyword, add entry to o.a.c.cql3.ReservedKeywords and
 // pylib/cqlshlib/cqlhandling.py::cql_keywords_reserved.
-// When adding a new unreserved keyword, add entry to unreserved keywords in Parser.g and
-// pylib/cqlshlib/cqlhandling.py::cql_keywords_unreserved.
+// When adding a new unreserved keyword, add entry to unreserved keywords in Parser.g.
 K_SELECT:      S E L E C T;
 K_FROM:        F R O M;
 K_AS:          A S;
