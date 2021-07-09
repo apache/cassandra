@@ -24,18 +24,14 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.base.Splitter;
-import org.apache.commons.lang.CharRange;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.datastax.driver.core.VersionNumber;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.Generate;
 import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.Constraint;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertThat;
@@ -155,7 +151,7 @@ public class CassandraVersionTest
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.4");
-        assertTrue(v1.compareTo(v2) == -1);
+        assertTrue(v1.compareTo(v2) < 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3");
@@ -163,24 +159,69 @@ public class CassandraVersionTest
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("2.0.0");
-        assertTrue(v1.compareTo(v2) == -1);
-        assertTrue(v2.compareTo(v1) == 1);
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3-alpha");
-        assertTrue(v1.compareTo(v2) == 1);
+        assertTrue(v1.compareTo(v2) > 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3+foo");
-        assertTrue(v1.compareTo(v2) == -1);
+        assertTrue(v1.compareTo(v2) < 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3-alpha+foo");
-        assertTrue(v1.compareTo(v2) == 1);
+        assertTrue(v1.compareTo(v2) > 0);
 
         v1 = new CassandraVersion("1.2.3-alpha+1");
         v2 = new CassandraVersion("1.2.3-alpha+2");
-        assertTrue(v1.compareTo(v2) == -1);
+        assertTrue(v1.compareTo(v2) < 0);
+
+        v1 = new CassandraVersion("4.0-rc2");
+        v2 = new CassandraVersion("4.0-rc1");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
+
+        v1 = new CassandraVersion("4.0.0");
+        v2 = new CassandraVersion("4.0-rc2");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
+
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3-alpha");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
+
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3-alpha-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
+
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
+
+        v1 = new CassandraVersion("1.2-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
+
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
+
+        v1 = new CassandraVersion("1.2-rc2");
+        v2 = new CassandraVersion("1.2.3-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
+
+        v1 = new CassandraVersion("1.2.3-rc2");
+        v2 = new CassandraVersion("1.2-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
     }
 
     @Test
@@ -222,6 +263,10 @@ public class CassandraVersionTest
 
         prev = next;
         next = new CassandraVersion("3.2-rc1-SNAPSHOT");
+        assertTrue(prev.compareTo(next) < 0);
+
+        prev = next;
+        next = new CassandraVersion("3.2-rc1");
         assertTrue(prev.compareTo(next) < 0);
 
         prev = next;

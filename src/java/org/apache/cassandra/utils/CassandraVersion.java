@@ -190,16 +190,17 @@ public class CassandraVersion implements Comparable<CassandraVersion>
                 if (i2 != null)
                     return 1;
 
-                int c = ids1[i].compareTo(ids2[i]);
+                int c = ids1[i].compareToIgnoreCase(ids2[i]);
                 if (c != 0)
                     return c;
             }
         }
 
+        // If the difference in length is due only to SNAPSHOT we know that the SNAPSHOT version come first
         if (ids1.length < ids2.length)
-            return -1;
+            return (ids2.length - ids1.length) == 1 && ids2[ids2.length - 1].equalsIgnoreCase("SNAPSHOT") ? 1 : -1;
         if (ids1.length > ids2.length)
-            return 1;
+            return (ids1.length - ids2.length) == 1 && ids1[ids1.length - 1].equalsIgnoreCase("SNAPSHOT") ? -1 : 1;;
         return 0;
     }
 
