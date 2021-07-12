@@ -38,7 +38,7 @@ public class MixedModeReadRepairTest extends UpgradeTestBase
     {
         new TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .singleUpgrade(v22, v30)
         .setup((cluster) -> cluster.schemaChange("CREATE TABLE " + DistributedTestBase.KEYSPACE + ".tbl (pk ascii, b boolean, v blob, PRIMARY KEY (pk)) WITH COMPACT STORAGE"))
         .runAfterNodeUpgrade((cluster, node) -> {
             if (node != 1)
@@ -75,7 +75,7 @@ public class MixedModeReadRepairTest extends UpgradeTestBase
 
         new TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .singleUpgrade(v22, v30)
         .setup((cluster) ->
         {
             cluster.schemaChange("CREATE TABLE " + DistributedTestBase.KEYSPACE + ".tbl (pk int, ck int, v map<text, text>, PRIMARY KEY (pk, ck));");

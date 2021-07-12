@@ -37,7 +37,7 @@ public class MixedModeReadTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(1)
-        .upgrade(Versions.Major.v30, Versions.Major.v3X)
+        .singleUpgrade(v30, v3X)
         .withConfig(config -> config.with(Feature.GOSSIP, Feature.NETWORK))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);

@@ -44,7 +44,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
     public void multiColumn() throws Throwable
     {
         new TestCase()
-        .upgrade(Versions.Major.v22, Versions.Major.v3X)
+        .upgradesFrom(v22)
         .setup(cluster -> {
             assert cluster.size() == 3;
             int rf = cluster.size() - 1;
@@ -78,7 +78,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
     public void singleColumn() throws Throwable
     {
         new TestCase()
-        .upgrade(Versions.Major.v22, Versions.Major.v3X)
+        .upgradesFrom(v22)
         .setup(cluster -> {
             assert cluster.size() == 3;
             int rf = cluster.size() - 1;
@@ -119,7 +119,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
         final ResultsRecorder recorder = new ResultsRecorder();
         new TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v3X)
+        .upgradesFrom(v22)
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
         .setup(cluster -> {
             cluster.schemaChange(String.format(
@@ -209,7 +209,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 
         new TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v3X)
+        .upgradesFrom(v22)
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
         .setup(cluster -> {
             cluster.schemaChange(String.format(

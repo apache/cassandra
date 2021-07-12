@@ -48,7 +48,7 @@ public class PagingTest extends UpgradeTestBase
     {
         new UpgradeTestBase.TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .upgrades(v22, v30)
         .nodesToUpgrade(2)
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
         .setup((cluster) -> {
