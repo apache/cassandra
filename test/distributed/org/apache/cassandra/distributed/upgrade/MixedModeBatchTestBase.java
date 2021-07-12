@@ -21,10 +21,11 @@ package org.apache.cassandra.distributed.upgrade;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.vdurmont.semver4j.Semver;
+
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 
@@ -42,7 +43,12 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
 {
     private static final int KEYS_PER_BATCH = 10;
 
-    protected void testSimpleStrategy(Versions.Major from, Versions.Major to, boolean isLogged) throws Throwable
+    protected void testSimpleStrategy(Semver from, boolean isLogged) throws Throwable
+    {
+        testSimpleStrategy(from, UpgradeTestBase.CURRENT, isLogged);
+    }
+
+    protected void testSimpleStrategy(Semver from, Semver to, boolean isLogged) throws Throwable
     {
         String insert = "INSERT INTO test_simple.names (key, name) VALUES (%d, '%s')";
         String select = "SELECT * FROM test_simple.names WHERE key = ?";
@@ -50,7 +56,7 @@ public class MixedModeBatchTestBase extends UpgradeTestBase
         new TestCase()
         .nodes(3)
         .nodesToUpgrade(1, 2)
-        .upgrade(from, to)
+        .upgrades(from, to)
         .setup(cluster -> {
             cluster.schemaChange("CREATE KEYSPACE test_simple WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2};");
             cluster.schemaChange("CREATE TABLE test_simple.names (key int PRIMARY KEY, name text)");
