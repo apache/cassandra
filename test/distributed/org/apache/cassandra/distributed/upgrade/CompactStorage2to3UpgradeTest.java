@@ -44,7 +44,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
     public void multiColumn() throws Throwable
     {
         new TestCase()
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .upgradesFrom(v22)
         .setup(cluster -> {
             assert cluster.size() == 3;
             int rf = cluster.size() - 1;
@@ -78,7 +78,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
     public void singleColumn() throws Throwable
     {
         new TestCase()
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .upgradesFrom(v22)
         .setup(cluster -> {
             assert cluster.size() == 3;
             int rf = cluster.size() - 1;
@@ -118,14 +118,15 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 
         final ResultsRecorder recorder = new ResultsRecorder();
         new TestCase()
-                .nodes(2)
-                .upgrade(Versions.Major.v22, Versions.Major.v30)
-                .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
-                .setup(cluster -> {
-                    cluster.schemaChange(String.format(
-                            "CREATE TABLE %s.%s (key int, c1 int, c2 int, c3 int, PRIMARY KEY (key, c1, c2)) WITH COMPACT STORAGE",
-                            KEYSPACE, table));
-                    ICoordinator coordinator = cluster.coordinator(1);
+
+        .nodes(2)
+        .upgradesFrom(v22)
+        .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
+        .setup(cluster -> {
+            cluster.schemaChange(String.format(
+            "CREATE TABLE %s.%s (key int, c1 int, c2 int, c3 int, PRIMARY KEY (key, c1, c2)) WITH COMPACT STORAGE",
+            KEYSPACE, table));
+            ICoordinator coordinator = cluster.coordinator(1);
 
 
                     for (int i = 1; i <= partitions; i++)
@@ -210,7 +211,7 @@ public class CompactStorage2to3UpgradeTest extends UpgradeTestBase
 
         new TestCase()
                 .nodes(2)
-                .upgrade(Versions.Major.v22, Versions.Major.v30)
+                .upgradesFrom(v22)
                 .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
                 .setup(cluster -> {
                     cluster.schemaChange(String.format(

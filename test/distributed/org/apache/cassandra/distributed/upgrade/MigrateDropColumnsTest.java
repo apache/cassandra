@@ -24,6 +24,7 @@ import java.util.Collections;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.vdurmont.semver4j.Semver;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -52,7 +53,7 @@ public class MigrateDropColumnsTest extends UpgradeTestBase
     public void dropColumns() throws Throwable
     {
         new TestCase()
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .upgradesFrom(v22)
 //        .upgrade(Versions.Major.v22, Versions.Major.v3X)
 //        .upgrade(Versions.Major.v30, Versions.Major.v3X)
 //        .upgrade(Versions.Major.v22, Versions.Major.v30, Versions.Major.v3X)
