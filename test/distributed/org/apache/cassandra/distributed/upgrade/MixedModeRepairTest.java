@@ -35,7 +35,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.distributed.shared.Versions.Major;
 
 public class MixedModeRepairTest extends UpgradeTestBase
 {
@@ -55,8 +54,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
         new UpgradeTestBase.TestCase()
         .nodes(2)
         .nodesToUpgrade(UPGRADED_NODE)
-        .upgrade(Major.v30, Major.v4)
-        .upgrade(Major.v3X, Major.v4)
+        .upgradesFrom(v3X)
         .withConfig(config -> config.with(NETWORK, GOSSIP))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
