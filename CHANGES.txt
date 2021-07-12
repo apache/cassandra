@@ -1,5 +1,4 @@
 4.0.1
- * BinLog does not close chronicle queue leaving this to GC to cleanup (CASSANDRA-16774)
  * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
  * Upgrade lz4-java to 1.8.0 to add RH6 support back (CASSANDRA-16753)
  * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
@@ -11,6 +10,12 @@ Merged from 3.11:
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
  * Clean transaction log leftovers at the beginning of sstablelevelreset and sstableofflinerelevel (CASSANDRA-12519)
+
+4.0.0
+ * Fix CassandraVersion::compareTo (CASSANDRA-16794)
+ * BinLog does not close chronicle queue leaving this to GC to cleanup (CASSANDRA-16774)
+Merged from 3.11:
+Merged from 3.0:
 
 4.0-rc2
  * Avoid memoizing the wrong min cluster version during upgrades (CASSANDRA-16759)
