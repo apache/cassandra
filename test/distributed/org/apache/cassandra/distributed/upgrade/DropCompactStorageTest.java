@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import com.vdurmont.semver4j.Semver;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -34,7 +35,7 @@ public class DropCompactStorageTest extends UpgradeTestBase
     @Test
     public void dropCompactStorageBeforeUpgradesstablesTo3X() throws Throwable
     {
-        dropCompactStorageBeforeUpgradeSstables(Versions.Major.v3X);
+        dropCompactStorageBeforeUpgradeSstables(v3X);
     }
 
     /**
@@ -43,11 +44,11 @@ public class DropCompactStorageTest extends UpgradeTestBase
      *
      * <p>This test reproduces the issue from CASSANDRA-15897.
      */
-    public void dropCompactStorageBeforeUpgradeSstables(Versions.Major upgradeTo) throws Throwable
+    public void dropCompactStorageBeforeUpgradeSstables(Semver upgradeTo) throws Throwable
     {
         new TestCase()
         .nodes(1)
-        .upgrade(Versions.Major.v22, upgradeTo)
+        .singleUpgrade(v22, upgradeTo)
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL).set("enable_drop_compact_storage", true))
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (id int, ck int, v int, PRIMARY KEY (id, ck)) WITH COMPACT STORAGE");

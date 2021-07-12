@@ -24,6 +24,6 @@ public class MigrateDropColumns22To311Test extends MigrateDropColumns
 {
     public MigrateDropColumns22To311Test()
     {
-        super(Versions.Major.v22, Versions.Major.v3X);
+        super(v22, v3X);
     }
 }

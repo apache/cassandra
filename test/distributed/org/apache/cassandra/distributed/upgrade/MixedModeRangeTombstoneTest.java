@@ -55,7 +55,7 @@ public class MixedModeRangeTombstoneTest extends UpgradeTestBase
 
         new TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
+        .singleUpgrade(v22, v30)
         .setup(cluster -> {
             cluster.schemaChange(schema);
             cluster.coordinator(1).execute(format("DELETE FROM %s USING TIMESTAMP 1 WHERE k = 0 AND c1 = 'A'", tableName), ConsistencyLevel.ALL);

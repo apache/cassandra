@@ -418,7 +418,7 @@
           </dependency>
           <dependency groupId="junit" artifactId="junit" version="4.12" />
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" />
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.7" />
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.8" />
           <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" />
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" />
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">
