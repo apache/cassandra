@@ -28,8 +28,8 @@ import org.apache.cassandra.distributed.shared.Versions;
 public class MixedModeAvailabilityV3XTest extends MixedModeAvailabilityTestBase
 {
     @Test
-    public void testAvailabilityV3XToV4() throws Throwable
+    public void testAvailability() throws Throwable
     {
-        testAvailability(Versions.Major.v3X, Versions.Major.v4);
+        testAvailability(v3X);
     }
 }

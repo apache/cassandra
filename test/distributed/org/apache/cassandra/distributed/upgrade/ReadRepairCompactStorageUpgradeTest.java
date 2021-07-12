@@ -35,9 +35,7 @@ public class ReadRepairCompactStorageUpgradeTest extends UpgradeTestBase
     {
         new TestCase()
         .nodes(2)
-        .upgrade(Versions.Major.v22, Versions.Major.v30)
-        .upgrade(Versions.Major.v22, Versions.Major.v3X)
-        .upgrade(Versions.Major.v30, Versions.Major.v3X)
+        .upgrades(v22, v3X)
         .setup((cluster) -> cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl" +
                                                               " (pk ascii, b boolean, v blob, PRIMARY KEY (pk))" +
                                                               " WITH COMPACT STORAGE")))

@@ -28,8 +28,8 @@ import org.apache.cassandra.distributed.shared.Versions;
 public class MixedModeConsistencyV3XTest extends MixedModeConsistencyTestBase
 {
     @Test
-    public void testConsistencyV3XToV4() throws Throwable
+    public void testConsistency() throws Throwable
     {
-        testConsistency(Versions.Major.v3X, Versions.Major.v4);
+        testConsistency(v3X);
     }
 }
