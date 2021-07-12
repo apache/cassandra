@@ -27,12 +27,12 @@ public class MixedModeFrom2ReplicationTest extends MixedModeReplicationTestBase
     @Test
     public void testSimpleStrategy22to30() throws Throwable
     {
-        testSimpleStrategy(Versions.Major.v22, Versions.Major.v30);
+        testSimpleStrategy(v22, v30);
     }
 
     @Test
     public void testSimpleStrategy22to3X() throws Throwable
     {
-        testSimpleStrategy(Versions.Major.v22, Versions.Major.v3X);
+        testSimpleStrategy(v22, v3X);
     }
 }
