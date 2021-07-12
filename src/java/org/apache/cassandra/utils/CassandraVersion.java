@@ -27,6 +27,8 @@ import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -109,7 +111,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     {
         return patch == 0 && hotfix == NO_HOTFIX && preRelease != null && preRelease.length == 0 && build == null
                ? this
-               : new CassandraVersion(major, minor, 0, NO_HOTFIX, new String[0], null);
+               : new CassandraVersion(major, minor, 0, NO_HOTFIX, ArrayUtils.EMPTY_STRING_ARRAY, null);
     }
 
     private static String[] parseIdentifiers(String version, String str)
@@ -190,16 +192,34 @@ public class CassandraVersion implements Comparable<CassandraVersion>
                 if (i2 != null)
                     return 1;
 
-                int c = ids1[i].compareTo(ids2[i]);
+                int c = ids1[i].compareToIgnoreCase(ids2[i]);
                 if (c != 0)
                     return c;
             }
         }
 
         if (ids1.length < ids2.length)
-            return -1;
+        {
+            // If the preRelease is empty it means that it is a family lower bound and that the first identifier is smaller than the second one
+            // (e.g. 4.0.0- < 4.0.0-beta1)
+            if (ids1.length == 0)
+                return -1;
+
+            // If the difference in length is only due to SNAPSHOT we know that the second identifier is smaller than the first one.
+            // (e.g. 4.0.0-rc1 > 4.0.0-rc1-SNAPSHOT)
+            return (ids2.length - ids1.length) == 1 && ids2[ids2.length - 1].equalsIgnoreCase("SNAPSHOT") ? 1 : -1;
+        }
         if (ids1.length > ids2.length)
-            return 1;
+        {
+            // If the preRelease is empty it means that it is a family lower bound and that the second identifier is smaller than the first one
+            // (e.g. 4.0.0-beta1 > 4.0.0-)
+            if (ids2.length == 0)
+                return 1;
+
+            // If the difference in length is only due to SNAPSHOT we know that the first identifier is smaller than the second one.
+            // (e.g. 4.0.0-rc1-SNAPSHOT < 4.0.0-rc1)
+            return (ids1.length - ids2.length) == 1 && ids1[ids1.length - 1].equalsIgnoreCase("SNAPSHOT") ? -1 : 1;
+        }
         return 0;
     }
 
