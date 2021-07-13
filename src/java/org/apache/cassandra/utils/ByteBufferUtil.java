@@ -718,13 +718,13 @@ public class ByteBufferUtil
 
     public static boolean canMinimize(ByteBuffer buf)
     {
-        return buf != null && (buf.capacity() > buf.remaining() || !buf.hasArray());
+        return buf != null && (!buf.hasArray() || buf.array().length > buf.remaining());
     }
 
     /** trims size of bytebuffer to exactly number of bytes in it, to do not hold too much memory */
     public static ByteBuffer minimalBufferFor(ByteBuffer buf)
     {
-        return buf.capacity() > buf.remaining() || !buf.hasArray() ? ByteBuffer.wrap(getArray(buf)) : buf;
+        return !buf.hasArray() || buf.array().length > buf.remaining() ? ByteBuffer.wrap(getArray(buf)) : buf;
     }
 
     public static ByteBuffer[] minimizeBuffers(ByteBuffer[] src)
