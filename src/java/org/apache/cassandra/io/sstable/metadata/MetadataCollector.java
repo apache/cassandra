@@ -287,16 +287,15 @@ public class MetadataCollector implements PartitionStatisticsCollector
         if (!clusteringInitialized)
         {
             clusteringInitialized = true;
-            minClustering = clustering.minimize();
-            maxClustering = minClustering;
+            maxClustering = minClustering = clustering;
         }
         else if (comparator.compare((ClusteringPrefix<?>) clustering, (ClusteringPrefix<?>) maxClustering) > 0)
         {
-            maxClustering = clustering.minimize();
+            maxClustering = clustering;
         }
         else if (comparator.compare((ClusteringPrefix<?>) clustering, (ClusteringPrefix<?>) minClustering) < 0)
         {
-            minClustering = clustering.minimize();
+            minClustering = clustering;
         }
     }
 
@@ -312,18 +311,17 @@ public class MetadataCollector implements PartitionStatisticsCollector
         if (!clusteringInitialized)
         {
             clusteringInitialized = true;
-            minClustering = clusteringBoundOrBoundary.minimize();
-            maxClustering = minClustering;
+            maxClustering = minClustering = clusteringBoundOrBoundary;
         }
         else if (clusteringBoundOrBoundary.kind().isStart())
         {
             if (comparator.compare(clusteringBoundOrBoundary, minClustering) < 0)
-                minClustering = clusteringBoundOrBoundary.minimize();
+                minClustering = clusteringBoundOrBoundary;
         }
         else
         {
             if (comparator.compare(clusteringBoundOrBoundary, maxClustering) > 0)
-                maxClustering = clusteringBoundOrBoundary.minimize();
+                maxClustering = clusteringBoundOrBoundary;
         }
     }
 
@@ -349,7 +347,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
                                                              comparator.subtypes(),
-                                                             Slice.make(minClustering, maxClustering),
+                                                             Slice.make(minClustering.retainable(),
+                                                                        maxClustering.retainable()),
                                                              hasLegacyCounterShards,
                                                              hasPartitionLevelDeletions,
                                                              repairedAt,

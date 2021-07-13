@@ -34,7 +34,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -367,10 +366,11 @@ public interface ClusteringPrefix<V> extends IMeasurableMemory, Clusterable<V>
     public ByteBuffer[] getBufferArray();
 
     /**
-     * If the prefix contains byte buffers that can be minimized (see {@link ByteBufferUtil#minimalBufferFor(ByteBuffer)}),
-     * this will return a copy of the prefix with minimized values, otherwise it returns itself.
+     * Return the key in a form that can be retained for longer-term use. This means extracting keys stored in shared
+     * memory (i.e. in memtables) to minimized on-heap versions.
+     * If the object is already in minimal form, no action will be taken.
      */
-    public ClusteringPrefix<V> minimize();
+    public ClusteringPrefix<V> retainable();
 
     public static class Serializer
     {
