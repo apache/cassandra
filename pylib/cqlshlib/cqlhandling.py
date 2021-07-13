@@ -18,10 +18,24 @@
 # i.e., stuff that's not necessarily cqlsh-specific
 
 import traceback
-from cassandra.metadata import cql_keywords_reserved
+import cassandra
 from . import pylexotron, util
 
 Hint = pylexotron.Hint
+
+cql_keywords_reserved = set((
+    'add', 'allow', 'alter', 'and', 'apply', 'asc', 'authorize', 'batch', 'begin', 'by', 'columnfamily', 'create',
+    'default', 'delete', 'desc', 'describe', 'drop', 'entries', 'execute', 'from', 'full', 'grant', 'if', 'in', 'index',
+    'infinity', 'insert', 'into', 'is', 'keyspace', 'limit', 'materialized', 'mbean', 'mbeans', 'modify', 'nan',
+    'norecursive', 'not', 'null', 'of', 'on', 'or', 'order', 'primary', 'rename', 'replace', 'revoke', 'schema',
+    'select', 'set', 'table', 'to', 'token', 'truncate', 'unlogged', 'unset', 'update', 'use', 'using', 'view', 'where',
+    'with'
+))
+"""
+Set of reserved keywords in CQL.
+
+Derived from .../cassandra/src/java/org/apache/cassandra/cql3/ReservedKeywords.java
+"""
 
 
 class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
@@ -57,14 +71,15 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
 
         # note: commands_end_with_newline may be extended by callers.
         self.commands_end_with_newline = set()
-        self.set_reserved_keywords(cql_keywords_reserved)
+        self.set_reserved_keywords()
 
-    def set_reserved_keywords(self, keywords):
+    def set_reserved_keywords(self):
         """
-        We cannot let resreved cql keywords be simple 'identifier' since this caused
+        We cannot let reserved cql keywords be simple 'identifier' since this caused
         problems with completion, see CASSANDRA-10415
         """
-        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in keywords) + ')/ ;'
+        cassandra.metadata.cql_keywords_reserved = cql_keywords_reserved
+        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in cql_keywords_reserved) + ')/ ;'
         self.append_rules(syntax)
 
     def completer_for(self, rulename, symname):

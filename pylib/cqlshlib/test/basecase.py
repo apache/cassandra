@@ -30,19 +30,21 @@ try:
 except ImportError:
     import unittest
 
-rundir = dirname(__file__)
-cqlshdir = normpath(join(rundir, '..', '..', '..', 'bin'))
-path_to_cqlsh = normpath(join(cqlshdir, 'cqlsh.py'))
+test_dir = dirname(__file__)
+cassandra_dir = normpath(join(test_dir, '..', '..', '..'))
+cqlsh_dir = join(cassandra_dir, 'bin')
 
-sys.path.append(cqlshdir)
+sys.path.append(cqlsh_dir)
 
 import cqlsh
+
 cql = cqlsh.cassandra.cluster.Cluster
 policy = cqlsh.cassandra.policies.RoundRobinPolicy()
 quote_name = cqlsh.cassandra.metadata.maybe_escape_name
 
 TEST_HOST = os.environ.get('CQL_TEST_HOST', '127.0.0.1')
 TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
+
 
 class BaseTestCase(unittest.TestCase):
     def assertNicelyFormattedTableHeader(self, line, msg=None):
@@ -54,6 +56,7 @@ class BaseTestCase(unittest.TestCase):
     def assertNicelyFormattedTableData(self, line, msg=None):
         return self.assertRegexpMatches(line, r'^ .* \| ', msg=msg)
 
+
 def dedent(s):
     lines = [ln.rstrip() for ln in s.splitlines()]
     if lines[0] == '':
@@ -61,6 +64,7 @@ def dedent(s):
     spaces = [len(line) - len(line.lstrip()) for line in lines if line]
     minspace = min(spaces if len(spaces) > 0 else (0,))
     return '\n'.join(line[minspace:] for line in lines)
+
 
 def at_a_time(i, num):
     return izip(*([iter(i)] * num))
