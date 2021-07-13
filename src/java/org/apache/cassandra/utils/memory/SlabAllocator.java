@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.assertj.core.util.VisibleForTesting;
 
 /**
 + * The SlabAllocator is a bump-the-pointer allocator that allocates
@@ -152,7 +153,8 @@ public class SlabAllocator extends MemtableBufferAllocator
         }
     }
 
-    protected AbstractAllocator allocator(OpOrder.Group writeOp)
+    @VisibleForTesting
+    public AbstractAllocator allocator(OpOrder.Group writeOp)
     {
         return new ContextAllocator(writeOp, this);
     }

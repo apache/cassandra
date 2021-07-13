@@ -25,6 +25,7 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
@@ -35,11 +36,6 @@ public class NativeClustering implements Clustering<ByteBuffer>
     private final long peer;
 
     private NativeClustering() { peer = 0; }
-
-    public ClusteringPrefix<ByteBuffer> minimize()
-    {
-        return this;
-    }
 
     public NativeClustering(NativeAllocator allocator, OpOrder.Group writeOp, Clustering<?> clustering)
     {
@@ -156,5 +152,20 @@ public class NativeClustering implements Clustering<ByteBuffer>
     public final boolean equals(Object o)
     {
         return ClusteringPrefix.equals(this, o);
+    }
+
+    public ClusteringPrefix<ByteBuffer> retainable()
+    {
+        assert kind() == Kind.CLUSTERING; // tombstones are never stored natively
+
+        // always extract
+        ByteBuffer[] values = new ByteBuffer[size()];
+        for (int i = 0; i < values.length; ++i)
+        {
+            ByteBuffer value = get(i);
+            values[i] = value != null ? HeapAllocator.instance.clone(value) : null;
+        }
+
+        return accessor().factory().clustering(values);
     }
 }
