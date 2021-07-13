@@ -41,8 +41,8 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
  */
 public enum ParamType
 {
-    FORWARD_TO          (0, "FORWARD_TO",    ForwardingInfo.serializer),
-    RESPOND_TO          (1, "FORWARD_FROM",  inetAddressAndPortSerializer),
+    FORWARD_TO          (0, "FWD_TO",        ForwardingInfo.serializer),
+    RESPOND_TO          (1, "FWD_FRM",       inetAddressAndPortSerializer),
 
     @Deprecated
     FAILURE_RESPONSE    (2, "FAIL",          LegacyFlag.serializer),
