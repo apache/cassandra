@@ -393,9 +393,9 @@ public class TrieMemtable extends AbstractAllocatorMemtable
             public Iterator<MemtablePartition> iterator()
             {
                 return Iterators.transform(toFlush.entryIterator(),
-                                           // TODO: During flushing we shouldn't need to copy partition data on heap because the memtable can't
-                                           // disappear until we are done with the flush. Figure out why EnsureOnHeap.NOOP doesn't work.
-                                           entry -> getPartitionFromTrieEntry(metadata(), allocator.ensureOnHeap(), entry));
+                                           // During flushing we are certain the memtable will remain at least until
+                                           // the flush completes. No copying to heap is necessary.
+                                           entry -> getPartitionFromTrieEntry(metadata(), EnsureOnHeap.NOOP, entry));
             }
 
             public long partitionKeySize()
@@ -461,7 +461,8 @@ public class TrieMemtable extends AbstractAllocatorMemtable
 
         public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
         {
-            BTreePartitionUpdater updater = new BTreePartitionUpdater(allocator, opGroup, indexer);
+            Cloner cloner = allocator.cloner(opGroup);
+            BTreePartitionUpdater updater = new BTreePartitionUpdater(allocator, cloner, opGroup, indexer);
             boolean locked = writeLock.tryLock();
             if (locked)
             {
@@ -661,7 +662,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         @Override
         public UnfilteredRowIterator unfilteredIterator(ColumnFilter selection, Slices slices, boolean reversed)
         {
-            return ensureOnHeap.applyToPartition(super.unfilteredIterator(selection, slices, reversed));
+            return unfilteredIterator(holder(), selection, slices, reversed);
         }
 
         @Override
@@ -674,7 +675,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         @Override
         public UnfilteredRowIterator unfilteredIterator()
         {
-            return ensureOnHeap.applyToPartition(super.unfilteredIterator());
+            return unfilteredIterator(ColumnFilter.selection(super.columns()), Slices.ALL, false);
         }
 
         @Override
