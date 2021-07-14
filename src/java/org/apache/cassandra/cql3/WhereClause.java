@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
@@ -273,7 +268,9 @@ public final class WhereClause
 
         ContainerElement asContainer()
         {
-            return operator == Operator.OR ? new OrElement().add(expressionElements) : new AndElement().add(expressionElements);
+            return operator == Operator.OR
+                    ? new OrElement(expressionElements)
+                    : new AndElement(expressionElements);
         }
     }
 
@@ -327,6 +324,23 @@ public final class WhereClause
         public abstract String toEncapsulatedString();
 
         public ExpressionElement rename(ColumnIdentifier from, ColumnIdentifier to)
+        {
+            return this;
+        }
+
+        /**
+         * Collapses expression tree levels of the same type.
+         * This is possible because OR and AND operations are commutative.
+         *
+         * <p>
+         * Example:
+         * <ul>
+         *   <li>AND(a, AND(b, c)) -> AND(a, b, c)</li>
+         *   <li>OR(OR(a, b), OR(c, d)) -> OR(a, b, c, d)</li>
+         * </ul>
+         * </p>
+         */
+        public ExpressionElement flatten()
         {
             return this;
         }
@@ -408,7 +422,15 @@ public final class WhereClause
 
     public static abstract class ContainerElement extends ExpressionElement
     {
-        protected final List<ExpressionElement> children = new ArrayList<>();
+        protected final List<ExpressionElement> children;
+
+        protected ContainerElement(Collection<ExpressionElement> children)
+        {
+            this.children = new ArrayList<>(children.size());
+            this.children.addAll(children);
+        }
+
+        protected abstract ContainerElement withChildren(Collection<ExpressionElement> children);
 
         @Override
         public List<ContainerElement> operations()
@@ -417,12 +439,6 @@ public final class WhereClause
                            .filter(c -> (c instanceof ContainerElement))
                            .map(r -> ((ContainerElement) r))
                            .collect(Collectors.toList());
-        }
-
-        public ContainerElement add(Deque<ExpressionElement> children)
-        {
-            this.children.addAll(children);
-            return this;
         }
 
         protected abstract Operator operator();
@@ -454,9 +470,35 @@ public final class WhereClause
         @Override
         public ExpressionElement rename(ColumnIdentifier from, ColumnIdentifier to)
         {
-            AndElement element = new AndElement();
-            children.stream().map(c -> c.rename(from, to)).forEach(c -> element.children.add(c));
-            return element;
+            List<ExpressionElement> newChildren = children
+                    .stream()
+                    .map(c -> c.rename(from, to))
+                    .collect(Collectors.toList());
+
+            return this.withChildren(newChildren);
+        }
+
+        @Override
+        public ExpressionElement flatten()
+        {
+            List<ExpressionElement> newChildren = new ArrayList<>();
+            for (ExpressionElement child: children)
+            {
+                ExpressionElement flattened = child.flatten();
+                newChildren.add(flattened);
+
+                if (flattened instanceof ContainerElement)
+                {
+                    ContainerElement ce = (ContainerElement) flattened;
+                    if (ce.operator() == this.operator())
+                    {
+                        newChildren.remove(newChildren.size() - 1);
+                        newChildren.addAll(ce.children);
+                    }
+                }
+            }
+
+            return this.withChildren(newChildren);
         }
 
         @Override
@@ -474,6 +516,17 @@ public final class WhereClause
 
     public static class AndElement extends ContainerElement
     {
+        public AndElement(Collection<ExpressionElement> children)
+        {
+            super(children);
+        }
+
+        @Override
+        protected AndElement withChildren(Collection<ExpressionElement> children)
+        {
+            return new AndElement(children);
+        }
+
         @Override
         protected Operator operator()
         {
@@ -483,6 +536,17 @@ public final class WhereClause
 
     public static class OrElement extends ContainerElement
     {
+        public OrElement(Collection<ExpressionElement> children)
+        {
+            super(children);
+        }
+
+        @Override
+        protected OrElement withChildren(Collection<ExpressionElement> children)
+        {
+            return new OrElement(children);
+        }
+
         @Override
         protected Operator operator()
         {
