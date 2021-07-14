@@ -150,6 +150,38 @@ public class WhereClauseExpressionTreeTest
     }
 
     @Test
+    public void conjunctiveFormSimple() throws Throwable
+    {
+        WhereClause.AndElement conj = WhereClause.parse("a = 1").root().conjunctiveForm();
+        assertEquals(1, conj.children.size());
+        assertEquals("a = 1", conj.toString());
+    }
+
+    @Test
+    public void conjunctiveFormSingleAnd() throws Throwable
+    {
+        WhereClause.AndElement conj = WhereClause.parse("a = 1 AND b = 1").root().conjunctiveForm();
+        assertEquals(2, conj.children.size());
+        assertEquals("a = 1 AND b = 1", conj.toString());
+    }
+
+    @Test
+    public void conjunctiveFormSingleOr() throws Throwable
+    {
+        WhereClause.AndElement conj = WhereClause.parse("a = 1 OR b = 1").root().conjunctiveForm();
+        assertEquals(1, conj.children.size());
+        assertEquals("a = 1 OR b = 1", conj.toString());
+    }
+
+    @Test
+    public void conjunctiveFormNested() throws Throwable
+    {
+        WhereClause.AndElement conj = WhereClause.parse("a = 1 AND (b = 1 AND c = 1)").root().conjunctiveForm();
+        assertEquals(3, conj.children.size());
+        assertEquals("a = 1 AND b = 1 AND c = 1", conj.toString());
+    }
+
+    @Test
     public void rename() throws Throwable
     {
         WhereClause.ExpressionElement root = WhereClause.parse("a1 = 1 OR (b1 = 1 AND c1 = 1)").root();
