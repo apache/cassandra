@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
@@ -67,6 +68,15 @@ public final class WhereClause
     public WhereClause renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
     {
         return new WhereClause(rootElement.rename(from, to));
+    }
+
+    /**
+     * @return a new WhereClause with the expression tree transforemd into conjuntive form
+     * @see ExpressionElement#conjunctiveForm()
+     */
+    public WhereClause conjunctiveForm()
+    {
+        return new WhereClause(rootElement.conjunctiveForm());
     }
 
     public static WhereClause parse(String cql) throws RecognitionException
@@ -316,12 +326,26 @@ public final class WhereClause
             return Collections.emptyList();
         }
 
-        public boolean containsCustomExpressions()
+        /**
+         * Returns true if the given function f evaluates to true on any of the expression tree nodes.
+         */
+        public abstract boolean exists(Predicate<ExpressionElement> f);
+
+        /**
+         * Returns true if this expression tree contains more than one relation.
+         */
+        public final boolean isCompound()
         {
-            return false;
+            return exists(e -> e instanceof ContainerElement && ((ContainerElement) e).children.size() > 1);
         }
 
-        public abstract String toEncapsulatedString();
+        /**
+         * Returns true if this expression tree contains a CustomIndexExpressionElement node.
+         */
+        public final boolean containsCustomExpressions()
+        {
+            return exists(e -> e instanceof CustomIndexExpressionElement);
+        }
 
         public ExpressionElement rename(ColumnIdentifier from, ColumnIdentifier to)
         {
@@ -329,29 +353,63 @@ public final class WhereClause
         }
 
         /**
-         * Collapses expression tree levels of the same type.
-         * This is possible because OR and AND operations are commutative.
+         * Collapses expression tree levels of the same type to form a semantically equivalent,
+         * but simpler form of this tree.
+         *
+         * Collapsing is possible because OR and AND operations are associative.
          *
          * <p>
-         * Example:
-         * <ul>
-         *   <li>AND(a, AND(b, c)) -> AND(a, b, c)</li>
-         *   <li>OR(OR(a, b), OR(c, d)) -> OR(a, b, c, d)</li>
-         * </ul>
+         * Examples:
+         * <pre>
+         * AND(a, AND(b, c))      -> AND(a, b, c)
+         * OR(OR(a, b), OR(c, d)) -> OR(a, b, c, d)
+         * AND(a, OR(b, c))       -> AND(a, OR(b, c))
+         * </pre>
          * </p>
+         *
+         * @return a new tree; this tree is left unmodified
          */
         public ExpressionElement flatten()
         {
             return this;
+        }
+
+        /**
+         * Creates a new tree that is a conjunctive form of this tree, semantically equivalent to this tree.
+         * The root of the conjunctive form is always an AndElement.
+         *
+         * The result tree is flattened so that nested conjunctions are lifted up to become the direct
+         * children of the root element. If the original tree does not have a top-level AndElement,
+         * an AndElement is inserted at the top, and a flattened original tree becomes its only child.
+         *
+         * <p>
+         * Examples:
+         * <pre>
+         * a = 1                                 -> AND(a = 1)
+         * AND(a = 1, b = 2)                     -> AND(a = 1, b = 2)
+         * AND(a = 1, AND(b = 2, c = 3))         -> AND(a = 1, b = 2, c = 3)
+         * OR(a = 1, b = 2)                      -> AND(OR(a = 1, b = 2))
+         * OR(a = 1, OR(b = 2, c = 3))           -> AND(OR(a = 1, b = 2, c = 3))
+         * </pre>
+         * </p>
+         *
+         * @return a new tree; this tree is left unmodified
+         */
+        public final AndElement conjunctiveForm()
+        {
+            ExpressionElement flattened = this.flatten();
+            return flattened instanceof AndElement
+                    ? (AndElement) flattened
+                    : new AndElement(Lists.newArrayList(flattened));
         }
     }
 
     public static abstract class VariableElement extends ExpressionElement
     {
         @Override
-        public String toEncapsulatedString()
+        public boolean exists(Predicate<ExpressionElement> f)
         {
-            return toString();
+            return f.test(this);
         }
     }
 
@@ -408,12 +466,6 @@ public final class WhereClause
         }
 
         @Override
-        public boolean containsCustomExpressions()
-        {
-            return true;
-        }
-
-        @Override
         public String toString()
         {
             return customIndexExpression.toString();
@@ -426,11 +478,17 @@ public final class WhereClause
 
         protected ContainerElement(Collection<ExpressionElement> children)
         {
+            assert children.size() >= 1: "ContainerElement cannot have 0 children";
             this.children = new ArrayList<>(children.size());
             this.children.addAll(children);
         }
 
+        /**
+         * Returns a new container of the same type with new children copied from the given collection
+         */
         protected abstract ContainerElement withChildren(Collection<ExpressionElement> children);
+
+        protected abstract Operator operator();
 
         @Override
         public List<ContainerElement> operations()
@@ -440,8 +498,6 @@ public final class WhereClause
                            .map(r -> ((ContainerElement) r))
                            .collect(Collectors.toList());
         }
-
-        protected abstract Operator operator();
 
         @Override
         public List<Relation> relations()
@@ -462,9 +518,9 @@ public final class WhereClause
         }
 
         @Override
-        public boolean containsCustomExpressions()
+        public boolean exists(Predicate<ExpressionElement> f)
         {
-            return children.stream().anyMatch(ExpressionElement::containsCustomExpressions);
+            return f.test(this) || children.stream().anyMatch(f);
         }
 
         @Override
@@ -504,13 +560,10 @@ public final class WhereClause
         @Override
         public String toString()
         {
-            return children.stream().map(ExpressionElement::toEncapsulatedString).collect(Collectors.joining(operator().joinValue()));
-        }
-
-        @Override
-        public String toEncapsulatedString()
-        {
-            return children.stream().map(ExpressionElement::toEncapsulatedString).collect(Collectors.joining(operator().joinValue(), "(", ")"));
+            return children
+                    .stream()
+                    .map(c -> children.size() > 1 && c.isCompound() ? '(' + c.toString() + ')': c.toString())
+                    .collect(Collectors.joining(operator().joinValue()));
         }
     }
 
