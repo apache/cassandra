@@ -138,6 +138,29 @@ public class ComplexQueryTest extends SAITester
     public void complexQueryWithPartitionKeyRestriction() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY(pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", 1, 1, 1, 5);
+        execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", 1, 2, 2, 6);
+        execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", 2, 1, 3, 7);
+        execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", 2, 2, 4, 8);
+
+        UntypedResultSet resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 AND (a = 2 OR b = 7)");
+
+        assertRowsIgnoringOrder(resultSet, row(1, 2));
+
+        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+
+        resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 OR (a = 2 OR b = 7)");
+
+        assertRowsIgnoringOrder(resultSet, row(1, 1), row(1, 2), row(2, 1));
+    }
+
+    @Test
+    public void complexQueryWithPartitionKeyRestrictionAndIndexes() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY(pk, ck))");
         createIndex("CREATE CUSTOM INDEX ON %s(a) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
 
@@ -150,10 +173,11 @@ public class ComplexQueryTest extends SAITester
 
         assertRowsIgnoringOrder(resultSet, row(1, 2));
 
-        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7")).isInstanceOf(InvalidRequestException.class)
-                                                                                                 .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
 
-        resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7 ALLOW FILTERING");
+        resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 OR (a = 2 OR b = 7)");
 
         assertRowsIgnoringOrder(resultSet, row(1, 1), row(1, 2), row(2, 1));
     }
