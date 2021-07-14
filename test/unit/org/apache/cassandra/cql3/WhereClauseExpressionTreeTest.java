@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class WhereClauseExpressionTreeTest
 {
@@ -99,6 +100,73 @@ public class WhereClauseExpressionTreeTest
     public void disjunctionExpressionWithPrecedence() throws Throwable
     {
         testExpression("a = 1 AND (b = 1 OR (c = 1 AND d = 1 AND e = 1))");
+    }
+
+    @Test
+    public void flattenConjunction() throws Throwable
+    {
+        WhereClause clause = WhereClause.parse("a = 1 AND (b = 1 AND c = 1)");
+        WhereClause.ExpressionElement flattened = clause.root().flatten();
+        assertTrue(flattened instanceof WhereClause.AndElement);
+        assertEquals(3, ((WhereClause.ContainerElement) flattened).children.size());
+        assertEquals("a = 1 AND b = 1 AND c = 1", flattened.toString());
+    }
+
+    @Test
+    public void flattenDisjunction() throws Throwable
+    {
+        WhereClause clause = WhereClause.parse("a = 1 OR (b = 1 OR c = 1)");
+        WhereClause.ExpressionElement flattened = clause.root().flatten();
+        assertTrue(flattened instanceof WhereClause.OrElement);
+        assertEquals(3, ((WhereClause.ContainerElement) flattened).children.size());
+        assertEquals("a = 1 OR b = 1 OR c = 1", flattened.toString());
+    }
+
+    @Test
+    public void flattenDeeplyNested() throws Throwable
+    {
+        WhereClause.ExpressionElement flattened;
+
+        // deeper nesting, right
+        flattened = WhereClause.parse("a = 1 OR (b = 1 OR (c = 1 OR d = 1))").root().flatten();
+        assertEquals("a = 1 OR b = 1 OR c = 1 OR d = 1", flattened.toString());
+
+        // deeper nesting, left
+        flattened = WhereClause.parse("((a = 1 OR b = 1) OR c = 1) OR d = 1").root().flatten();
+        assertEquals("a = 1 OR b = 1 OR c = 1 OR d = 1", flattened.toString());
+    }
+
+
+    @Test
+    public void flattenMixed() throws Throwable
+    {
+        WhereClause.ExpressionElement flattened;
+
+        flattened = WhereClause.parse("a = 1 OR (b = 1 AND c = 1)").root().flatten();
+        assertEquals("a = 1 OR (b = 1 AND c = 1)", flattened.toString());
+
+        flattened = WhereClause.parse("(a = 1 OR (b = 1 OR c = 1)) AND (d = 1 AND (e = 1 OR f = 1))").root().flatten();
+        assertEquals("(a = 1 OR b = 1 OR c = 1) AND d = 1 AND (e = 1 OR f = 1)", flattened.toString());
+    }
+
+    @Test
+    public void rename() throws Throwable
+    {
+        WhereClause.ExpressionElement root = WhereClause.parse("a1 = 1 OR (b1 = 1 AND c1 = 1)").root();
+
+        WhereClause.ExpressionElement renamed1 =
+                root.rename(
+                        ColumnIdentifier.getInterned("a1", false),
+                        ColumnIdentifier.getInterned("a2", false));
+
+        assertEquals("a2 = 1 OR (b1 = 1 AND c1 = 1)", renamed1.toString());
+
+        WhereClause.ExpressionElement renamed2 =
+                root.rename(
+                        ColumnIdentifier.getInterned("b1", false),
+                        ColumnIdentifier.getInterned("b2", false));
+
+        assertEquals("a1 = 1 OR (b2 = 1 AND c1 = 1)", renamed2.toString());
     }
 
     @Test
