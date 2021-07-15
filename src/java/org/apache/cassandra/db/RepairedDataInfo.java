@@ -289,7 +289,7 @@ class RepairedDataInfo
             super(nowInSec,
                   cfs.gcBefore(nowInSec),
                   oldestUnrepairedTombstone,
-                  cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
+                  cfs.onlyPurgeRepairedTombstones(),
                   cfs.metadata.get().enforceStrictLiveness());
         }
 

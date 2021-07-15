@@ -448,7 +448,7 @@ public class CassandraDaemon
                 for (final ColumnFamilyStore store : cfs.concatWithIndexes())
                 {
                     store.reload(); //reload CFs in case there was a change of disk boundaries
-                    if (store.getCompactionStrategyManager().shouldBeEnabled())
+                    if (store.compactionShouldBeEnabled())
                     {
                         if (DatabaseDescriptor.getAutocompactionOnStartupEnabled())
                         {

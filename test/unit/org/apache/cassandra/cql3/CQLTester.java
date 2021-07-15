@@ -47,6 +47,7 @@ import javax.management.remote.rmi.RMIConnectorServer;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.junit.*;
 import org.junit.rules.TestWatcher;
@@ -681,6 +682,14 @@ public abstract class CQLTester
         if (keyspaces.isEmpty())
             return null;
         return keyspaces.get(keyspaces.size() - 1);
+    }
+
+    protected Collection<String> currentTables()
+    {
+        if (tables == null || tables.isEmpty())
+            return ImmutableList.of();
+
+        return new ArrayList<>(tables);
     }
 
     protected ByteBuffer unset()

@@ -19,14 +19,14 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-
+import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
@@ -39,19 +39,25 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  **/
 class CompactionPick
 {
-    final static CompactionPick EMPTY = create(-1, new CopyOnWriteArraySet<>(), 0);
+    final static CompactionPick EMPTY = create(-1, Collections.emptyList(), 0);
 
     /** The key to the parent compaction aggregate, e.g. a level number or tier avg size, -1 if no parent */
     final long parent;
 
     /** The sstables to be compacted */
-    final CopyOnWriteArraySet<SSTableReader> sstables;
+    final ImmutableSet<SSTableReader> sstables;
+
+    /** Only expired sstables */
+    final ImmutableSet<SSTableReader> expired;
 
     /** The sum of all the sstable hotness scores */
     final double hotness;
 
     /** The average size in bytes for the sstables in this compaction */
     final long avgSizeInBytes;
+
+    /** The total size on disk for the sstables in this compaction */
+    final long totSizeInBytes;
 
     /** The unique compaction id, this is only available when a compaction is submitted */
     @Nullable
@@ -65,20 +71,38 @@ class CompactionPick
     /** Set to true when the compaction has completed */
     volatile boolean completed;
 
-    private CompactionPick(long parent, Collection<SSTableReader> sstables, double hotness, long avgSizeInBytes)
+    private CompactionPick(long parent,
+                           Collection<SSTableReader> compacting,
+                           Collection<SSTableReader> expired,
+                           double hotness,
+                           long avgSizeInBytes,
+                           long totSizeInBytes)
     {
         this.parent = parent;
-        this.sstables = new CopyOnWriteArraySet<>(sstables);
+        this.sstables = ImmutableSet.copyOf(compacting);
+        this.expired = ImmutableSet.copyOf(expired);
         this.hotness = hotness;
         this.avgSizeInBytes = avgSizeInBytes;
+        this.totSizeInBytes = totSizeInBytes;
     }
 
     /**
      * Create a pending compaction candidate calculating hotness and avg size.
      */
+    static CompactionPick create(long parent, Collection<SSTableReader> sstables, Collection<SSTableReader> expired)
+    {
+        Collection<SSTableReader> nonExpiring = sstables.stream().filter(sstable -> !expired.contains(sstable)).collect(Collectors.toList());
+        return create(parent,
+                      sstables,
+                      expired,
+                      CompactionAggregate.getTotHotness(nonExpiring),
+                      CompactionAggregate.getAvgSizeBytes(nonExpiring),
+                      CompactionAggregate.getTotSizeBytes(nonExpiring));
+    }
+
     static CompactionPick create(long parent, Collection<SSTableReader> sstables)
     {
-        return create(parent, sstables, CompactionAggregate.getTotHotness(sstables), CompactionAggregate.getAvgSizeBytes(sstables));
+        return create(parent, sstables, Collections.emptyList());
     }
 
     /**
@@ -86,15 +110,15 @@ class CompactionPick
      */
     static CompactionPick create(long parent, Collection<SSTableReader> sstables, double hotness)
     {
-        return create(parent, sstables, hotness, CompactionAggregate.getAvgSizeBytes(sstables));
+        return create(parent, sstables, Collections.emptyList(), hotness, CompactionAggregate.getAvgSizeBytes(sstables), CompactionAggregate.getTotSizeBytes(sstables));
     }
 
     /**
      * Create a pending compaction candidate with the given parameters.
      */
-    static CompactionPick create(long parent, Collection<SSTableReader> sstables, double hotness, long avgSizeInBytes)
+    static CompactionPick create(long parent, Collection<SSTableReader> sstables, Collection<SSTableReader> expired, double hotness, long avgSizeInBytes, long totSizeInBytes)
     {
-        return new CompactionPick(parent, sstables, hotness, avgSizeInBytes);
+        return new CompactionPick(parent, sstables, expired, hotness, avgSizeInBytes, totSizeInBytes);
     }
 
     /**
@@ -102,7 +126,7 @@ class CompactionPick
      */
     static CompactionPick create(long parent, CompactionPick pick)
     {
-        return new CompactionPick(parent, pick.sstables, pick.hotness, pick.avgSizeInBytes);
+        return new CompactionPick(parent, pick.sstables, pick.expired, pick.hotness, pick.avgSizeInBytes, pick.totSizeInBytes);
     }
 
     public double hotness()
@@ -157,15 +181,24 @@ class CompactionPick
      * <p/>
      * This is currently used by {@link TimeWindowCompactionStrategy} to add expired sstables.
      *
-     * @param sstables the sstables to add
+     * @param expired the sstables to add
      */
-    CompactionPick withAddedSSTables(Collection<SSTableReader> sstables)
+    CompactionPick withExpiredSSTables(Collection<SSTableReader> expired)
     {
-        ImmutableList.Builder builder = ImmutableList.builder();
-        builder.addAll(this.sstables);
-        builder.addAll(sstables);
-
-        return new CompactionPick(parent, builder.build(), CompactionAggregate.getTotHotness(sstables), CompactionAggregate.getAvgSizeBytes(sstables));
+        ImmutableSet<SSTableReader> newSSTables = ImmutableSet.<SSTableReader>builder()
+                                                              .addAll(this.sstables)
+                                                              .addAll(expired)
+                                                              .build();
+        ImmutableSet<SSTableReader> newExpired = ImmutableSet.<SSTableReader>builder()
+                                                             .addAll(this.expired)
+                                                             .addAll(expired)
+                                                             .build();
+        return new CompactionPick(parent,
+                                  newSSTables,
+                                  newExpired,
+                                  hotness,
+                                  avgSizeInBytes,
+                                  totSizeInBytes);
     }
 
     /**
@@ -176,10 +209,15 @@ class CompactionPick
         return sstables.isEmpty();
     }
 
+    boolean hasExpiredOnly()
+    {
+        return sstables.size() == expired.size();
+    }
+
     @Override
     public int hashCode()
     {
-        return Objects.hash(parent, sstables);
+        return Objects.hash(parent, sstables, expired);
     }
 
     @Override
@@ -195,12 +233,12 @@ class CompactionPick
 
         // a pick is the same if the sstables are the same given that the other properties are derived from sstables and two
         // picks are the same whether compaction has started or not so the progress and completed properties should not determine equality
-        return parent == that.parent && sstables.equals(that.sstables);
+        return parent == that.parent && sstables.equals(that.sstables) && expired.equals(that.expired);
     }
 
     @Override
     public String toString()
     {
-        return String.format("Parent: %d, Hotness: %f, Avg size in bytes: %d, id: %s, sstables: %s", parent, hotness, avgSizeInBytes, id, sstables);
+        return String.format("Parent: %d, Hotness: %f, Avg size in bytes: %d, id: %s, sstables: %s, expired: %s", parent, hotness, avgSizeInBytes, id, sstables, expired);
     }
 }

@@ -189,7 +189,7 @@ public class LongCompactionsTest
         {
             ArrayList<Future<?>> compactions = new ArrayList<Future<?>>();
             for (int i = 0; i < 10; i++)
-                compactions.addAll(CompactionManager.instance.submitBackground(cfs));
+                compactions.add(CompactionManager.instance.submitBackground(cfs));
             // another compaction attempt will be launched in the background by
             // each completing compaction: not much we can do to control them here
             FBUtilities.waitOnFutures(compactions);

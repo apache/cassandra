@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -49,6 +48,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.ScannerList;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
@@ -164,7 +164,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     private final boolean isGlobalSnapshotValidation;
 
     private final boolean isSnapshotValidation;
-    private final AbstractCompactionStrategy.ScannerList scanners;
+    private final ScannerList scanners;
     private final ValidationCompactionController controller;
 
     private final CompactionIterator ci;
@@ -221,7 +221,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
         }
 
         controller = new ValidationCompactionController(cfs, getDefaultGcBefore(cfs, nowInSec));
-        scanners = cfs.getCompactionStrategyManager().getScanners(sstables, ranges);
+        scanners = cfs.getCompactionStrategyContainer().getScanners(sstables, ranges);
         ci = new ValidationCompactionIterator(scanners.scanners, controller, nowInSec);
 
         long allPartitions = 0;

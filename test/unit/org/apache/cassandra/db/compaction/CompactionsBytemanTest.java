@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.List;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -33,6 +36,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FBUtilities;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
@@ -45,6 +49,16 @@ import static org.junit.Assert.fail;
 @RunWith(BMUnitRunner.class)
 public class CompactionsBytemanTest extends CQLTester
 {
+    @Before
+    public void setUp()
+    {
+        for (String ksname : Schema.instance.getKeyspaces())
+        {
+            for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
+                cfs.disableAutoCompaction();
+        }
+    }
+
     /*
     Return false for the first time hasAvailableDiskSpace is called. i.e first SSTable is too big
     Create 5 SSTables. After compaction, there should be 2 left - 1 as the 9 SStables which were merged,
@@ -130,7 +144,7 @@ public class CompactionsBytemanTest extends CQLTester
         assertEquals(0, CompactionManager.instance.compactingCF.count(cfs));
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
-        FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
+        FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(cfs));
         assertEquals(0, CompactionManager.instance.compactingCF.count(cfs));
     }
 
@@ -194,7 +208,7 @@ public class CompactionsBytemanTest extends CQLTester
             }
             cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
-        cfs.getCompactionStrategyManager().mutateRepaired(cfs.getLiveSSTables(), System.currentTimeMillis(), null, false);
+        cfs.mutateRepaired(cfs.getLiveSSTables(), System.currentTimeMillis(), null, false);
         for (int i = 0; i < 5; i++)
         {
             for (int j = 0; j < 10; j++)
@@ -222,5 +236,112 @@ public class CompactionsBytemanTest extends CQLTester
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
         assertTrue(CompactionManager.instance.active.getTableOperations().stream().noneMatch(h -> h.getProgress().metadata().equals(cfs.metadata)));
 
+    }
+
+    static Semaphore STARTED;
+    static Semaphore PROCEED;
+
+    @Test
+    @BMRule(name = "Delay compaction task execution",
+            targetClass = "AbstractCompactionTask",
+            targetMethod = "execute()",
+            action = "org.apache.cassandra.db.compaction.CompactionsBytemanTest.STARTED.release();\n" +
+                     "org.apache.cassandra.db.compaction.CompactionsBytemanTest.PROCEED.acquireUninterruptibly();")
+    public void testCompactionReloadDoesNotLoseHistory() throws Throwable
+    {
+        STARTED = new Semaphore(0);
+        PROCEED = new Semaphore(0);
+
+        try
+        {
+            createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH COMPACTION={'class': 'UnifiedCompactionStrategy'}");
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+
+            for (int i = 0; i < 4; ++i)
+            {
+                execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 1, 1);
+                cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            }
+
+            // This is probably already started when we flushed the 4th sstable, but let's make sure.
+            CompactionManager.instance.submitBackground(cfs);
+            List<CompactionStrategyStatistics> statistics = cfs.getCompactionStrategy().getStatistics();
+            assertEquals(1, statistics.size());
+            assertEquals(1, statistics.get(0).aggregates().size());
+
+            execute("ALTER TABLE %s WITH COMPACTION={'class': 'UnifiedCompactionStrategy', 'num_shards': '2'}");
+            statistics = cfs.getCompactionStrategy().getStatistics();
+            assertEquals(1, statistics.size());
+            assertEquals(1, statistics.get(0).aggregates().size());
+        }
+        finally
+        {
+            // allow the task to continue
+            PROCEED.release();
+            dropTable("DROP TABLE %s");
+        }
+    }
+
+    @Test
+    @BMRule(name = "Delay compaction task execution",
+            targetClass = "AbstractCompactionTask",
+            targetMethod = "execute()",
+            action = "org.apache.cassandra.db.compaction.CompactionsBytemanTest.STARTED.release();\n" +
+                     "org.apache.cassandra.db.compaction.CompactionsBytemanTest.PROCEED.acquireUninterruptibly();")
+    public void testTotalCompactionsLCS() throws Throwable
+    {
+        testTotalCompactions("{'class': 'LeveledCompactionStrategy'}");
+    }
+
+    @BMRule(name = "Delay compaction task execution",
+            targetClass = "AbstractCompactionTask",
+            targetMethod = "execute()",
+            action = "org.apache.cassandra.db.compaction.CompactionsBytemanTest.STARTED.release();\n" +
+                     "org.apache.cassandra.db.compaction.CompactionsBytemanTest.PROCEED.acquireUninterruptibly();")
+    @Test
+    public void testTotalCompactionsSTCS() throws Throwable
+    {
+        testTotalCompactions("{'class': 'SizeTieredCompactionStrategy'}");
+    }
+
+    @Test
+    @BMRule(name = "Delay compaction task execution",
+            targetClass = "AbstractCompactionTask",
+            targetMethod = "execute()",
+            action = "org.apache.cassandra.db.compaction.CompactionsBytemanTest.STARTED.release();\n" +
+                     "org.apache.cassandra.db.compaction.CompactionsBytemanTest.PROCEED.acquireUninterruptibly();")
+    public void testTotalCompactionsUCS() throws Throwable
+    {
+        testTotalCompactions("{'class': 'UnifiedCompactionStrategy', 'static_scaling_parameters': 1}");
+    }
+
+    private void testTotalCompactions(String compactionOption) throws Throwable
+    {
+        STARTED = new Semaphore(0);
+        PROCEED = new Semaphore(0);
+
+        try
+        {
+            createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH COMPACTION=" + compactionOption);
+            ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+            cfs.disableAutoCompaction();
+            int numSSTables = 10;
+            for (int i = 0; i < numSSTables; i++)
+            {
+                execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", i, 1, 1);
+                cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+            }
+            assertEquals(numSSTables, cfs.getLiveSSTables().size());
+
+            cfs.enableAutoCompaction(false);
+            STARTED.acquireUninterruptibly();
+            assertEquals(1, cfs.getCompactionStrategy().getTotalCompactions());
+        }
+        finally
+        {
+            // allow the task to continue
+            PROCEED.release();
+            dropTable("DROP TABLE %s");
+        }
     }
 }

@@ -35,15 +35,10 @@ public class LeveledCompactionTask extends CompactionTask
 
     public LeveledCompactionTask(LeveledCompactionStrategy strategy, LifecycleTransaction txn, int level, int gcBefore, long maxSSTableBytes, boolean majorCompaction)
     {
-        super(strategy, txn, gcBefore, false);
+        super(strategy.cfs, txn, gcBefore, false, strategy);
         this.level = level;
         this.maxSSTableBytes = maxSSTableBytes;
         this.majorCompaction = majorCompaction;
-    }
-
-    static AbstractCompactionTask forCompaction(LeveledCompactionStrategy strategy, LifecycleTransaction txn, int level, int gcBefore, long maxSSTableBytes, boolean majorCompaction)
-    {
-        return new LeveledCompactionTask(strategy, txn, level, gcBefore, maxSSTableBytes, majorCompaction);
     }
 
     @Override

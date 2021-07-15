@@ -2190,6 +2190,36 @@
 
   </target>
 
+  <target name="compactionSim"
+          depends="build-test"
+          description="A test that simulates compactions to see how strategies behave">
+      <sequential>
+          <mkdir dir="${build.test.dir}/logs"/>
+          <delete>
+              <fileset dir="${build.test.dir}/logs">
+                  <include name="*"/>
+              </fileset>
+          </delete>
+          <java classname="org.apache.cassandra.db.compaction.CompactionSimulationTest"
+                fork="true"
+                failonerror="true"
+                dir="${basedir}">
+              <classpath>
+                  <path refid="cassandra.classpath.test" />
+                  <pathelement location="${test.classes}"/>
+                  <pathelement location="${test.conf}"/>
+                  <fileset dir="${test.lib}">
+                      <include name="**/*.jar" />
+                  </fileset>
+              </classpath>
+              <jvmarg value="-Dstorage-config=${test.conf}"/>
+              <jvmarg value="-Dcassandra.logdir=${build.test.dir}/logs"/>
+              <jvmarg value="-Dlogback.configurationFile=file:///${basedir}/conf/logback.xml"/>
+              <jvmarg value="-Dcassandra.config=file:///${test.conf}/cassandra.yaml"/>
+          </java>
+      </sequential>
+  </target>
+
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
 </project>

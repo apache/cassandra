@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 
@@ -38,49 +39,103 @@ import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemoryPerSecond;
  */
 public class CompactionAggregateStatistics implements Serializable
 {
-    protected static final Collection<String> HEADER = ImmutableList.of("Tot. sstables", "Size (bytes)", "Compactions", "Comp. Sstables", "Read (bytes/sec)", "Write (bytes/sec)");
+    public static final String NO_SHARD = "";
 
+    protected static final Collection<String> HEADER = ImmutableList.of("Tot. SSTables",
+                                                                        "Tot. size (bytes)",
+                                                                        "Compactions",
+                                                                        "Comp. SSTables",
+                                                                        "Read (bytes/sec)",
+                                                                        "Write (bytes/sec)",
+                                                                        "Tot. comp. size/Read/Written (bytes)");
     /** The number of compactions that are either pending or in progress */
-    private final int numCompactions;
+    protected final int numCompactions;
 
     /** The number of compactions that are in progress */
-    private final int numCompactionsInProgress;
+    protected final int numCompactionsInProgress;
 
     /** The total number of sstables, whether they need compacting or not */
-    private final int numSSTables;
+    protected final int numSSTables;
+
+    /** The total number of expired sstables */
+    protected final int numExpiredSSTables;
 
     /** The number of sstables that are compaction candidates */
-    private final int numCandidateSSTables;
+    protected final int numCandidateSSTables;
 
     /** The number of sstables that are currently compacting */
-    private final int numCompactingSSTables;
+    protected final int numCompactingSSTables;
 
     /** The size in bytes (on disk) of the total sstables */
-    private final long sizeInBytes;
+    protected final long sizeInBytes;
+
+    /** The total uncompressed size of the sstables selected for compaction */
+    protected final long totBytesToCompact;
+
+    /** The total uncompressed size of the expired sstables that are going to be dropped during compaction */
+    protected final long totalBytesToDrop;
+
+    /** The number of bytes read so far for the compactions here - read throughput is calculated based on this */
+    protected final long readBytes;
+
+    /** The number of bytes written so far for the compaction here - write throughput is calculated based on this */
+    protected final long writtenBytes;
 
     /** The read throughput in bytes per second */
-    private final double readThroughput;
+    protected final double readThroughput;
 
     /** The write throughput in bytes per second */
-    private final double writeThroughput;
+    protected final double writeThroughput;
+
+    /** The hotness of this aggregate (where applicable) */
+    protected final double hotness;
 
     CompactionAggregateStatistics(int numCompactions,
                                   int numCompactionsInProgress,
                                   int numSSTables,
+                                  int numExpiredSSTables,
                                   int numCandidateSSTables,
                                   int numCompactingSSTables,
                                   long sizeInBytes,
-                                  double readThroughput,
-                                  double writeThroughput)
+                                  long totBytesToCompact,
+                                  long totBytesToDrop,
+                                  long readBytes,
+                                  long writtenBytes,
+                                  long durationNanos,
+                                  double hotness)
     {
         this.numCompactions = numCompactions;
         this.numCompactionsInProgress = numCompactionsInProgress;
         this.numCandidateSSTables = numCandidateSSTables;
         this.numCompactingSSTables = numCompactingSSTables;
         this.numSSTables = numSSTables;
+        this.numExpiredSSTables = numExpiredSSTables;
         this.sizeInBytes = sizeInBytes;
-        this.readThroughput = readThroughput;
-        this.writeThroughput = writeThroughput;
+        this.totBytesToCompact = totBytesToCompact;
+        this.totalBytesToDrop = totBytesToDrop;
+        this.readBytes = readBytes;
+        this.writtenBytes = writtenBytes;
+        this.readThroughput = durationNanos == 0 ? 0 : ((double) readBytes / durationNanos) * TimeUnit.SECONDS.toNanos(1);
+        this.writeThroughput = durationNanos == 0 ? 0 : ((double) writtenBytes / durationNanos) * TimeUnit.SECONDS.toNanos(1);
+        this.hotness = hotness;
+    }
+
+    CompactionAggregateStatistics(CompactionAggregateStatistics base)
+    {
+        this.numCompactions = base.numCompactions;
+        this.numCompactionsInProgress = base.numCompactionsInProgress;
+        this.numCandidateSSTables = base.numCandidateSSTables;
+        this.numCompactingSSTables = base.numCompactingSSTables;
+        this.numExpiredSSTables = base.numExpiredSSTables;
+        this.numSSTables = base.numSSTables;
+        this.sizeInBytes = base.sizeInBytes;
+        this.totBytesToCompact = base.totBytesToCompact;
+        this.totalBytesToDrop = base.totalBytesToDrop;
+        this.readBytes = base.readBytes;
+        this.writtenBytes = base.writtenBytes;
+        this.readThroughput = base.readThroughput;
+        this.writeThroughput = base.writeThroughput;
+        this.hotness = base.hotness;
     }
 
     /** The number of compactions that are either pending or in progress */
@@ -138,6 +193,41 @@ public class CompactionAggregateStatistics implements Serializable
         return writeThroughput;
     }
 
+    /** The total uncompressed size of the sstables selected for compaction */
+    @JsonProperty
+    public long tot()
+    {
+        return totBytesToCompact;
+    }
+
+    /** The number of bytes read so far for the compactions here - read throughput is calculated based on this */
+    @JsonProperty
+    public long read()
+    {
+        return readBytes;
+    }
+
+    /** The number of bytes written so far for the compaction here - write throughput is calculated based on this */
+    @JsonProperty
+    public long written()
+    {
+        return writtenBytes;
+    }
+
+    /** The hotness of this aggregate (where applicable) */
+    @JsonProperty
+    public double hotness()
+    {
+        return hotness;
+    }
+
+    /** The name of the shard, empty if the compaction is not sharded (the default). */
+    @JsonProperty
+    public String shard()
+    {
+        return NO_SHARD;
+    }
+
     @Override
     public String toString()
     {
@@ -156,7 +246,8 @@ public class CompactionAggregateStatistics implements Serializable
                                         Integer.toString(numCompactions()) + '/' + numCompactionsInProgress(),
                                         Integer.toString(numCandidateSSTables()) + '/' + numCompactingSSTables(),
                                 prettyPrintMemoryPerSecond((long) readThroughput()),
-                                prettyPrintMemoryPerSecond((long) writeThroughput()));
+                                prettyPrintMemoryPerSecond((long) writeThroughput()),
+                                prettyPrintMemory(totBytesToCompact) + '/' + prettyPrintMemory(readBytes) + '/' + prettyPrintMemory(writtenBytes));
     }
 
     protected String toString(long value)

@@ -122,7 +122,7 @@ public class PendingRepairStatTest extends AbstractRepairTest
     {
         try
         {
-            cfs.getCompactionStrategyManager().mutateRepaired(Collections.singleton(sstable), repairedAt, pendingRepair, false);
+            cfs.mutateRepaired(Collections.singleton(sstable), repairedAt, pendingRepair, false);
         }
         catch (IOException e)
         {

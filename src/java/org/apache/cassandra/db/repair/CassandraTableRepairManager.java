@@ -20,6 +20,7 @@ package org.apache.cassandra.db.repair;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -28,13 +29,17 @@ import com.google.common.base.Predicate;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.RepairFinishedCompactionTask;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
-import org.apache.cassandra.repair.Validator;
+import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.service.ActiveRepairService;
 
 public class CassandraTableRepairManager implements TableRepairManager
 {
@@ -58,9 +63,37 @@ public class CassandraTableRepairManager implements TableRepairManager
     }
 
     @Override
-    public void incrementalSessionCompleted(UUID sessionID)
+    public synchronized void incrementalSessionCompleted(UUID sessionID)
     {
-        CompactionManager.instance.submitBackground(cfs);
+        LocalSessions sessions = ActiveRepairService.instance.consistent.local;
+        if (sessions.isSessionInProgress(sessionID))
+            return;
+
+        Set<SSTableReader> pendingRepairSSTables = cfs.getPendingRepairSSTables(sessionID);
+        if (pendingRepairSSTables.isEmpty())
+            return;
+
+        LifecycleTransaction txn = cfs.getTracker().tryModify(pendingRepairSSTables, OperationType.COMPACTION);
+        if (txn == null)
+            return;
+
+        boolean isTransient = false;
+        for (SSTableReader sstable : pendingRepairSSTables)
+        {
+            if (sstable.isTransient())
+            {
+                isTransient = true;
+                break;
+            }
+        }
+
+        long repairedAt = sessions.getFinalSessionRepairedAt(sessionID);
+        RepairFinishedCompactionTask task = new RepairFinishedCompactionTask(cfs,
+                                                                             txn,
+                                                                             sessionID,
+                                                                             repairedAt,
+                                                                             isTransient);
+        task.run();
     }
 
     @Override

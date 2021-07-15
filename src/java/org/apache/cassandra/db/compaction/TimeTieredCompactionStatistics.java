@@ -35,21 +35,9 @@ public class TimeTieredCompactionStatistics extends TieredCompactionStatistics
     /** The timestamp in this tier */
     private final long timestamp;
 
-    TimeTieredCompactionStatistics(long timestamp,
-                                   double hotness,
-                                   int numCompactions,
-                                   int numCompactionsInProgress,
-                                   int numSSTables,
-                                   int numCandidateSSTables,
-                                   int numCompactingSSTables,
-                                   long sizeInBytes,
-                                   double readThroughput,
-                                   double writeThroughput,
-                                   long tot,
-                                   long read,
-                                   long written)
+    TimeTieredCompactionStatistics(CompactionAggregateStatistics base, long timestamp)
     {
-        super(numCompactions, numCompactionsInProgress, numSSTables, numCandidateSSTables, numCompactingSSTables, sizeInBytes, readThroughput, writeThroughput, hotness, tot, read, written);
+        super(base);
 
         this.timestamp = timestamp;
     }

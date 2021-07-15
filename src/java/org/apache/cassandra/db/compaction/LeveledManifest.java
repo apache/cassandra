@@ -27,6 +27,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -66,6 +67,7 @@ public class LeveledManifest
     private static final int NO_COMPACTION_LIMIT = 25;
 
     private final ColumnFamilyStore cfs;
+    private final Tracker dataTracker;
 
     private final LeveledGenerations generations;
 
@@ -78,6 +80,7 @@ public class LeveledManifest
     LeveledManifest(ColumnFamilyStore cfs, int maxSSTableSizeInMB, int fanoutSize, SizeTieredCompactionStrategyOptions options)
     {
         this.cfs = cfs;
+        this.dataTracker = cfs.getTracker();
         this.maxSSTableSizeInBytes = maxSSTableSizeInMB * 1024L * 1024L;
         this.options = options;
         this.levelFanoutSize = fanoutSize;
@@ -190,9 +193,9 @@ public class LeveledManifest
         StringBuilder builder = new StringBuilder();
         for (SSTableReader sstable : sstables)
         {
-            builder.append(sstable.descriptor.cfname)
+            builder.append(sstable.getColumnFamilyName())
                    .append('-')
-                   .append(sstable.descriptor.generation)
+                   .append(sstable.getGeneration())
                    .append("(L")
                    .append(sstable.getSSTableLevel())
                    .append("), ");
@@ -272,7 +275,7 @@ public class LeveledManifest
                 continue; // mostly this just avoids polluting the debug log with zero scores
             // we want to calculate score excluding compacting ones
             Set<SSTableReader> sstablesInLevel = Sets.newHashSet(sstables);
-            Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, cfs.getCompactingSSTables());
+            Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, dataTracker.getCompacting());
             long remainingBytesForLevel = SSTableReader.getTotalBytes(remaining);
             long maxBytesForLevel = maxBytesForLevel(i, maxSSTableSizeInBytes);
             double score = (double) remainingBytesForLevel / (double) maxBytesForLevel;
@@ -303,7 +306,7 @@ public class LeveledManifest
                     candidates = getOverlappingStarvedSSTables(nextLevel, candidates);
                     if (logger.isTraceEnabled())
                         logger.trace("Compaction candidates for L{} are {}", i, toString(candidates));
-                    return CompactionAggregate.createLeveled(sstablesInLevel, candidates, pendingCompactions, maxSSTableSizeInBytes, i, nextLevel, score);
+                    return CompactionAggregate.createLeveled(sstablesInLevel, candidates, pendingCompactions, maxSSTableSizeInBytes, i, nextLevel, score, levelFanoutSize);
                 }
                 else
                 {
@@ -327,7 +330,7 @@ public class LeveledManifest
         }
         double l0Score = (double) SSTableReader.getTotalBytes(sstables) / (double) maxBytesForLevel(0, maxSSTableSizeInBytes);
         int l0PendingCompactions = Math.max(0, getEstimatedPendingTasks(0) - 1);
-        return CompactionAggregate.createLeveled(sstables, candidates, l0PendingCompactions, maxSSTableSizeInBytes, 0, getNextLevel(candidates), l0Score);
+        return CompactionAggregate.createLeveled(sstables, candidates, l0PendingCompactions, maxSSTableSizeInBytes, 0, getNextLevel(candidates), l0Score, levelFanoutSize);
     }
 
     private CompactionAggregate.Leveled getSTCSInL0CompactionCandidate()
@@ -353,12 +356,12 @@ public class LeveledManifest
         int pendingTasks = remainingSSTables > cfs.getMinimumCompactionThreshold()
                            ? (int) Math.ceil(remainingSSTables / cfs.getMaximumCompactionThreshold())
                            : 0;
-        return CompactionAggregate.createLeveledForSTCS(sstables, compaction, pendingTasks, score);
+        return CompactionAggregate.createLeveledForSTCS(sstables, compaction, pendingTasks, score, levelFanoutSize);
     }
 
     private CompactionPick getSSTablesForSTCS(Collection<SSTableReader> sstables)
     {
-        Iterable<? extends SSTableReader> candidates = cfs.getNoncompactingSSTables(sstables);
+        Iterable<? extends SSTableReader> candidates = dataTracker.getNoncompacting(sstables);
 
         SizeTieredCompactionStrategy.SizeTieredBuckets sizeTieredBuckets;
         sizeTieredBuckets = new SizeTieredCompactionStrategy.SizeTieredBuckets(candidates,
@@ -438,6 +441,14 @@ public class LeveledManifest
     public synchronized int getLevelSize(int i)
     {
         return generations.get(i).size();
+    }
+
+    public synchronized int[] getSSTableCountPerLevel()
+    {
+        int[] counts = new int[getLevelCount()];
+        for (int i = 0; i < counts.length; i++)
+            counts[i] = getLevel(i).size();
+        return counts;
     }
 
     public synchronized int[] getAllLevelSize()
@@ -541,7 +552,7 @@ public class LeveledManifest
         assert !generations.get(level).isEmpty();
         logger.trace("Choosing candidates for L{}", level);
 
-        final Set<SSTableReader> compacting = cfs.getCompactingSSTables();
+        final Set<SSTableReader> compacting = dataTracker.getCompacting();
 
         if (level == 0)
         {
@@ -639,7 +650,7 @@ public class LeveledManifest
     {
         Set<SSTableReader> sstables = new HashSet<>();
         Set<SSTableReader> levelSSTables = new HashSet<>(generations.get(0));
-        for (SSTableReader sstable : cfs.getCompactingSSTables())
+        for (SSTableReader sstable : dataTracker.getCompacting())
         {
             if (levelSSTables.contains(sstable))
                 sstables.add(sstable);
@@ -704,7 +715,7 @@ public class LeveledManifest
 
             int pendingTasks = getEstimatedPendingTasks(i);
             double score = (double) SSTableReader.getTotalBytes(sstables) / (double) maxBytesForLevel(i, maxSSTableSizeInBytes);
-            ret.add(CompactionAggregate.createLeveled(sstables, pendingTasks, maxSSTableSizeInBytes, i, score));
+            ret.add(CompactionAggregate.createLeveled(sstables, pendingTasks, maxSSTableSizeInBytes, i, score, levelFanoutSize));
         }
 
         logger.trace("Estimating {} compactions to do for {}", ret.size(), cfs.metadata());
@@ -724,7 +735,7 @@ public class LeveledManifest
         if (sstables.isEmpty())
             return 0;
 
-        final Set<SSTableReader> compacting = cfs.getCompactingSSTables();
+        final Set<SSTableReader> compacting = dataTracker.getCompacting();
         final Set<SSTableReader> remaining = Sets.difference(Sets.newHashSet(sstables), compacting);
 
         if (level == 0 && !DatabaseDescriptor.getDisableSTCSInL0() && remaining.size() > MAX_COMPACTING_L0)

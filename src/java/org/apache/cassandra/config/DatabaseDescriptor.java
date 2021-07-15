@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.*;
 import java.nio.file.FileStore;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -31,7 +32,9 @@ import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multiset;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -607,7 +610,7 @@ public class DatabaseDescriptor
                 }
             }
 
-            logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
+            logger.info("cdc_enabled is true. Starting cassandra node with Change-Data-Capture enabled.");
         }
 
         if (conf.saved_caches_directory == null)
@@ -1922,6 +1925,50 @@ public class DatabaseDescriptor
             return conf.data_file_directories;
 
         return ArrayUtils.addFirst(conf.data_file_directories, conf.local_system_data_file_directory);
+    }
+
+    /**
+     * @return Minimum total space for all the data file directories in GB.
+     *         0 if fail to get the total space, or total space is under 1 GB.
+     */
+    public static long getDataFileDirectoriesMinTotalSpaceInGB()
+    {
+        String[] dataDirectories = getAllDataFileLocations();
+        if (dataDirectories.length == 0)
+        {
+            return 0L;
+        }
+
+        Multiset<FileStore> fileStores = HashMultiset.create();
+        for (String dir : dataDirectories)
+        {
+            try
+            {
+                fileStores.add(Files.getFileStore(new File(dir).toPath()));
+            }
+            catch (IOException ioe)
+            {
+                logger.warn("Unable to get FileStore of {}. {}", dir, ioe);
+            }
+        }
+        return getDataFileDirectoriesMinTotalSpaceInGB(fileStores);
+    }
+
+    @VisibleForTesting
+    static long getDataFileDirectoriesMinTotalSpaceInGB(Multiset<FileStore> fileStores)
+    {
+        return fileStores.entrySet().stream().mapToLong(entry -> {
+            long totalSpace = 0L;
+            try
+            {
+                totalSpace = FileUtils.handleLargeFileSystem(entry.getElement().getTotalSpace());
+            }
+            catch (IOException ioe)
+            {
+                logger.warn("Unable to get total space of {}. {}", entry.getElement(), ioe);
+            }
+            return (totalSpace >> 30) / entry.getCount();
+        }).min().orElse(0L) * fileStores.size();
     }
 
     public static String getCommitLogLocation()

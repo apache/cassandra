@@ -45,7 +45,6 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -90,7 +89,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         assertEquals(1, sstables.size());
         assertEquals(sstables.iterator().next().bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
         int nowInSec = FBUtilities.nowInSeconds();
-        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
+        try (ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(txn, false, 1000);
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
@@ -122,7 +121,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         assertEquals(1, sstables.size());
 
         int nowInSec = FBUtilities.nowInSeconds();
-        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
+        try (ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = new SSTableRewriter(txn, 1000, 10000000, false, true);
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
@@ -155,7 +154,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         int nowInSec = FBUtilities.nowInSeconds();
         boolean checked = false;
-        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
+        try (ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = new SSTableRewriter(txn, 1000, 10000000, false, true);
              CompactionController controller = new CompactionController(cfs, sstables, cfs.gcBefore(nowInSec));
@@ -792,7 +791,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Set<SSTableReader> sstables = Sets.newHashSet(s);
         assertEquals(1, sstables.size());
         int nowInSec = FBUtilities.nowInSeconds();
-        try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
+        try (ScannerList scanners = cfs.getCompactionStrategy().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);
              SSTableRewriter writer2 = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);

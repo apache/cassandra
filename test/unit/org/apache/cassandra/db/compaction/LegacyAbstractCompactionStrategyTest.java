@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.compaction;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,7 +40,7 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class AbstractCompactionStrategyTest
+public class LegacyAbstractCompactionStrategyTest
 {
     private static final String KEYSPACE1 = "Keyspace1";
     private static final String LCS_TABLE = "LCS_TABLE";
@@ -107,7 +108,9 @@ public class AbstractCompactionStrategyTest
     public void testGetNextBackgroundTaskDoesNotBlock(String table)
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(table);
-        AbstractCompactionStrategy strategy = cfs.getCompactionStrategyManager().getStrategies().get(1).get(0);
+        CompactionStrategy strategy = cfs.getCompactionStrategyContainer()
+                                         .getStrategies(false, null)
+                                         .get(0);
 
         // Add 4 sstables
         for (int i = 1; i <= 4; i++)
@@ -116,7 +119,11 @@ public class AbstractCompactionStrategyTest
         }
 
         // Check they are returned on the next background task
-        try (LifecycleTransaction txn = strategy.getNextBackgroundTask(FBUtilities.nowInSeconds()).transaction)
+        Collection<AbstractCompactionTask> tasks = strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds());
+        Assert.assertEquals(1, tasks.size());
+        AbstractCompactionTask task = tasks.iterator().next();
+        Assert.assertNotNull(task);
+        try (LifecycleTransaction txn = task.transaction)
         {
             Assert.assertEquals(cfs.getLiveSSTables(), txn.originals());
         }
@@ -125,7 +132,7 @@ public class AbstractCompactionStrategyTest
         cfs.getTracker().removeUnsafe(cfs.getLiveSSTables());
 
         // verify the compaction strategy will return null
-        Assert.assertNull(strategy.getNextBackgroundTask(FBUtilities.nowInSeconds()));
+        Assert.assertTrue(strategy.getNextBackgroundTasks(FBUtilities.nowInSeconds()).isEmpty());
     }
 
 

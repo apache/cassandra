@@ -242,7 +242,7 @@ public class StandaloneScrubber
             }
 
             // Check (and repair) manifests
-            checkManifest(cfs.getCompactionStrategyManager(), cfs, sstables);
+            checkManifest(cfs, sstables);
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
             LifecycleTransaction.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
@@ -256,13 +256,14 @@ public class StandaloneScrubber
         }
     }
 
-    private static void checkManifest(CompactionStrategyManager strategyManager, ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+    private static void checkManifest(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
-        if (strategyManager.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
+        if (cfs.getCompactionParams().klass().equals(LeveledCompactionStrategy.class))
         {
-            int maxSizeInMB = (int)((cfs.getCompactionStrategyManager().getMaxSSTableBytes()) / (1024L * 1024L));
-            int fanOut = cfs.getCompactionStrategyManager().getLevelFanoutSize();
-            for (AbstractStrategyHolder.GroupedSSTableContainer sstableGroup : strategyManager.groupSSTables(sstables))
+            int maxSizeInMB = (int)((cfs.getCompactionStrategy().getMaxSSTableBytes()) / (1024L * 1024L));
+            int fanOut = cfs.getCompactionStrategy().getLevelFanoutSize();
+            CompactionStrategyManager csm = (CompactionStrategyManager) cfs.getCompactionStrategyContainer();
+            for (AbstractStrategyHolder.GroupedSSTableContainer sstableGroup : csm.groupSSTables(sstables))
             {
                 for (int i = 0; i < sstableGroup.numGroups(); i++)
                 {

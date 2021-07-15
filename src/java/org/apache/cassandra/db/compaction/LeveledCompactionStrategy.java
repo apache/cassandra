@@ -17,34 +17,43 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
-
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.*;
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.common.primitives.Doubles;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.ScannerList;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.schema.TableMetadata;
 
-public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAggregates
+public class LeveledCompactionStrategy extends LegacyAbstractCompactionStrategy.WithAggregates
 {
     private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategy.class);
     static final String SSTABLE_SIZE_OPTION = "sstable_size_in_mb";
@@ -59,9 +68,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
     private final int levelFanoutSize;
     private final boolean singleSSTableUplevel;
 
-    public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
+    public LeveledCompactionStrategy(CompactionStrategyFactory factory, Map<String, String> options)
     {
-        super(cfs, options);
+        super(factory, options);
         int configuredMaxSSTableSize = 160;
         int configuredLevelFanoutSize = DEFAULT_LEVEL_FANOUT_SIZE;
         boolean configuredSingleSSTableUplevel = false;
@@ -75,10 +84,10 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
                 {
                     if (configuredMaxSSTableSize >= 1000)
                         logger.warn("Max sstable size of {}MB is configured for {}.{}; having a unit of compaction this large is probably a bad idea",
-                                configuredMaxSSTableSize, cfs.name, cfs.getTableName());
+                                configuredMaxSSTableSize, cfs.getKeyspaceName(), cfs.getTableName());
                     if (configuredMaxSSTableSize < 50)
                         logger.warn("Max sstable size of {}MB is configured for {}.{}.  Testing done for CASSANDRA-5727 indicates that performance improves up to 160MB",
-                                configuredMaxSSTableSize, cfs.name, cfs.getTableName());
+                                configuredMaxSSTableSize, cfs.getKeyspaceName(), cfs.getTableName());
                 }
             }
 
@@ -100,7 +109,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
         logger.trace("Created {}", manifest);
     }
 
-    public int getLevelSize(int i)
+    int getLevelSize(int i)
     {
         return manifest.getLevelSize(i);
     }
@@ -108,6 +117,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
     public int[] getAllLevelSize()
     {
         return manifest.getAllLevelSize();
+    }
+
+    @Override
+    public int[] getSSTableCountPerLevel()
+    {
+        return manifest.getSSTableCountPerLevel();
     }
 
     @Override
@@ -121,7 +136,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
     protected CompactionAggregate getNextBackgroundAggregate(int gcBefore)
     {
         CompactionAggregate.Leveled candidate = manifest.getCompactionCandidate();
-        backgroundCompactions.setPending(manifest.getEstimatedTasks(candidate));
+        backgroundCompactions.setPending(this, manifest.getEstimatedTasks(candidate));
 
         if (candidate != null)
             return candidate;
@@ -153,9 +168,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
 
         AbstractCompactionTask newTask;
         if (!singleSSTableUplevel || op == OperationType.TOMBSTONE_COMPACTION || txn.originals().size() > 1)
-            newTask = LeveledCompactionTask.forCompaction(this, txn, nextLevel, gcBefore, maxxSSTableBytes, false);
+            newTask = new LeveledCompactionTask(this, txn, nextLevel, gcBefore, maxxSSTableBytes, false);
         else
-            newTask = SingleSSTableLCSTask.forCompaction(this, txn, nextLevel);
+            newTask = new SingleSSTableLCSTask(this, txn, nextLevel);
 
         newTask.setCompactionType(op);
         return newTask;
@@ -168,7 +183,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
         Collection<SSTableReader> sstables = txn.originals();
         int level = sstables.size() > 1 ? 0 : sstables.iterator().next().getSSTableLevel();
         long maxSSTableBytes = (level == 0 && !isMaximal) ? Long.MAX_VALUE : getMaxSSTableBytes();
-        return LeveledCompactionTask.forCompaction(this, txn, level, gcBefore, maxSSTableBytes, isMaximal);
+        return new LeveledCompactionTask(this, txn, level, gcBefore, maxSSTableBytes, isMaximal);
     }
 
     @Override
@@ -184,7 +199,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
             if (level != sstable.getSSTableLevel())
                 level = 0;
         }
-        return LeveledCompactionTask.forCompaction(this, txn, level, gcBefore, maxSSTableBytes, false);
+        return new LeveledCompactionTask(this, txn, level, gcBefore, maxSSTableBytes, false);
     }
 
     /**
@@ -336,7 +351,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
     }
 
     @Override
-    protected Set<SSTableReader> getSSTables()
+    public Set<SSTableReader> getSSTables()
     {
         return manifest.getSSTables();
     }
@@ -478,7 +493,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
     @Override
     public String toString()
     {
-        return String.format("LCS@%d(%s)", hashCode(), cfs.name);
+        return String.format("LCS@%d(%s)", hashCode(), cfs.getTableName());
     }
 
     private CompactionAggregate findDroppableSSTable(final int gcBefore)
@@ -489,7 +504,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
             return -1 * Doubles.compare(r1, r2);
         };
         Function<Collection<SSTableReader>, SSTableReader> selector = list -> Collections.max(list, comparator);
-        Set<SSTableReader> compacting = cfs.getCompactingSSTables();
+        Set<SSTableReader> compacting = dataTracker.getCompacting();
 
         for (int i = manifest.getLevelCount(); i >= 0; i--)
         {
@@ -502,29 +517,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy.WithAg
         return null;
     }
 
-    public CompactionLogger.Strategy strategyLogger()
-    {
-        return new CompactionLogger.Strategy()
-        {
-            public JsonNode sstable(SSTableReader sstable)
-            {
-                ObjectNode node = JsonNodeFactory.instance.objectNode();
-                node.put("level", sstable.getSSTableLevel());
-                node.put("min_token", sstable.first.getToken().toString());
-                node.put("max_token", sstable.last.getToken().toString());
-                return node;
-            }
-
-            public JsonNode options()
-            {
-                return null;
-            }
-        };
-    }
-
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
-        Map<String, String> uncheckedOptions = AbstractCompactionStrategy.validateOptions(options);
+        Map<String, String> uncheckedOptions = CompactionStrategyOptions.validateOptions(options);
 
         String size = options.containsKey(SSTABLE_SIZE_OPTION) ? options.get(SSTABLE_SIZE_OPTION) : "1";
         try

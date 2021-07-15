@@ -103,7 +103,7 @@ public class PreviewRepairTest extends TestBaseImpl
             // also disables autocompaction on the nodes
             cluster.forEach((node) -> node.runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
-                FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
+                FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(cfs));
                 cfs.disableAutoCompaction();
             }));
             cluster.get(1).callOnInstance(repair(options(false, false)));
@@ -111,7 +111,7 @@ public class PreviewRepairTest extends TestBaseImpl
             cluster.get(1).runOnInstance(() -> {
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
                 cfs.enableAutoCompaction();
-                FBUtilities.waitOnFutures(CompactionManager.instance.submitBackground(cfs));
+                FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(cfs));
             });
 
             //IR and Preview repair can't run concurrently. In case the test is flaky, please check CASSANDRA-15685
@@ -402,7 +402,7 @@ public class PreviewRepairTest extends TestBaseImpl
             ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(table);
             try
             {
-                cfs.getCompactionStrategyManager().mutateRepaired(cfs.getLiveSSTables(), ActiveRepairService.UNREPAIRED_SSTABLE, null, false);
+                cfs.mutateRepaired(cfs.getLiveSSTables(), ActiveRepairService.UNREPAIRED_SSTABLE, null, false);
             }
             catch (IOException e)
             {

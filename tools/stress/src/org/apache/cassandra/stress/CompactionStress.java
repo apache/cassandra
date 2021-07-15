@@ -221,7 +221,7 @@ public abstract class CompactionStress implements Runnable
 
             StressProfile stressProfile = getStressProfile();
             ColumnFamilyStore cfs = initCf(stressProfile, true);
-            cfs.getCompactionStrategyManager().compactionLogger.enable();
+            cfs.getCompactionStrategy().getCompactionLogger().enable();
 
             List<Future<?>> futures = new ArrayList<>(threads);
             if (maximal)
@@ -231,20 +231,20 @@ public abstract class CompactionStress implements Runnable
             else
             {
                 cfs.enableAutoCompaction();
-                cfs.getCompactionStrategyManager().enable();
+                cfs.getCompactionStrategyContainer().enable();
                 for (int i = 0; i < threads; i++)
-                    futures.addAll(CompactionManager.instance.submitBackground(cfs));
+                    futures.add(CompactionManager.instance.submitBackground(cfs));
             }
 
             long working;
             //Report compaction stats while working
-            while ((working = futures.stream().filter(f -> !f.isDone()).count()) > 0 || CompactionManager.instance.getActiveCompactions() > 0 || (!maximal && cfs.getCompactionStrategyManager().getEstimatedRemainingTasks() > 0))
+            while ((working = futures.stream().filter(f -> !f.isDone()).count()) > 0 || CompactionManager.instance.getActiveCompactions() > 0 || (!maximal && cfs.getCompactionStrategy().getEstimatedRemainingTasks() > 0))
             {
                 //Re-up any bg jobs
                 if (!maximal)
                 {
                     for (long i = working; i < threads; i++)
-                        futures.addAll(CompactionManager.instance.submitBackground(cfs));
+                        futures.add(CompactionManager.instance.submitBackground(cfs));
                 }
 
                 reportCompactionStats();

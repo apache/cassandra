@@ -321,6 +321,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
         return tracker.isDummy();
     }
 
+    @VisibleForTesting
+    public void unsafeClose()
+    {
+        log.close();
+    }
+
     /**
      * call when a consistent batch of changes is ready to be made atomically visible
      * these will be exposed in the Tracker atomically, or an exception will be thrown; in this case

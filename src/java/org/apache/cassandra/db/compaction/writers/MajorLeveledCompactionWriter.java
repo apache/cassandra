@@ -20,9 +20,10 @@ package org.apache.cassandra.db.compaction.writers;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.LeveledManifest;
@@ -39,7 +40,6 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     private long totalWrittenInLevel = 0;
     private int sstablesWritten = 0;
     private final long keysPerSSTable;
-    private Directories.DataDirectory sstableDirectory;
     private final int levelFanoutSize;
 
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
@@ -67,11 +67,15 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    @SuppressWarnings("resource")
-    public boolean realAppend(UnfilteredRowIterator partition)
+    public boolean append(UnfilteredRowIterator partition)
     {
-        RowIndexEntry rie = sstableWriter.append(partition);
         partitionsWritten++;
+        return super.append(partition);
+    }
+
+    @Override
+    protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
+    {
         long totalWrittenInCurrentWriter = sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten();
         if (totalWrittenInCurrentWriter > maxSSTableSize)
         {
@@ -81,28 +85,34 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                 totalWrittenInLevel = 0;
                 currentLevel++;
             }
-            switchCompactionLocation(sstableDirectory);
+            return true;
         }
-        return rie != null;
+        return false;
 
     }
 
     @Override
-    public void switchCompactionLocation(Directories.DataDirectory location)
+    public void switchCompactionWriter(Directories.DataDirectory location)
     {
-        this.sstableDirectory = location;
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
-        sstableWriter.switchWriter(SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
-                keysPerSSTable,
-                minRepairedAt,
-                pendingRepair,
-                isTransient,
-                cfs.metadata,
-                new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
-                SerializationHeader.make(cfs.metadata(), txn.originals()),
-                cfs.indexManager.listIndexGroups(),
-                txn));
         partitionsWritten = 0;
         sstablesWritten = 0;
+        super.switchCompactionWriter(location);
+    }
+
+    @Override
+    @SuppressWarnings("resource")
+    protected SSTableWriter sstableWriter(Directories.DataDirectory directory, PartitionPosition diskBoundary)
+    {
+        return SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
+                                    keysPerSSTable,
+                                    minRepairedAt,
+                                    pendingRepair,
+                                    isTransient,
+                                    cfs.metadata,
+                                    new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
+                                    SerializationHeader.make(cfs.metadata(), txn.originals()),
+                                    cfs.indexManager.listIndexGroups(),
+                                    txn);
     }
 }

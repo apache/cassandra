@@ -453,12 +453,15 @@ public class SSTableReaderTest
         assertEquals(1, sstable.getKeyCacheRequest());
         assertEquals(0, sstable.getKeyCacheHit());
         // existing, cached key
+        assertEquals(1, store.getBloomFilterTracker().getTruePositiveCount());
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
         assertEquals(2, sstable.getKeyCacheRequest());
         assertEquals(1, sstable.getKeyCacheHit());
         // non-existing key (it is specifically chosen to not be rejected by Bloom Filter check)
         sstable.getPosition(k(14), SSTableReader.Operator.EQ);
         assertEquals(3, sstable.getKeyCacheRequest());
+        assertEquals(2, store.getBloomFilterTracker().getTruePositiveCount());
+        sstable.getPosition(k(15), SSTableReader.Operator.EQ);
         assertEquals(1, sstable.getKeyCacheHit());
     }
 
@@ -487,34 +490,34 @@ public class SSTableReaderTest
         // the keys are specifically chosen to cover certain use cases
         // existing key is read from index
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
-        assertEquals(1, sstable.getBloomFilterTruePositiveCount());
-        assertEquals(0, sstable.getBloomFilterTrueNegativeCount());
-        assertEquals(0, sstable.getBloomFilterFalsePositiveCount());
+        assertEquals(1, sstable.getBloomFilterTracker().getTruePositiveCount());
+        assertEquals(0, sstable.getBloomFilterTracker().getTrueNegativeCount());
+        assertEquals(0, sstable.getBloomFilterTracker().getFalsePositiveCount());
         // existing key is read from Cache Key
         sstable.getPosition(k(2), SSTableReader.Operator.EQ);
-        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
-        assertEquals(0, sstable.getBloomFilterTrueNegativeCount());
-        assertEquals(0, sstable.getBloomFilterFalsePositiveCount());
+        assertEquals(2, sstable.getBloomFilterTracker().getTruePositiveCount());
+        assertEquals(0, sstable.getBloomFilterTracker().getTrueNegativeCount());
+        assertEquals(0, sstable.getBloomFilterTracker().getFalsePositiveCount());
         // non-existing key is rejected by Bloom Filter check
         sstable.getPosition(k(10), SSTableReader.Operator.EQ);
-        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
-        assertEquals(1, sstable.getBloomFilterTrueNegativeCount());
-        assertEquals(0, sstable.getBloomFilterFalsePositiveCount());
+        assertEquals(2, sstable.getBloomFilterTracker().getTruePositiveCount());
+        assertEquals(1, sstable.getBloomFilterTracker().getTrueNegativeCount());
+        assertEquals(0, sstable.getBloomFilterTracker().getFalsePositiveCount());
         // non-existing key is rejected by sstable keys range check
         sstable.getPosition(k(99), SSTableReader.Operator.EQ);
-        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
-        assertEquals(1, sstable.getBloomFilterTrueNegativeCount());
-        assertEquals(1, sstable.getBloomFilterFalsePositiveCount());
+        assertEquals(2, sstable.getBloomFilterTracker().getTruePositiveCount());
+        assertEquals(1, sstable.getBloomFilterTracker().getTrueNegativeCount());
+        assertEquals(1, sstable.getBloomFilterTracker().getFalsePositiveCount());
         // non-existing key is rejected by index interval check
         sstable.getPosition(k(14), SSTableReader.Operator.EQ);
-        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
-        assertEquals(1, sstable.getBloomFilterTrueNegativeCount());
-        assertEquals(2, sstable.getBloomFilterFalsePositiveCount());
+        assertEquals(2, store.getBloomFilterTracker().getTruePositiveCount());
+        assertEquals(1, sstable.getBloomFilterTracker().getTrueNegativeCount());
+        assertEquals(2, sstable.getBloomFilterTracker().getFalsePositiveCount());
         // non-existing key is rejected by index lookup check
         sstable.getPosition(k(807), SSTableReader.Operator.EQ);
-        assertEquals(2, sstable.getBloomFilterTruePositiveCount());
-        assertEquals(1, sstable.getBloomFilterTrueNegativeCount());
-        assertEquals(3, sstable.getBloomFilterFalsePositiveCount());
+        assertEquals(2, sstable.getBloomFilterTracker().getTruePositiveCount());
+        assertEquals(1, sstable.getBloomFilterTracker().getTrueNegativeCount());
+        assertEquals(3, sstable.getBloomFilterTracker().getFalsePositiveCount());
     }
 
     @Test

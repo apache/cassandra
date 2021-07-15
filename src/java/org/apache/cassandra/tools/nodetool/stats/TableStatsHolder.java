@@ -220,7 +220,7 @@ public class TableStatsHolder implements StatsHolder
                 statsTable.oldSSTableCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "OldVersionSSTableCount");
 
                 int[] leveledSStables = table.getSSTableCountPerLevel();
-                if (leveledSStables != null)
+                if (leveledSStables.length > 0)
                 {
                     statsTable.isLeveledSstable = true;
 

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -35,12 +36,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -53,6 +54,11 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.db.compaction.CleanupTask;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.RepairFinishedCompactionTask;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,6 +100,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.net.Verb.FAILED_SESSION_MSG;
 import static org.apache.cassandra.net.Verb.FINALIZE_PROMISE_MSG;
@@ -296,6 +303,12 @@ public class LocalSessions
         return new PendingStats(cfs.keyspace.getName(), cfs.name, pending.build(), finalized.build(), failed.build());
     }
 
+    /**
+     * promotes (or demotes) data attached to an incremental repair session that has either completed successfully,
+     * or failed
+     *
+     * @return session ids whose data could not be released
+     */
     public CleanupSummary cleanup(TableId tid, Collection<Range<Token>> ranges, boolean force)
     {
         Iterable<LocalSession> candidates = Iterables.filter(sessions.values(),
@@ -304,10 +317,56 @@ public class LocalSessions
                                                                    && Range.intersects(ls.ranges, ranges));
 
         ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
+        Preconditions.checkNotNull(cfs);
+
         Set<UUID> sessionIds = Sets.newHashSet(Iterables.transform(candidates, s -> s.sessionID));
+        return releaseRepairData(cfs, sessionIds, force);
+    }
 
+    private CleanupSummary releaseRepairData(ColumnFamilyStore cfs, Collection<UUID> sessions, boolean force)
+    {
+        if (force)
+        {
+            Predicate<SSTableReader> predicate = sst -> {
+                UUID session = sst.getPendingRepair();
+                return session != null && sessions.contains(session);
+            };
+            return cfs.runWithCompactionsDisabled(() -> doReleaseRepairData(cfs, sessions),
+                                                  predicate, false, true, true);
+        }
+        else
+        {
+            return doReleaseRepairData(cfs, sessions);
+        }
+    }
 
-        return cfs.releaseRepairData(sessionIds, force);
+    private CleanupSummary doReleaseRepairData(ColumnFamilyStore cfs, Collection<UUID> sessions)
+    {
+        List<Pair<UUID, RepairFinishedCompactionTask>> tasks = new ArrayList<>(sessions.size());
+        for (UUID session : sessions)
+        {
+            if (canCleanup(session))
+                tasks.add(Pair.create(session, getRepairFinishedCompactionTask(cfs, session)));
+        }
+
+        return new CleanupTask(cfs, tasks).cleanup();
+    }
+
+    private RepairFinishedCompactionTask getRepairFinishedCompactionTask(ColumnFamilyStore cfs, UUID session)
+    {
+        Set<SSTableReader> sstables = cfs.getPendingRepairSSTables(session);
+        if (sstables.isEmpty())
+            return null;
+
+        long repairedAt = getFinalSessionRepairedAt(session);
+        boolean isTransient = sstables.iterator().next().isTransient();
+        LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+        return txn == null ? null : new RepairFinishedCompactionTask(cfs, txn, session, repairedAt, isTransient);
+    }
+
+    public boolean canCleanup(UUID sessionID)
+    {
+        return !isSessionInProgress(sessionID);
     }
 
     /**
@@ -893,7 +952,7 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    protected void sessionCompleted(LocalSession session)
+    public void sessionCompleted(LocalSession session)
     {
         for (TableId tid: session.tableIds)
         {
@@ -1019,7 +1078,7 @@ public class LocalSessions
     {
         Predicate<TableId> predicate = tid -> {
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(tid);
-            return cfs != null && cfs.getCompactionStrategyManager().hasDataForPendingRepair(session.sessionID);
+            return cfs != null && cfs.hasPendingRepairSSTables(session.sessionID);
 
         };
         return Iterables.any(session.tableIds, predicate::test);
