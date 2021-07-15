@@ -34,6 +34,8 @@ public class EstimatedHistogram
 {
     public static final EstimatedHistogramSerializer serializer = new EstimatedHistogramSerializer();
 
+    public static final int DEFAULT_BUCKET_COUNT = 90;
+
     /**
      * The series of values to which the counts in `buckets` correspond:
      * 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 17, 20, etc.
@@ -52,7 +54,7 @@ public class EstimatedHistogram
 
     public EstimatedHistogram()
     {
-        this(90);
+        this(DEFAULT_BUCKET_COUNT);
     }
 
     public EstimatedHistogram(int bucketCount)
