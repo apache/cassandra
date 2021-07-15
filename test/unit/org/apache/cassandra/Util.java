@@ -600,7 +600,7 @@ public class Util
     public static <T> void spinAssertEquals(String message, T expected, Supplier<? extends T> actualSupplier, long timeout, TimeUnit timeUnit)
     {
         Awaitility.await()
-                  .with().pollInterval(Duration.ofMillis(1))
+                  .with().pollInterval(Duration.ofMillis(100))
                   .atMost(timeout, timeUnit)
                   .untilAsserted(() -> assertThat(message, actualSupplier.get(), equalTo(expected)));
     }
