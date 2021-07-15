@@ -92,6 +92,9 @@ public class DefaultFSErrorHandler implements FSErrorHandler
                         Keyspace.removeUnreadableSSTables(directory);
                 }
                 break;
+            case die:
+                JVMStabilityInspector.killCurrentJVM(e, false);
+                break;
             case ignore:
                 // already logged, so left nothing to do
                 break;

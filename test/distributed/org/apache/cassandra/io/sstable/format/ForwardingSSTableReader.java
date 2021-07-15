@@ -451,30 +451,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public long getBloomFilterFalsePositiveCount()
-    {
-        return delegate.getBloomFilterFalsePositiveCount();
-    }
-
-    @Override
-    public long getRecentBloomFilterFalsePositiveCount()
-    {
-        return delegate.getRecentBloomFilterFalsePositiveCount();
-    }
-
-    @Override
-    public long getBloomFilterTruePositiveCount()
-    {
-        return delegate.getBloomFilterTruePositiveCount();
-    }
-
-    @Override
-    public long getRecentBloomFilterTruePositiveCount()
-    {
-        return delegate.getRecentBloomFilterTruePositiveCount();
-    }
-
-    @Override
     public InstrumentingCache<KeyCacheKey, BigTableRowIndexEntry> getKeyCache()
     {
         return delegate.getKeyCache();

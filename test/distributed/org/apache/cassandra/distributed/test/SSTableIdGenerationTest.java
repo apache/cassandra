@@ -37,7 +37,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.compaction.CompactionStrategy;
 import org.apache.cassandra.db.compaction.DateTieredCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -163,7 +163,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
      * would get by merging data from the initial sstables.
      */
     @SafeVarargs
-    private final void testCompactionStrategiesWithMixedSSTables(final Class<? extends AbstractCompactionStrategy>... compactionStrategyClasses) throws Exception
+    private final void testCompactionStrategiesWithMixedSSTables(final Class<? extends CompactionStrategy>... compactionStrategyClasses) throws Exception
     {
         try (Cluster cluster = init(Cluster.build(1)
                                            .withDataDirCount(1)
@@ -171,7 +171,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
                                            .start()))
         {
             // create a table and two sstables with sequential id for each strategy, the sstables will contain overlapping partitions
-            for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
+            for (Class<? extends CompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
                 String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
                 cluster.schemaChange(createTableStmt(KEYSPACE, tableName, compactionStrategyClass));
@@ -184,7 +184,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
             restartNode(cluster, 1, true);
 
             // create another two sstables with uuid for each previously created table
-            for (Class<? extends AbstractCompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
+            for (Class<? extends CompactionStrategy> compactionStrategyClass : compactionStrategyClasses)
             {
                 String tableName = "tbl_" + compactionStrategyClass.getSimpleName().toLowerCase();
 
@@ -411,7 +411,7 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         return snapshotDirs;
     }
 
-    private static String createTableStmt(String ks, String name, Class<? extends AbstractCompactionStrategy> compactionStrategy)
+    private static String createTableStmt(String ks, String name, Class<? extends CompactionStrategy> compactionStrategy)
     {
         if (compactionStrategy == null)
             compactionStrategy = SizeTieredCompactionStrategy.class;

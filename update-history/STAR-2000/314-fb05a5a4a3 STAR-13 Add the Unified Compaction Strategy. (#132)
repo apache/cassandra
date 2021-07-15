@@ -1,0 +1,41 @@
+--- a/src/java/org/apache/cassandra/db/compaction/DateTieredCompactionStrategy.java
++++ b/src/java/org/apache/cassandra/db/compaction/DateTieredCompactionStrategy.java
+@@ -236,11 +236,7 @@
+     }
+ 
+     @Override
+-<<<<<<<
+-    protected synchronized Set<SSTableReader> getSSTables()
+-=======
+     public Set<SSTableReader> getSSTables()
+->>>>>>>
+     {
+         synchronized (sstables)
+         {
+--- a/src/java/org/apache/cassandra/db/compaction/SizeTieredCompactionStrategy.java
++++ b/src/java/org/apache/cassandra/db/compaction/SizeTieredCompactionStrategy.java
+@@ -390,11 +390,7 @@
+     }
+ 
+     @Override
+-<<<<<<<
+-    protected synchronized Set<SSTableReader> getSSTables()
+-=======
+     public Set<SSTableReader> getSSTables()
+->>>>>>>
+     {
+         synchronized (sstables)
+         {
+--- a/src/java/org/apache/cassandra/db/repair/CassandraTableRepairManager.java
++++ b/src/java/org/apache/cassandra/db/repair/CassandraTableRepairManager.java
+@@ -38,10 +38,7 @@
+ import org.apache.cassandra.io.sstable.format.SSTableReader;
+ import org.apache.cassandra.repair.TableRepairManager;
+ import org.apache.cassandra.repair.ValidationPartitionIterator;
+-<<<<<<<
+-=======
+ import org.apache.cassandra.repair.consistent.LocalSessions;
+->>>>>>>
+ import org.apache.cassandra.service.ActiveRepairService;
+ 
+ public class CassandraTableRepairManager implements TableRepairManager

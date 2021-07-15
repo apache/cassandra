@@ -1,0 +1,82 @@
+--- a/src/java/org/apache/cassandra/db/ColumnFamilyStore.java
++++ b/src/java/org/apache/cassandra/db/ColumnFamilyStore.java
+@@ -662,16 +662,11 @@
+             }
+         }
+ 
+-<<<<<<<
+-        compactionStrategyManager.shutdown();
++        strategyContainer.shutdown();
+ 
+         // Do not remove truncation records for index CFs, given they have the same ID as their backing/base tables.
+         if (!metadata.get().isIndex())
+             SystemKeyspace.removeTruncationRecord(metadata.id);
+-=======
+-        strategyContainer.shutdown();
+-        SystemKeyspace.removeTruncationRecord(metadata.id);
+->>>>>>>
+ 
+         if (dropData)
+         {
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionManager.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionManager.java
+@@ -752,44 +752,12 @@
+             @Override
+             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
+             {
+-<<<<<<<
+                 Iterable<SSTableReader> originals = transaction.originals();
+                 if (cfStore.onlyPurgeRepairedTombstones())
+                     originals = Iterables.filter(originals, SSTableReader::isRepaired);
+                 List<SSTableReader> sortedSSTables = Lists.newArrayList(originals);
+                 Collections.sort(sortedSSTables, SSTableReader.maxTimestampAscending);
+                 return sortedSSTables;
+-=======
+-                List<SSTableReader> filteredSSTables = new ArrayList<>();
+-                if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
+-                {
+-                    for (SSTableReader sstable : transaction.originals())
+-                    {
+-                        if (!sstable.isRepaired())
+-                        {
+-                            try
+-                            {
+-                                transaction.cancel(sstable);
+-                            }
+-                            catch (Throwable t)
+-                            {
+-                                logger.warn(String.format("Unable to cancel %s from transaction %s", sstable, transaction.opId()), t);
+-                            }
+-                        }
+-                        else
+-                        {
+-                            filteredSSTables.add(sstable);
+-                        }
+-                    }
+-                }
+-                else
+-                {
+-                    filteredSSTables.addAll(transaction.originals());
+-                }
+-
+-                filteredSSTables.sort(SSTableReader.maxTimestampAscending);
+-                return filteredSSTables;
+->>>>>>>
+             }
+ 
+             @Override
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionStrategyManager.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionStrategyManager.java
+@@ -713,12 +713,8 @@
+      */
+     private void handleMetadataChangedNotification(SSTableReader sstable, StatsMetadata oldMetadata)
+     {
+-<<<<<<<
+         LegacyAbstractCompactionStrategy acs = getCompactionStrategyFor(sstable);
+         acs.metadataChanged(oldMetadata, sstable);
+-=======
+-        compactionStrategyFor(sstable).metadataChanged(oldMetadata, sstable);
+->>>>>>>
+     }
+ 
+     /**

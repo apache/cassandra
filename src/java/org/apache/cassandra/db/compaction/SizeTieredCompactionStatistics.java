@@ -30,21 +30,9 @@ public class SizeTieredCompactionStatistics extends TieredCompactionStatistics
     /** The average sstable size in this tier */
     private final long avgSSTableSize;
 
-    SizeTieredCompactionStatistics(long avgSSTableSize,
-                                   double hotness,
-                                   int numCompactions,
-                                   int numCompactionsInProgress,
-                                   int numSSTables,
-                                   int numCandidateSSTables,
-                                   int numCompactingSSTables,
-                                   long sizeInBytes,
-                                   double readThroughput,
-                                   double writeThroughput,
-                                   long tot,
-                                   long read,
-                                   long written)
+    SizeTieredCompactionStatistics(CompactionAggregateStatistics base, long avgSSTableSize)
     {
-        super(numCompactions, numCompactionsInProgress, numSSTables, numCandidateSSTables, numCompactingSSTables, sizeInBytes, readThroughput, writeThroughput, hotness, tot, read, written);
+        super(base);
         this.avgSSTableSize = avgSSTableSize;
     }
 

@@ -440,7 +440,8 @@ public abstract class ReadCommand extends AbstractReadQuery
         return searcher.search(executionController);
     }
 
-    protected abstract void recordLatency(TableMetrics metric, long latencyNanos);
+    protected abstract void recordReadRequest(TableMetrics metric);
+    protected abstract void recordReadLatency(TableMetrics metric, long latencyNanos);
 
     public ReadExecutionController executionController(boolean trackRepairedStatus)
     {
@@ -501,6 +502,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 ? Guardrails.scannedTombstones
                                                 : Guardrail.Threshold.NEVER_TRIGGERED;
                 return guardrail.newCounter(ReadCommand.this::toCQLString, true, null);
+            }
+
+            private MetricRecording()
+            {
+                recordReadRequest(metric);
             }
 
             @Override
@@ -569,7 +575,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             @Override
             public void onClose()
             {
-                recordLatency(metric, System.nanoTime() - startTimeNanos);
+                recordReadLatency(metric, System.nanoTime() - startTimeNanos);
 
                 metric.tombstoneScannedHistogram.update(tombstones.get());
                 metric.liveScannedHistogram.update(liveRows);
@@ -667,7 +673,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             public WithoutPurgeableTombstones()
             {
                 super(nowInSec(), cfs.gcBefore(nowInSec()), controller.oldestUnrepairedTombstone(),
-                      cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
+                      cfs.onlyPurgeRepairedTombstones(),
                       iterator.metadata().enforceStrictLiveness());
             }
 

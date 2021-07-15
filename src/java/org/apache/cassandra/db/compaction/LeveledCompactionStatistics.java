@@ -28,7 +28,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 /**
- * The statistics for levelled compaction.
+ * The statistics for leveled compaction.
  * <p/>
  * Implements serializable to allow structured info to be returned via JMX.
  */
@@ -36,10 +36,9 @@ public class LeveledCompactionStatistics extends CompactionAggregateStatistics
 {
     private static final Collection<String> HEADER = ImmutableList.copyOf(Iterables.concat(ImmutableList.of("Level", "Score"),
                                                                                            CompactionAggregateStatistics.HEADER,
-                                                                                           ImmutableList.of("Tot/Read/Written",
-                                                                                                                            "Read: Tot/Prev/Next",
-                                                                                                                            "Written: Tot/New",
-                                                                                                                            "WA (tot_written/read_prev)")));
+                                                                                           ImmutableList.of("Read: Tot/Prev/Next",
+                                                                                                            "Written: Tot/New",
+                                                                                                            "WA (tot_written/read_prev)")));
 
     private static final long serialVersionUID = 3695927592357744816L;
 
@@ -49,17 +48,17 @@ public class LeveledCompactionStatistics extends CompactionAggregateStatistics
     /** The score of this level */
     private final double score;
 
-    /** Total bytes of the sstables selected for compaction */
-    private final long tot;
+    /**
+     * How many more compactions this level is expected to perform. This is required because for LCS we cannot
+     * easily identify candidate sstables to put into the pending picks.
+     */
+    private final int pendingCompactions;
 
-    /** Total bytes read during compaction between levels N and N+1. This includes bytes read from this level (N) and from the next level (N+1) */
-    private final long totRead;
-
-    /** Bytes read from the current level (N) during compaction between levels N and N+1 */
+    /**
+     * Bytes read from the current level (N) during compaction between levels N and N+1. Note that {@link #readBytes}
+     * includes bytes read from both the current level (N) and the target level (N+1).
+     */
     private final long readLevel;
-
-    /** Total bytes written during compaction between levels N and N+1 */
-    private final long totWritten;
 
     /**
      * Additional RocksDB metrics we may want to consider:
@@ -80,29 +79,25 @@ public class LeveledCompactionStatistics extends CompactionAggregateStatistics
      * KeyDrop: number of records dropped (not written out) during compaction
      */
 
-    public LeveledCompactionStatistics(int level,
+    public LeveledCompactionStatistics(CompactionAggregateStatistics base,
+                                       int level,
                                        double score,
-                                       int numCompactions,
-                                       int numCompactionsInProgress,
-                                       int numSSTables,
-                                       int numCandidateSSTables,
-                                       int numCompactingSSTables,
-                                       long sizeInBytes,
-                                       double readThroughput,
-                                       double writeThroughput,
-                                       long tot,
-                                       long totRead,
-                                       long readLevel,
-                                       long totWritten)
+                                       int pendingCompactions,
+                                       long readLevel)
     {
-        super(numCompactions, numCompactionsInProgress, numSSTables, numCandidateSSTables, numCompactingSSTables, sizeInBytes, readThroughput, writeThroughput);
-
+        super(base);
         this.level = level;
         this.score = score;
-        this.tot = tot;
-        this.totRead = totRead;
+        this.pendingCompactions = pendingCompactions;
         this.readLevel = readLevel;
-        this.totWritten = totWritten;
+    }
+
+    /** The number of compactions that are either pending or in progress */
+    @Override
+    @JsonProperty
+    public int numCompactions()
+    {
+        return numCompactions + pendingCompactions;
     }
 
     /** The current level */
@@ -120,22 +115,10 @@ public class LeveledCompactionStatistics extends CompactionAggregateStatistics
         return score;
     }
 
-    /** Total bytes of the sstables selected for compaction */
-    @JsonProperty
-    public long tot()
-    {
-        return tot;
-    }
-
-    /** Total uncompressed bytes read during compaction between this level and the next. This includes bytes read from this level (N) and from the next level (N+1) */
-    @JsonProperty
-    public long read()
-    {
-        return totRead;
-    }
-
-    /** Uncompressed bytes read from the previous level (N) during compaction between levels N and N+1*/
-    @JsonProperty
+    /**
+     * Bytes read from the current level (N) during compaction between levels N and N+1. Note that
+     * {@link #read()} includes bytes read from both the current level (N) and the target level (N+1).
+     */    @JsonProperty
     public long readLevel()
     {
         return readLevel;
@@ -145,28 +128,21 @@ public class LeveledCompactionStatistics extends CompactionAggregateStatistics
     @JsonProperty
     public long readNext()
     {
-        return totRead - readLevel;
-    }
-
-    /** Uncompressed  bytes written during compaction between levels N and N+1 */
-    @JsonProperty
-    public long written()
-    {
-        return totWritten;
+        return readBytes - readLevel;
     }
 
     /** Uncompressed  bytes written to level N+1, calculated as total bytes written - bytes read from N+1 */
     @JsonProperty
     public long writtenNew()
     {
-        return totWritten - readNext();
+        return writtenBytes - readNext();
     }
 
     /** W-Amp: total bytes written divided by the bytes read from level N. */
     @JsonProperty
     public double writeAmpl()
     {
-        return readLevel() > 0 ? (double)totWritten / readLevel() : Double.NaN;
+        return readLevel() > 0 ? (double) writtenBytes / readLevel() : Double.NaN;
     }
 
     @Override
@@ -184,10 +160,10 @@ public class LeveledCompactionStatistics extends CompactionAggregateStatistics
 
         data.addAll(super.data());
 
-        data.add(toString(tot()) + '/' + toString(read()) + '/' + toString(written()));
         data.add(toString(read()) + '/' + toString(readLevel()) + '/' + toString(readNext()));
         data.add(toString(written()) + '/' + toString(writtenNew()));
         data.add(String.format("%.3f", writeAmpl()));
+
         return data;
     }
 }

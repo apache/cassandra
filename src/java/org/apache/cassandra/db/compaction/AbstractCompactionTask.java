@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -42,7 +45,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     protected boolean isUserDefined;
     protected OperationType compactionType;
     protected TableOperationObserver opObserver;
-    protected CompactionObserver compObserver;
+    protected final List<CompactionObserver> compObservers;
 
     /**
      * @param cfs
@@ -55,7 +58,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         this.isUserDefined = false;
         this.compactionType = OperationType.COMPACTION;
         this.opObserver = TableOperationObserver.NOOP;
-        this.compObserver = CompactionObserver.NO_OP;
+        this.compObservers = new ArrayList<>();
 
         try
         {
@@ -122,7 +125,7 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         {
             return executeInternal();
         }
-        catch(FSDiskFullWriteError e)
+        catch (FSDiskFullWriteError e)
         {
             RuntimeException cause = new RuntimeException("Converted from FSDiskFullWriteError: " + e.getMessage());
             cause.setStackTrace(e.getStackTrace());
@@ -136,9 +139,10 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
 
     private Throwable cleanup(Throwable err)
     {
-        return Throwables.perform(err,
-                                  () -> compObserver.setCompleted(transaction.opId()),
-                                  () -> transaction.close());
+        for (CompactionObserver compObserver : compObservers)
+            err = Throwables.perform(err, () -> compObserver.onCompleted(transaction.opId()));
+
+        return Throwables.perform(err, () -> transaction.close());
     }
 
     public abstract CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
@@ -166,6 +170,17 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
     {
         this.opObserver = opObserver;
         return this;
+    }
+
+    void addObserver(CompactionObserver compObserver)
+    {
+        compObservers.add(compObserver);
+    }
+
+    @VisibleForTesting
+    LifecycleTransaction transaction()
+    {
+        return transaction;
     }
 
     public String toString()

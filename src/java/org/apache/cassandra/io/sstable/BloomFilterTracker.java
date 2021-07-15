@@ -17,83 +17,147 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.util.concurrent.atomic.AtomicLong;
+import com.codahale.metrics.Meter;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
-public class BloomFilterTracker
+public abstract class BloomFilterTracker
 {
-    private final AtomicLong falsePositiveCount = new AtomicLong(0);
-    private final AtomicLong truePositiveCount = new AtomicLong(0);
-    private final AtomicLong trueNegativeCount = new AtomicLong(0);
-    private long lastFalsePositiveCount = 0L;
-    private long lastTruePositiveCount = 0L;
-    private long lastTrueNegativeCount = 0L;
+    public abstract void addFalsePositive();
+    public abstract void addTruePositive();
+    public abstract void addTrueNegative();
+    public abstract long getFalsePositiveCount();
+    public abstract double getRecentFalsePositiveRate();
+    public abstract long getTruePositiveCount();
+    public abstract double getRecentTruePositiveRate();
+    public abstract long getTrueNegativeCount();
+    public abstract double getRecentTrueNegativeRate();
 
-    public void addFalsePositive()
+    public static BloomFilterTracker createNoopTracker()
     {
-        falsePositiveCount.incrementAndGet();
+        return NoopBloomFilterTracker.instance;
     }
 
-    public void addTruePositive()
+    public static BloomFilterTracker createMeterTracker()
     {
-        truePositiveCount.incrementAndGet();
+        return new MeterBloomFilterTracker();
     }
 
-    public void addTrueNegative()
+    private static class MeterBloomFilterTracker extends BloomFilterTracker
     {
-        trueNegativeCount.incrementAndGet();
-    }
+        private final Meter falsePositiveCount = new Meter();
+        private final Meter truePositiveCount = new Meter();
+        private final Meter trueNegativeCount = new Meter();
 
-    public long getFalsePositiveCount()
-    {
-        return falsePositiveCount.get();
-    }
-
-    public long getRecentFalsePositiveCount()
-    {
-        long fpc = getFalsePositiveCount();
-        try
+        @Override
+        public void addFalsePositive()
         {
-            return (fpc - lastFalsePositiveCount);
+            falsePositiveCount.mark();
         }
-        finally
+
+        @Override
+        public void addTruePositive()
         {
-            lastFalsePositiveCount = fpc;
+            truePositiveCount.mark();
+        }
+
+        @Override
+        public void addTrueNegative()
+        {
+            trueNegativeCount.mark();
+        }
+
+        @Override
+        public long getFalsePositiveCount()
+        {
+            return falsePositiveCount.getCount();
+        }
+
+        @Override
+        public double getRecentFalsePositiveRate()
+        {
+            return falsePositiveCount.getFifteenMinuteRate();
+        }
+
+        @Override
+        public long getTruePositiveCount()
+        {
+            return truePositiveCount.getCount();
+        }
+
+        @Override
+        public double getRecentTruePositiveRate()
+        {
+            return truePositiveCount.getFifteenMinuteRate();
+        }
+
+        @Override
+        public long getTrueNegativeCount()
+        {
+            return trueNegativeCount.getCount();
+        }
+
+        @Override
+        public double getRecentTrueNegativeRate()
+        {
+            return trueNegativeCount.getFifteenMinuteRate();
         }
     }
 
-    public long getTruePositiveCount()
+    /**
+     * Bloom filter tracker that does nothing and always returns 0 for all counters.
+     *
+     * Bloom Filter tracking is managed on the CFS level, so there is no reason to count anything if an SSTable does not
+     * belong (yet) to a CFS. This tracker is used initially on SSTableReaders and is overwritten during setup
+     * in {@link SSTableReader#setupOnline()} or {@link SSTableReader#setupOnline(ColumnFamilyStore)}}.
+     */
+    private static class NoopBloomFilterTracker extends BloomFilterTracker
     {
-        return truePositiveCount.get();
-    }
+        static final NoopBloomFilterTracker instance = new NoopBloomFilterTracker();
 
-    public long getRecentTruePositiveCount()
-    {
-        long tpc = getTruePositiveCount();
-        try
-        {
-            return (tpc - lastTruePositiveCount);
-        }
-        finally
-        {
-            lastTruePositiveCount = tpc;
-        }
-    }
+        @Override
+        public void addFalsePositive() {}
 
-    public long getTrueNegativeCount()
-    {
-        return trueNegativeCount.get();
-    }
+        @Override
+        public void addTruePositive() {}
 
-    public long getRecentTrueNegativeCount()
-    {
-        long tnc = getTrueNegativeCount();
-        try
+        @Override
+        public void addTrueNegative() {}
+
+        @Override
+        public long getFalsePositiveCount()
         {
-            return (tnc - lastTrueNegativeCount);
+            return 0;
         }
-        finally
+
+        @Override
+        public double getRecentFalsePositiveRate()
         {
-            lastTrueNegativeCount = tnc;
+            return 0;
+        }
+
+        @Override
+        public long getTruePositiveCount()
+        {
+            return 0;
+        }
+
+        @Override
+        public double getRecentTruePositiveRate()
+        {
+            return 0;
+        }
+
+        @Override
+        public long getTrueNegativeCount()
+        {
+            return 0;
+        }
+
+        @Override
+        public double getRecentTrueNegativeRate()
+        {
+            return 0;
         }
     }
 }

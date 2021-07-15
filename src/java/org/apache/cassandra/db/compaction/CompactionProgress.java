@@ -38,7 +38,8 @@ public interface CompactionProgress extends TableOperation.Progress
      *
      * @return the compaction strategy when available or null.
      */
-    @Nullable AbstractCompactionStrategy strategy();
+    @Nullable
+    CompactionStrategy strategy();
 
     /**
      * @return true if the compaction was requested to interrupt
