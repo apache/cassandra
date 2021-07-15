@@ -47,6 +47,7 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_SG_10;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
@@ -326,6 +327,7 @@ public class CounterMutation implements IMutation
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSizeSG10;
 
     public int serializedSize(int version)
     {
@@ -343,6 +345,10 @@ public class CounterMutation implements IMutation
                 if (serializedSize40 == 0)
                     serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_SG_10:
+                if (serializedSizeSG10 == 0)
+                    serializedSizeSG10 = (int) serializer.serializedSize(this, VERSION_SG_10);
+                return serializedSizeSG10;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }
