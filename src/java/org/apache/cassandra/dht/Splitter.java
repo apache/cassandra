@@ -118,10 +118,75 @@ public abstract class Splitter
         return new BigDecimal(elapsedTokens(token, range)).divide(new BigDecimal(tokensInRange(range)), 3, BigDecimal.ROUND_HALF_EVEN).doubleValue();
     }
 
-    public List<Token> splitOwnedRanges(int parts, List<WeightedRange> weightedRanges, boolean dontSplitRanges)
+    /**
+     * How local ranges should be split
+     */
+    public enum SplitType
     {
-        if (weightedRanges.isEmpty() || parts == 1)
-            return Collections.singletonList(partitioner.getMaximumToken());
+        /** Local ranges should always be split, without attempting to keep them whole */
+        ALWAYS_SPLIT,
+        /** A first pass will try to avoid splitting ranges, but if there aren't enough parts,
+         * then ranges will be split in a second pass.
+         */
+        PREFER_WHOLE,
+        /** Ranges Should never be split */
+        ONLY_WHOLE
+    }
+
+    /**
+     * The result of a split operation, this is just a wrapper of the boundaries and the type
+     * of split that was done, i.e. if the local ranges were split or not. This is just so that
+     * we can test the algorithm.
+     */
+    public final static class SplitResult
+    {
+        public final List<Token> boundaries;
+        public final boolean rangesWereSplit;
+
+        SplitResult(List<Token> boundaries, boolean rangesWereSplit)
+        {
+            this.boundaries = boundaries;
+            this.rangesWereSplit = rangesWereSplit;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (!(o instanceof SplitResult))
+                return false;
+
+            SplitResult splitResult = (SplitResult) o;
+            return Objects.equals(boundaries, splitResult.boundaries)
+                   && Objects.equals(rangesWereSplit, splitResult.rangesWereSplit);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(boundaries, rangesWereSplit);
+        }
+    }
+
+    /**
+     * Split the local ranges into the specified number of parts.
+     *
+     * Depending on the parameter {@code splitType}, it may attempt to only merge the local ranges first,
+     * to see if this is sufficient to cover the requested number of parts. If it's not, it will then split
+     * existing ranges.
+     *
+     * @param parts the number of parts
+     * @param weightedRanges the local ranges owned by this node
+     * @param splitType how local ranges should be split, see {@link SplitType}
+     *
+     * @return the split result, which contains a list of tokens, one per part, and if the ranges were split or not
+     */
+    public SplitResult splitOwnedRanges(int parts, List<WeightedRange> weightedRanges, SplitType splitType)
+    {
+        if (weightedRanges.isEmpty() || parts <= 1)
+            return new SplitResult(Collections.singletonList(partitioner.getMaximumToken()), false);
 
         BigInteger totalTokens = BigInteger.ZERO;
         for (WeightedRange weightedRange : weightedRanges)
@@ -132,12 +197,23 @@ public abstract class Splitter
         BigInteger perPart = totalTokens.divide(BigInteger.valueOf(parts));
         // the range owned is so tiny we can't split it:
         if (perPart.equals(BigInteger.ZERO))
-            return Collections.singletonList(partitioner.getMaximumToken());
-
-        if (dontSplitRanges)
-            return splitOwnedRangesNoPartialRanges(weightedRanges, perPart, parts);
+            return new SplitResult(Collections.singletonList(partitioner.getMaximumToken()), false);
 
         List<Token> boundaries = new ArrayList<>();
+
+        if (splitType != SplitType.ALWAYS_SPLIT)
+        {
+            // see if we can obtain a sufficient number of parts by only merging local ranges
+            boundaries = splitOwnedRangesNoPartialRanges(weightedRanges, perPart, parts);
+            // we were either able to obtain sufficient parts without splitting ranges or we should never split ranges
+            if (splitType == SplitType.ONLY_WHOLE || boundaries.size() == parts)
+                return new SplitResult(boundaries, false);
+            else
+                boundaries.clear();
+        }
+
+        // otherwise continue by splitting ranges
+
         BigInteger sum = BigInteger.ZERO;
         for (WeightedRange weightedRange : weightedRanges)
         {
@@ -156,7 +232,7 @@ public abstract class Splitter
         boundaries.set(boundaries.size() - 1, partitioner.getMaximumToken());
 
         assert boundaries.size() == parts : boundaries.size() + "!=" + parts + " " + boundaries + ":" + weightedRanges;
-        return boundaries;
+        return new SplitResult(boundaries, true);
     }
 
     private List<Token> splitOwnedRangesNoPartialRanges(List<WeightedRange> weightedRanges, BigInteger perPart, int parts)
@@ -288,6 +364,11 @@ public abstract class Splitter
         public Range<Token> range()
         {
             return range;
+        }
+
+        public double weight()
+        {
+            return weight;
         }
 
         public String toString()

@@ -43,7 +43,9 @@ public interface SSTableMultiWriter extends Transactional
     SSTableMultiWriter setOpenResult(boolean openResult);
 
     String getFilename();
-    long getFilePointer();
+    long getBytesWritten();
+    long getOnDiskBytesWritten();
+    int getSegmentCount();
     TableId getTableId();
 
     static void abortOrDie(SSTableMultiWriter writer)

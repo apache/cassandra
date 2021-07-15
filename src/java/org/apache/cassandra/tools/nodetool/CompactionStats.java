@@ -56,23 +56,35 @@ public class CompactionStats extends NodeToolCmd
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
         Map<String, Map<String, Integer>> pendingTaskNumberByTable =
             (Map<String, Map<String, Integer>>) probe.getCompactionMetric("PendingTasksByTableName");
+        Map<String, Map<String, Double>> writeAmplificationByTableName =
+        (Map<String, Map<String, Double>>) probe.getCompactionMetric("WriteAmplificationByTableName");
         int numTotalPendingTask = 0;
+        double totWriteAmplification = 0;
         for (Entry<String, Map<String, Integer>> ksEntry : pendingTaskNumberByTable.entrySet())
         {
+            Map<String, Double> ksWriteAmplification = writeAmplificationByTableName.get(ksEntry.getKey());
             for (Entry<String, Integer> tableEntry : ksEntry.getValue().entrySet())
+            {
                 numTotalPendingTask += tableEntry.getValue();
+                if (ksWriteAmplification != null)
+                    totWriteAmplification += ksWriteAmplification.get(tableEntry.getKey());
+            }
         }
 
         out.println("pending tasks: " + numTotalPendingTask);
+        System.out.println(String.format("write amplification: %.2f", totWriteAmplification));
         for (Entry<String, Map<String, Integer>> ksEntry : pendingTaskNumberByTable.entrySet())
         {
             String ksName = ksEntry.getKey();
+            Map<String, Double> ksWriteAmplification = writeAmplificationByTableName.get(ksName);
             for (Entry<String, Integer> tableEntry : ksEntry.getValue().entrySet())
             {
                 String tableName = tableEntry.getKey();
                 int pendingTaskCount = tableEntry.getValue();
 
-                out.println("- " + ksName + '.' + tableName + ": " + pendingTaskCount);
+                double wa = ksWriteAmplification == null ? 0 : ksWriteAmplification.get(tableName);
+                System.out.println(String.format("- %s.%s: %d", ksName, tableName, pendingTaskCount));
+                System.out.println(String.format("- %s.%s write amplification.: %.2f", ksName, tableName, wa));
             }
         }
         out.println();

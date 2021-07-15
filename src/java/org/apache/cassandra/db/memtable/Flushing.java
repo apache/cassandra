@@ -66,7 +66,7 @@ public class Flushing
                                  cfs.name);
 
         DiskBoundaries diskBoundaries = cfs.getDiskBoundaries();
-        List<PartitionPosition> boundaries = diskBoundaries.positions;
+        List<PartitionPosition> boundaries = diskBoundaries.getPositions();
         List<Directories.DataDirectory> locations = diskBoundaries.directories;
         return flushRunnables(cfs, memtable, boundaries, locations, txn);
     }
@@ -185,6 +185,7 @@ public class Flushing
                 return;
             }
 
+            long before = System.nanoTime();
             logger.debug("Writing {}, flushed range = ({}, {}], state: {}",
                          toFlush.memtable().toString(), toFlush.from(), toFlush.to(), state);
 
@@ -222,13 +223,19 @@ public class Flushing
                     {
                         if (logCompletion)
                         {
-                            long bytesFlushed = writer.getFilePointer();
-                            logger.info("Completed flushing {} ({}) for commitlog position {}",
+                            long bytesFlushed = writer.getBytesWritten();
+                            long onDiskBytesWritten = writer.getOnDiskBytesWritten();
+                            long segmentCount = writer.getSegmentCount();
+                            logger.info("Completed flushing {} ({}/{} on disk/{} files) for commitlog position {}",
                                         writer.getFilename(),
                                         FBUtilities.prettyPrintMemory(bytesFlushed),
+                                        FBUtilities.prettyPrintMemory(onDiskBytesWritten),
+                                        segmentCount,
                                         toFlush.memtable().getFinalCommitLogUpperBound());
                             // Update the metrics
-                            metrics.bytesFlushed.inc(bytesFlushed);
+                            metrics.incBytesFlushed(toFlush.memtable().getLiveDataSize(), bytesFlushed, before - System.nanoTime());
+                            metrics.flushSizeOnDisk.update(onDiskBytesWritten);
+                            metrics.flushSegmentCount.update(segmentCount);
                         }
 
                         break;

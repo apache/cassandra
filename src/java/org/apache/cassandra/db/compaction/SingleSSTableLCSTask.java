@@ -43,24 +43,23 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
 
     private final int level;
 
-    public SingleSSTableLCSTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int level)
+    public SingleSSTableLCSTask(LeveledCompactionStrategy strategy, LifecycleTransaction txn, int level)
     {
-        super(cfs, txn);
+        super(strategy.cfs, txn);
         assert txn.originals().size() == 1;
         this.level = level;
-    }
-
-    public static AbstractCompactionTask forCompaction(LeveledCompactionStrategy strategy, LifecycleTransaction txn, int level)
-    {
-        SingleSSTableLCSTask ret = new SingleSSTableLCSTask(strategy.cfs, txn, level);
-        ret.compObserver = strategy.getBackgroundCompactions();
-        return ret;
+        addObserver(strategy);
     }
 
     @Override
     public CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
         throw new UnsupportedOperationException("This method should never be called on SingleSSTableLCSTask");
+    }
+
+    int getLevel()
+    {
+        return level;
     }
 
     @Override

@@ -1618,6 +1618,7 @@ public class NodeProbe implements AutoCloseable
                 case "CompletedTasks":
                 case "PendingTasks":
                 case "PendingTasksByTableName":
+                case "WriteAmplificationByTableName":
                 case "AggregateCompactions":
                     return JMX.newMBeanProxy(mbeanServerConn,
                             new ObjectName("org.apache.cassandra.metrics:type=Compaction,name=" + metricName),

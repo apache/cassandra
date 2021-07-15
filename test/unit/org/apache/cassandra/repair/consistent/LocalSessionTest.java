@@ -194,7 +194,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
         public Map<UUID, Integer> completedSessions = new HashMap<>();
 
-        protected void sessionCompleted(LocalSession session)
+        public void sessionCompleted(LocalSession session)
         {
             UUID sessionID = session.sessionID;
             int calls = completedSessions.getOrDefault(sessionID, 0);

@@ -295,9 +295,15 @@ public class MultiRangeReadCommand extends ReadCommand
     }
 
     @Override
-    protected void recordLatency(TableMetrics metric, long latencyNanos)
+    protected void recordReadLatency(TableMetrics metric, long latencyNanos)
     {
         metric.rangeLatency.addNano(latencyNanos);
+    }
+
+    @Override
+    protected void recordReadRequest(TableMetrics metric)
+    {
+        metric.rangeRequests.inc();
     }
 
     @Override

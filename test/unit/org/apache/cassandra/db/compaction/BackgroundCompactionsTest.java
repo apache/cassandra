@@ -40,6 +40,7 @@ import org.mockito.MockitoAnnotations;
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -52,10 +53,7 @@ public class BackgroundCompactionsTest
     private ColumnFamilyStore cfs;
 
     @Mock
-    private AbstractCompactionStrategy strategy;
-
-    @Mock
-    private CompactionStrategyManager strategyManager;
+    private CompactionStrategyContainer strategyContainer;
 
     @Mock
     private CompactionLogger compactionLogger;
@@ -78,9 +76,8 @@ public class BackgroundCompactionsTest
         when(cfs.metadata()).thenReturn(metadata);
         when(cfs.getKeyspaceName()).thenReturn(keyspace);
         when(cfs.getTableName()).thenReturn(table);
-        when(cfs.getCompactionStrategyManager()).thenReturn(strategyManager);
-        when(strategyManager.compactionLogger()).thenReturn(compactionLogger);
         when(compactionLogger.enabled()).thenReturn(true);
+        when(strategyContainer.getCompactionLogger()).thenReturn(compactionLogger);
     }
 
     private CompactionAggregate mockAggregate(long key, int numCompactions, int numCompacting)
@@ -89,7 +86,7 @@ public class BackgroundCompactionsTest
             throw new IllegalArgumentException("Cannot have more compactions in progress than total compactions");
 
         CompactionAggregate ret = Mockito.mock(CompactionAggregate.class);
-        when(ret.getKey()).thenReturn(key);
+        when(ret.getKey()).thenReturn(new CompactionAggregate.Key(key));
 
         List<CompactionPick> compactions = new ArrayList<>(numCompactions);
         for (int i = 0; i < numCompactions; i++)
@@ -106,57 +103,57 @@ public class BackgroundCompactionsTest
     @Test
     public void testNoCompaction()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(0, backgroundCompactions.getTotalCompactions());
 
-        CompactionStrategyStatistics statistics = backgroundCompactions.getStatistics();
+        CompactionStrategyStatistics statistics = backgroundCompactions.getStatistics(strategyContainer);
         assertNotNull(statistics);
         assertTrue(statistics.aggregates().isEmpty());
         assertEquals(keyspace, statistics.keyspace());
         assertEquals(table, statistics.table());
-        assertEquals(strategy.getClass().getSimpleName(), statistics.strategy());
+        assertEquals(strategyContainer.getClass().getSimpleName(), statistics.strategy());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testNullPendingCompactions()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
-        backgroundCompactions.setPending(null);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
+        backgroundCompactions.setPending(strategyContainer, null);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testDuplicatePendingCompactions()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
         List<CompactionAggregate> pending = new ArrayList<>(0);
         for (int i = 0; i < 5; i++)
             pending.add(mockAggregate(1, 1, 0));
 
         // Two compactions with the same key are invalid
-        backgroundCompactions.setPending(pending);
+        backgroundCompactions.setPending(strategyContainer, pending);
     }
 
     @Test
     public void testPendingCompactions()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
         List<CompactionAggregate> pending = new ArrayList<>(0);
         for (int i = 0; i < 5; i++)
             pending.add(mockAggregate(i, 1, 0));
 
-        backgroundCompactions.setPending(pending);
+        backgroundCompactions.setPending(strategyContainer, pending);
 
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("pending"), any(CompactionStrategyStatistics.class));
-        Mockito.verify(compactionLogger, times(1)).pending(eq(strategy), eq(pending.size()));
+        Mockito.verify(compactionLogger, never()).statistics(eq(strategyContainer), eq("pending"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).pending(eq(strategyContainer), eq(pending.size()));
 
         assertEquals(pending.size(), backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
 
         // Remove the previous pending compactions, none should be kept since they don't have in progress compactions
-        backgroundCompactions.setPending(ImmutableList.of());
+        backgroundCompactions.setPending(strategyContainer, ImmutableList.of());
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(0, backgroundCompactions.getTotalCompactions());
     }
@@ -166,16 +163,16 @@ public class BackgroundCompactionsTest
     {
         // Add some pending compactions, and then submit one of them, the most common case
 
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
         List<CompactionAggregate> pending = new ArrayList<>(0);
         for (int i = 0; i < 5; i++)
             pending.add(mockAggregate(i, 1, 0));
 
-        backgroundCompactions.setPending(pending);
+        backgroundCompactions.setPending(strategyContainer, pending);
 
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("pending"), any(CompactionStrategyStatistics.class));
-        Mockito.verify(compactionLogger, times(1)).pending(eq(strategy), eq(pending.size()));
+        Mockito.verify(compactionLogger, never()).statistics(eq(strategyContainer), eq("pending"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).pending(eq(strategyContainer), eq(pending.size()));
 
         assertEquals(pending.size(), backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
@@ -187,10 +184,10 @@ public class BackgroundCompactionsTest
         when(aggregate.getMatching(any(TreeMap.class))).thenReturn(aggregate);
         when(aggregate.getActive()).thenReturn(ImmutableList.of(compaction)); // ensure the aggregate already has the compaction
 
-        backgroundCompactions.setSubmitted(uuid, aggregate);
+        backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
 
         Mockito.verify(compaction, times(1)).setSubmitted(eq(uuid));
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("submitted"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategyContainer), eq("submitted"), any(CompactionStrategyStatistics.class));
 
         when(pending.get(0).numEstimatedCompactions()).thenReturn(0);
         assertEquals(pending.size() - 1, backgroundCompactions.getEstimatedRemainingTasks());
@@ -199,21 +196,21 @@ public class BackgroundCompactionsTest
         CompactionProgress progress = Mockito.mock(CompactionProgress.class);
         when(progress.operationId()).thenReturn(uuid);
 
-        backgroundCompactions.setInProgress(progress);
+        backgroundCompactions.onInProgress(progress);
         Mockito.verify(compaction, times(1)).setProgress(eq(progress));
 
         assertEquals(pending.size() - 1, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
 
         // Remove the previous pending compactions, the one submitted should be kept
-        backgroundCompactions.setPending(ImmutableList.of());
+        backgroundCompactions.setPending(strategyContainer, ImmutableList.of());
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(1, backgroundCompactions.getTotalCompactions());
 
-        backgroundCompactions.setCompleted(uuid);
+        backgroundCompactions.onCompleted(strategyContainer, uuid);
 
         Mockito.verify(compaction, times(1)).setCompleted();
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("completed"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategyContainer), eq("completed"), any(CompactionStrategyStatistics.class));
 
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(0, backgroundCompactions.getTotalCompactions());
@@ -226,16 +223,16 @@ public class BackgroundCompactionsTest
         // but for which there is a matching aggregate, this would happen if two threads raced and created equivalent
         // but not identical pending aggregates
 
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
         List<CompactionAggregate> pending = new ArrayList<>(0);
         for (int i = 0; i < 5; i++)
             pending.add(mockAggregate(i, 1, 0));
 
-        backgroundCompactions.setPending(pending);
+        backgroundCompactions.setPending(strategyContainer, pending);
 
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("pending"), any(CompactionStrategyStatistics.class));
-        Mockito.verify(compactionLogger, times(1)).pending(eq(strategy), eq(pending.size()));
+        Mockito.verify(compactionLogger, never()).statistics(eq(strategyContainer), eq("pending"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).pending(eq(strategyContainer), eq(pending.size()));
 
         assertEquals(pending.size(), backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
@@ -248,10 +245,10 @@ public class BackgroundCompactionsTest
         when(pending.get(0).getActive()).thenReturn(ImmutableList.of()); // ensure the matching aggregate does not have the compaction
         when(pending.get(0).withAdditionalCompactions(any(Collection.class))).thenReturn(pending.get(0));
 
-        backgroundCompactions.setSubmitted(uuid, aggregate);
+        backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
 
         Mockito.verify(compaction, times(1)).setSubmitted(eq(uuid));
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("submitted"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategyContainer), eq("submitted"), any(CompactionStrategyStatistics.class));
 
         when(pending.get(0).numEstimatedCompactions()).thenReturn(0);
         assertEquals(pending.size() - 1, backgroundCompactions.getEstimatedRemainingTasks());
@@ -260,21 +257,21 @@ public class BackgroundCompactionsTest
         CompactionProgress progress = Mockito.mock(CompactionProgress.class);
         when(progress.operationId()).thenReturn(uuid);
 
-        backgroundCompactions.setInProgress(progress);
+        backgroundCompactions.onInProgress(progress);
         Mockito.verify(compaction, times(1)).setProgress(eq(progress));
 
         assertEquals(pending.size() - 1, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
 
         // Remove the previous pending compactions, the one submitted should be kept
-        backgroundCompactions.setPending(ImmutableList.of());
+        backgroundCompactions.setPending(strategyContainer, ImmutableList.of());
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(1, backgroundCompactions.getTotalCompactions());
 
-        backgroundCompactions.setCompleted(uuid);
+        backgroundCompactions.onCompleted(strategyContainer, uuid);
 
         Mockito.verify(compaction, times(1)).setCompleted();
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("completed"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategyContainer), eq("completed"), any(CompactionStrategyStatistics.class));
 
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(0, backgroundCompactions.getTotalCompactions());
@@ -286,12 +283,12 @@ public class BackgroundCompactionsTest
         // Submit a compaction that is not part of a pending aggregate, this normally happens for tombstone compactions,
         // in this case the pending aggregates are empty but a tombstone compaction is submitted
 
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
-        backgroundCompactions.setPending(ImmutableList.of());
+        backgroundCompactions.setPending(strategyContainer, ImmutableList.of());
 
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("pending"), any(CompactionStrategyStatistics.class));
-        Mockito.verify(compactionLogger, times(1)).pending(eq(strategy), eq(0));
+        Mockito.verify(compactionLogger, never()).statistics(eq(strategyContainer), eq("pending"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).pending(eq(strategyContainer), eq(0));
 
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(0, backgroundCompactions.getTotalCompactions());
@@ -302,10 +299,10 @@ public class BackgroundCompactionsTest
         when(aggregate.getSelected()).thenReturn(compaction);
         when(aggregate.getMatching(any(TreeMap.class))).thenReturn(null);
 
-        backgroundCompactions.setSubmitted(uuid, aggregate);
+        backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
 
         Mockito.verify(compaction, times(1)).setSubmitted(eq(uuid));
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("submitted"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategyContainer), eq("submitted"), any(CompactionStrategyStatistics.class));
 
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(1, backgroundCompactions.getTotalCompactions());
@@ -313,21 +310,21 @@ public class BackgroundCompactionsTest
         CompactionProgress progress = Mockito.mock(CompactionProgress.class);
         when(progress.operationId()).thenReturn(uuid);
 
-        backgroundCompactions.setInProgress(progress);
+        backgroundCompactions.onInProgress(progress);
         Mockito.verify(compaction, times(1)).setProgress(eq(progress));
 
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(1, backgroundCompactions.getTotalCompactions());
 
         // Remove the previous pending compactions, the one submitted should be kept
-        backgroundCompactions.setPending(ImmutableList.of());
+        backgroundCompactions.setPending(strategyContainer, ImmutableList.of());
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(1, backgroundCompactions.getTotalCompactions());
 
-        backgroundCompactions.setCompleted(uuid);
+        backgroundCompactions.onCompleted(strategyContainer, uuid);
 
         Mockito.verify(compaction, times(1)).setCompleted();
-        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategy), eq("completed"), any(CompactionStrategyStatistics.class));
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(strategyContainer), eq("completed"), any(CompactionStrategyStatistics.class));
 
         assertEquals(0, backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(0, backgroundCompactions.getTotalCompactions());
@@ -339,7 +336,7 @@ public class BackgroundCompactionsTest
         // Add som pending aggregates, then replace them with aggregates with different keys, verify that only
         // those with compactions are kept, partially overlap the keys between the old and new aggregates
 
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
 
         List<CompactionAggregate> pending = new ArrayList<>(0);
         int key = 0;
@@ -357,7 +354,7 @@ public class BackgroundCompactionsTest
             pending.add(aggregateWithComps);
         }
 
-        backgroundCompactions.setPending(pending);
+        backgroundCompactions.setPending(strategyContainer, pending);
 
         assertEquals(pending.size(), backgroundCompactions.getEstimatedRemainingTasks());
         assertEquals(pending.size(), backgroundCompactions.getTotalCompactions());
@@ -375,7 +372,7 @@ public class BackgroundCompactionsTest
             pending.add(aggregate);
         }
 
-        backgroundCompactions.setPending(pending);
+        backgroundCompactions.setPending(strategyContainer, pending);
 
         // the extra compactions are those from the old aggregates with a compaction regardless of whether
         // the keys overlapped or not (when the keys overlap the new one has a compaction added, when they do
@@ -387,15 +384,15 @@ public class BackgroundCompactionsTest
     @Test(expected = IllegalArgumentException.class)
     public void testSetSubmittedNoId()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
-        backgroundCompactions.setSubmitted(null, Mockito.mock(CompactionAggregate.class));
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
+        backgroundCompactions.setSubmitted(strategyContainer, null, Mockito.mock(CompactionAggregate.class));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testSetSubmittedNoAggregate()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
-        backgroundCompactions.setSubmitted(UUID.randomUUID(), null);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
+        backgroundCompactions.setSubmitted(strategyContainer, UUID.randomUUID(), null);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -405,22 +402,22 @@ public class BackgroundCompactionsTest
         CompactionAggregate aggregate = mockAggregate(1, 1, 0);
         when(aggregate.getSelected()).thenReturn(CompactionPick.EMPTY);
 
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
-        backgroundCompactions.setSubmitted(uuid, aggregate);
-        backgroundCompactions.setSubmitted(uuid, aggregate);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
+        backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
+        backgroundCompactions.setSubmitted(strategyContainer, uuid, aggregate);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testSetInProgressNoProgress()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
-        backgroundCompactions.setInProgress(null);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
+        backgroundCompactions.onInProgress(null);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testSetCompletedNoId()
     {
-        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(strategy, cfs);
-        backgroundCompactions.setCompleted(null);
+        BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
+        backgroundCompactions.onCompleted(strategyContainer, null);
     }
 }

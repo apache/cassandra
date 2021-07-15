@@ -275,7 +275,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     protected InstrumentingCache<KeyCacheKey, BigTableRowIndexEntry> keyCache;
 
-    protected final BloomFilterTracker bloomFilterTracker = new BloomFilterTracker();
+    private volatile BloomFilterTracker bloomFilterTracker = BloomFilterTracker.createNoopTracker();
 
     // technically isCompacted is not necessary since it should never be unreferenced unless it is also compacted,
     // but it seems like a good extra layer of protection against reference counting bugs to not delete data based on that alone
@@ -370,6 +370,31 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 count += sstable.estimatedKeys();
         }
         return count;
+    }
+
+    /**
+     * The key cardinality estimator for the sstable, if it can be loaded.
+     *
+     * @return the sstable key cardinality estimator created during flush/compaction, or {@code null} if that estimator
+     * cannot be loaded for any reason.
+     */
+    @VisibleForTesting
+    public ICardinality keyCardinalityEstimator()
+    {
+        if (openReason == OpenReason.EARLY)
+            return null;
+
+        try
+        {
+            CompactionMetadata metadata = (CompactionMetadata) descriptor.getMetadataSerializer()
+                                                                         .deserialize(descriptor, MetadataType.COMPACTION);
+            return metadata == null ? null : metadata.cardinalityEstimator;
+        }
+        catch (IOException e)
+        {
+            logger.warn("Reading cardinality from Statistics.db failed for {}.", this, e);
+            return null;
+        }
     }
 
     /**
@@ -648,6 +673,21 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     }
 
+
+    /**
+     * Set the Bloom Filter tracker. The argument supplied is obtained
+     * from the the property of the owning CFS.
+     **/
+    public void setBloomFilterTracker(BloomFilterTracker bloomFilterTracker)
+    {
+        this.bloomFilterTracker = bloomFilterTracker;
+    }
+
+    public BloomFilterTracker getBloomFilterTracker()
+    {
+        return this.bloomFilterTracker;
+    }
+
     /**
      * Open a RowIndexedReader which already has its state initialized (by SSTableWriter).
      */
@@ -784,6 +824,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void setupOnline()
     {
+        final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
+        setupOnline(cfs);
+    }
+
+    public void setupOnline(ColumnFamilyStore cfs)
+    {
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
@@ -791,9 +837,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (maybeKeyCache.getCapacity() > 0)
             keyCache = maybeKeyCache;
 
-        final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
         if (cfs != null)
+        {
             setCrcCheckChance(cfs.getCrcCheckChance());
+            setBloomFilterTracker(cfs.getBloomFilterTracker());
+        }
     }
 
     /**
@@ -1864,36 +1912,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             public int apply(int comparison) { return comparison > 0 ? 0 : 1; }
         }
-    }
-
-    public long getBloomFilterFalsePositiveCount()
-    {
-        return bloomFilterTracker.getFalsePositiveCount();
-    }
-
-    public long getRecentBloomFilterFalsePositiveCount()
-    {
-        return bloomFilterTracker.getRecentFalsePositiveCount();
-    }
-
-    public long getBloomFilterTruePositiveCount()
-    {
-        return bloomFilterTracker.getTruePositiveCount();
-    }
-
-    public long getRecentBloomFilterTruePositiveCount()
-    {
-        return bloomFilterTracker.getRecentTruePositiveCount();
-    }
-
-    public long getBloomFilterTrueNegativeCount()
-    {
-        return bloomFilterTracker.getTrueNegativeCount();
-    }
-
-    public long getRecentBloomFilterTrueNegativeCount()
-    {
-        return bloomFilterTracker.getRecentTrueNegativeCount();
     }
 
     public InstrumentingCache<KeyCacheKey, BigTableRowIndexEntry> getKeyCache()

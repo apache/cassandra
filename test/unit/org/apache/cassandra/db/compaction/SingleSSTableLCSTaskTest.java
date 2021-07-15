@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Random;
 
 import org.apache.commons.lang3.StringUtils;
@@ -33,6 +34,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SingleSSTableLCSTaskTest extends CQLTester
@@ -45,19 +47,22 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         execute("insert into %s (id, t) values (1, 'meep')");
         cfs.forceBlockingFlush(UNIT_TESTS);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyContainer()
+                                                                       .getStrategies(false, null)
+                                                                       .get(0);
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.COMPACTION))
         {
             if (txn != null)
             {
-                SingleSSTableLCSTask task = new SingleSSTableLCSTask(cfs, txn, 2);
+                SingleSSTableLCSTask task = new SingleSSTableLCSTask(lcs, txn, 2);
                 task.executeInternal();
             }
         }
         assertEquals(1, cfs.getLiveSSTables().size());
         cfs.getLiveSSTables().forEach(s -> assertEquals(2, s.getSSTableLevel()));
         // make sure compaction strategy is notified:
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
+
         for (int i = 0; i < lcs.manifest.getLevelCount(); i++)
         {
             if (i == 2)
@@ -99,17 +104,29 @@ public class SingleSSTableLCSTaskTest extends CQLTester
                 cfs.forceBlockingFlush(UNIT_TESTS);
         }
         // now we have a bunch of data in L0, first compaction will be a normal one, containing all sstables:
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
-        AbstractCompactionTask act = lcs.getNextBackgroundTask(0);
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) ((CompactionStrategyManager) cfs.getCompactionStrategyContainer())
+                                                                    .getUnrepairedUnsafe()
+                                                                    .first();
+        Collection<AbstractCompactionTask> tasks = lcs.getNextBackgroundTasks(0);
+        assertEquals(1, tasks.size());
+        AbstractCompactionTask act = tasks.iterator().next();
+        assertNotNull(act);
         act.execute();
 
         // now all sstables are laid out non-overlapping in L1, this means that the rest of the compactions
         // will be single sstable ones, make sure that we use SingleSSTableLCSTask if singleSSTUplevel is true:
-        while ((act = lcs.getNextBackgroundTask(0)) != null)
+        tasks = lcs.getNextBackgroundTasks(0);
+        while (!tasks.isEmpty())
         {
+            assertEquals(1, tasks.size());
+            act = tasks.iterator().next();
+            assertNotNull(act);
+
             assertTrue(lcs.getTotalCompactions() > 0);
             assertEquals(singleSSTUplevel, act instanceof SingleSSTableLCSTask);
             act.execute();
+
+            tasks = lcs.getNextBackgroundTasks(0);
         }
 
         assertEquals(0, lcs.getTotalCompactions());
@@ -137,11 +154,15 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         file.writeBytes(StringUtils.repeat('z', 2));
         file.close();
         boolean gotException = false;
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) ((CompactionStrategyManager) cfs.getCompactionStrategyContainer())
+                                                                    .getUnrepairedUnsafe()
+                                                                    .first();
+
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.COMPACTION))
         {
             if (txn != null)
             {
-                SingleSSTableLCSTask task = new SingleSSTableLCSTask(cfs, txn, 2);
+                SingleSSTableLCSTask task = new SingleSSTableLCSTask(lcs, txn, 2);
                 task.executeInternal();
             }
         }
@@ -153,7 +174,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         assertEquals(1, cfs.getLiveSSTables().size());
         for (SSTableReader sst : cfs.getLiveSSTables())
             assertEquals(0, sst.getSSTableMetadata().sstableLevel);
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) cfs.getCompactionStrategyManager().getUnrepairedUnsafe().first();
+
         assertEquals(1, lcs.getLevelSize(0));
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
     }

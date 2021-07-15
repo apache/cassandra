@@ -134,7 +134,7 @@ public class SASIIndex implements Index, INotificationConsumer
 
         SortedMap<SSTableReader, Map<ColumnMetadata, ColumnIndex>> toRebuild = new TreeMap<>(SSTableReader.idComparator);
 
-        for (SSTableReader sstable : index.init(tracker.getView().liveSSTables()))
+        for (SSTableReader sstable : index.init(tracker.getLiveSSTables()))
         {
             Map<ColumnMetadata, ColumnIndex> perSSTable = toRebuild.get(sstable);
             if (perSSTable == null)

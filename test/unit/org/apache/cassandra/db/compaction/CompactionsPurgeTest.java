@@ -304,7 +304,7 @@ public class CompactionsPurgeTest
                 .build().applyUnsafe();
 
         cfs.forceBlockingFlush(UNIT_TESTS);
-        try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
+        try (CompactionTasks tasks = cfs.getCompactionStrategyContainer().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
         {
             Iterables.getOnlyElement(tasks).execute();
         }
@@ -356,7 +356,7 @@ public class CompactionsPurgeTest
         cfs.forceBlockingFlush(UNIT_TESTS);
 
         // compact the sstables with the c1/c2 data and the c1 tombstone
-        try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
+        try (CompactionTasks tasks = cfs.getCompactionStrategyContainer().getUserDefinedTasks(sstablesIncomplete, Integer.MAX_VALUE))
         {
             Iterables.getOnlyElement(tasks).execute();
         }
