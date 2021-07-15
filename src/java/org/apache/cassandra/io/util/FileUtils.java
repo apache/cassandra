@@ -954,7 +954,7 @@ public final class FileUtils
      * @param size returned by the Java's FileStore methods
      * @return the size or {@code Long.MAX_VALUE} if the size was bigger than {@code Long.MAX_VALUE}
      */
-    private static long handleLargeFileSystem(long size)
+    public static long handleLargeFileSystem(long size)
     {
         return size < 0 ? Long.MAX_VALUE : size;
     }

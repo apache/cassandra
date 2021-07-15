@@ -152,7 +152,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.originatingHostId = originatingHostId;
     }
 
-    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator)
     {
         this(comparator);
 
@@ -166,6 +166,11 @@ public class MetadataCollector implements PartitionStatisticsCollector
             }
         }
         commitLogIntervals(intervals.build());
+    }
+
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
+    {
+        this(sstables, comparator);
         sstableLevel(level);
     }
 

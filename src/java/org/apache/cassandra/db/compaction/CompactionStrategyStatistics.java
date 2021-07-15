@@ -22,7 +22,9 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -92,31 +94,51 @@ public class CompactionStrategyStatistics implements Serializable
         if (!aggregates.isEmpty())
         {
             Collection<String> header = aggregates.get(0).header(); // all headers are identical
-            String[][] rows = new String[1 + aggregates.size()][header.size()]; // rows including the header
             int[] lengths = new int[header.size()]; // the max lengths of each column
-
             Iterator<String> it = header.iterator();
-            for (int i = 0; i < lengths.length; i++)
-            {
-                rows[0][i] = it.next();
-                lengths[i] = rows[0][i].length();
-            }
 
-            for (int idx = 1; idx <= aggregates.size(); idx++)
+            for (int i = 0; i < lengths.length; i++)
+                lengths[i] = it.next().length();
+
+            Map<String, List<String[]>> rowsByShard = new LinkedHashMap<>();
+            for (CompactionAggregateStatistics aggregate : aggregates)
             {
-                it = aggregates.get(idx-1).data().iterator();
+                String shard = aggregate.shard();
+                List<String[]> rows = rowsByShard.computeIfAbsent(shard, key -> new ArrayList<>(aggregates.size()));
+                String[] data = new String[header.size()];
+
+                it = aggregate.data().iterator();
                 for (int i = 0; i < lengths.length; i++)
                 {
-                    rows[idx][i] = it.next();
-                    if (rows[idx][i].length() > lengths[i])
-                        lengths[i] = rows[idx][i].length();
+                    data[i] = it.next();
+                    if (data[i].length() > lengths[i])
+                        lengths[i] = data[i].length();
                 }
+
+                rows.add(data);
             }
 
-            for (String[] row : rows)
+            for (Map.Entry<String, List<String[]>> entry : rowsByShard.entrySet())
             {
-                for (int i = 0; i < row.length; i++)
-                    ret.append(String.format("%-" + lengths[i] + "s\t", row[i]));
+                // optional shard
+                if (!entry.getKey().isEmpty())
+                    ret.append("Shard/").append(entry.getKey()).append('\n');
+
+                // header
+                it = header.iterator();
+                for (int i = 0; i < header.size(); i++)
+                    ret.append(String.format("%-" + lengths[i] + "s\t", it.next()));
+
+                ret.append('\n');
+
+                // rows
+                for (String[] row : entry.getValue())
+                {
+                    for (int i = 0; i < row.length; i++)
+                        ret.append(String.format("%-" + lengths[i] + "s\t", row[i]));
+
+                    ret.append('\n');
+                }
 
                 ret.append('\n');
             }

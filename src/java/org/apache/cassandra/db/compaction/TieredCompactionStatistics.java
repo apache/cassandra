@@ -27,41 +27,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
-public abstract class TieredCompactionStatistics extends CompactionAggregateStatistics
+abstract class TieredCompactionStatistics extends CompactionAggregateStatistics
 {
     private static final Collection<String> HEADER = ImmutableList.copyOf(Iterables.concat(ImmutableList.of("Bucket", "Hotness"),
-                                                                                           CompactionAggregateStatistics.HEADER,
-                                                                                           ImmutableList.of("Tot/Read/Written")));
+                                                                                           CompactionAggregateStatistics.HEADER));
 
     private static final long serialVersionUID = 3695927592357987916L;
-    /** The total read hotness of the sstables */
-    protected final double hotness;
-    /** Total uncompressed bytes of the sstables */
-    protected final long tot;
-    /** Total bytes read by ongoing compactions */
-    protected final long read;
-    /** Total bytes written by ongoing compactions */
-    protected final long written;
 
-    public TieredCompactionStatistics(int numCompactions,
-                                      int numCompactionsInProgress,
-                                      int numSSTables,
-                                      int numCandidateSSTables,
-                                      int numCompactingSSTables,
-                                      long sizeInBytes,
-                                      double readThroughput,
-                                      double writeThroughput,
-                                      double hotness,
-                                      long tot,
-                                      long read,
-                                      long written)
+    public TieredCompactionStatistics(CompactionAggregateStatistics base)
     {
-        super(numCompactions, numCompactionsInProgress, numSSTables, numCandidateSSTables, numCompactingSSTables, sizeInBytes, readThroughput, writeThroughput);
-
-        this.hotness = hotness;
-        this.tot = tot;
-        this.read = read;
-        this.written = written;
+        super(base);
     }
 
     /** The total read hotness of the sstables */
@@ -69,27 +44,6 @@ public abstract class TieredCompactionStatistics extends CompactionAggregateStat
     public double hotness()
     {
         return hotness;
-    }
-
-    /** Total uncompressed bytes of the sstables */
-    @JsonProperty
-    public long tot()
-    {
-        return tot;
-    }
-
-    /** Uncompressed bytes read by compactions so far. */
-    @JsonProperty
-    public long read()
-    {
-        return read;
-    }
-
-    /** Uncompressed  bytes written by compactions so far. */
-    @JsonProperty
-    public long written()
-    {
-        return written;
     }
 
     @Override
@@ -107,7 +61,6 @@ public abstract class TieredCompactionStatistics extends CompactionAggregateStat
 
         data.addAll(super.data());
 
-        data.add(toString(tot()) + '/' + toString(read()) + '/' + toString(written()));
         return data;
     }
 

@@ -191,19 +191,20 @@ public interface ColumnFamilyStoreMBean
 
     @Deprecated
     public void loadNewSSTables();
+
     /**
      * @return the number of SSTables in L0.  Always return 0 if Leveled compaction is not enabled.
      */
     public int getUnleveledSSTables();
 
     /**
-     * @return sstable count for each level. null unless leveled compaction is used.
+     * @return sstable count for each level. empty unless leveled or unified compaction is used.
      *         array index corresponds to level(int[0] is for level 0, ...).
      */
     public int[] getSSTableCountPerLevel();
 
     /**
-     * @return sstable fanout size for level compaction strategy.
+     * @return sstable fanout size for level or unified compaction strategies. Default LCS fanout size otherwise.
      */
     public int getLevelFanoutSize();
 

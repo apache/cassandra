@@ -190,7 +190,7 @@ public class ZombieSSTablesTest
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName + MAXIMAL);
 
         prepareZombieSSTables(cfs);
-        Collection<AbstractCompactionTask> maximalTasks = cfs.getCompactionStrategyManager().getMaximalTasks(0, false);
+        Collection<AbstractCompactionTask> maximalTasks = cfs.getCompactionStrategy().getMaximalTasks(0, false);
         assertNotNull(maximalTasks);
         assertFalse(maximalTasks.isEmpty());
         maximalTasks.stream().forEach(task -> task.transaction.abort());    // avoid leak
@@ -204,10 +204,10 @@ public class ZombieSSTablesTest
 
         prepareZombieSSTables(cfs);
 
-        CompactionStrategyManager compactionStrategyManager = cfs.getCompactionStrategyManager();
-        compactionStrategyManager.enable();
-        AbstractCompactionTask nextBackgroundTask = compactionStrategyManager.getNextBackgroundTask(0);
-        assertNotNull(nextBackgroundTask);
-        nextBackgroundTask.transaction.abort();    // avoid leak
+        cfs.getCompactionStrategyContainer().enable();
+        Collection<AbstractCompactionTask> nextBackgroundTasks = cfs.getCompactionStrategy().getNextBackgroundTasks(0);
+        assertNotNull(nextBackgroundTasks);
+        assertFalse(nextBackgroundTasks.isEmpty());
+        nextBackgroundTasks.stream().forEach(task -> task.transaction.abort());    // avoid leak
     }
 }

@@ -76,14 +76,14 @@ public class CompactionTaskTest
     @Before
     public void setUp() throws Exception
     {
-        cfs.getCompactionStrategyManager().enable();
+        cfs.getCompactionStrategyContainer().enable();
         cfs.truncateBlocking();
     }
 
     @Test
     public void compactionDisabled() throws Exception
     {
-        cfs.getCompactionStrategyManager().disable();
+        cfs.getCompactionStrategyContainer().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
         cfs.forceBlockingFlush(UNIT_TESTS);
@@ -99,7 +99,7 @@ public class CompactionTaskTest
 
         AbstractCompactionTask task = CompactionTask.forTesting(cfs, txn, 0);
         Assert.assertNotNull(task);
-        cfs.getCompactionStrategyManager().pause();
+        cfs.getCompactionStrategyContainer().pause();
         try
         {
             task.execute(CompactionManager.instance.active);
@@ -115,7 +115,7 @@ public class CompactionTaskTest
     @Test
     public void compactionInterruption()
     {
-        cfs.getCompactionStrategyManager().disable();
+        cfs.getCompactionStrategyContainer().disable();
         Set<SSTableReader> sstables = generateData(2, 2);
 
         LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
@@ -160,7 +160,7 @@ public class CompactionTaskTest
     @Test
     public void mixedSSTableFailure() throws Exception
     {
-        cfs.getCompactionStrategyManager().disable();
+        cfs.getCompactionStrategyContainer().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
         cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
@@ -209,7 +209,7 @@ public class CompactionTaskTest
     @Test
     public void testOfflineCompaction()
     {
-        cfs.getCompactionStrategyManager().disable();
+        cfs.getCompactionStrategyContainer().disable();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (1, 1);");
         cfs.forceBlockingFlush(UNIT_TESTS);
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, v) VALUES (2, 2);");
@@ -228,7 +228,7 @@ public class CompactionTaskTest
         try (LifecycleTransaction txn = new LifecycleTransaction(tracker, OperationType.COMPACTION, sstables))
         {
             Assert.assertEquals(4, tracker.getView().liveSSTables().size());
-            CompactionTask task = new CompactionTask(cfs, txn, 1000, false);
+            CompactionTask task = new CompactionTask(cfs, txn, 1000, false, null);
             task.execute(new ActiveOperations());
 
             // Check that new SSTable was not released
@@ -246,7 +246,7 @@ public class CompactionTaskTest
     @Test
     public void testCompactionReporting()
     {
-        cfs.getCompactionStrategyManager().disable();
+        cfs.getCompactionStrategyContainer().disable();
         Set<SSTableReader> sstables = generateData(2, 2);
         LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         assertNotNull(txn);
@@ -254,13 +254,14 @@ public class CompactionTaskTest
         CompactionObserver compObserver = Mockito.mock(CompactionObserver.class);
         final ArgumentCaptor<TableOperation> tableOpCaptor = ArgumentCaptor.forClass(AbstractTableOperation.class);
         final ArgumentCaptor<CompactionProgress> compactionCaptor = ArgumentCaptor.forClass(CompactionProgress.class);
-        AbstractCompactionTask task = CompactionTask.forTesting(cfs, txn, 0, compObserver);
+        AbstractCompactionTask task = CompactionTask.forTesting(cfs, txn, 0);
+        task.addObserver(compObserver);
         assertNotNull(task);
         task.execute(operationObserver);
 
         verify(operationObserver, times(1)).onOperationStart(tableOpCaptor.capture());
-        verify(compObserver, times(1)).setInProgress(compactionCaptor.capture());
-        verify(compObserver, times(1)).setCompleted(eq(txn.opId()));
+        verify(compObserver, times(1)).onInProgress(compactionCaptor.capture());
+        verify(compObserver, times(1)).onCompleted(eq(txn.opId()));
     }
 
 

@@ -20,34 +20,41 @@ package org.apache.cassandra.db;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.service.StorageService;
 
 public class DiskBoundaries
 {
-    public final List<Directories.DataDirectory> directories;
-    public final ImmutableList<PartitionPosition> positions;
-    final long ringVersion;
+    @Nullable public final List<Directories.DataDirectory> directories;
+    @Nullable private final ImmutableList<PartitionPosition> positions;
+    public final SortedLocalRanges localRanges;
     final int directoriesVersion;
     private final ColumnFamilyStore cfs;
     private volatile boolean isInvalid = false;
 
-    public DiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories, int diskVersion)
+    public DiskBoundaries(ColumnFamilyStore cfs,
+                          @Nullable Directories.DataDirectory[] directories,
+                          SortedLocalRanges localRanges,
+                          int diskVersion)
     {
-        this(cfs, directories, null, -1, diskVersion);
+        this(cfs, directories, null, localRanges, diskVersion);
     }
 
-    @VisibleForTesting
-    public DiskBoundaries(ColumnFamilyStore cfs, Directories.DataDirectory[] directories, List<PartitionPosition> positions, long ringVersion, int diskVersion)
+    public DiskBoundaries(ColumnFamilyStore cfs,
+                          @Nullable Directories.DataDirectory[] directories,
+                          @Nullable List<PartitionPosition> positions,
+                          SortedLocalRanges localRanges,
+                          int diskVersion)
     {
         this.directories = directories == null ? null : ImmutableList.copyOf(directories);
         this.positions = positions == null ? null : ImmutableList.copyOf(positions);
-        this.ringVersion = ringVersion;
+        this.localRanges = localRanges;
         this.directoriesVersion = diskVersion;
         this.cfs = cfs;
     }
@@ -59,17 +66,17 @@ public class DiskBoundaries
 
         DiskBoundaries that = (DiskBoundaries) o;
 
-        if (ringVersion != that.ringVersion) return false;
-        if (directoriesVersion != that.directoriesVersion) return false;
-        if (!directories.equals(that.directories)) return false;
-        return positions != null ? positions.equals(that.positions) : that.positions == null;
+        return Objects.equals(localRanges, that.localRanges) &&
+               directoriesVersion == that.directoriesVersion &&
+               Objects.equals(directories, that.directories) &&
+               Objects.equals(positions, that.positions);
     }
 
     public int hashCode()
     {
         int result = directories != null ? directories.hashCode() : 0;
         result = 31 * result + (positions != null ? positions.hashCode() : 0);
-        result = 31 * result + (int) (ringVersion ^ (ringVersion >>> 32));
+        result = 31 * result + localRanges.hashCode();
         result = 31 * result + directoriesVersion;
         return result;
     }
@@ -79,7 +86,7 @@ public class DiskBoundaries
         return "DiskBoundaries{" +
                "directories=" + directories +
                ", positions=" + positions +
-               ", ringVersion=" + ringVersion +
+               ", localRanges=" + localRanges.toString() +
                ", directoriesVersion=" + directoriesVersion +
                '}';
     }
@@ -91,9 +98,9 @@ public class DiskBoundaries
     {
         if (isInvalid)
             return true;
+
         int currentDiskVersion = DisallowedDirectories.getDirectoriesVersion();
-        long currentRingVersion = StorageService.instance.getTokenMetadata().getRingVersion();
-        return currentDiskVersion != directoriesVersion || (ringVersion != -1 && currentRingVersion != ringVersion);
+        return currentDiskVersion != directoriesVersion || localRanges.isOutOfDate();
     }
 
     public void invalidate()
@@ -101,7 +108,7 @@ public class DiskBoundaries
         this.isInvalid = true;
     }
 
-    public int getDiskIndex(SSTableReader sstable)
+    public int getDiskIndexFromKey(SSTableReader sstable)
     {
         if (positions == null)
         {
@@ -130,7 +137,7 @@ public class DiskBoundaries
 
     public Directories.DataDirectory getCorrectDiskForSSTable(SSTableReader sstable)
     {
-        return directories.get(getDiskIndex(sstable));
+        return directories.get(getDiskIndexFromKey(sstable));
     }
 
     public Directories.DataDirectory getCorrectDiskForKey(DecoratedKey key)
@@ -138,20 +145,55 @@ public class DiskBoundaries
         if (positions == null)
             return null;
 
-        return directories.get(getDiskIndex(key));
+        return directories.get(getDiskIndexFromKey(key));
     }
 
     public boolean isInCorrectLocation(SSTableReader sstable, Directories.DataDirectory currentLocation)
     {
-        int diskIndex = getDiskIndex(sstable);
+        int diskIndex = getDiskIndexFromKey(sstable);
         PartitionPosition diskLast = positions.get(diskIndex);
         return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
     }
 
-    private int getDiskIndex(DecoratedKey key)
+    /**
+     * Return the number of boundaries. If this instance was created with token boundaries (positions) then this
+     * is the number of boundaries. If this instance was created without boundaries but only with directories, then
+     * this is the number of directories.
+     *
+     * @return the number of boundaries.
+     */
+    public int getNumBoundaries()
+    {
+        return positions == null ? directories.size() : positions.size();
+    }
+
+    private int getDiskIndexFromKey(DecoratedKey key)
     {
         int pos = Collections.binarySearch(positions, key);
         assert pos < 0;
         return -pos - 1;
+    }
+
+    /**
+     * Return the local sorted ranges, which contain the local ranges for this node, sorted.
+     * See {@link SortedLocalRanges}.
+     *
+     * @return the local ranges, see {@link SortedLocalRanges}.
+     */
+    public SortedLocalRanges getLocalRanges()
+    {
+        return localRanges;
+    }
+
+    /**
+     * Returns a non-modifiable list of the disk boundary positions. This will be null if the token space is not split
+     * for the disks, this is not normally the case).
+     *
+     * Extracted as a method (instead of direct access to the final field) to permit mocking in tests.
+     */
+    @Nullable
+    public List<PartitionPosition> getPositions()
+    {
+        return positions;
     }
 }

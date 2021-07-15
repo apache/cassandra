@@ -75,9 +75,19 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         return writer.getFilename();
     }
 
-    public long getFilePointer()
+    public long getBytesWritten()
     {
         return writer.getFilePointer();
+    }
+
+    public long getOnDiskBytesWritten()
+    {
+        return writer.getEstimatedOnDiskBytesWritten();
+    }
+
+    public int getSegmentCount()
+    {
+        return 1;
     }
 
     public TableId getTableId()

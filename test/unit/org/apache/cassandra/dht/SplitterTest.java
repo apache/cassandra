@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -77,7 +78,7 @@ public class SplitterTest
         IPartitioner partitioner = Murmur3Partitioner.instance;
         Splitter splitter = partitioner.splitter().get();
 
-        assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges2, false));
+        assertEquals(splitter.splitOwnedRanges(2, ranges, Splitter.SplitType.ALWAYS_SPLIT), splitter.splitOwnedRanges(2, ranges2, Splitter.SplitType.ALWAYS_SPLIT));
     }
 
     @Test
@@ -95,7 +96,7 @@ public class SplitterTest
         IPartitioner partitioner = Murmur3Partitioner.instance;
         Splitter splitter = partitioner.splitter().get();
 
-        assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges2, false));
+        assertEquals(splitter.splitOwnedRanges(2, ranges, Splitter.SplitType.ALWAYS_SPLIT), splitter.splitOwnedRanges(2, ranges2, Splitter.SplitType.ALWAYS_SPLIT));
     }
 
     private Range<Token> t(long left, long right)
@@ -110,8 +111,8 @@ public class SplitterTest
         for (int i = 0; i < 10000; i++)
         {
             List<Splitter.WeightedRange> localRanges = generateLocalRanges(1, r.nextInt(4) + 1, splitter, r, partitioner instanceof RandomPartitioner);
-            List<Token> boundaries = splitter.splitOwnedRanges(r.nextInt(9) + 1, localRanges, false);
-            assertTrue("boundaries = " + boundaries + " ranges = " + localRanges, assertRangeSizeEqual(localRanges, boundaries, partitioner, splitter, true));
+            Splitter.SplitResult result = splitter.splitOwnedRanges(r.nextInt(9) + 1, localRanges, Splitter.SplitType.ALWAYS_SPLIT);
+            assertTrue("boundaries = " + result.boundaries + " ranges = " + localRanges, assertRangeSizeEqual(localRanges, result, partitioner, splitter, Splitter.SplitType.ALWAYS_SPLIT));
         }
     }
 
@@ -119,27 +120,50 @@ public class SplitterTest
     {
         Splitter splitter = getSplitter(partitioner);
         Random r = new Random();
-        for (int i = 0; i < 10000; i++)
+        for (Splitter.SplitType splitType : Splitter.SplitType.values())
         {
-            // we need many tokens to be able to split evenly over the disks
-            int numTokens = 172 + r.nextInt(128);
-            int rf = r.nextInt(4) + 2;
-            int parts = r.nextInt(5) + 1;
-            List<Splitter.WeightedRange> localRanges = generateLocalRanges(numTokens, rf, splitter, r, partitioner instanceof RandomPartitioner);
-            List<Token> boundaries = splitter.splitOwnedRanges(parts, localRanges, true);
-            if (!assertRangeSizeEqual(localRanges, boundaries, partitioner, splitter, false))
-                fail(String.format("Could not split %d tokens with rf=%d into %d parts (localRanges=%s, boundaries=%s)", numTokens, rf, parts, localRanges, boundaries));
+            for (int i = 0; i < 10000; i++)
+            {
+                // we need many tokens to be able to split evenly over the disks
+                int numTokens = 172 + r.nextInt(128);
+                int rf = r.nextInt(4) + 2;
+                int parts = r.nextInt(5) + 1;
+                List<Splitter.WeightedRange> localRanges = generateLocalRanges(numTokens, rf, splitter, r, partitioner instanceof RandomPartitioner);
+
+                Splitter.SplitResult result = splitter.splitOwnedRanges(parts, localRanges, splitType);
+                if (!assertRangeSizeEqual(localRanges, result, partitioner, splitter, splitType))
+                    fail(String.format("Could not split %d tokens with rf=%d into %d parts (localRanges=%s, boundaries=%s, splitType=%s)",
+                                       numTokens, rf, parts, localRanges, result.boundaries, splitType));
+            }
         }
     }
 
-    private static boolean assertRangeSizeEqual(List<Splitter.WeightedRange> localRanges, List<Token> tokens, IPartitioner partitioner, Splitter splitter, boolean splitIndividualRanges)
+    private static boolean assertRangeSizeEqual(List<Splitter.WeightedRange> localRanges,
+                                                Splitter.SplitResult splitResult,
+                                                IPartitioner partitioner,
+                                                Splitter splitter,
+                                                Splitter.SplitType splitType)
     {
+        List<Token> boundaries = splitResult.boundaries;
+        boolean splitIndividualRanges = splitResult.rangesWereSplit;
+
+        // Check if the split type was respected. This is only relevant if there are two or more tokens because
+        // if the splitter cannot split at all, then the split result will indicate that no ranges were split regardless
+        // of the split type
+        if (boundaries.size() > 1)
+        {
+            if (splitType == Splitter.SplitType.ALWAYS_SPLIT)
+                assertTrue("Local ranges can only be split when SplitType forces it", splitIndividualRanges);
+            else if (splitType == Splitter.SplitType.ONLY_WHOLE)
+                assertFalse("Local ranges should not be split when SplitType doesn't force it", splitIndividualRanges);
+        }
+
         Token start = partitioner.getMinimumToken();
         List<BigInteger> splits = new ArrayList<>();
 
-        for (int i = 0; i < tokens.size(); i++)
+        for (int i = 0; i < boundaries.size(); i++)
         {
-            Token end = i == tokens.size() - 1 ? partitioner.getMaximumToken() : tokens.get(i);
+            Token end = i == boundaries.size() - 1 ? partitioner.getMaximumToken() : boundaries.get(i);
             splits.add(sumOwnedBetween(localRanges, start, end, splitter, splitIndividualRanges));
             start = end;
         }
@@ -180,7 +204,11 @@ public class SplitterTest
         return sum;
     }
 
-    private static List<Splitter.WeightedRange> generateLocalRanges(int numTokens, int rf, Splitter splitter, Random r, boolean randomPartitioner)
+    public static List<Splitter.WeightedRange> generateLocalRanges(int numTokens,
+                                                                   int rf,
+                                                                   Splitter splitter,
+                                                                   Random r,
+                                                                   boolean randomPartitioner)
     {
         int localTokens = numTokens * rf;
         List<Token> randomTokens = new ArrayList<>();
@@ -515,7 +543,7 @@ public class SplitterTest
         return splitter.tokenForValue(position);
     }
 
-    private static Splitter getSplitter(IPartitioner partitioner)
+    public static Splitter getSplitter(IPartitioner partitioner)
     {
         return partitioner.splitter().orElseThrow(() -> new AssertionError(partitioner.getClass() + " must have a splitter"));
     }

@@ -32,7 +32,7 @@ public class SSTableSplitter
 
     public SSTableSplitter(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
     {
-        this.task = SplittingCompactionTask.forSSTableSplitting(cfs, transaction, sstableSizeInMB);
+        this.task = new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
     }
 
     public void split()
@@ -44,18 +44,13 @@ public class SSTableSplitter
     {
         private final int sstableSizeInMB;
 
-        private SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
+        public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
         {
-            super(cfs, transaction, CompactionManager.NO_GC, false);
+            super(cfs, transaction, CompactionManager.NO_GC, false, null);
             this.sstableSizeInMB = sstableSizeInMB;
 
             if (sstableSizeInMB <= 0)
                 throw new IllegalArgumentException("Invalid target size for SSTables, must be > 0 (got: " + sstableSizeInMB + ")");
-        }
-
-        static AbstractCompactionTask forSSTableSplitting(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
-        {
-            return new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
         }
 
         @Override

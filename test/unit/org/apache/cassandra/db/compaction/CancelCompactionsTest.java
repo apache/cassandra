@@ -19,7 +19,9 @@
 package org.apache.cassandra.db.compaction;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -231,7 +233,7 @@ public class CancelCompactionsTest extends CQLTester
     }
 
     @Test
-    public void testAnticompaction() throws InterruptedException, ExecutionException
+    public void testAnticompaction() throws InterruptedException, ExecutionException, IOException
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         List<SSTableReader> sstables = createSSTables(cfs, 10, 0);
@@ -470,15 +472,15 @@ public class CancelCompactionsTest extends CQLTester
         }
         AbstractCompactionTask ct = null;
 
-        for (List<AbstractCompactionStrategy> css : getCurrentColumnFamilyStore().getCompactionStrategyManager().getStrategies())
+        for (CompactionStrategy cs : getCurrentColumnFamilyStore().getCompactionStrategyContainer().getStrategies())
         {
-            for (AbstractCompactionStrategy cs : css)
+            Collection<AbstractCompactionTask> tasks = cs.getNextBackgroundTasks(0);
+            if (!tasks.isEmpty())
             {
-                ct = cs.getNextBackgroundTask(0);
+                ct = tasks.iterator().next();
                 if (ct != null)
                     break;
             }
-            if (ct != null) break;
         }
         assertNotNull(ct);
 
@@ -492,11 +494,11 @@ public class CancelCompactionsTest extends CQLTester
          */
         Thread t = new Thread(() -> {
             Uninterruptibles.awaitUninterruptibly(waitForBeginCompaction);
-            getCurrentColumnFamilyStore().getCompactionStrategyManager().pause();
+            getCurrentColumnFamilyStore().getCompactionStrategyContainer().pause();
             CompactionManager.instance.interruptCompactionFor(metadatas, (s) -> true, false);
             waitForStart.countDown();
             CompactionManager.instance.waitForCessation(Collections.singleton(getCurrentColumnFamilyStore()), (s) -> true);
-            getCurrentColumnFamilyStore().getCompactionStrategyManager().resume();
+            getCurrentColumnFamilyStore().getCompactionStrategyContainer().resume();
         });
         t.start();
 

@@ -389,7 +389,7 @@ public class CompactionAllocationTest
         ActiveOperations active = new ActiveOperations();
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
 
-        CompactionTasks tasks = cfs.getCompactionStrategyManager()
+        CompactionTasks tasks = cfs.getCompactionStrategyContainer()
                                    .getUserDefinedTasks(sstables, FBUtilities.nowInSeconds());
         Assert.assertFalse(tasks.isEmpty());
 

@@ -68,8 +68,7 @@ public class CompactionController extends AbstractCompactionController
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore)
     {
-        this(cfs, compacting, gcBefore, null,
-             cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
+        this(cfs, compacting, gcBefore, null, cfs.getCompactionParams().tombstoneOption());
     }
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
@@ -165,7 +164,7 @@ public class CompactionController extends AbstractCompactionController
         if (NEVER_PURGE_TOMBSTONES || compacting == null || cfStore.getNeverPurgeTombstones())
             return Collections.<SSTableReader>emptySet();
 
-        if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
+        if (cfStore.onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
             return Collections.emptySet();
 
         if (ignoreOverlaps)
@@ -173,11 +172,11 @@ public class CompactionController extends AbstractCompactionController
             Set<SSTableReader> fullyExpired = new HashSet<>();
             for (SSTableReader candidate : compacting)
             {
-                if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+                if (candidate.getMaxLocalDeletionTime() < gcBefore)
                 {
                     fullyExpired.add(candidate);
                     logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                                 candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+                                 candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
                 }
             }
             return fullyExpired;
@@ -190,13 +189,13 @@ public class CompactionController extends AbstractCompactionController
         {
             // Overlapping might include fully expired sstables. What we care about here is
             // the min timestamp of the overlapping sstables that actually contain live data.
-            if (sstable.getSSTableMetadata().maxLocalDeletionTime >= gcBefore)
+            if (sstable.getMaxLocalDeletionTime() >= gcBefore)
                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
         }
 
         for (SSTableReader candidate : compacting)
         {
-            if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+            if (candidate.getMaxLocalDeletionTime() < gcBefore)
                 candidates.add(candidate);
             else
                 minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
@@ -221,7 +220,7 @@ public class CompactionController extends AbstractCompactionController
             else
             {
                logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                        candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+                        candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
             }
         }
         return new HashSet<>(candidates);
@@ -296,7 +295,7 @@ public class CompactionController extends AbstractCompactionController
 
     public boolean compactingRepaired()
     {
-        return !cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones() || compactingRepaired;
+        return !cfs.onlyPurgeRepairedTombstones() || compactingRepaired;
     }
 
     boolean provideTombstoneSources()

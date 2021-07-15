@@ -328,16 +328,16 @@ public class TrieIndexSSTableReader extends SSTableReader
         if (!bf.isPresent(dk))
         {
             listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
-            Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id.asString());
+            Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
             if (updateStats)
-                bloomFilterTracker.addTrueNegative();
+                getBloomFilterTracker().addTrueNegative();
             return null;
         }
 
         if ((filterFirst() && first.compareTo(dk) > 0) || (filterLast() && last.compareTo(dk) < 0))
         {
             if (updateStats)
-                bloomFilterTracker.addFalsePositive();
+                getBloomFilterTracker().addFalsePositive();
             listener.onSSTableSkipped(this, SkippingReason.MIN_MAX_KEYS);
             return null;
         }
@@ -348,7 +348,7 @@ public class TrieIndexSSTableReader extends SSTableReader
             if (indexPos == PartitionIndex.NOT_FOUND)
             {
                 if (updateStats)
-                    bloomFilterTracker.addFalsePositive();
+                    getBloomFilterTracker().addFalsePositive();
                 listener.onSSTableSkipped(this, SkippingReason.PARTITION_INDEX_LOOKUP);
                 return null;
             }
@@ -383,7 +383,7 @@ public class TrieIndexSSTableReader extends SSTableReader
     private RowIndexEntry handleKeyNotFound(boolean updateStats, SSTableReadsListener listener)
     {
         if (updateStats)
-            bloomFilterTracker.addFalsePositive();
+            getBloomFilterTracker().addFalsePositive();
         listener.onSSTableSkipped(this, SkippingReason.INDEX_ENTRY_NOT_FOUND);
         return null;
     }
@@ -391,7 +391,7 @@ public class TrieIndexSSTableReader extends SSTableReader
     private RowIndexEntry handleKeyFound(boolean updateStats, SSTableReadsListener listener, FileDataInput in, long indexPos) throws IOException
     {
         if (updateStats)
-            bloomFilterTracker.addTruePositive();
+            getBloomFilterTracker().addTruePositive();
         RowIndexEntry entry = indexPos >= 0 ? TrieIndexEntry.deserialize(in, in.getFilePointer())
                                             : new RowIndexEntry(~indexPos);
 
@@ -682,8 +682,17 @@ public class TrieIndexSSTableReader extends SSTableReader
     public void setupOnline()
     {
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
+        setupOnline(cfs);
+    }
+
+    @Override
+    public void setupOnline(ColumnFamilyStore cfs)
+    {
         if (cfs != null)
+        {
             setCrcCheckChance(cfs.getCrcCheckChance());
+            setBloomFilterTracker(cfs.getBloomFilterTracker());
+        }
     }
 
     @Override

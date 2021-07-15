@@ -164,7 +164,7 @@ public class GcCompactionTest extends CQLTester
                   "  PRIMARY KEY ((key), column)" +
                   ") WITH compaction = { 'class' : 'LeveledCompactionStrategy' };");
 
-      assertEquals("LeveledCompactionStrategy", getCurrentColumnFamilyStore().getCompactionStrategyManager().getName());
+      assertEquals("LeveledCompactionStrategy", getCurrentColumnFamilyStore().getCompactionStrategyContainer().getName());
 
       for (int i = 0; i < KEY_COUNT; ++i)
           for (int j = 0; j < CLUSTERING_COUNT; ++j)
