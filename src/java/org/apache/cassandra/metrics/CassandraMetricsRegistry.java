@@ -31,6 +31,7 @@ import javax.management.ObjectName;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.*;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
@@ -98,17 +99,48 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Timer timer(MetricName name)
     {
-        Timer timer = register(name, new Timer(new DecayingEstimatedHistogramReservoir()));
+        return timer(name, TimeUnit.MICROSECONDS);
+    }
+
+    public Timer timer(MetricName name, MetricName alias)
+    {
+        return timer(name, alias, TimeUnit.MICROSECONDS);
+    }
+
+    public Timer timer(MetricName name, TimeUnit durationUnit)
+    {
+        Timer timer = register(name, new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS)));
         registerMBean(timer, name.getMBeanName());
 
         return timer;
     }
 
-    public Timer timer(MetricName name, MetricName alias)
+    public Timer timer(MetricName name, MetricName alias, TimeUnit durationUnit)
     {
-        Timer timer = timer(name);
+        Timer timer = timer(name, durationUnit);
         registerAlias(name, alias);
         return timer;
+    }
+
+    public static Reservoir createReservoir(TimeUnit durationUnit)
+    {
+        Reservoir reservoir;
+        if (durationUnit != TimeUnit.NANOSECONDS)
+        {
+            Reservoir underlying = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
+                                                                           EstimatedHistogram.DEFAULT_BUCKET_COUNT,
+                                                                           DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT);
+            // less buckets (90) should suffice if timer is not based on nanos
+            reservoir = new ScalingReservoir(underlying,
+                                             // timer update values in nanos.
+                                             v -> durationUnit.convert(v, TimeUnit.NANOSECONDS));
+        }
+        else
+        {
+            // Use more buckets if timer is created with nanos resolution.
+            reservoir = new DecayingEstimatedHistogramReservoir();
+        }
+        return reservoir;
     }
 
     public <T extends Metric> T register(MetricName name, T metric)
@@ -532,7 +564,6 @@ public class CassandraMetricsRegistry extends MetricRegistry
     static class JmxTimer extends JmxMeter implements JmxTimerMBean
     {
         private final Timer metric;
-        private final double durationFactor;
         private final String durationUnit;
         private long[] last = null;
 
@@ -543,68 +574,67 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             super(metric, objectName, rateUnit);
             this.metric = metric;
-            this.durationFactor = 1.0 / durationUnit.toNanos(1);
             this.durationUnit = durationUnit.toString().toLowerCase(Locale.US);
         }
 
         @Override
         public double get50thPercentile()
         {
-            return metric.getSnapshot().getMedian() * durationFactor;
+            return metric.getSnapshot().getMedian();
         }
 
         @Override
         public double getMin()
         {
-            return metric.getSnapshot().getMin() * durationFactor;
+            return metric.getSnapshot().getMin();
         }
 
         @Override
         public double getMax()
         {
-            return metric.getSnapshot().getMax() * durationFactor;
+            return metric.getSnapshot().getMax();
         }
 
         @Override
         public double getMean()
         {
-            return metric.getSnapshot().getMean() * durationFactor;
+            return metric.getSnapshot().getMean();
         }
 
         @Override
         public double getStdDev()
         {
-            return metric.getSnapshot().getStdDev() * durationFactor;
+            return metric.getSnapshot().getStdDev();
         }
 
         @Override
         public double get75thPercentile()
         {
-            return metric.getSnapshot().get75thPercentile() * durationFactor;
+            return metric.getSnapshot().get75thPercentile();
         }
 
         @Override
         public double get95thPercentile()
         {
-            return metric.getSnapshot().get95thPercentile() * durationFactor;
+            return metric.getSnapshot().get95thPercentile();
         }
 
         @Override
         public double get98thPercentile()
         {
-            return metric.getSnapshot().get98thPercentile() * durationFactor;
+            return metric.getSnapshot().get98thPercentile();
         }
 
         @Override
         public double get99thPercentile()
         {
-            return metric.getSnapshot().get99thPercentile() * durationFactor;
+            return metric.getSnapshot().get99thPercentile();
         }
 
         @Override
         public double get999thPercentile()
         {
-            return metric.getSnapshot().get999thPercentile() * durationFactor;
+            return metric.getSnapshot().get999thPercentile();
         }
 
         @Override

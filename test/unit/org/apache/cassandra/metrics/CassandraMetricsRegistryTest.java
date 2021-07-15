@@ -24,13 +24,17 @@ import static org.junit.Assert.*;
 
 import java.lang.management.ManagementFactory;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
+
 import org.junit.Test;
 
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+import org.apache.cassandra.utils.EstimatedHistogram;
 
 
 public class CassandraMetricsRegistryTest
@@ -106,5 +110,47 @@ public class CassandraMetricsRegistryTest
         long[] count = new long[]{0, 1, 2, 3, 4, 5};
         assertArrayEquals(count, CassandraMetricsRegistry.delta(count, new long[3]));
         assertArrayEquals(new long[6], CassandraMetricsRegistry.delta(count, new long[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    }
+
+    /**
+     * Test the updated timer values are estimated correctly (i.e., in the valid range, 1.2) in the micros based histogram.
+     */
+    @Test
+    public void testTimer()
+    {
+        long[] offsets = new EstimatedHistogram().getBucketOffsets();
+        Timer timer = new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
+        timer.update(42, TimeUnit.NANOSECONDS);
+        timer.update(100, TimeUnit.NANOSECONDS);
+        timer.update(42, TimeUnit.MICROSECONDS);
+        timer.update(100, TimeUnit.MICROSECONDS);
+        timer.update(42, TimeUnit.MILLISECONDS);
+        timer.update(100, TimeUnit.MILLISECONDS);
+        long[] counts = timer.getSnapshot().getValues();
+        int expectedBucketsWithValues = 5;
+        int bucketsWithValues = 0;
+        for (int i = 0; i < counts.length; i++)
+        {
+            if (counts[i] != 0)
+            {
+                bucketsWithValues ++;
+                assertTrue(
+                inRange(offsets[i], TimeUnit.NANOSECONDS.toMicros(42), 1.2)
+                || inRange(offsets[i], TimeUnit.NANOSECONDS.toMicros(100), 1.2)
+                || inRange(offsets[i], TimeUnit.MICROSECONDS.toMicros(42), 1.2)
+                || inRange(offsets[i], TimeUnit.MICROSECONDS.toMicros(100), 1.2)
+                || inRange(offsets[i], TimeUnit.MILLISECONDS.toMicros(42), 1.2)
+                || inRange(offsets[i], TimeUnit.MILLISECONDS.toMicros(100), 1.2)
+                );
+            }
+        }
+        assertEquals("42 and 100 nanos should both be put in the first bucket",
+                            2, counts[0]);
+        assertEquals(expectedBucketsWithValues, bucketsWithValues);
+    }
+
+    private boolean inRange(long anchor, long input, double range)
+    {
+        return input / ((double) anchor) < range;
     }
 }

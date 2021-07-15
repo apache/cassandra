@@ -89,7 +89,7 @@ public class LatencyMetrics
         this.aliasFactory = aliasFactory;
         this.namePrefix = namePrefix;
 
-        LatencyMetricsTimer timer = new LatencyMetrics.LatencyMetricsTimer(new DecayingEstimatedHistogramReservoir());
+        LatencyMetricsTimer timer = new LatencyMetrics.LatencyMetricsTimer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS));
         Counter counter = new LatencyMetricsCounter();
 
         if (aliasFactory == null)
