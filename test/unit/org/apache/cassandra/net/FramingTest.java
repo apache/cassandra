@@ -52,6 +52,8 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 import static java.lang.Math.*;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_SG_10;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
@@ -251,13 +253,14 @@ public class FramingTest
 
     private void burnRandomLegacy(int count)
     {
+        int[] versions = new int[] { VERSION_30, VERSION_3014, VERSION_40, VERSION_SG_10 };
         SecureRandom seed = new SecureRandom();
         Random random = new Random();
         for (int i = 0 ; i < count ; ++i)
         {
             long innerSeed = seed.nextLong();
             float ratio = seed.nextFloat();
-            int version = minimum_version + random.nextInt(1 + current_version - minimum_version);
+            int version = versions[random.nextInt(4)];
             logger.debug("seed: {}, ratio: {}, version: {}", innerSeed, ratio, version);
             random.setSeed(innerSeed);
             testRandomSequenceOfMessages(random, ratio, version, new FrameDecoderLegacy(GlobalBufferPoolAllocator.instance, version));

@@ -323,7 +323,7 @@ public class TrieIndexFormat implements SSTableFormat
             hasAccurateLegacyMinMax = version.compareTo("ac") >= 0;
             hasOriginatingHostId = version.matches("(a[d-z])|(b[b-z])") || version.compareTo("ca") >= 0;
             hasMaxColumnValueLengths = version.matches("b[a-z]"); // DSE only field
-            correspondingMessagingVersion = version.compareTo("ca") >= 0 ? MessagingService.VERSION_40 : MessagingService.VERSION_3014;
+            correspondingMessagingVersion = version.compareTo("ca") >= 0 ? MessagingService.VERSION_SG_10 : MessagingService.VERSION_3014;
         }
 
         // this is for the ab version which was used in the LABS, and then has been renamed to ba

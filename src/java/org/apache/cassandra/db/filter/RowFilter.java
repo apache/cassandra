@@ -46,6 +46,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
@@ -451,10 +452,17 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             public void serialize(FilterElement operation, DataOutputPlus out, int version) throws IOException
             {
-                out.writeBoolean(operation.isDisjunction);
+                assert (!operation.isDisjunction && operation.children().isEmpty()) || version == MessagingService.VERSION_SG_10 :
+                "Attempting to serialize a disjunct row filter to a node that doesn't support disjunction";
+
                 out.writeUnsignedVInt(operation.expressions.size());
                 for (Expression expr : operation.expressions)
                     Expression.serializer.serialize(expr, out, version);
+
+                if (version < MessagingService.VERSION_SG_10)
+                    return;
+
+                out.writeBoolean(operation.isDisjunction);
                 out.writeUnsignedVInt(operation.children.size());
                 for (FilterElement child : operation.children)
                     serialize(child, out, version);
@@ -462,11 +470,15 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
             public FilterElement deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
             {
-                boolean isDisjunction = in.readBoolean();
                 int size = (int)in.readUnsignedVInt();
                 List<Expression> expressions = new ArrayList<>(size);
                 for (int i = 0; i < size; i++)
                     expressions.add(Expression.serializer.deserialize(in, version, metadata));
+
+                if (version < MessagingService.VERSION_SG_10)
+                    return new FilterElement(false, expressions, Collections.emptyList());
+
+                boolean isDisjunction = in.readBoolean();
                 size = (int)in.readUnsignedVInt();
                 List<FilterElement> children = new ArrayList<>(size);
                 for (int i  = 0; i < size; i++)
@@ -476,9 +488,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
             public long serializedSize(FilterElement operation, int version)
             {
-                long size = 1 + TypeSizes.sizeofUnsignedVInt(operation.expressions.size());
+                long size = TypeSizes.sizeofUnsignedVInt(operation.expressions.size());
                 for (Expression expr : operation.expressions)
                     size += Expression.serializer.serializedSize(expr, version);
+
+                if (version < MessagingService.VERSION_SG_10)
+                    return size;
+
+                size++; // isDisjunction boolean
                 size += TypeSizes.sizeofUnsignedVInt(operation.children.size());
                 for (FilterElement child : operation.children)
                     size += serializedSize(child, version);
