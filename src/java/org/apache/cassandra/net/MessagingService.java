@@ -202,8 +202,11 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    // Current Stargazer version while we have serialization differences
+    // If differences get merged upstream then we can revert to OS versioning
+    public static final int VERSION_SG_10 = 100;
     public static final int minimum_version = VERSION_30;
-    public static final int current_version = VERSION_40;
+    public static final int current_version = VERSION_SG_10;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
 
@@ -211,7 +214,8 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     {
         VERSION_30(10),
         VERSION_3014(11),
-        VERSION_40(12);
+        VERSION_40(12),
+        STARGAZER_10(100);
 
         public final int value;
 
