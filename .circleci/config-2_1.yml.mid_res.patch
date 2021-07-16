@@ -1,0 +1,75 @@
+diff --git a/.circleci/config-2_1.yml b/.circleci/config-2_1.yml
+index 03e4ae9e8f..cf2b758187 100644
+--- a/.circleci/config-2_1.yml
++++ b/.circleci/config-2_1.yml
+@@ -93,24 +93,40 @@ j8_par_executor: &j8_par_executor
+   executor:
+     name: java8-executor
+     #exec_resource_class: xlarge
+-  parallelism: 4
++    exec_resource_class: medium
++  parallelism: 25
+ 
+ j8_small_par_executor: &j8_small_par_executor
+   executor:
+     name: java8-executor
+     #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: large
++  parallelism: 10
+ 
+ j8_medium_par_executor: &j8_medium_par_executor
+   executor:
+     name: java8-executor
+     #exec_resource_class: xlarge
+-  parallelism: 1
++    exec_resource_class: large
++  parallelism: 4
++
++j8_large_par_executor: &j8_large_par_executor
++  executor:
++    name: java8-executor
++    exec_resource_class: large
++  parallelism: 50
++
++j8_very_large_par_executor: &j8_very_large_par_executor
++  executor:
++    name: java8-executor
++    exec_resource_class: xlarge
++  parallelism: 100
+ 
+ j8_seq_executor: &j8_seq_executor
+   executor:
+     name: java8-executor
+     #exec_resource_class: xlarge
++    exec_resource_class: medium
+   parallelism: 1 # sequential, single container tests: no parallelism benefits
+ 
+ with_dtests_jobs: &with_dtest_jobs
+@@ -308,7 +324,7 @@ jobs:
+           target: testclasslist-compression
+ 
+   j8_dtests-with-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -322,7 +338,7 @@ jobs:
+           pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
+ 
+   j8_dtests-no-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -336,7 +352,7 @@ jobs:
+           pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j8_upgradetests-no-vnodes:
+-    <<: *j8_par_executor
++    <<: *j8_very_large_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
