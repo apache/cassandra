@@ -1235,10 +1235,12 @@
 
   <target name="build-jmh" depends="build-test, jar" description="Create JMH uber jar">
       <jar jarfile="${build.test.dir}/deps.jar">
-          <zipgroupfileset dir="${build.dir.lib}/jars">
+          <zipgroupfileset dir="${build.test.dir}/lib/jars">
               <include name="*jmh*.jar"/>
+              <include name="junit*.jar"/>
               <include name="jopt*.jar"/>
               <include name="commons*.jar"/>
+              <include name="hamcrest*.jar"/>
           </zipgroupfileset>
           <zipgroupfileset dir="${build.lib}" includes="*.jar"/>
       </jar>
