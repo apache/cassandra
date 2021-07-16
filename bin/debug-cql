@@ -36,7 +36,7 @@ fi
 if [ -n "$JAVA_HOME" ]; then
     JAVA="$JAVA_HOME/bin/java"
 else
-    JAVA=java
+    JAVA=`command -v java 2> /dev/null`
 fi
 
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
