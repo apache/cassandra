@@ -12,6 +12,7 @@
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
+ * Reject token() in MV WHERE clause (CASSANDRA-13464)
  * Ensure java executable is on the path (CASSANDRA-14325)
  * Make speculative retry parameter case-insensitive for backward compatibility with 2.1 (CASSANDRA-16467)
  * Push digest mismatch exceptions to trace (CASSANDRA-14900)
