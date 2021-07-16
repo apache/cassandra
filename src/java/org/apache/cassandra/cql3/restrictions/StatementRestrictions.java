@@ -68,6 +68,9 @@ public class StatementRestrictions
     public static final String INDEX_DOES_NOT_SUPPORT_DISJUNCTION =
     "An index involved in this query does not support disjunctive queries using the OR operator";
 
+    public static final String PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL =
+    "Restriction on partition key column %s must not be nested under OR operator";
+
     /**
      * The Column Family meta data
      */
@@ -302,11 +305,24 @@ public class StatementRestrictions
             if (allowUseOfSecondaryIndices && type.allowUseOfSecondaryIndices())
                 indexRegistry = IndexRegistry.obtain(table);
 
-            return doBuild(whereClause.root(), indexRegistry);
+
+            WhereClause.AndElement root = whereClause.root().conjunctiveForm();
+            return doBuild(root, indexRegistry, 0);
         }
 
-        StatementRestrictions doBuild(WhereClause.ExpressionElement element, IndexRegistry indexRegistry)
+        /**
+         * Processes the WHERE clause expression tree recursively and assigns the restrictions to different sets
+         * based on the columns they are applied to.
+         *
+         * @param element root of the tree
+         * @param nestingLevel recursion depth needed to reject the restrictions that
+         *                     are not allowed to be nested (e.g. partition key restrictions)
+         */
+        StatementRestrictions doBuild(WhereClause.ExpressionElement element, IndexRegistry indexRegistry, int nestingLevel)
         {
+            assert element instanceof WhereClause.AndElement || nestingLevel > 0:
+                    "Root of the WHERE clause expression tree must be a conjunction";
+
             PartitionKeySingleRestrictionSet.Builder partitionKeyRestrictionSet = PartitionKeySingleRestrictionSet.builder(table.partitionKeyAsClusteringComparator());
             ClusteringColumnRestrictions.Builder clusteringColumnsRestrictionSet = ClusteringColumnRestrictions.builder(table, allowFiltering, indexRegistry);
             RestrictionSet.Builder nonPrimaryKeyRestrictionSet = RestrictionSet.builder();
@@ -340,11 +356,23 @@ public class StatementRestrictions
                     ColumnMetadata def = restriction.getFirstColumn();
                     if (def.isPartitionKey())
                     {
+                        // All partition key restrictions must be a part of the top-level AND operation.
+                        // The read path filtering logic is currently unable to filter rows based on
+                        // partition key restriction that is a part of a complex expression involving disjunctions.
+                        // ALLOW FILTERING does not cut it, as RowFilter can't handle ORed partition
+                        // key restrictions properly.
+                        if (nestingLevel > 0)
+                            throw invalidRequest(StatementRestrictions.PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL, def);
+
                         partitionKeyRestrictionSet.addRestriction(restriction);
                     }
-                    else if (def.isClusteringColumn())
+                    // If a clustering column restriction is nested (under OR operator),
+                    // we can't treat it as a real clustering column,
+                    // but instead we treat it as a regular column and use
+                    // index (if we have one) or use row filtering on it; hence we require nestingLevel == 0 check here
+                    else if (def.isClusteringColumn() && nestingLevel == 0)
                     {
-                        clusteringColumnsRestrictionSet.addRestriction(restriction, element.isDisjunction());
+                        clusteringColumnsRestrictionSet.addRestriction(restriction);
                     }
                     else
                     {
@@ -526,7 +554,7 @@ public class StatementRestrictions
             ImmutableList.Builder<StatementRestrictions> children = ImmutableList.builder();
 
             for (WhereClause.ContainerElement container : element.operations())
-                children.add(doBuild(container, indexRegistry));
+                children.add(doBuild(container, indexRegistry, nestingLevel + 1));
 
             return new StatementRestrictions(table,
                                              partitionKeyRestrictions,
