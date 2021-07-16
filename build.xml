@@ -297,7 +297,7 @@
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; 2009-2022 The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
+        maxmemory="1024M" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
       </javadoc>
       <fail message="javadoc failed">
@@ -498,7 +498,7 @@
         <license name="The Apache Software License, Version 2.0" url="https://www.apache.org/licenses/LICENSE-2.0.txt"/>
         <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
         <dependencyManagement>
-          <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.2.6"/>
+          <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.8.4"/>
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4" scope="provided"/>
           <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.0-4"/>
@@ -512,7 +512,7 @@
           </dependency>
           <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
-          <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
+          <dependency groupId="commons-codec" artifactId="commons-codec" version="1.15"/>
           <dependency groupId="commons-io" artifactId="commons-io" version="2.6" scope="test"/>
           <dependency groupId="org.apache.commons" artifactId="commons-lang3" version="3.11"/>
           <dependency groupId="org.apache.commons" artifactId="commons-math3" version="3.2"/>
@@ -559,7 +559,7 @@
             <exclusion groupId="org.slf4j" artifactId="slf4j-api"/>
             <exclusion groupId="org.codehaus.jackson" artifactId="jackson-mapper-asl"/>
           </dependency>
-          <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.6.0"/>
+          <dependency groupId="net.java.dev.jna" artifactId="jna" version="5.9.0"/>
 
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}" scope="test"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" scope="test"/>
@@ -1238,6 +1238,7 @@
       <jar jarfile="${build.test.dir}/deps.jar">
           <zipgroupfileset dir="${test.lib}/jars">
               <include name="*jmh*.jar"/>
+              <include name="junit*.jar"/>
               <include name="jopt*.jar"/>
               <include name="commons*.jar"/>
               <include name="junit*.jar"/>
