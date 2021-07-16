@@ -37,6 +37,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
@@ -707,5 +708,19 @@ public class ViewSchemaTest extends CQLTester
                              "CREATE MATERIALIZED VIEW " + keyspace() + ".mv AS SELECT * FROM %s "
                                      + "WHERE b IS NOT NULL AND c IS NOT NULL AND a IS NOT NULL "
                                      + "AND d = 1 PRIMARY KEY (c, b, a)");
+    }
+
+    @Test
+    public void testViewTokenRestrictions() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY(a))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        execute("INSERT into %s (a,b,c,d) VALUES (?,?,?,?)", 1,2,3,4);
+
+        assertInvalidThrowMessage("Cannot use token relation when defining a materialized view", InvalidRequestException.class,
+                                  "CREATE MATERIALIZED VIEW mv_test AS SELECT a,b,c FROM %s WHERE a IS NOT NULL and b IS NOT NULL and token(a) = token(1) PRIMARY KEY(b,a)");
     }
 }
