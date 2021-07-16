@@ -478,7 +478,6 @@ public final class WhereClause
 
         protected ContainerElement(Collection<ExpressionElement> children)
         {
-            assert children.size() >= 1: "ContainerElement cannot have 0 children";
             this.children = new ArrayList<>(children.size());
             this.children.addAll(children);
         }
@@ -560,10 +559,12 @@ public final class WhereClause
         @Override
         public String toString()
         {
-            return children
-                    .stream()
-                    .map(c -> children.size() > 1 && c.isCompound() ? '(' + c.toString() + ')': c.toString())
-                    .collect(Collectors.joining(operator().joinValue()));
+            return children.isEmpty()
+                    ? "()"
+                    : children
+                        .stream()
+                        .map(c -> children.size() > 1 && c.isCompound() ? '(' + c.toString() + ')':c.toString())
+                        .collect(Collectors.joining(operator().joinValue()));
         }
     }
 
