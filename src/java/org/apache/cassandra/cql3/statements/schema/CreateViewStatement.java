@@ -242,6 +242,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
         /*
          * Process WHERE clause
          */
+        if (whereClause.containsTokenRelations())
+            throw new InvalidRequestException("Cannot use token relation when defining a materialized view");
 
         if (whereClause.containsCustomExpressions())
             throw ire("WHERE clause for materialized view '%s' cannot contain custom index expressions", viewName);
