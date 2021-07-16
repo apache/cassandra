@@ -873,7 +873,8 @@ public class StorageProxy implements StorageProxyMBean
                         {
                             mutation.apply(writeCommitLog);
                             nonLocalMutations.remove(mutation);
-                            cleanup.ackMutation();
+                            // won't trigger cleanup
+                            cleanup.decrement();
                         }
                         catch (Exception exc)
                         {
