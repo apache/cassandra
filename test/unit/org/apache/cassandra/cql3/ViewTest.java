@@ -120,6 +120,25 @@ public class ViewTest extends CQLTester
     }
 
     @Test
+    public void testNoBatchlogCleanupForLocalMutations() throws Throwable
+    {
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createTable("CREATE TABLE %s (k1 int primary key, v1 int)");
+        createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT * FROM %%s WHERE k1 IS NOT NULL AND v1 IS NOT NULL PRIMARY KEY (v1, k1)");
+
+        ColumnFamilyStore batchlog = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES);
+        batchlog.disableAutoCompaction();
+        batchlog.forceBlockingFlush();
+        int batchlogSSTables = batchlog.getLiveSSTables().size();
+
+        updateView("INSERT INTO %s(k1, v1) VALUES(?, ?)", 1, 1);
+        batchlog.forceBlockingFlush();
+        assertEquals(batchlogSSTables, batchlog.getLiveSSTables().size());
+    }
+
+    @Test
     public void testExistingRangeTombstoneWithFlush() throws Throwable
     {
         testExistingRangeTombstone(true);
