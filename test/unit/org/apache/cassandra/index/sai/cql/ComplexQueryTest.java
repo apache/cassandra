@@ -88,6 +88,23 @@ public class ComplexQueryTest extends SAITester
     }
 
     @Test
+    public void disjunctionWithClusteringKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, a int, PRIMARY KEY(pk, ck))");
+
+        execute("INSERT INTO %s (pk, ck, a) VALUES (?, ?, ?)", 1, 1, 1);
+        execute("INSERT INTO %s (pk, ck, a) VALUES (?, ?, ?)", 2, 2, 2);
+
+        assertThatThrownBy(() -> execute("SELECT pk FROM %s WHERE a = 1 or ck = 2"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+
+        UntypedResultSet resultSet = execute("SELECT pk FROM %s WHERE a = 1 or ck = 2 ALLOW FILTERING");
+
+        assertRowsIgnoringOrder(resultSet, row(1), row(2));
+    }
+
+    @Test
     public void disjunctionWithIndexOnClusteringKey() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, ck int, a int, PRIMARY KEY(pk, ck))");
@@ -144,17 +161,24 @@ public class ComplexQueryTest extends SAITester
         execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", 2, 1, 3, 7);
         execute("INSERT INTO %s (pk, ck, a, b) VALUES (?, ?, ?, ?)", 2, 2, 4, 8);
 
-        UntypedResultSet resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 AND (a = 2 OR b = 7)");
 
-        assertRowsIgnoringOrder(resultSet, row(1, 2));
-
-        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7"))
+        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 AND (a = 2 OR b = 7)"))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
 
-        resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 OR (a = 2 OR b = 7)");
+        UntypedResultSet resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 AND (a = 2 OR b = 7) ALLOW FILTERING");
 
-        assertRowsIgnoringOrder(resultSet, row(1, 1), row(1, 2), row(2, 1));
+        assertRowsIgnoringOrder(resultSet, row(1, 2));
+
+        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7 ALLOW FILTERING"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage(String.format(StatementRestrictions.PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL, "pk"));
+
+        // Here pk = 1 is directly under AND operation, so a simple isDisjunction check on it would not be enough
+        // to reject it ;)
+        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE a = 2 OR (pk = 1 AND b = 7) ALLOW FILTERING"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage(String.format(StatementRestrictions.PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL, "pk"));
     }
 
     @Test
@@ -173,13 +197,9 @@ public class ComplexQueryTest extends SAITester
 
         assertRowsIgnoringOrder(resultSet, row(1, 2));
 
-        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7"))
+        assertThatThrownBy(() -> execute("SELECT pk, ck FROM %s WHERE pk = 1 OR a = 2 OR b = 7 ALLOW FILTERING"))
                 .isInstanceOf(InvalidRequestException.class)
-                .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
-
-        resultSet = execute("SELECT pk, ck FROM %s WHERE pk = 1 OR (a = 2 OR b = 7)");
-
-        assertRowsIgnoringOrder(resultSet, row(1, 1), row(1, 2), row(2, 1));
+                .hasMessage(String.format(StatementRestrictions.PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL, "pk"));
     }
 
     @Test
