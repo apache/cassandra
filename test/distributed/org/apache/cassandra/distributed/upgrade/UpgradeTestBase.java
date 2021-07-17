@@ -100,6 +100,7 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnCluster runAfterClusterUpgrade;
         private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
+        private Consumer<UpgradeableCluster.Builder> builderConsumer;
 
         public TestCase()
         {
@@ -162,6 +163,12 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase withBuilder(Consumer<UpgradeableCluster.Builder> builder)
+        {
+            this.builderConsumer = builder;
+            return this;
+        }
+
         public void run() throws Throwable
         {
             if (setup == null)
@@ -182,7 +189,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
             for (TestVersions upgrade : this.upgrade)
             {
-                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer)))
+                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);
 

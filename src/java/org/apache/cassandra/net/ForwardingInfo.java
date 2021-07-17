@@ -58,13 +58,9 @@ public final class ForwardingInfo implements Serializable
      * @return {@code true} if all host are to use the same message id, {@code false} otherwise. Starting with 4.0 and
      * above, we should be reusing the same id, always, but it won't always be true until 3.0/3.11 are phased out.
      */
-    public boolean useSameMessageID()
+    public boolean useSameMessageID(long id)
     {
-        if (messageIds.length < 2)
-            return true;
-
-        long id = messageIds[0];
-        for (int i = 1; i < messageIds.length; i++)
+        for (int i = 0; i < messageIds.length; i++)
             if (id != messageIds[i])
                 return false;
 
