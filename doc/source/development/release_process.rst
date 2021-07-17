@@ -125,9 +125,36 @@ Fill out the following email template and send to the dev mailing list::
     [2]: (NEWS.txt) https://git1-us-west.apache.org/repos/asf?p=cassandra.git;a=blob_plain;f=NEWS.txt;hb=<version>-tentative
 
 
+Post Failed Vote Operations
+===========================
 
-Post-vote operations
-====================
+Delete Artifacts
+-----------------
+
+Delete the staged artifacts
+
+	svn rm -m "cassandra-<version> vote failed, ref: <link_to_vote_result>" https://dist.apache.org/repos/dist/dev/cassandra/<version>
+
+
+Drop Nexus Repository
+------------------------
+
+* Login to `Nexus repository <https://repository.apache.org>`_ again.
+* Click on "Staging Repositories".
+* Find your closed staging repository, select it and then click "Drop".
+
+
+Remove Git Tag
+--------------
+
+Remove the <version>-tentative tag, locally and remote
+
+	git tag -d 4.0.0-tentative
+	git push --delete origin 4.0.0-tentative
+
+
+Post Successful Vote Operations
+===============================
 
 Any PMC member can perform the following steps to formalize and publish a successfully voted release.
 
