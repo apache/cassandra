@@ -161,13 +161,13 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     @Override
     public long getFilePointer()
     {
-        return currentWriter.getFilePointer();
+       return currentWriter != null ? currentWriter.getFilePointer() : 0L;
     }
 
     @Override
     public TableId getTableId()
     {
-        return currentWriter.getTableId();
+        return cfs.metadata.id;
     }
 
     @Override

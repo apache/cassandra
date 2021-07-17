@@ -93,7 +93,7 @@ public class CassandraIncomingFile implements IncomingStream
     @Override
     public synchronized long getSize()
     {
-        Preconditions.checkState(size > 0, "Stream hasn't been read yet");
+        Preconditions.checkState(size != -1, "Stream hasn't been read yet");
         return size;
     }
 
