@@ -100,21 +100,21 @@ public class Validator implements Runnable
         this.evenTreeDistribution = evenTreeDistribution;
     }
 
-    public void prepare(ColumnFamilyStore cfs, MerkleTrees tree)
+    public void prepare(ColumnFamilyStore cfs, MerkleTrees trees)
     {
-        this.trees = tree;
+        this.trees = trees;
 
-        if (!tree.partitioner().preservesOrder() || evenTreeDistribution)
+        if (!trees.partitioner().preservesOrder() || evenTreeDistribution)
         {
-            // You can't beat an even tree distribution for md5
-            tree.init();
+            // You can't beat even trees distribution for md5
+            trees.init();
         }
         else
         {
             List<DecoratedKey> keys = new ArrayList<>();
             Random random = new Random();
 
-            for (Range<Token> range : tree.ranges())
+            for (Range<Token> range : trees.ranges())
             {
                 for (DecoratedKey sample : cfs.keySamples(range))
                 {
@@ -124,8 +124,8 @@ public class Validator implements Runnable
 
                 if (keys.isEmpty())
                 {
-                    // use an even tree distribution
-                    tree.init(range);
+                    // use even trees distribution
+                    trees.init(range);
                 }
                 else
                 {
@@ -134,15 +134,15 @@ public class Validator implements Runnable
                     while (true)
                     {
                         DecoratedKey dk = keys.get(random.nextInt(numKeys));
-                        if (!tree.split(dk.getToken()))
+                        if (!trees.split(dk.getToken()))
                             break;
                     }
                     keys.clear();
                 }
             }
         }
-        logger.debug("Prepared AEService trees of size {} for {}", trees.size(), desc);
-        ranges = tree.rangeIterator();
+        logger.debug("Prepared AEService trees of size {} for {}", this.trees.size(), desc);
+        ranges = trees.rangeIterator();
     }
 
     /**

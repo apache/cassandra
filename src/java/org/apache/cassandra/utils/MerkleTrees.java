@@ -381,15 +381,15 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
     /**
      * Get the differences between the two sets of MerkleTrees.
      *
-     * @param ltree
-     * @param rtree
+     * @param ltrees
+     * @param rtrees
      * @return
      */
-    public static List<Range<Token>> difference(MerkleTrees ltree, MerkleTrees rtree)
+    public static List<Range<Token>> difference(MerkleTrees ltrees, MerkleTrees rtrees)
     {
         List<Range<Token>> differences = new ArrayList<>();
-        for (MerkleTree tree : ltree.merkleTrees.values())
-            differences.addAll(MerkleTree.difference(tree, rtree.getMerkleTree(tree.fullRange)));
+        for (MerkleTree tree : ltrees.merkleTrees.values())
+            differences.addAll(MerkleTree.difference(tree, rtrees.getMerkleTree(tree.fullRange)));
         return differences;
     }
 

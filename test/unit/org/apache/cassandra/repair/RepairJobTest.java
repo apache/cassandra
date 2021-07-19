@@ -819,19 +819,19 @@ public class RepairJobTest
 
     private MerkleTrees createInitialTree(boolean invalidate)
     {
-        MerkleTrees tree = new MerkleTrees(MURMUR3_PARTITIONER);
-        tree.addMerkleTrees((int) Math.pow(2, 15), FULL_RANGE);
-        tree.init();
+        MerkleTrees trees = new MerkleTrees(MURMUR3_PARTITIONER);
+        trees.addMerkleTrees((int) Math.pow(2, 15), FULL_RANGE);
+        trees.init();
 
         if (invalidate)
         {
             // change a range in one of the trees
             Token token = MURMUR3_PARTITIONER.midpoint(FULL_RANGE.get(0).left, FULL_RANGE.get(0).right);
-            tree.invalidate(token);
-            tree.get(token).hash("non-empty hash!".getBytes());
+            trees.invalidate(token);
+            trees.get(token).hash("non-empty hash!".getBytes());
         }
 
-        return tree;
+        return trees;
     }
 
     private void interceptRepairMessages(Map<InetAddressAndPort, MerkleTrees> mockTrees,
