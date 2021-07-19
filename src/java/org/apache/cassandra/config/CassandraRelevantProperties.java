@@ -159,6 +159,16 @@ public enum CassandraRelevantProperties
      */
     REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
 
+    /**
+     * Directory for logs
+     */
+    LOGDIR("cassandra.logdir", "."),
+
+    /**
+     * Directory for audit logs
+     */
+    AUDIT_LOGDIR("cassandra.logdir.audit", CassandraRelevantProperties.LOGDIR.getString() + "/audit/"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

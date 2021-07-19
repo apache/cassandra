@@ -672,7 +672,7 @@ public class StorageServiceServerTest
             StorageService.instance.enableAuditLog("foobar", null, null, null, null, null, null, null);
             Assert.fail();
         }
-        catch (IllegalStateException ex)
+        catch (ConfigurationException | IllegalStateException ex)
         {
             StorageService.instance.disableAuditLog();
         }

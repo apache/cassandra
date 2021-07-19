@@ -209,6 +209,7 @@ public class NodeTool
                 RelocateSSTables.class,
                 ViewBuildStatus.class,
                 ReloadSslCertificates.class,
+                GetAuditLog.class,
                 EnableAuditLog.class,
                 DisableAuditLog.class,
                 EnableOldProtocolVersions.class,

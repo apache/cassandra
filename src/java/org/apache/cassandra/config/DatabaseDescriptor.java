@@ -19,12 +19,24 @@ package org.apache.cassandra.config;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.*;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.nio.file.FileStore;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -35,12 +47,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -56,6 +68,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC;
 import org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
@@ -71,9 +84,6 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.utils.FBUtilities;
-
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.StringUtils;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
@@ -3139,7 +3149,7 @@ public class DatabaseDescriptor
 
     public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions)
     {
-        conf.audit_logging_options = auditLoggingOptions;
+        conf.audit_logging_options = new AuditLogOptions.Builder(auditLoggingOptions).build();
     }
 
     public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()

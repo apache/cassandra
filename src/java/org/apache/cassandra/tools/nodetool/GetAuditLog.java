@@ -19,29 +19,37 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
-import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
-@Command(name = "getfullquerylog", description = "Print configuration of fql if enabled, otherwise the configuration reflected in cassandra.yaml")
-public class GetFullQueryLog extends NodeToolCmd
+@Command(name = "getauditlog", description = "Print configuration of audit log if enabled, otherwise the configuration reflected in cassandra.yaml")
+public class GetAuditLog extends NodeTool.NodeToolCmd
 {
+    @Override
     protected void execute(NodeProbe probe)
     {
         final TableBuilder tableBuilder = new TableBuilder();
 
-        tableBuilder.add("enabled", Boolean.toString(probe.getStorageService().isFullQueryLogEnabled()));
+        tableBuilder.add("enabled", Boolean.toString(probe.getStorageService().isAuditLogEnabled()));
 
-        final FullQueryLoggerOptions options = probe.getFullQueryLoggerOptions();
+        final AuditLogOptions options = probe.getAuditLogOptions();
 
-        tableBuilder.add("log_dir", options.log_dir);
+        tableBuilder.add("logger", options.logger.class_name);
+        tableBuilder.add("audit_logs_dir", options.audit_logs_dir);
         tableBuilder.add("archive_command", options.archive_command);
         tableBuilder.add("roll_cycle", options.roll_cycle);
         tableBuilder.add("block", Boolean.toString(options.block));
         tableBuilder.add("max_log_size", Long.toString(options.max_log_size));
         tableBuilder.add("max_queue_weight", Integer.toString(options.max_queue_weight));
         tableBuilder.add("max_archive_retries", Long.toString(options.max_archive_retries));
+        tableBuilder.add("included_keyspaces", options.included_keyspaces);
+        tableBuilder.add("excluded_keyspaces", options.excluded_keyspaces);
+        tableBuilder.add("included_categories", options.included_categories);
+        tableBuilder.add("excluded_categories", options.excluded_categories);
+        tableBuilder.add("included_users", options.included_users);
+        tableBuilder.add("excluded_users", options.excluded_users);
 
         tableBuilder.printTo(probe.output().out);
     }
