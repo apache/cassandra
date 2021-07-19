@@ -103,7 +103,7 @@ public class AuthorizationProxy implements InvocationHandler
                                                                       "registerMBean",
                                                                       "unregisterMBean");
 
-    private static final JMXPermissionsCache permissionsCache = new JMXPermissionsCache();
+    private static final JmxPermissionsCache permissionsCache = new JmxPermissionsCache();
     private MBeanServer mbs;
 
     /*
@@ -182,7 +182,7 @@ public class AuthorizationProxy implements InvocationHandler
      *             as an invocation of a method on the MBeanServer.
      */
     @VisibleForTesting
-    boolean authorize(Subject subject, String methodName, Object[] args)
+    public boolean authorize(Subject subject, String methodName, Object[] args)
     {
         logger.trace("Authorizing JMX method invocation {} for {}",
                      methodName,
@@ -476,11 +476,12 @@ public class AuthorizationProxy implements InvocationHandler
                                                  .collect(Collectors.toSet());
     }
 
-    private static final class JMXPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+    private static final class JmxPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+        implements JmxPermissionsCacheMBean
     {
-        protected JMXPermissionsCache()
+        protected JmxPermissionsCache()
         {
-            super("JMXPermissionsCache",
+            super(CACHE_NAME,
                   DatabaseDescriptor::setPermissionsValidity,
                   DatabaseDescriptor::getPermissionsValidity,
                   DatabaseDescriptor::setPermissionsUpdateInterval,
@@ -490,5 +491,17 @@ public class AuthorizationProxy implements InvocationHandler
                   AuthorizationProxy::loadPermissions,
                   () -> true);
         }
+
+        public void invalidatePermissions(String roleName)
+        {
+            invalidate(RoleResource.role(roleName));
+        }
+    }
+
+    public static interface JmxPermissionsCacheMBean extends AuthCacheMBean
+    {
+        public static final String CACHE_NAME = "JMXPermissionsCache";
+
+        public void invalidatePermissions(String roleName);
     }
 }

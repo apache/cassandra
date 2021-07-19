@@ -23,11 +23,11 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-public class RolesCache extends AuthCache<RoleResource, Set<Role>>
+public class RolesCache extends AuthCache<RoleResource, Set<Role>> implements RolesCacheMBean
 {
     public RolesCache(IRoleManager roleManager, BooleanSupplier enableCache)
     {
-        super("RolesCache",
+        super(CACHE_NAME,
               DatabaseDescriptor::setRolesValidity,
               DatabaseDescriptor::getRolesValidity,
               DatabaseDescriptor::setRolesUpdateInterval,
@@ -61,5 +61,10 @@ public class RolesCache extends AuthCache<RoleResource, Set<Role>>
     Set<Role> getRoles(RoleResource primaryRole)
     {
         return get(primaryRole);
+    }
+
+    public void invalidateRoles(String roleName)
+    {
+        invalidate(RoleResource.role(roleName));
     }
 }

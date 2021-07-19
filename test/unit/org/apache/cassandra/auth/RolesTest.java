@@ -29,7 +29,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 
-import static org.apache.cassandra.auth.RoleTestUtils.*;
+import static org.apache.cassandra.auth.AuthTestUtils.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -57,39 +57,39 @@ public class RolesTest
     public void superuserStatusIsCached()
     {
         boolean hasSuper = Roles.hasSuperuserStatus(ROLE_A);
-        long count = getReadCount();
+        long count = getRolesReadCount();
 
         assertEquals(hasSuper, Roles.hasSuperuserStatus(ROLE_A));
-        assertEquals(count, getReadCount());
+        assertEquals(count, getRolesReadCount());
     }
 
     @Test
     public void loginPrivilegeIsCached()
     {
         boolean canLogin = Roles.canLogin(ROLE_A);
-        long count = getReadCount();
+        long count = getRolesReadCount();
 
         assertEquals(canLogin, Roles.canLogin(ROLE_A));
-        assertEquals(count, getReadCount());
+        assertEquals(count, getRolesReadCount());
     }
 
     @Test
     public void grantedRoleDetailsAreCached()
     {
         Iterable<Role> granted = Roles.getRoleDetails(ROLE_A);
-        long count = getReadCount();
+        long count = getRolesReadCount();
 
         assertTrue(Iterables.elementsEqual(granted, Roles.getRoleDetails(ROLE_A)));
-        assertEquals(count, getReadCount());
+        assertEquals(count, getRolesReadCount());
     }
 
     @Test
     public void grantedRoleResourcesAreCached()
     {
         Set<RoleResource> granted = Roles.getRoles(ROLE_A);
-        long count = getReadCount();
+        long count = getRolesReadCount();
 
         assertEquals(granted, Roles.getRoles(ROLE_A));
-        assertEquals(count, getReadCount());
+        assertEquals(count, getRolesReadCount());
     }
 }
