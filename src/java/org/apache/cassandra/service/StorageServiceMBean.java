@@ -315,6 +315,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
+     * Rewrites all sstables from the given list of SSTable Data.db files.
+     * The tombstone option defines the granularity of the procedure: ROW removes deleted partitions and rows, CELL also removes overwritten or deleted cells.
+     */
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, Collection<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException;
+
+    /**
      * Flush all memtables for the given column families, or all columnfamilies for the given keyspace
      * if none are explicitly listed.
      * @param keyspaceName

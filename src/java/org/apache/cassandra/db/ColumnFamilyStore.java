@@ -1646,6 +1646,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
     }
 
+    public CompactionManager.AllSSTableOpStatus partialGarbageCollect(TombstoneOption tombstoneOption, int jobs, Collection<Descriptor> sstables) throws ExecutionException, InterruptedException
+    {
+        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs, sstables);
+    }
+
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
     {
         assert !sstables.isEmpty();
@@ -2396,7 +2401,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         return runWithCompactionsDisabled(callable, false, false);
     }
-
 
     @Override
     public String toString()
