@@ -24,7 +24,6 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
@@ -34,7 +33,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -279,7 +277,7 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return defaultPort;
     }
 
-    /*
+    /**
      * As of version 4.0 the endpoint description includes a port number as an unsigned short
      * This serializer matches the 3.0 CompactEndpointSerializationHelper, encoding the number of address bytes
      * in a single byte before the address itself.
@@ -386,8 +384,9 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         }
     }
 
-    // Serializer for handling FWD_FRM message parameters. Pre-4.0 deserialization is a special
-    // case in the message
+    /** Serializer for handling FWD_FRM message parameters. Pre-4.0 deserialization is a special
+     * case in the message
+     */
     public static final class FwdFrmSerializer implements IVersionedSerializer<InetAddressAndPort>
     {
         public static final FwdFrmSerializer fwdFrmSerializer = new FwdFrmSerializer();

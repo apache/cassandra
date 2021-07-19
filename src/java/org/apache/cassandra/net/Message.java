@@ -1162,7 +1162,8 @@ public class Message<T>
                         params.put(type, type.serializer.deserialize(in, version));
                     }
                 }
-                else {
+                else
+                {
                     in.skipBytesFully(length); // forward compatibiliy with minor version changes
                 }
             }

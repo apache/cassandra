@@ -21,16 +21,12 @@ package org.apache.cassandra.distributed.upgrade;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.Versions;
-import org.awaitility.Awaitility;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -45,31 +41,12 @@ public class MixedModeMessageForwardTest extends UpgradeTestBase
     private static String INSERT_QUERY = String.format("INSERT INTO %s.%s(pk) VALUES (?)", KEYSPACE, TABLE);
     private static String CHECK_QUERY = String.format("SELECT pk FROM %s.%s WHERE pk = ?", KEYSPACE, TABLE);
 
-    private boolean checkClusterUp(UpgradeableCluster cluster, int coordId)
-    {
-        NodeToolResult result;
-        result = cluster.get(coordId).nodetoolResult("ring");
-
-        // Must have an Up line for each node
-        long upCount = Arrays.stream(result.getStdout().split("\\r?\\n")).filter(line -> line.contains(" Up ")).count();
-        if (upCount < cluster.size())
-        {
-            logger.info("Only {}/{} are up.", upCount, cluster.size());
-            return false;
-        }
-
-        return true;
-    }
-
     private void writeReadTest(UpgradeableCluster cluster)
     {
         // Coordinate a write from each node and then check present on all replicas
         int readKey = nextKey;
         for (int coordId = 1; coordId <= cluster.size(); coordId++)
         {
-            final int checkNodeId = coordId;
-            Awaitility.await("Cluster Up").atMost(1, TimeUnit.MINUTES).until(() -> checkClusterUp(cluster, checkNodeId));
-
             logger.info("Coordinating CL.ALL Insert from node{} ", coordId);
             cluster.get(coordId).coordinator().execute(INSERT_QUERY, ConsistencyLevel.ALL, nextKey++);
         }
@@ -98,7 +75,7 @@ public class MixedModeMessageForwardTest extends UpgradeTestBase
     public void checkWritesForwardedToOtherDcTest() throws Throwable
     {
         int numDCs = 2;
-        int nodesPerDc = 3;
+        int nodesPerDc = 2;
         String ntsArgs = IntStream.range(1, numDCs + 1)
                                   .mapToObj(dc -> String.format("'datacenter%d' : %d", dc, nodesPerDc))
                                   .collect(Collectors.joining(","));
