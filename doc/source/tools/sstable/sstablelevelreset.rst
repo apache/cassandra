@@ -19,7 +19,7 @@ sstablelevelreset
 
 If LeveledCompactionStrategy is set, this script can be used to reset level to 0 on a given set of sstables. This is useful if you want to, for example, change the minimum sstable size, and therefore restart the compaction process using this new configuration.
 
-See http://cassandra.apache.org/doc/latest/operating/compaction.html#leveled-compaction-strategy for information on how levels are used in this compaction strategy.
+See https://cassandra.apache.org/doc/latest/operating/compaction/lcs.html#lcs for information on how levels are used in this compaction strategy.
 
 Cassandra must be stopped before this tool is executed, or unexpected results will occur. Note: the script does not verify that Cassandra is stopped.
 
