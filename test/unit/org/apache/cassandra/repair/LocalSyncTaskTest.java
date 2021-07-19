@@ -235,10 +235,10 @@ public class LocalSyncTaskTest extends AbstractRepairTest
 
     private MerkleTrees createInitialTree(RepairJobDesc desc, IPartitioner partitioner)
     {
-        MerkleTrees tree = new MerkleTrees(partitioner);
-        tree.addMerkleTrees((int) Math.pow(2, 15), desc.ranges);
-        tree.init();
-        return tree;
+        MerkleTrees trees = new MerkleTrees(partitioner);
+        trees.addMerkleTrees((int) Math.pow(2, 15), desc.ranges);
+        trees.init();
+        return trees;
     }
 
     private MerkleTrees createInitialTree(RepairJobDesc desc)

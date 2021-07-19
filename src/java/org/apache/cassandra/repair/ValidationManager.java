@@ -48,7 +48,7 @@ public class ValidationManager
 
     private static MerkleTrees createMerkleTrees(ValidationPartitionIterator validationIterator, Collection<Range<Token>> ranges, ColumnFamilyStore cfs)
     {
-        MerkleTrees tree = new MerkleTrees(cfs.getPartitioner());
+        MerkleTrees trees = new MerkleTrees(cfs.getPartitioner());
         long allPartitions = validationIterator.estimatedPartitions();
         Map<Range<Token>, Long> rangePartitionCounts = validationIterator.getRangePartitionCounts();
 
@@ -72,15 +72,15 @@ public class ValidationManager
                            : 0;
             // determine tree depth from number of partitions, capping at max tree depth (CASSANDRA-5263)
             int depth = numPartitions > 0 ? (int) Math.min(Math.ceil(Math.log(numPartitions) / Math.log(2)), maxDepth) : 0;
-            tree.addMerkleTree((int) Math.pow(2, depth), range);
+            trees.addMerkleTree((int) Math.pow(2, depth), range);
         }
         if (logger.isDebugEnabled())
         {
             // MT serialize may take time
-            logger.debug("Created {} merkle trees with merkle trees size {}, {} partitions, {} bytes", tree.ranges().size(), tree.size(), allPartitions, MerkleTrees.serializer.serializedSize(tree, 0));
+            logger.debug("Created {} merkle trees with merkle trees size {}, {} partitions, {} bytes", trees.ranges().size(), trees.size(), allPartitions, MerkleTrees.serializer.serializedSize(trees, 0));
         }
 
-        return tree;
+        return trees;
     }
 
     private static ValidationPartitionIterator getValidationIterator(TableRepairManager repairManager, Validator validator) throws IOException
@@ -111,11 +111,11 @@ public class ValidationManager
         long estimatedTotalBytes = 0;
         try (ValidationPartitionIterator vi = getValidationIterator(cfs.getRepairManager(), validator))
         {
-            MerkleTrees tree = createMerkleTrees(vi, validator.desc.ranges, cfs);
+            MerkleTrees trees = createMerkleTrees(vi, validator.desc.ranges, cfs);
             try
             {
                 // validate the CF as we iterate over it
-                validator.prepare(cfs, tree);
+                validator.prepare(cfs, trees);
                 while (vi.hasNext())
                 {
                     try (UnfilteredRowIterator partition = vi.next())
