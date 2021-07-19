@@ -154,5 +154,119 @@ public class DescriptorTest
         }
     }
 
+    @Test
+    public void testKeyspaceTableParsing()
+    {
+        String[] locations = new String[]{
+        "/path/to/cassandra/data/dir1",
+        "/path/to/cassandra/data/dir2/dir5",
+        "/path/to/cassandra/data/dir2/dir5/dir6",
+        "/path/to/cassandra/data/dir3",
+        "/path/to/cassandra/data/dir3/dir4",
+        "/path/to/cassandra/data/dir2/dir6",
+        };
 
+        // from Cassandra dirs
+
+        String[] filePaths = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1-3424234234324/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1-3424234234324/snapshots/snapshot/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1-3424234234324/backups/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePaths, locations, "ks1", "tab1");
+
+        // indexes
+
+        String[] filePathsIndexes = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1-3424234234324/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1-3424234234324/snapshots/snapshot/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1-3424234234324/backups/.index/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsIndexes, locations, "ks1", "tab1.index");
+
+        // what if even a snapshot of a keyspace and table called snapshots is called snapshots?
+
+        String[] filePathsWithSnapshotKeyspaceAndTable = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots-742738427389478/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots-742738427389478/snapshots/snapshots/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots-742738427389478/backups/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithSnapshotKeyspaceAndTable, locations, "snapshots", "snapshots");
+
+
+        String[] filePathsWithSnapshotKeyspaceAndTableWithIndices = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots-742738427389478/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots-742738427389478/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots-742738427389478/backups/.index/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithSnapshotKeyspaceAndTableWithIndices, locations, "snapshots", "snapshots.index");
+
+        // what if keyspace and table is called backups?
+
+        String[] filePathsWithBackupsKeyspaceAndTable = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups-742738427389478/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups-742738427389478/snapshots/snapshots/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups-742738427389478/backups/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithBackupsKeyspaceAndTable, locations, "backups", "backups");
+
+
+        String[] filePathsWithBackupsKeyspaceAndTableWithIndices = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups-742738427389478/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups-742738427389478/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups-742738427389478/backups/.index/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithBackupsKeyspaceAndTableWithIndices, locations, "backups", "backups.index");
+
+        String[] outsideOfCassandra = new String[]{
+        "/tmp/some/path/tests/keyspace/table-3424234234234/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table-3424234234234/snapshots/snapshots/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table-3424234234234/backups/na-1-big-Index.db",
+        "/tmp/tests/keyspace/table-3424234234234/na-1-big-Index.db",
+        "/keyspace/table-3424234234234/na-1-big-Index.db"
+        };
+
+        testKeyspaceTableParsing(outsideOfCassandra, locations, "keyspace", "table");
+
+        String[] outsideOfCassandraUppercaseKeyspaceAndTable = new String[]{
+        "/tmp/some/path/tests/Keyspace/Table-23424324234234/na-1-big-Index.db",
+        "/tmp/some/path/tests/Keyspace/Table-23424324234234/snapshots/snapshots/na-1-big-Index.db",
+        "/tmp/some/path/tests/Keyspace/Table-23424324234234/backups/na-1-big-Index.db",
+        "/tmp/tests/Keyspace/Table-23424324234234/na-1-big-Index.db",
+        "/Keyspace/Table-23424324234234/na-1-big-Index.db"
+        };
+
+        testKeyspaceTableParsing(outsideOfCassandraUppercaseKeyspaceAndTable, locations, "Keyspace", "Table");
+
+        String[] outsideOfCassandraIndexes = new String[]{
+        "/tmp/some/path/tests/keyspace/table-32423423423423/.index/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table-32423423423423/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table-32423423423423/backups/.index/na-1-big-Index.db"
+        };
+
+        testKeyspaceTableParsing(outsideOfCassandraIndexes, locations, "keyspace", "table.index");
+
+        String[] abc = new String[] {
+        "/path/to/cassandra/data/dir2/dir6_other/Keyspace1/counter1-246467e01ea111ebbeafc3f73b4a4f2e/na-3-big-CRC.db"
+        };
+
+        testKeyspaceTableParsing(abc, locations, "Keyspace1", "counter1");
+    }
+
+    private void testKeyspaceTableParsing(String[] filePaths, String[] locations, String expectedKeyspace, String expectedTable)
+    {
+        for (String filePath : filePaths)
+        {
+            Pair<String, String> ksTab = Descriptor.parseKeyspaceAndTable(locations, new File(filePath));
+            Assert.assertNotNull(ksTab);
+            Assert.assertEquals(expectedKeyspace, ksTab.left);
+            Assert.assertEquals(expectedTable, ksTab.right);
+        }
+    }
 }
