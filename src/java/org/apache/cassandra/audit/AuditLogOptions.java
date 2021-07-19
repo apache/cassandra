@@ -173,31 +173,46 @@ public class AuditLogOptions extends BinLogOptions
 
         public Builder withArchiveCommand(final String archiveCommand)
         {
-            this.archiveCommand = archiveCommand;
+            if (archiveCommand != null)
+            {
+                this.archiveCommand = archiveCommand;
+            }
             return this;
         }
 
-        public Builder withBlock(final boolean block)
+        public Builder withBlock(final Boolean block)
         {
-            this.block = block;
+            if (block != null)
+            {
+                this.block = block;
+            }
             return this;
         }
 
         public Builder withMaxLogSize(final long maxLogSize)
         {
-            this.maxLogSize = maxLogSize;
+            if (maxLogSize != Long.MIN_VALUE)
+            {
+                this.maxLogSize = maxLogSize;
+            }
             return this;
         }
 
         public Builder withMaxArchiveRetries(final int maxArchiveRetries)
         {
-            this.maxArchiveRetries = maxArchiveRetries;
+            if (maxArchiveRetries != Integer.MIN_VALUE)
+            {
+                this.maxArchiveRetries = maxArchiveRetries;
+            }
             return this;
         }
 
         public Builder withMaxQueueWeight(final int maxQueueWeight)
         {
-            this.maxQueueWeight = maxQueueWeight;
+            if (maxQueueWeight != Integer.MIN_VALUE)
+            {
+                this.maxQueueWeight = maxQueueWeight;
+            }
             return this;
         }
 
