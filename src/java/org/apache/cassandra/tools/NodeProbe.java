@@ -297,6 +297,11 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
     }
 
+    public int userDefinedGarbageCollect(String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables);
+    }
+
     private void checkJobs(PrintStream out, int jobs)
     {
         // TODO this should get the configured number of concurrent_compactors via JMX and not using DatabaseDescriptor
@@ -333,6 +338,22 @@ public class NodeProbe implements AutoCloseable
             case 2:
                 failed = true;
                 out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
+                break;
+        }
+    }
+
+    public void userDefinedScrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        checkJobs(out, jobs);
+        switch (ssProxy.userDefinedScrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, userDefinedTables))
+        {
+            case 1:
+                failed = true;
+                out.println("Aborted scrubbing at least one table, check server logs for more information.");
+                break;
+            case 2:
+                failed = true;
+                out.println("Failed marking some sstables compacting, check server logs for more information");
                 break;
         }
     }
@@ -375,6 +396,15 @@ public class NodeProbe implements AutoCloseable
         {
             failed = true;
             out.println("Aborted garbage collection for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+        }
+    }
+
+    public void userDefinedGarbageCollect(PrintStream out, String tombstoneOption, int jobs, List<String> userDefinedTables) throws IOException, ExecutionException, InterruptedException
+    {
+        if (userDefinedGarbageCollect(tombstoneOption, jobs, userDefinedTables) != 0)
+        {
+            failed = true;
+            out.println("Aborted garbage collection for at least one table, check server logs for more information.");
         }
     }
 

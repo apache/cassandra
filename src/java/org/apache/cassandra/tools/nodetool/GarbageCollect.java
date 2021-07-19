@@ -27,10 +27,12 @@ import java.util.List;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
+
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
 public class GarbageCollect extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+
+    @Arguments(usage = "[<keyspace> <tables>...] or <SSTable file>...", description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "granularity",
@@ -46,9 +48,23 @@ public class GarbageCollect extends NodeToolCmd
                           "and also remove tombstones.")
     private int jobs = 1;
 
+    @Option(title = "user-defined", name = {"--user-defined"}, description = "Use --user-defined to submit listed files for user-defined garbagecollect")
+    private boolean userDefined = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
+        if (userDefined)
+        {
+            try
+            {
+                probe.userDefinedGarbageCollect(probe.output().out, tombstoneOption, jobs, args);
+            } catch (Exception e) {
+                throw new RuntimeException("Error occurred during user defined garbage collection", e);
+            }
+            return;
+        }
+
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
