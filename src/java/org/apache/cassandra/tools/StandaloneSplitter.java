@@ -73,11 +73,7 @@ public class StandaloneSplitter
                     continue;
                 }
 
-                Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-                if (desc == null) {
-                    System.out.println("Skipping non sstable file " + file);
-                    continue;
-                }
+                Descriptor desc = Descriptor.fromFilename(file);
 
                 if (ksName == null)
                     ksName = desc.ksname;

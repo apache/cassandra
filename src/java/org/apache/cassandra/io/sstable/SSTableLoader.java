@@ -85,9 +85,9 @@ public class SSTableLoader implements StreamEventHandler
                                               return false;
                                           }
 
-                                          Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(file);
-                                          Descriptor desc = p == null ? null : p.left;
-                                          if (p == null || !p.right.equals(Component.DATA))
+                                          Pair<Descriptor, Component> p = Descriptor.fromFilenameWithComponent(file);
+                                          Descriptor desc = p.left;
+                                          if (!p.right.equals(Component.DATA))
                                               return false;
 
                                           if (!new File(desc.filenameFor(Component.PRIMARY_INDEX)).exists())

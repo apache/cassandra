@@ -83,6 +83,10 @@ public class Directories
 {
     private static final Logger logger = LoggerFactory.getLogger(Directories.class);
 
+    private static final String EPHEMERAL_SNAPSHOT_MARKER = "ephemeral.snapshot";
+    private static final String MANIFEST_JSON = "manifest.json";
+    private static final String SCHEMA_CQL = "schema.cql";
+
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
     public static final String TMP_SUBDIR = "tmp";
@@ -261,8 +265,8 @@ public class Directories
                         if (file.isDirectory())
                             return false;
 
-                        Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-                        return desc != null && desc.ksname.equals(metadata.keyspace) && desc.cfname.equals(metadata.name);
+                        Descriptor desc = Descriptor.fromFilename(file);
+                        return desc.ksname.equals(metadata.keyspace) && desc.cfname.equals(metadata.name);
 
                     }
                 });
@@ -544,13 +548,13 @@ public class Directories
     public File getSnapshotManifestFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
-        return new File(snapshotDir, "manifest.json");
+        return new File(snapshotDir, MANIFEST_JSON);
     }
 
     public File getSnapshotSchemaFile(String snapshotName)
     {
         File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
-        return new File(snapshotDir, "schema.cql");
+        return new File(snapshotDir, SCHEMA_CQL);
     }
 
     public File getNewEphemeralSnapshotMarkerFile(String snapshotName)
@@ -561,7 +565,7 @@ public class Directories
 
     private static File getEphemeralSnapshotMarkerFile(File snapshotDirectory)
     {
-        return new File(snapshotDirectory, "ephemeral.snapshot");
+        return new File(snapshotDirectory, EPHEMERAL_SNAPSHOT_MARKER);
     }
 
     public static File getBackupsDirectory(Descriptor desc)
@@ -799,6 +803,19 @@ public class Directories
         return new SSTableLister(new File[]{directory}, metadata, onTxnErr);
     }
 
+    private static boolean isSnapshotMetadataFile(String name)
+    {
+        switch (name)
+        {
+            // if found snapshot metadata files, skip them
+            case EPHEMERAL_SNAPSHOT_MARKER:
+            case MANIFEST_JSON:
+            case SCHEMA_CQL:
+                return true;
+        }
+        return false;
+    }
+
     public static class SSTableLister
     {
         private final OnTxnErr onTxnErr;
@@ -912,9 +929,9 @@ public class Directories
                             return false;
 
                     case FINAL:
-                        Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file);
-                        if (pair == null)
+                        if (isSnapshotMetadataFile(file.getName()))
                             return false;
+                        Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
 
                         // we are only interested in the SSTable files that belong to the specific ColumnFamily
                         if (!pair.left.ksname.equals(metadata.keyspace) || !pair.left.cfname.equals(metadata.name))
@@ -1167,9 +1184,10 @@ public class Directories
         public boolean isAcceptable(Path path)
         {
             File file = path.toFile();
-            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-            return desc != null
-                && desc.ksname.equals(metadata.keyspace)
+            if (isSnapshotMetadataFile(file.getName()))
+                return false;
+            Descriptor desc = Descriptor.fromFilename(file);
+            return desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)
                 && !toSkip.contains(file);
         }

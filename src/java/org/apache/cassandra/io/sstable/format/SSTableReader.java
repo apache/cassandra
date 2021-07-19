@@ -693,7 +693,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public String getFilename()
     {
-        return dfile.path();
+        FileHandle local = dfile;
+        if (local != null)
+            return dfile.path();
+
+        // if the SSTable.load fails, then this is null; fall back to descriptor
+        return descriptor.filenameFor(Component.DATA);
     }
 
     public void setupOnline()
