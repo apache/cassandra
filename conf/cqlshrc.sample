@@ -15,7 +15,7 @@
 ; specific language governing permissions and limitations
 ; under the License.
 ;
-; Sample ~/.cqlshrc file.
+; Sample ~/.cassandra/cqlshrc file.
 
 [authentication]
 ;; If Cassandra has auth enabled, fill out these options

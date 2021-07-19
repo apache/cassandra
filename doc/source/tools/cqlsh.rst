@@ -42,7 +42,7 @@ cqlshrc
 ^^^^^^^
 
 The ``cqlshrc`` file holds configuration options for cqlsh.  By default this is in the user's home directory at
-``~/.cassandra/cqlsh``, but a custom location can be specified with the ``--cqlshrc`` option.
+``~/.cassandra/cqlshrc``, but a custom location can be specified with the ``--cqlshrc`` option.
 
 Example config values and documentation can be found in the ``conf/cqlshrc.sample`` file of a tarball installation.  You
 can also view the latest version of `cqlshrc online <https://github.com/apache/cassandra/blob/trunk/conf/cqlshrc.sample>`__.
