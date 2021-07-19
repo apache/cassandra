@@ -66,6 +66,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.ISslContextFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
@@ -684,6 +685,22 @@ public class FBUtilities
         catch (Exception ex)
         {
             throw new ConfigurationException("Unable to create instance of IAuditLogger.", ex);
+        }
+    }
+
+    public static ISslContextFactory newSslContextFactory(String className, Map<String,String> parameters) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.security." + className;
+
+        try
+        {
+            Class<?> sslContextFactoryClass = Class.forName(className);
+            return (ISslContextFactory) sslContextFactoryClass.getConstructor(Map.class).newInstance(parameters);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of ISslContextFactory for "+className, ex);
         }
     }
 
