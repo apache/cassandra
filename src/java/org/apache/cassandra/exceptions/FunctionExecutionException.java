@@ -39,9 +39,16 @@ public class FunctionExecutionException extends RequestExecutionException
 
     public FunctionExecutionException(FunctionName functionName, List<String> argTypes, String detail)
     {
-        super(ExceptionCode.FUNCTION_FAILURE, "execution of '" + functionName + argTypes + "' failed: " + detail);
+        this(functionName, argTypes, detail, false);
+    }
+
+    public FunctionExecutionException(FunctionName functionName, List<String> argTypes, String detail, boolean detailOverride)
+    {
+        super(ExceptionCode.FUNCTION_FAILURE,
+              detailOverride ? detail : "execution of '" + functionName + argTypes + "' failed: " + detail);
+
         this.functionName = functionName;
         this.argTypes = argTypes;
-        this.detail = detail;
+        this.detail = detailOverride ? detail : "execution of '" + functionName + argTypes + "' failed: " + detail;
     }
 }
