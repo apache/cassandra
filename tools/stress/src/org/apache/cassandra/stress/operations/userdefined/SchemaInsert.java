@@ -46,9 +46,9 @@ public class SchemaInsert extends SchemaStatement
     private final String insertStatement;
     private final BatchStatement.Type batchType;
 
-    public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, RatioDistribution rowPopulation, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
+    public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, RatioDistribution rowPopulation, PreparedStatement statement, BatchStatement.Type batchType)
     {
-        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio, rowPopulation), statement, statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), cl);
+        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio, rowPopulation), statement, statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()));
         this.batchType = batchType;
         this.insertStatement = null;
         this.tableSchema = null;
@@ -59,7 +59,7 @@ public class SchemaInsert extends SchemaStatement
      */
     public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, RatioDistribution useRatio, RatioDistribution rowPopulation, String statement, String tableSchema)
     {
-        super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), useRatio, rowPopulation), null, generator.getColumnNames(), ConsistencyLevel.ONE);
+        super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), useRatio, rowPopulation), null, generator.getColumnNames());
         this.batchType = BatchStatement.Type.UNLOGGED;
         this.insertStatement = statement;
         this.tableSchema = tableSchema;
@@ -97,10 +97,8 @@ public class SchemaInsert extends SchemaStatement
                 else
                 {
                     BatchStatement batch = new BatchStatement(batchType);
-                    if (cl.isSerialConsistency())
-                        batch.setSerialConsistencyLevel(JavaDriverClient.from(cl));
-                    else
-                        batch.setConsistencyLevel(JavaDriverClient.from(cl));
+                    batch.setConsistencyLevel(statement.getConsistencyLevel());
+                    batch.setSerialConsistencyLevel(statement.getSerialConsistencyLevel());
                     batch.addAll(substmts);
                     stmt = batch;
                 }

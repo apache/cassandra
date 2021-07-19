@@ -45,31 +45,21 @@ public abstract class SchemaStatement extends PartitionOperation
     }
 
     final PreparedStatement statement;
-    final ConsistencyLevel cl;
     final int[] argumentIndex;
     final Object[] bindBuffer;
     final ColumnDefinitions definitions;
 
     public SchemaStatement(Timer timer, StressSettings settings, DataSpec spec,
-                           PreparedStatement statement, List<String> bindNames, ConsistencyLevel cl)
+                           PreparedStatement statement, List<String> bindNames)
     {
         super(timer, settings, spec);
         this.statement = statement;
-        this.cl = cl;
         argumentIndex = new int[bindNames.size()];
         bindBuffer = new Object[argumentIndex.length];
         definitions = statement != null ? statement.getVariables() : null;
         int i = 0;
         for (String name : bindNames)
             argumentIndex[i++] = spec.partitionGenerator.indexOf(name);
-
-        if (statement != null)
-        {
-            if (cl.isSerialConsistency())
-                statement.setSerialConsistencyLevel(JavaDriverClient.from(cl));
-            else
-                statement.setConsistencyLevel(JavaDriverClient.from(cl));
-        }
     }
 
     BoundStatement bindRow(Row row)
