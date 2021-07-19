@@ -37,7 +37,7 @@ Design Differences Between RDBMS and Cassandra
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Let’s take a minute to highlight some of the key differences in doing
-ata modeling for Cassandra versus a relational database.
+data modeling for Cassandra versus a relational database.
 
 No joins
 ~~~~~~~~
