@@ -38,10 +38,10 @@ In particular, Cassandra relies on Dynamo style:
 
 Cassandra was designed this way to meet large-scale (PiB+) business-critical
 storage requirements. In particular, as applications demanded full global
-replication of petabyte scale datasets along with always available low-latency
+replication of petabyte-scale datasets along with always available low-latency
 reads and writes, it became imperative to design a new kind of database model
 as the relational database systems of the time struggled to meet the new
-requirements of global scale applications.
+requirements of global-scale applications.
 
 Dataset Partitioning: Consistent Hashing
 ----------------------------------------
@@ -53,14 +53,14 @@ to multiple physical nodes, often across failure domains such as racks and even
 datacenters. As every replica can independently accept mutations to every key
 that it owns, every key must be versioned. Unlike in the original Dynamo paper
 where deterministic versions and vector clocks were used to reconcile concurrent
-updates to a key, Cassandra uses a simpler last write wins model where every
+updates to a key, Cassandra uses a simpler last-write-wins model where every
 mutation is timestamped (including deletes) and then the latest version of data
 is the "winning" value. Formally speaking, Cassandra uses a Last-Write-Wins Element-Set
 conflict-free replicated data type for each CQL row (a.k.a `LWW-Element-Set CRDT
 <https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#LWW-Element-Set_(Last-Write-Wins-Element-Set)>`_)
 to resolve conflicting mutations on replica sets.
 
- .. _consistent-hashing-token-ring:
+.. _consistent-hashing-token-ring:
 
 Consistent Hashing using a Token Ring
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -82,7 +82,7 @@ algorithm. The main difference of consistent hashing to naive data hashing is
 that when the number of nodes (buckets) to hash into changes, consistent
 hashing only has to move a small fraction of the keys.
 
-For example, if we have an eight node cluster with evenly spaced tokens, and
+For example, if we have an eight-node cluster with evenly spaced tokens, and
 a replication factor (RF) of 3, then to find the owning nodes for a key we
 first hash that key to generate a token (which is just the hash of the key),
 and then we "walk" the ring in a clockwise fashion until we encounter three
@@ -93,7 +93,7 @@ This example of an eight node cluster with `RF=3` can be visualized as follows:
    :scale: 75 %
    :alt: Dynamo Ring
 
-You can see that in a Dynamo like system, ranges of keys, also known as **token
+You can see that in a Dynamo-like system, ranges of keys, also known as **token
 ranges**, map to the same physical set of nodes. In this example, all keys that
 fall in the token range excluding token 1 and including token 2 (`range(t1, t2]`)
 are stored on nodes 2, 3 and 4.
@@ -101,14 +101,14 @@ are stored on nodes 2, 3 and 4.
 Multiple Tokens per Physical Node (a.k.a. `vnodes`)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Simple single token consistent hashing works well if you have many physical
+Simple single-token consistent hashing works well if you have many physical
 nodes to spread data over, but with evenly spaced tokens and a small number of
 physical nodes, incremental scaling (adding just a few nodes of capacity) is
 difficult because there are no token selections for new nodes that can leave
 the ring balanced. Cassandra seeks to avoid token imbalance because uneven
 token ranges lead to uneven request load. For example, in the previous example
 there is no way to add a ninth token without causing imbalance; instead we
-would have to insert ``8`` tokens in the midpoints of the existing ranges.
+would have to insert 8 tokens in the midpoints of the existing ranges.
 
 The Dynamo paper advocates for the use of "virtual nodes" to solve this
 imbalance problem. Virtual nodes solve the problem by assigning multiple
@@ -120,7 +120,7 @@ data from more ring neighbors when we add even a single node.
 
 Cassandra introduces some nomenclature to handle these concepts:
 
-- **Token**: A single position on the `dynamo` style hash ring.
+- **Token**: A single position on the Dynamo-style hash ring.
 - **Endpoint**: A single physical IP and port on the network.
 - **Host ID**: A unique identifier for a single "physical" node, usually
   present at one `Endpoint` and containing one or more `Tokens`.
@@ -129,7 +129,7 @@ Cassandra introduces some nomenclature to handle these concepts:
 
 The mapping of **Tokens** to **Endpoints** gives rise to the **Token Map**
 where Cassandra keeps track of what ring positions map to which physical
-endpoints.  For example, in the following figure we can represent an eight node
+endpoints.  For example, in the following figure we can represent an eight-node
 cluster using only four physical nodes by assigning two tokens to every node:
 
 .. figure:: images/vnodes.svg
@@ -144,8 +144,8 @@ Multiple tokens per physical node provide the following benefits:
    cluster.
 2. When a node is decommissioned, it loses data roughly equally to other members
    of the ring, again keeping equal distribution of data across the cluster.
-3. If a node becomes unavailable, query load (especially token aware query load),
-   is evenly distributed across many other nodes.
+3. If a node becomes unavailable, query load (especially token-aware query
+   load), is evenly distributed across many other nodes.
 
 Multiple tokens, however, can also have disadvantages:
 
@@ -163,7 +163,7 @@ Note that in Cassandra ``2.x``, the only token allocation algorithm available
 was picking random tokens, which meant that to keep balance the default number
 of tokens per node had to be quite high, at ``256``. This had the effect of
 coupling many physical endpoints together, increasing the risk of
-unavailability. That is why in ``3.x +`` the new deterministic token allocator
+unavailability. That is why in ``3.x +`` a new deterministic token allocator
 was added which intelligently picks tokens such that the ring is optimally
 balanced while requiring a much lower number of tokens per physical node.
 
@@ -181,7 +181,7 @@ All replication strategies have the notion of a **replication factor** (``RF``),
 which indicates to Cassandra how many copies of the partition should exist.
 For example with a ``RF=3`` keyspace, the data will be written to three
 distinct **replicas**. Replicas are always chosen such that they are distinct
-physical nodes which is achieved by skipping virtual nodes if needed.
+physical nodes, which is achieved by skipping virtual nodes if needed.
 Replication strategies may also choose to skip nodes present in the same failure
 domain such as racks or datacenters so that Cassandra clusters can tolerate
 failures of whole racks and even datacenters of nodes.
@@ -191,10 +191,10 @@ failures of whole racks and even datacenters of nodes.
 Replication Strategy
 ^^^^^^^^^^^^^^^^^^^^
 
-Cassandra supports pluggable **replication strategies**, which determine which
+Cassandra supports pluggable **replication strategies**, that determine which
 physical nodes act as replicas for a given token range. Every keyspace of
 data has its own replication strategy. All production deployments should use
-the :ref:`network-topology-strategy` while the :ref:`simple-strategy` replication
+the :ref:`network-topology-strategy`, while the :ref:`simple-strategy` replication
 strategy is useful only for testing clusters where you do not yet know the
 datacenter layout of the cluster.
 
@@ -217,7 +217,7 @@ Otherwise, each rack will hold at least one replica, but some racks may hold
 more than one. Note that this rack-aware behavior has some potentially
 `surprising implications
 <https://issues.apache.org/jira/browse/CASSANDRA-3810>`_.  For example, if
-there are not an even number of nodes in each rack, the data load on the
+there is not an even number of nodes in each rack, the data load on the
 smallest rack may be much higher.  Similarly, if a single node is bootstrapped
 into a brand new rack, it will be considered a replica for the entire ring.
 For this reason, many operators choose to configure all nodes in a single
@@ -246,7 +246,7 @@ Transient replication is an experimental feature in Cassandra 4.0 not present
 in the original Dynamo paper. It allows you to configure a subset of replicas
 to only replicate data that hasn't been incrementally repaired. This allows you
 to decouple data redundancy from availability. For instance, if you have a
-keyspace replicated at rf 3, and alter it to rf 5 with 2 transient replicas,
+keyspace replicated at RF 3, and alter it to RF 5 with 2 transient replicas,
 you go from being able to tolerate one failed replica to being able to tolerate
 two, without corresponding increase in storage usage. This is because 3 nodes
 will replicate all the data for a given token range, and the other 2 will only
@@ -268,7 +268,7 @@ probably never be able to use secondary indices with them.
 Transient replication is an experimental feature that may not be ready for
 production use. The expected audience is experienced users of Cassandra
 capable of fully validating a deployment of their particular application. That
-means being able check that operations like reads, writes, decommission,
+means being able to check that operations like reads, writes, decommission,
 remove, rebuild, repair, and replace all work with your queries, data,
 configuration, operational practices, and availability requirements.
 
@@ -280,18 +280,18 @@ Data Versioning
 
 Cassandra uses mutation timestamp versioning to guarantee eventual consistency of
 data. Specifically all mutations that enter the system do so with a timestamp
-provided either from a client clock or, absent a client provided timestamp,
+provided either from a client clock or, absent a client-provided timestamp,
 from the coordinator node's clock. Updates resolve according to the conflict
-resolution rule of last write wins. Cassandra's correctness does depend on
+resolution rule of last-write-wins. Cassandra's correctness does depend on
 these clocks, so make sure a proper time synchronization process is running
 such as NTP.
 
 Cassandra applies separate mutation timestamps to every column of every row
 within a CQL partition. Rows are guaranteed to be unique by primary key, and
-each column in a row resolve concurrent mutations according to last-write-wins
+each column in a row resolves concurrent mutations according to last-write-wins
 conflict resolution. This means that updates to different primary keys within a
 partition can actually resolve without conflict! Furthermore the CQL collection
-types such as maps and sets use this same conflict free mechanism, meaning
+types such as maps and sets use this same conflict-free mechanism, meaning
 that concurrent updates to maps and sets are guaranteed to resolve as well.
 
 Replica Synchronization
@@ -305,7 +305,7 @@ techniques to drive convergence of replicas including
 
 These techniques are only best-effort, however, and to guarantee eventual
 consistency Cassandra implements `anti-entropy repair <repair>` where replicas
-calculate hierarchical hash-trees over their datasets called `Merkle Trees
+calculate hierarchical hash trees over their datasets called `Merkle Trees
 <https://en.wikipedia.org/wiki/Merkle_tree>`_ that can then be compared across
 replicas to identify mismatched data. Like the original Dynamo paper Cassandra
 supports "full" repairs where replicas hash their entire dataset, create Merkle
@@ -356,7 +356,7 @@ The following consistency levels are available:
   A majority of the replicas in each datacenter must respond.
 
 ``LOCAL_ONE``
-  Only a single replica must respond.  In a multi-datacenter cluster, this also gaurantees that read requests are not
+  Only a single replica must respond.  In a multi-datacenter cluster, this also guarantees that read requests are not
   sent to replicas in a remote datacenter.
 
 ``ANY``
@@ -431,11 +431,11 @@ periodically. Every second, every node in the cluster:
 3. Probabilistically attempts to gossip with any unreachable nodes (if one exists)
 4. Gossips with a seed node if that didn't happen in step 2.
 
-When an operator first bootstraps a Cassandra cluster they designate certain
-nodes as "seed" nodes. Any node can be a seed node and the only difference
-between seed and non-seed nodes is seed nodes are allowed to bootstrap into the
-ring without seeing any other seed nodes. Furthermore, once a cluster is
-bootstrapped, seed nodes become "hotspots" for gossip due to step 4 above.
+When an operator first bootstraps a Cassandra cluster, they designate certain
+nodes as "seed" nodes. Any node can be a seed node, and the only difference
+between seed and non-seed nodes is that seed nodes are allowed to bootstrap
+into the ring without seeing any other seed nodes. Furthermore, once a cluster
+is bootstrapped, seed nodes become "hotspots" for gossip due to step 4 above.
 
 As non-seed nodes must be able to contact at least one seed node in order to
 bootstrap into the cluster, it is common to include multiple seed nodes, often
@@ -446,7 +446,7 @@ off-the-shelf service discovery mechanisms.
    Nodes do not have to agree on the seed nodes, and indeed once a cluster is
    bootstrapped, newly launched nodes can be configured to use any existing
    nodes as "seeds". The only advantage to picking the same nodes as seeds
-   is it increases their usefullness as gossip hotspots.
+   is that it increases their usefulness as gossip hotspots.
 
 Currently, gossip also propagates token metadata and schema *version*
 information. This information forms the control plane for scheduling data
@@ -462,7 +462,7 @@ Gossip forms the basis of ring membership, but the **failure detector**
 ultimately makes decisions about if nodes are ``UP`` or ``DOWN``. Every node in
 Cassandra runs a variant of the `Phi Accrual Failure Detector
 <https://www.computer.org/csdl/proceedings-article/srds/2004/22390066/12OmNvT2phv>`_,
-in which every node is constantly making an independent decision of if their
+in which every node is constantly making an independent decision on whether its
 peer nodes are available or not. This decision is primarily based on received
 heartbeat state. For example, if a node does not see an increasing heartbeat
 from a node for a certain amount of time, the failure detector "convicts" that
@@ -513,8 +513,8 @@ more easily scale horizontally since multi-partition transactions spanning
 multiple nodes are notoriously difficult to implement and typically very
 latent.
 
-Instead, Cassanda chooses to offer fast, consistent, latency at any scale for
-single partition operations, allowing retrieval of entire partitions or only
+Instead, Cassandra chooses to offer fast, consistent latency at any scale for
+single-partition operations, allowing retrieval of entire partitions or only
 subsets of partitions based on primary key filters. Furthermore, Cassandra does
 support single partition compare and swap functionality via the lightweight
 transaction CQL API.
@@ -523,7 +523,7 @@ Simple Interface for Storing Records
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Cassandra, in a slight departure from Dynamo, chooses a storage interface that
-is more sophisticated then "simple key value" stores but significantly less
+is more sophisticated than "simple key-value" stores but significantly less
 complex than SQL relational data models.  Cassandra presents a wide-column
 store interface, where partitions of data contain multiple rows, each of which
 contains a flexible set of individually typed columns. Every row is uniquely
