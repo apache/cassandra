@@ -5857,6 +5857,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ClientResourceLimits.setEndpointLimit(newLimit);
     }
 
+    @Override
+    public long getNativeTransportRequestsPerSecond()
+    {
+        return (long) ClientResourceLimits.getNativeTransportRequestsPerSecond();
+    }
+
+    @Override
+    public void setNativeTransportRequestsPerSecond(long newLimit)
+    {
+        ClientResourceLimits.setNativeTransportRequestsPerSecond(newLimit);
+    }
+
+    @Override
+    public void setNativeTransportRateLimitingEnabled(boolean enabled)
+    {
+        DatabaseDescriptor.setNativeTransportRateLimitingEnabled(enabled);
+    }
+
+    @Override
+    public boolean getNativeTransportRateLimitingEnabled()
+    {
+        return DatabaseDescriptor.getNativeTransportRateLimitingEnabled();
+    }
+
     @VisibleForTesting
     public void shutdownServer()
     {
