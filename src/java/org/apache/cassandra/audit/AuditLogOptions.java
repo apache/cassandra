@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import com.google.common.base.Strings;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
@@ -47,8 +48,7 @@ public class AuditLogOptions extends BinLogOptions
     /**
      * AuditLogs directory can be configured using `cassandra.logdir.audit` or default is set to `cassandra.logdir` + /audit/
      */
-    public String audit_logs_dir = Paths.get(System.getProperty("cassandra.logdir.audit",
-                                                                System.getProperty("cassandra.logdir", ".") + "/audit/")).normalize().toString();
+    public String audit_logs_dir = Paths.get(CassandraRelevantProperties.AUDIT_LOGDIR.getString()).normalize().toString();
 
     public static AuditLogOptions validate(final AuditLogOptions options) throws ConfigurationException
     {

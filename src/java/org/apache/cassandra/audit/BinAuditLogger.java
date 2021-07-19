@@ -42,7 +42,6 @@ public class BinAuditLogger implements IAuditLogger
 
     public BinAuditLogger(AuditLogOptions auditLoggingOptions)
     {
-        AuditLogOptions.validate(auditLoggingOptions);
         this.binLog = new BinLog.Builder().path(Paths.get(auditLoggingOptions.audit_logs_dir))
                                           .rollCycle(auditLoggingOptions.roll_cycle)
                                           .blocking(auditLoggingOptions.block)
