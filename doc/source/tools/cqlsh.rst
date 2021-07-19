@@ -383,8 +383,8 @@ CSV data from stdin.
 
 See :ref:`shared-copy-options` for options that apply to both ``COPY TO`` and ``COPY FROM``.
 
-Options for ``COPY TO``
-```````````````````````
+Options for ``COPY FROM``
+`````````````````````````
 
 ``INGESTRATE``
   The maximum number of rows to process per second. Defaults to 100000.
@@ -412,10 +412,10 @@ Options for ``COPY TO``
   The max number of rows inserted in a single batch. Defaults to 20.
 
 ``MINBATCHSIZE``
-  The min number of rows inserted in a single batch. Defaults to 2.
+  The min number of rows inserted in a single batch. Defaults to 10.
 
 ``CHUNKSIZE``
-  The number of rows that are passed to child worker processes from the main process at a time. Defaults to 1000.
+  The number of rows that are passed to child worker processes from the main process at a time. Defaults to 5000.
 
 .. _shared-copy-options:
 
@@ -441,8 +441,7 @@ Options that are common to both ``COPY TO`` and ``COPY FROM``.
   The string literal format for boolean values.  Defaults to ``True,False``.
 
 ``NUMPROCESSES``
-  The number of child worker processes to create for ``COPY`` tasks.  Defaults to a max of 4 for ``COPY FROM`` and 16
-  for ``COPY TO``.  However, at most (num_cores - 1) processes will be created.
+  The number of child worker processes to create for ``COPY`` tasks.  Defaults to a max of 16 or (num_cores - 1) processes, whichever is smaller.
 
 ``MAXATTEMPTS``
   The maximum number of failed attempts to fetch a range of data (when using ``COPY TO``) or insert a chunk of data
