@@ -70,7 +70,7 @@ create_help_file()
 # create the main usage page
 with open(outdir + "/nodetool.rst", "w+") as output:
     with open(helpfilename, "r+") as helpfile:
-        output.write(".. _nodetool\n\nNodetool\n--------\n\nUsage\n---------\n\n")
+        output.write(".. _nodetool\n\nNodetool\n--------\n\nUsage\n^^^^^\n\n")
         for commandLine in helpfile:
             command = command_re.sub(r'\n\1:doc:`\2` - ',commandLine)
             output.write(command)
