@@ -154,5 +154,103 @@ public class DescriptorTest
         }
     }
 
+    @Test
+    public void testKeyspaceTableParsing()
+    {
+        String[] locations = new String[]{
+        "/path/to/cassandra/data/dir1",
+        "/path/to/cassandra/data/dir2/dir5",
+        "/path/to/cassandra/data/dir2/dir5/dir6",
+        "/path/to/cassandra/data/dir3",
+        "/path/to/cassandra/data/dir3/dir4",
+        "/path/to/cassandra/data/dir2/dir6",
+        };
 
+        // from Cassandra dirs
+
+        String[] filePaths = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1/snapshots/snapshot/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1/backups/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePaths, locations, "ks1", "tab1");
+
+        // indexes
+
+        String[] filePathsIndexes = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1/snapshots/snapshot/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/ks1/tab1/backups/.index/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsIndexes, locations, "ks1", "tab1.index");
+
+        // what if even a snapshot of a keyspace and table called snapshots is called snapshots?
+
+        String[] filePathsWithSnapshotKeyspaceAndTable = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots/snapshots/snapshots/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots/backups/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithSnapshotKeyspaceAndTable, locations, "snapshots", "snapshots");
+
+
+        String[] filePathsWithSnapshotKeyspaceAndTableWithIndices = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/snapshots/snapshots/backups/.index/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithSnapshotKeyspaceAndTableWithIndices, locations, "snapshots", "snapshots.index");
+
+        // what if keyspace and table is called backups?
+
+        String[] filePathsWithBackupsKeyspaceAndTable = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups/snapshots/snapshots/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups/backups/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithBackupsKeyspaceAndTable, locations, "backups", "backups");
+
+
+        String[] filePathsWithBackupsKeyspaceAndTableWithIndices = new String[]{
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/path/to/cassandra/data/dir2/dir5/dir6/backups/backups/backups/.index/na-1-big-Index.db",
+        };
+
+        testKeyspaceTableParsing(filePathsWithBackupsKeyspaceAndTableWithIndices, locations, "backups", "backups.index");
+
+        String[] outsideOfCassandra = new String[]{
+        "/tmp/some/path/tests/keyspace/table/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table/snapshots/snapshots/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table/backups/na-1-big-Index.db",
+        "/tmp/tests/keyspace/table/na-1-big-Index.db",
+        "/keyspace/table/na-1-big-Index.db"
+        };
+
+        testKeyspaceTableParsing(outsideOfCassandra, locations, "keyspace", "table");
+
+        String[] outsideOfCassandraIndexes = new String[]{
+        "/tmp/some/path/tests/keyspace/table/.index/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/tmp/some/path/tests/keyspace/table/backups/.index/na-1-big-Index.db"
+        };
+
+        testKeyspaceTableParsing(outsideOfCassandraIndexes, locations, "keyspace", "table.index");
+    }
+
+    private void testKeyspaceTableParsing(String[] filePaths, String[] locations, String expectedKeyspace, String expectedTable)
+    {
+        for (String filePath : filePaths)
+        {
+            Pair<String, String> ksTab = Descriptor.parseKeyspaceAndTable(locations, new File(filePath));
+            Assert.assertNotNull(ksTab);
+            Assert.assertEquals(expectedKeyspace, ksTab.left);
+            Assert.assertEquals(expectedTable, ksTab.right);
+        }
+    }
 }
