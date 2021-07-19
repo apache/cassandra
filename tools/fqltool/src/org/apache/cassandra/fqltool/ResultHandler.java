@@ -61,7 +61,9 @@ public class ResultHandler implements Closeable
     {
         for (int i = 0; i < targetHosts.size(); i++)
         {
-            if (results.get(i).wasFailed())
+            ComparableResultSet result = results.get(i);
+            if (result == null) continue;
+            if (result.wasFailed())
                 logger.error("Query {} against {} failure: {}", query, targetHosts.get(i), results.get(i).getFailureException().getMessage());
         }
 
