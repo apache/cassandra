@@ -134,6 +134,13 @@ public class BigTableReader extends SSTableReader
                                         boolean permitMatchPastLast,
                                         SSTableReadsListener listener)
     {
+        // Having no index file is impossible in a normal operation. The only way it might happen is running
+        // Scrubber that does not really rely onto this method.
+        if (ifile == null)
+        {
+            return null;
+        }
+
         if (op == Operator.EQ)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
@@ -154,6 +161,8 @@ public class BigTableReader extends SSTableReader
             RowIndexEntry cachedPosition = getCachedPosition(cacheKey, updateCacheAndStats);
             if (cachedPosition != null)
             {
+                // we do not need to track "true positive" for Bloom Filter here because it has been already tracked
+                // inside getCachedPosition method
                 listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.generation);
                 return cachedPosition;
@@ -194,9 +203,6 @@ public class BigTableReader extends SSTableReader
 
         int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
 
-        if (ifile == null)
-            return null;
-
         // scan the on-disk index, starting at the nearest sampled position.
         // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
         // (bloom filter false positive). But note that for non-EQ cases, we might need to check the first key of the
@@ -231,6 +237,8 @@ public class BigTableReader extends SSTableReader
                     exactMatch = (comparison == 0);
                     if (v < 0)
                     {
+                        if (op == SSTableReader.Operator.EQ && updateCacheAndStats)
+                            bloomFilterTracker.addFalsePositive();
                         listener.onSSTableSkipped(this, SkippingReason.PARTITION_INDEX_LOOKUP);
                         Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
                         return null;
