@@ -41,6 +41,7 @@ public final class TableParams
 {
     public enum Option
     {
+        ALLOW_AUTO_SNAPSHOT,
         BLOOM_FILTER_FP_CHANCE,
         CACHING,
         COMMENT,
@@ -80,6 +81,7 @@ public final class TableParams
     public final CompressionParams compression;
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
+    public final boolean allowAutoSnapshot;
     public final ReadRepairStrategy readRepair;
 
     private TableParams(Builder builder)
@@ -102,6 +104,7 @@ public final class TableParams
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
+        allowAutoSnapshot = builder.allowAutoSnapshot;
     }
 
     public static Builder builder()
@@ -126,7 +129,8 @@ public final class TableParams
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
                             .cdc(params.cdc)
-                            .readRepair(params.readRepair);
+                            .readRepair(params.readRepair)
+                            .allowAutoSnapshot(params.allowAutoSnapshot);
     }
 
     public Builder unbuild()
@@ -210,6 +214,7 @@ public final class TableParams
             && compression.equals(p.compression)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
+            && allowAutoSnapshot == p.allowAutoSnapshot
             && readRepair == p.readRepair;
     }
 
@@ -252,6 +257,7 @@ public final class TableParams
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
                           .add(Option.READ_REPAIR.toString(), readRepair)
+                          .add(Option.ALLOW_AUTO_SNAPSHOT.toString(), allowAutoSnapshot)
                           .toString();
     }
 
@@ -292,7 +298,9 @@ public final class TableParams
                .newLine()
                .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
                .newLine()
-               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString())
+               .newLine()
+               .append("AND allowAutoSnapshot = ").append(allowAutoSnapshot);
 
     }
 
@@ -313,6 +321,7 @@ public final class TableParams
         private CompressionParams compression = CompressionParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
+        private boolean allowAutoSnapshot = true;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
 
         public Builder()
@@ -417,6 +426,12 @@ public final class TableParams
         public Builder extensions(Map<String, ByteBuffer> val)
         {
             extensions = ImmutableMap.copyOf(val);
+            return this;
+        }
+
+        public Builder allowAutoSnapshot(boolean val)
+        {
+            allowAutoSnapshot = val;
             return this;
         }
     }
