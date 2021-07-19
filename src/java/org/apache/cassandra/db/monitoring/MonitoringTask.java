@@ -147,13 +147,12 @@ class MonitoringTask
         AggregatedOperations failedOperations = failedOperationsQueue.popOperations();
         if (!failedOperations.isEmpty())
         {
-            long elapsedNanos = nowNanos - approxLastLogTimeNanos;
             noSpamLogger.warn("Some operations timed out, details available at debug level (debug.log)");
 
             if (logger.isDebugEnabled())
                 logger.debug("{} operations timed out in the last {} msecs:{}{}",
                             failedOperations.num(),
-                             NANOSECONDS.toMillis(elapsedNanos),
+                             NANOSECONDS.toMillis(nowNanos - approxLastLogTimeNanos),
                             LINE_SEPARATOR,
                             failedOperations.getLogMessage());
             return true;
@@ -168,13 +167,12 @@ class MonitoringTask
         AggregatedOperations slowOperations = slowOperationsQueue.popOperations();
         if (!slowOperations.isEmpty())
         {
-            long approxElapsedNanos = approxCurrentTimeNanos - approxLastLogTimeNanos;
             noSpamLogger.info("Some operations were slow, details available at debug level (debug.log)");
 
             if (logger.isDebugEnabled())
                 logger.debug("{} operations were slow in the last {} msecs:{}{}",
                              slowOperations.num(),
-                             NANOSECONDS.toMillis(approxElapsedNanos),
+                             NANOSECONDS.toMillis(approxCurrentTimeNanos - approxLastLogTimeNanos),
                              LINE_SEPARATOR,
                              slowOperations.getLogMessage());
             return true;
