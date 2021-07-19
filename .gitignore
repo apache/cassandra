@@ -78,3 +78,5 @@ venv/
 # build-scripts will put cassandra-builds into the directory
 cassandra-builds/
 cassandra-dtest/
+
+.build/.mvn/wrapper/maven-wrapper.jar
