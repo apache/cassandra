@@ -10,6 +10,7 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Count bloom filter misses correctly (CASSANDRA-12922)
  * Reject token() in MV WHERE clause (CASSANDRA-13464)
  * Ensure java executable is on the path (CASSANDRA-14325)
  * Clean transaction log leftovers at the beginning of sstablelevelreset and sstableofflinerelevel (CASSANDRA-12519)
