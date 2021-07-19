@@ -107,7 +107,7 @@ Yes, but it will require running a full repair (or cleanup) to change the replic
   configuration. Repair runs on a per-replica set basis. This is an intensive process that may result in adverse cluster
   performance. It's highly recommended to do rolling repairs, as an attempt to repair the entire cluster at once will
   most likely swamp it. Note that you will need to run a full repair (``-full``) to make sure that already repaired
-  sstables are not skipped.
+  sstables are not skipped. You should use ConsistencyLevel.QUORUM or ALL (depending on your existing replication factor) to make sure that a replica that actually has the data is consulted. Otherwise some clients potentially being told no data exists until repair is done. 
 
 .. _can-large-blob:
 
