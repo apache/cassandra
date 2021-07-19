@@ -15,10 +15,9 @@
 # limitations under the License.
 
 from os.path import join
-import re
 
 from .basecase import BaseTestCase, cassandra_dir
-from cqlshlib.cqlhandling import cql_reserved_keywords as cqlsh_reserved_keywords
+from cqlshlib.cqlhandling import cql_keywords_reserved
 
 RESERVED_KEYWORDS_SOURCE = join(cassandra_dir, 'src', 'resources', 'org', 'apache', 'cassandra', 'cql3', 'reserved_keywords.txt')
 
@@ -29,10 +28,10 @@ class TestConstants(BaseTestCase):
         with open(RESERVED_KEYWORDS_SOURCE) as f:
             source_reserved_keywords = set(line.rstrip().lower() for line in f)
 
-        cqlsh_not_source = cqlsh_reserved_keywords - source_reserved_keywords
+        cqlsh_not_source = cql_keywords_reserved - source_reserved_keywords
         self.assertFalse(cqlsh_not_source, "Reserved keywords in cqlsh not read from source %s."
                          % (RESERVED_KEYWORDS_SOURCE,))
 
-        source_not_cqlsh = source_reserved_keywords - cqlsh_reserved_keywords
+        source_not_cqlsh = source_reserved_keywords - cql_keywords_reserved
         self.assertFalse(source_not_cqlsh, "Reserved keywords in source %s not appearing in cqlsh."
                          % (RESERVED_KEYWORDS_SOURCE,))
