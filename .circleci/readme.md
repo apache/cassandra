@@ -26,14 +26,17 @@ between them by copying the correct file to config.yml and committing the result
 
 `cp .circleci/config.yml.HIGHRES .circleci/config.yml`
 
+config.yml.LOWRES is the default config. MIDRES and HIGHRES are custom configs for those who
+have access to premium CircleCI resources.
+
 Make sure you never edit the config.yml manually.
 
 ## Updating the config master
-To update the config (other than just swapping high/low resources) you need to install
+To update the config (other than just swapping high/mid/low resources) you need to install
 the [CircleCI CLI](https://circleci.com/docs/2.0/local-cli/#install).
 
-The directory contains `config-2_1.yml` which is then converted to the actual HIGH/LOW
-resource files. There is a script called `generate.sh` which creates the LOWRES and
+The directory contains `config-2_1.yml` which is then converted to the actual HIGH/MID/LOW
+resource files. There is a script called `generate.sh` which creates the LOWRES, MIDRES, and
 HIGHRES files, read below for details how to do it manually;
 
 1. make your edits to config-2_1.yml - let it stay at lowres settings
@@ -53,4 +56,11 @@ HIGHRES files, read below for details how to do it manually;
 1. remove the temporary patched HIGHRES file: `rm config-2_1.yml.HIGHRES`
 1. add the Apache license header to the newly created HIGHRES file:
    `cat license.yml config.yml.HIGHRES > config.yml.HIGHRES.new && mv config.yml.HIGHRES.new config.yml.HIGHRES`
+1. repeat the last steps to generate the MIDRES file:
+   ```
+   patch -o config-2_1.yml.MIDRES config-2_1.yml config-2_1.yml.mid_res.patch
+   circleci config process config-2_1.yml.MIDRES > config.yml.MIDRES
+   rm config-2_1.yml.MIDRES
+   cat license.yml config.yml.MIDRES > config.yml.MIDRES.new && mv config.yml.MIDRES.new config.yml.MIDRES
+   ```
 
