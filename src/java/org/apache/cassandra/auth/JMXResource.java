@@ -139,11 +139,7 @@ public class JMXResource implements IResource
         {
             return !(mbs.queryNames(new ObjectName(name), null).isEmpty());
         }
-        catch (MalformedObjectNameException e)
-        {
-            return false;
-        }
-        catch (NullPointerException e)
+        catch(MalformedObjectNameException | NullPointerException e) 
         {
             return false;
         }

@@ -80,16 +80,14 @@ public class TypeParserTest
             TypeParser.parse("y");
             fail("Should not pass");
         }
-        catch (ConfigurationException e) {}
-        catch (SyntaxException e) {}
+        catch(ConfigurationException | SyntaxException e) {}
 
         try
         {
             TypeParser.parse("LongType(reversed@)");
             fail("Should not pass");
         }
-        catch (ConfigurationException e) {}
-        catch (SyntaxException e) {}
+        catch(ConfigurationException | SyntaxException e) {}
     }
 
     @Test

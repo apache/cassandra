@@ -72,7 +72,8 @@ public class HadoopCompat
         try
         {
             Class.forName(PACKAGE + ".task.JobContextImpl");
-        } catch (ClassNotFoundException cnfe)
+        }
+        catch (ClassNotFoundException cnfe)
         {
             v21 = false;
         }
@@ -108,7 +109,8 @@ public class HadoopCompat
                         Class.forName("org.apache.hadoop.mapred.Counters$Counter");
 
             }
-        } catch (ClassNotFoundException e)
+        }
+        catch (ClassNotFoundException e)
         {
             throw new IllegalArgumentException("Can't find class", e);
         }
@@ -212,16 +214,7 @@ public class HadoopCompat
         {
             return constructor.newInstance(args);
         }
-        catch (InstantiationException e)
-        {
-            throw new IllegalArgumentException("Can't instantiate " + constructor, e);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new IllegalArgumentException("Can't instantiate " + constructor, e);
-        }
-        catch (InvocationTargetException e)
-        {
+        catch(InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new IllegalArgumentException("Can't instantiate " + constructor, e);
         }
     }
