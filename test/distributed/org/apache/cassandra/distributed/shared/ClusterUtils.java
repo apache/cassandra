@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -40,6 +41,7 @@ import java.util.stream.Collectors;
 import com.google.common.util.concurrent.Futures;
 import org.junit.Assert;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -49,6 +51,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
@@ -233,6 +236,34 @@ public class ClusterUtils
                                                           .map(Object::toString)
                                                           .collect(Collectors.toList()));
     }
+
+    public static String getLocalToken(IInvokableInstance inst)
+    {
+        return inst.callOnInstance(() -> {
+            List<String> tokens = new ArrayList<>();
+            for (Token t : StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddressAndPort()))
+                tokens.add(t.getTokenValue().toString());
+
+            assert tokens.size() == 1 : "getLocalToken assumes a single token, but multiple tokens found";
+            return tokens.get(0);
+        });
+    }
+
+    public static <I extends IInstance> void runAndWaitForLogs(Runnable r, String waitString, AbstractCluster<I> cluster) throws TimeoutException
+    {
+        runAndWaitForLogs(r, waitString, cluster.stream().toArray(IInstance[]::new));
+    }
+
+    public static void runAndWaitForLogs(Runnable r, String waitString, IInstance...instances) throws TimeoutException
+    {
+        long [] marks = new long[instances.length];
+        for (int i = 0; i < instances.length; i++)
+            marks[i] = instances[i].logs().mark();
+        r.run();
+        for (int i = 0; i < instances.length; i++)
+            instances[i].logs().watchFor(marks[i], waitString);
+    }
+
 
     /**
      * Get the ring from the perspective of the instance.
