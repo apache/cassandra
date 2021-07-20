@@ -1,4 +1,5 @@
 3.11.12
+ * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
  * Fix ant-junit dependency issue (CASSANDRA-16827)
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Avoid sending CDC column if not enabled (CASSANDRA-16770)

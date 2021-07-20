@@ -44,7 +44,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -171,20 +170,20 @@ public class ScrubTest
         boolean compression = Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false"));
         if (compression)
         {
-            assertEquals(0, scrubResult.emptyRows);
-            assertEquals(numPartitions, scrubResult.badRows + scrubResult.goodRows);
+            assertEquals(0, scrubResult.emptyPartitions);
+            assertEquals(numPartitions, scrubResult.badPartitions + scrubResult.goodPartitions);
             //because we only corrupted 1 chunk and we chose enough partitions to cover at least 3 chunks
-            assertTrue(scrubResult.goodRows >= scrubResult.badRows * 2);
+            assertTrue(scrubResult.goodPartitions >= scrubResult.badPartitions * 2);
         }
         else
         {
-            assertEquals(0, scrubResult.emptyRows);
-            assertEquals(1, scrubResult.badRows);
-            assertEquals(numPartitions-1, scrubResult.goodRows);
+            assertEquals(0, scrubResult.emptyPartitions);
+            assertEquals(1, scrubResult.badPartitions);
+            assertEquals(numPartitions-1, scrubResult.goodPartitions);
         }
         assertEquals(1, cfs.getLiveSSTables().size());
 
-        assertOrderedAll(cfs, scrubResult.goodRows);
+        assertOrderedAll(cfs, scrubResult.goodPartitions);
     }
 
     @Test
