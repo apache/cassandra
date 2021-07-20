@@ -12,6 +12,7 @@
  * Make sure sstables with moved starts are removed correctly in LeveledGenerations (CASSANDRA-16552)
  * Upgrade jackson-databind to 2.9.10.8 (CASSANDRA-16462)
 Merged from 3.0:
+ * Receipt of gossip shutdown notification updates TokenMetadata (CASSANDRA-16796)
  * Count bloom filter misses correctly (CASSANDRA-12922)
  * Reject token() in MV WHERE clause (CASSANDRA-13464)
  * Ensure java executable is on the path (CASSANDRA-14325)
