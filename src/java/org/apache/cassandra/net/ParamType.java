@@ -24,12 +24,11 @@ import javax.annotation.Nullable;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
-import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
+import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;
 
 /**
  * Type names and serializers for various parameters that can be put in {@link Message} params map.
@@ -42,7 +41,7 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
 public enum ParamType
 {
     FORWARD_TO          (0, "FWD_TO",        ForwardingInfo.serializer),
-    RESPOND_TO          (1, "FWD_FRM",       inetAddressAndPortSerializer),
+    RESPOND_TO          (1, "FWD_FRM",       fwdFrmSerializer),
 
     @Deprecated
     FAILURE_RESPONSE    (2, "FAIL",          LegacyFlag.serializer),
