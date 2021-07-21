@@ -1151,9 +1151,21 @@ public class Message<T>
                     : in.readInt();
 
                 if (null != type)
-                    params.put(type, type.serializer.deserialize(in, version));
+                {
+                    // Have to special case deserializer as pre-4.0 needs length to decode correctly
+                    if (version < VERSION_40 && type == ParamType.RESPOND_TO)
+                    {
+                        params.put(type, InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer.pre40DeserializeWithLength(in, version, length));
+                    }
+                    else
+                    {
+                        params.put(type, type.serializer.deserialize(in, version));
+                    }
+                }
                 else
+                {
                     in.skipBytesFully(length); // forward compatibiliy with minor version changes
+                }
             }
 
             return params;
