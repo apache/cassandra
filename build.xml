@@ -76,7 +76,7 @@
     <property name="test.driver.read_timeout_ms" value="12000"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
-
+    <property name="test.logback.configurationFile" value="${test.conf}/logback-test.xml"/>
     <property name="doc.dir" value="${basedir}/doc"/>
 
     <condition property="version" value="${base.version}">
@@ -1510,6 +1510,7 @@
         <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dlogback.configurationFile=file://${test.logback.configurationFile}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1533,6 +1534,7 @@
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${compressed_yaml}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dlogback.configurationFile=file://${test.logback.configurationFile}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1553,6 +1555,7 @@
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${cdc_yaml}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dlogback.configurationFile=file://${test.logback.configurationFile}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1575,6 +1578,7 @@
         <jvmarg value="-Dcassandra.skip_sync=true" />
         <jvmarg value="-Dcassandra.sstable.format.default=big" />
         <jvmarg value="-Dcassandra.config=file:///${bigtable_yaml}"/>
+        <jvmarg value="-Dlogback.configurationFile=file://${test.logback.configurationFile}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
@@ -1595,6 +1599,7 @@
         <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
         <jvmarg value="-Dcassandra.config=file:///${system_keyspaces_directory_yaml}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
+        <jvmarg value="-Dlogback.configurationFile=file://${test.logback.configurationFile}"/>
       </testmacrohelper>
     </sequential>
   </macrodef>
