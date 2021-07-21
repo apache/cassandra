@@ -24,7 +24,6 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Preconditions;
@@ -278,8 +277,10 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
         return defaultPort;
     }
 
-    /*
+    /**
      * As of version 4.0 the endpoint description includes a port number as an unsigned short
+     * This serializer matches the 3.0 CompactEndpointSerializationHelper, encoding the number of address bytes
+     * in a single byte before the address itself.
      */
     public static final class Serializer implements IVersionedSerializer<InetAddressAndPort>
     {
@@ -380,6 +381,86 @@ public final class InetAddressAndPort implements Comparable<InetAddressAndPort>,
                 assert from.address instanceof Inet6Address;
                 return 1 + 16;
             }
+        }
+    }
+
+    /** Serializer for handling FWD_FRM message parameters. Pre-4.0 deserialization is a special
+     * case in the message
+     */
+    public static final class FwdFrmSerializer implements IVersionedSerializer<InetAddressAndPort>
+    {
+        public static final FwdFrmSerializer fwdFrmSerializer = new FwdFrmSerializer();
+        private FwdFrmSerializer() { }
+
+        public void serialize(InetAddressAndPort endpoint, DataOutputPlus out, int version) throws IOException
+        {
+            byte[] buf = endpoint.addressBytes;
+
+            if (version >= MessagingService.VERSION_40)
+            {
+                out.writeByte(buf.length + 2);
+                out.write(buf);
+                out.writeShort(endpoint.port);
+            }
+            else
+            {
+                out.write(buf);
+            }
+        }
+
+        public long serializedSize(InetAddressAndPort from, int version)
+        {
+            //4.0 includes a port number
+            if (version >= MessagingService.VERSION_40)
+            {
+                if (from.address instanceof Inet4Address)
+                    return 1 + 4 + 2;
+                assert from.address instanceof Inet6Address;
+                return 1 + 16 + 2;
+            }
+            else
+            {
+                if (from.address instanceof Inet4Address)
+                    return 4;
+                assert from.address instanceof Inet6Address;
+                return 16;
+            }
+        }
+
+        @Override
+        public InetAddressAndPort deserialize(DataInputPlus in, int version) throws IOException
+        {
+            if (version >= MessagingService.VERSION_40)
+            {
+                int size = in.readByte() & 0xFF;
+                switch (size)
+                {
+                    //Address and one port
+                    case 6:
+                    case 18:
+                    {
+                        byte[] bytes = new byte[size - 2];
+                        in.readFully(bytes);
+
+                        int port = in.readShort() & 0xFFFF;
+                        return getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), bytes, port);
+                    }
+                    default:
+                        throw new AssertionError("Unexpected size " + size);
+                }
+            }
+            else
+            {
+                throw new IllegalStateException("FWD_FRM deserializations should be special-cased pre-4.0");
+            }
+        }
+
+        public InetAddressAndPort pre40DeserializeWithLength(DataInputPlus in, int version, int length) throws IOException
+        {
+            assert length == 4 || length == 16 : "unexpected length " + length;
+            byte[] from = new byte[length];
+            in.readFully(from, 0, length);
+            return InetAddressAndPort.getByAddress(from);
         }
     }
 }

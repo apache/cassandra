@@ -60,10 +60,17 @@ public class UpgradeableCluster extends AbstractCluster<IUpgradeableInstance> im
     {
         return build(nodeCount).start();
     }
-
     public static UpgradeableCluster create(int nodeCount, Versions.Version version, Consumer<IInstanceConfig> configUpdater) throws IOException
     {
-        return build(nodeCount).withConfig(configUpdater).withVersion(version).start();
+        return create(nodeCount, version, configUpdater, null);
+    }
+
+    public static UpgradeableCluster create(int nodeCount, Versions.Version version, Consumer<IInstanceConfig> configUpdater, Consumer<Builder> builderUpdater) throws IOException
+    {
+        Builder builder = build(nodeCount).withConfig(configUpdater).withVersion(version);
+        if (builderUpdater != null)
+            builderUpdater.accept(builder);
+        return builder.start();
     }
 
     public static UpgradeableCluster create(int nodeCount, Versions.Version version) throws Throwable
