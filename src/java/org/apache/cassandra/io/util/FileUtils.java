@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +51,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSErrorHandler;
@@ -84,6 +86,7 @@ public final class FileUtils
     private static Class clsDirectBuffer;
     private static MethodHandle mhDirectBufferCleaner;
     private static MethodHandle mhCleanerClean;
+    private static ObjectMapper mapper = new ObjectMapper();
 
     static
     {
@@ -1105,5 +1108,10 @@ public final class FileUtils
                 logger.warn("Cannot delete the directory {} as it is not empty. (Content: {})", path, content);
             }
         }
+    }
+
+    public static Map<String, Object> readFileToJson(File file) throws IOException {
+        Map<String, Object> map = mapper.readValue(file, Map.class);
+        return map;
     }
 }

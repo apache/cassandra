@@ -177,8 +177,15 @@ public enum CassandraRelevantProperties
     /** This property indicates whether disable_mbean_registration is true */
     IS_DISABLED_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
 
+    /** snapshots ttl cleanup period in seconds */
+    SNAPSHOT_CLEANUP_PERIOD_SECONDS("cassandra.ttl_snapshot_cleanup_period_seconds", "5"),
+
+    /** snapshots ttl cleanup initial delay in seconds */
+    SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS("cassandra.ttl_snapshot_init_delay_seconds", "5"),
+
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class");
+
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

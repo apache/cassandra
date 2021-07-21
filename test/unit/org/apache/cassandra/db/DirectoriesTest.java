@@ -228,11 +228,11 @@ public class DirectoriesTest
         assertEquals(40, indexDirectories.trueSnapshotsSize());
 
         // check snapshot details
-        Map<String, Directories.SnapshotSizeDetails> parentSnapshotDetail = parentDirectories.getSnapshotDetails();
+        Map<String, SnapshotDetails> parentSnapshotDetail = parentDirectories.getSnapshotDetails();
         assertTrue(parentSnapshotDetail.containsKey("test"));
         assertEquals(30L, parentSnapshotDetail.get("test").dataSizeBytes);
 
-        Map<String, Directories.SnapshotSizeDetails> indexSnapshotDetail = indexDirectories.getSnapshotDetails();
+        Map<String, SnapshotDetails> indexSnapshotDetail = indexDirectories.getSnapshotDetails();
         assertTrue(indexSnapshotDetail.containsKey("test"));
         assertEquals(40L, indexSnapshotDetail.get("test").dataSizeBytes);
 

@@ -942,20 +942,34 @@ public class Directories
      * @return  Return a map of all snapshots to space being used
      * The pair for a snapshot has size on disk and true size.
      */
-    public Map<String, SnapshotSizeDetails> getSnapshotDetails()
+    public Map<String, SnapshotDetails> getSnapshotDetails()
     {
         List<File> snapshots = listSnapshots();
-        final Map<String, SnapshotSizeDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
+        final Map<String, SnapshotDetails> snapshotSpaceMap = Maps.newHashMapWithExpectedSize(snapshots.size());
         for (File snapshot : snapshots)
         {
             final long sizeOnDisk = FileUtils.folderSize(snapshot);
             final long trueSize = getTrueAllocatedSizeIn(snapshot);
-            SnapshotSizeDetails spaceUsed = snapshotSpaceMap.get(snapshot.getName());
-            if (spaceUsed == null)
-                spaceUsed =  new SnapshotSizeDetails(sizeOnDisk,trueSize);
+            File manifestFile = new File(snapshot, "manifest.json");
+            Map<String, Object> manifest = new HashMap<>();
+            try {
+                if (manifestFile.exists()) {
+                    manifest = FileUtils.readFileToJson(manifestFile);
+                } else {
+                    logger.info("manifest file does not exist: {}", manifestFile.getAbsolutePath());
+                }
+            } catch (IOException e) {
+                logger.warn("Could not read manifest file: {}", manifestFile.getAbsolutePath());
+            }
+            SnapshotDetails details = snapshotSpaceMap.get(snapshot.getName());
+            if (details == null)
+                details = new SnapshotDetails(snapshot.getName(), metadata.name, metadata.keyspace, manifest);
             else
-                spaceUsed = new SnapshotSizeDetails(spaceUsed.sizeOnDiskBytes + sizeOnDisk, spaceUsed.dataSizeBytes + trueSize);
-            snapshotSpaceMap.put(snapshot.getName(), spaceUsed);
+            {
+                details.dataSizeBytes += trueSize;
+                details.sizeOnDiskBytes += sizeOnDisk;
+            }
+            snapshotSpaceMap.put(snapshot.getName(), details);
         }
         return snapshotSpaceMap;
     }
@@ -1175,31 +1189,4 @@ public class Directories
         }
     }
 
-    public static class SnapshotSizeDetails
-    {
-        final long sizeOnDiskBytes;
-        final long dataSizeBytes;
-
-        private SnapshotSizeDetails(long sizeOnDiskBytes, long dataSizeBytes)
-        {
-            this.sizeOnDiskBytes = sizeOnDiskBytes;
-            this.dataSizeBytes = dataSizeBytes;
-        }
-
-        @Override
-        public final int hashCode()
-        {
-            int hashCode = (int) sizeOnDiskBytes ^ (int) (sizeOnDiskBytes >>> 32);
-            return 31 * (hashCode ^ (int) ((int) dataSizeBytes ^ (dataSizeBytes >>> 32)));
-        }
-
-        @Override
-        public final boolean equals(Object o)
-        {
-            if(!(o instanceof SnapshotSizeDetails))
-                return false;
-            SnapshotSizeDetails that = (SnapshotSizeDetails)o;
-            return sizeOnDiskBytes == that.sizeOnDiskBytes && dataSizeBytes == that.dataSizeBytes;
-        }
-    }
 }

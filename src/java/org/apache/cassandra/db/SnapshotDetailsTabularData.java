@@ -18,6 +18,8 @@
 package org.apache.cassandra.db;
 
 import java.util.Map;
+import java.io.File;
+import java.io.IOException;
 import javax.management.openmbean.*;
 
 import com.google.common.base.Throwables;
@@ -34,13 +36,17 @@ public class SnapshotDetailsTabularData
             "Keyspace name",
             "Column family name",
             "True size",
-            "Size on disk"};
+            "Size on disk",
+            "Time of snapshot creation",
+            "Time of snapshot expiration",};
 
     private static final String[] ITEM_DESCS = new String[]{"snapshot_name",
             "keyspace_name",
             "columnfamily_name",
             "TrueDiskSpaceUsed",
-            "TotalDiskSpaceUsed"};
+            "TotalDiskSpaceUsed",
+            "created_at",
+            "expires_at",};
 
     private static final String TYPE_NAME = "SnapshotDetails";
 
@@ -56,7 +62,7 @@ public class SnapshotDetailsTabularData
     {
         try
         {
-            ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING };
+            ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING };
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
 
@@ -69,14 +75,24 @@ public class SnapshotDetailsTabularData
     }
 
 
-    public static void from(final String snapshot, final String ks, final String cf, Map.Entry<String, Directories.SnapshotSizeDetails> snapshotDetail, TabularDataSupport result)
+    public static void from(SnapshotDetails details, TabularDataSupport result)
     {
         try
         {
-            final String totalSize = FileUtils.stringifyFileSize(snapshotDetail.getValue().sizeOnDiskBytes);
-            final String liveSize =  FileUtils.stringifyFileSize(snapshotDetail.getValue().dataSizeBytes);
+            final String totalSize = FileUtils.stringifyFileSize(details.sizeOnDiskBytes);
+            final String liveSize =  FileUtils.stringifyFileSize(details.dataSizeBytes);
+            String createdAt = null;
+            String expiresAt = null;
+            // Map<String, Object> manifest = FileUtils.readFileToJson(manifestFile);
+            if (details.createdAt != null) {
+                createdAt = details.createdAt.toString();
+            }
+            if (details.expiresAt != null) {
+                expiresAt = details.expiresAt.toString();
+            }
+
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
-                    new Object[]{ snapshot, ks, cf, liveSize, totalSize }));
+                    new Object[]{ details.tag, details.keyspace, details.table, liveSize, totalSize, createdAt, expiresAt }));
         }
         catch (OpenDataException e)
         {
