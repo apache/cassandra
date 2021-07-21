@@ -47,7 +47,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 {
     protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
 
-    public final ResponseResolver resolver;
+    public final ResponseResolver<E, P> resolver;
     final SimpleCondition condition = new SimpleCondition();
     private final long queryStartNanoTime;
     final int blockFor; // TODO: move to replica plan as well?
@@ -55,15 +55,12 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     // may not be visible to the threads immediately, but ReplicaPlan only contains final fields, so they will never see an uninitialised object
     final ReplicaPlan.Shared<E, P> replicaPlan;
     private final ReadCommand command;
-    private static final AtomicIntegerFieldUpdater<ReadCallback> recievedUpdater
-            = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "received");
-    private volatile int received = 0;
     private static final AtomicIntegerFieldUpdater<ReadCallback> failuresUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
 
-    public ReadCallback(ResponseResolver resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
         this.command = command;
         this.resolver = resolver;
@@ -106,20 +103,20 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          * See {@link DigestResolver#preprocess(Message)}
          * CASSANDRA-16097
          */
-        boolean failed = failures > 0 &&
-                         (blockFor > resolver.responses.size() || !resolver.isDataPresent());
+        int received = resolver.responses.size();
+        boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
         if (signaled && !failed)
             return;
 
         if (Tracing.isTracing())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            Tracing.trace("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockFor, gotData });
+            Tracing.trace("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
         }
         else if (logger.isDebugEnabled())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            logger.debug("{}; received {} of {} responses{}", new Object[]{ (failed ? "Failed" : "Timed out"), received, blockFor, gotData });
+            logger.debug("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
         }
 
         // Same as for writes, see AbstractWriteResponseHandler
@@ -133,23 +130,20 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return blockFor;
     }
 
+    @Override
     public void onResponse(Message<ReadResponse> message)
     {
+        assertWaitingFor(message.from());
         resolver.preprocess(message);
-        int n = waitingFor(message.from())
-              ? recievedUpdater.incrementAndGet(this)
-              : received;
 
-        if (n >= blockFor && resolver.isDataPresent())
+        /*
+         * Ensure that data is present and the response accumulator has properly published the
+         * responses it has received. This may result in not signaling immediately when we receive
+         * the minimum number of required results, but it guarantees at least the minimum will
+         * be accessible when we do signal. (see CASSANDRA-16807)
+         */
+        if (resolver.isDataPresent() && resolver.responses.size() >= blockFor)
             condition.signalAll();
-    }
-
-    /**
-     * @return true if the message counts towards the blockFor threshold
-     */
-    private boolean waitingFor(InetAddressAndPort from)
-    {
-        return !replicaPlan().consistencyLevel().isDatacenterLocal() || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from));
     }
 
     public void response(ReadResponse result)
@@ -169,13 +163,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
-        int n = waitingFor(from)
-              ? failuresUpdater.incrementAndGet(this)
-              : failures;
-
+        assertWaitingFor(from);
+                
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockFor + n > replicaPlan().contacts().size())
+        if (blockFor + failuresUpdater.incrementAndGet(this) > replicaPlan().contacts().size())
             condition.signalAll();
     }
 
@@ -183,5 +175,15 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public boolean invokeOnFailure()
     {
         return true;
+    }
+
+    /**
+     * Verify that a message doesn't come from an unexpected replica.
+     */
+    private void assertWaitingFor(InetAddressAndPort from)
+    {
+        assert !replicaPlan().consistencyLevel().isDatacenterLocal()
+               || DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(from))
+               : "Received read response from unexpected replica: " + from;
     }
 }
