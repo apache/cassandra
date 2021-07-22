@@ -150,6 +150,15 @@ public class WhereClauseExpressionTreeTest
     }
 
     @Test
+    public void conjunctiveFormEmpty() throws Throwable
+    {
+        WhereClause conj = WhereClause.empty().conjunctiveForm();
+        assertEquals(WhereClause.empty(), conj);
+        assertEquals(0, conj.root().expressions().size());
+        assertEquals(0, conj.root().relations().size());
+    }
+
+    @Test
     public void conjunctiveFormSimple() throws Throwable
     {
         WhereClause.AndElement conj = WhereClause.parse("a = 1").root().conjunctiveForm();
