@@ -21,6 +21,7 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Don't allow seeds to replace without using unsafe (CASSANDRA-14463)
  * Calculate time remaining correctly for all compaction types in compactionstats (CASSANDRA-14701)
  * Receipt of gossip shutdown notification updates TokenMetadata (CASSANDRA-16796)
  * Count bloom filter misses correctly (CASSANDRA-12922)
