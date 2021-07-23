@@ -48,7 +48,7 @@ public abstract class AbstractVirtualTable implements VirtualTable
     protected AbstractVirtualTable(TableMetadata metadata)
     {
         if (!metadata.isVirtual())
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("Cannot instantiate a non-virtual table");
 
         this.metadata = metadata;
     }
@@ -125,6 +125,12 @@ public abstract class AbstractVirtualTable implements VirtualTable
     public void apply(PartitionUpdate update)
     {
         throw new InvalidRequestException("Modification is not supported by table " + metadata);
+    }
+
+    @Override
+    public void truncate()
+    {
+        throw new InvalidRequestException("Truncation is not supported by table " + metadata);
     }
 
     public interface DataSet
