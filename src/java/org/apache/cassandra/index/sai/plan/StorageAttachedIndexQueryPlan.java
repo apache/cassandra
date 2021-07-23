@@ -37,7 +37,6 @@ import org.apache.cassandra.schema.TableMetadata;
 
 public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
 {
-    private static final boolean USE_MULTI_RANGE_READ_COMMAND = Boolean.parseBoolean(System.getProperty("cassandra.sai.use_multi_range_read_command", "false"));
     private final ColumnFamilyStore cfs;
     private final TableQueryMetrics queryMetrics;
     private final RowFilter postIndexFilter;
@@ -137,6 +136,6 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     @Override
     public boolean supportsMultiRangeReadCommand()
     {
-        return USE_MULTI_RANGE_READ_COMMAND;
+        return true;
     }
 }

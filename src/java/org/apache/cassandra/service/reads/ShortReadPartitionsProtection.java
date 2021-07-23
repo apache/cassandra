@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service.reads;
 
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
@@ -46,10 +48,13 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
     private static final Logger logger = LoggerFactory.getLogger(ShortReadPartitionsProtection.class);
+    private static final NoSpamLogger oneMinuteLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     private final ReadCommand command;
     private final Replica source;
 
@@ -84,6 +89,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
         partitionsFetched = true;
+        rangeFetched = true;
 
         lastPartitionKey = partition.partitionKey();
 
@@ -152,7 +158,9 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
         ColumnFamilyStore.metricsFor(command.metadata().id).shortReadProtectionRequests.mark();
         Tracing.trace("Requesting {} extra rows from {} for short read protection", toQuery, source);
-        logger.info("Requesting {} extra rows from {} for short read protection", toQuery, source);
+        // This is a NoSpamLogger because, in the event of unrepaired data or missing data on nodes in
+        // a cluster, we can end up spamming the logs with this message
+        oneMinuteLogger.info("Requesting {} extra rows from {} for short read protection", toQuery, source);
 
         // If we've arrived here, all responses have been consumed, and we're about to request more.
         preFetchCallback.run();
