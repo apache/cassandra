@@ -1,4 +1,5 @@
 4.1
+ * Allow DELETE and TRUNCATE to work on Virtual Tables if the implementation allows it (CASSANDRA-16806)
  * Include SASI components to snapshots (CASSANDRA-15134)
  * Fix missed wait latencies in the output of `nodetool tpstats -F` (CASSANDRA-16938)
  * Reduce native transport max frame size to 16MB (CASSANDRA-16886)
@@ -38,7 +39,7 @@ Merged from 3.0:
 
 4.0.1
  * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)
- * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866) 
+ * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866)
  * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
  * Bump zstd-jni version to 1.5.0-4 (CASSANDRA-16884)
  * Remove assumption that all urgent messages are small (CASSANDRA-16877)

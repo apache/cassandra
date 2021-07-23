@@ -38,15 +38,15 @@ How  are Virtual Tables different from regular tables?
 
 Virtual tables and virtual keyspaces are quite different from regular tables and keyspaces respectively such as:
 
-- Virtual tables are read-only, but it is likely to change
+- Virtual tables support modifications only if the underlaying implementation allows it
 - Virtual tables are not replicated
 - Virtual tables are local only and non distributed
 - Virtual tables have no associated SSTables
 - Consistency level of the queries sent virtual tables are ignored
-- Virtual tables are managed by Cassandra and a user cannot run  DDL to create new virtual tables or DML to modify existing virtual       tables
+- Virtual tables are managed by Cassandra and a user cannot run DDL to create new virtual tables to modify existing virtual tables
 - Virtual tables are created in special keyspaces and not just any keyspace
-- All existing virtual tables use ``LocalPartitioner``. Since a virtual table is not replicated the partitioner sorts in order of     partition   keys instead of by their hash.
-- Making advanced queries with ``ALLOW FILTERING`` and aggregation functions may be used with virtual tables even though in normal  tables we   don't recommend it
+- All existing virtual tables use ``LocalPartitioner``. Since a virtual table is not replicated the partitioner sorts in order of partition keys instead of by their hash.
+- Making advanced queries with ``ALLOW FILTERING`` and aggregation functions may be used with virtual tables even though in normal tables we don't recommend it
 
 Virtual Keyspaces
 ^^^^^^^^^^^^^^^^^
@@ -66,21 +66,21 @@ Virtual Table Limitations
 
 Virtual tables and virtual keyspaces have some limitations initially though some of these could change such as:
 
-- Cannot alter or drop virtual keyspaces or tables
-- Cannot truncate virtual tables
 - Expiring columns are not supported by virtual tables
+- Custom timestamps are not supported by virtual tables
 - Conditional updates are not supported by virtual tables
-- Cannot create tables in virtual keyspaces
-- Cannot perform any operations against virtual keyspace
 - Secondary indexes are not supported on virtual tables
-- Cannot create functions in virtual keyspaces
-- Cannot create types in virtual keyspaces
 - Materialized views are not supported on virtual tables
-- Virtual tables don't support ``DELETE`` statements
+- Virtual tables support modifications only if the underlaying implementation allows it
 - Cannot ``CREATE TRIGGER`` against a virtual table
 - Conditional ``BATCH`` statements cannot include mutations for virtual tables
 - Cannot include a virtual table statement in a logged batch
 - Mutations for virtual and regular tables cannot exist in the same batch
+- Cannot alter or drop virtual keyspaces or tables
+- Cannot create functions in virtual keyspaces
+- Cannot create types in virtual keyspaces
+- Cannot create tables in virtual keyspaces
+- Cannot perform any operations against virtual keyspace
 - Cannot create aggregates in virtual keyspaces; but may run aggregate functions on select
 
 Listing and Describing Virtual Tables
