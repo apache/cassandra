@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -176,8 +177,10 @@ public class FunctionResource implements IResource
         if (parts.length == 2)
             return keyspace(parts[1]);
 
+        if (!name.matches("^.+\\[.*\\]$"))
+            throw new IllegalArgumentException(String.format("%s is not a valid function resource name. It must end with \"[]\"", name));
         String[] nameAndArgs = StringUtils.split(parts[2], "[|]");
-        return function(parts[1], nameAndArgs[0], argsListFromString(nameAndArgs[1]));
+        return function(parts[1], nameAndArgs[0], nameAndArgs.length > 1 ? argsListFromString(nameAndArgs[1]) : Collections.emptyList());
     }
 
     /**
