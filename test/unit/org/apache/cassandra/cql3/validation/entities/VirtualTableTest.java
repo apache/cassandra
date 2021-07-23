@@ -52,6 +52,7 @@ public class VirtualTableTest extends CQLTester
     private static final String VT1_NAME = "vt1";
     private static final String VT2_NAME = "vt2";
     private static final String VT3_NAME = "vt3";
+    private static final String VT4_NAME = "vt4";
 
     private static class WritableVirtualTable extends AbstractVirtualTable
     {
@@ -88,17 +89,45 @@ public class VirtualTableTest extends CQLTester
         }
     }
 
+    private abstract static class TruncatableVirtualTable extends AbstractVirtualTable
+    {
+        private boolean isTruncated = false;
+
+        TruncatableVirtualTable(TableMetadata metadata)
+        {
+            super(metadata);
+        }
+
+        @Override
+        public DataSet data()
+        {
+            if (isTruncated)
+            {
+                return new SimpleDataSet(metadata());
+            }
+
+            return truncatableData();
+        }
+
+        abstract protected DataSet truncatableData();
+
+        @Override
+        public void truncate()
+        {
+            isTruncated = true;
+        }
+    }
+
     @BeforeClass
     public static void setUpClass()
     {
-        TableMetadata vt1Metadata =
-        TableMetadata.builder(KS_NAME, VT1_NAME)
-                     .kind(TableMetadata.Kind.VIRTUAL)
-                     .addPartitionKeyColumn("pk", UTF8Type.instance)
-                     .addClusteringColumn("c", UTF8Type.instance)
-                     .addRegularColumn("v1", Int32Type.instance)
-                     .addRegularColumn("v2", LongType.instance)
-                     .build();
+        TableMetadata vt1Metadata = TableMetadata.builder(KS_NAME, VT1_NAME)
+                .kind(TableMetadata.Kind.VIRTUAL)
+                .addPartitionKeyColumn("pk", UTF8Type.instance)
+                .addClusteringColumn("c", UTF8Type.instance)
+                .addRegularColumn("v1", Int32Type.instance)
+                .addRegularColumn("v2", LongType.instance)
+                .build();
 
         SimpleDataSet vt1data = new SimpleDataSet(vt1Metadata);
 
@@ -118,16 +147,15 @@ public class VirtualTableTest extends CQLTester
         };
         VirtualTable vt2 = new WritableVirtualTable(KS_NAME, VT2_NAME);
 
-        TableMetadata vt3Metadata =
-        TableMetadata.builder(KS_NAME, VT3_NAME)
-                     .kind(TableMetadata.Kind.VIRTUAL)
-                     .addPartitionKeyColumn("pk1", UTF8Type.instance)
-                     .addPartitionKeyColumn("pk2", UTF8Type.instance)
-                     .addClusteringColumn("ck1", UTF8Type.instance)
-                     .addClusteringColumn("ck2", UTF8Type.instance)
-                     .addRegularColumn("v1", Int32Type.instance)
-                     .addRegularColumn("v2", LongType.instance)
-                     .build();
+        TableMetadata vt3Metadata = TableMetadata.builder(KS_NAME, VT3_NAME)
+                .kind(TableMetadata.Kind.VIRTUAL)
+                .addPartitionKeyColumn("pk1", UTF8Type.instance)
+                .addPartitionKeyColumn("pk2", UTF8Type.instance)
+                .addClusteringColumn("ck1", UTF8Type.instance)
+                .addClusteringColumn("ck2", UTF8Type.instance)
+                .addRegularColumn("v1", Int32Type.instance)
+                .addRegularColumn("v2", LongType.instance)
+                .build();
 
         SimpleDataSet vt3data = new SimpleDataSet(vt3Metadata);
 
@@ -141,7 +169,27 @@ public class VirtualTableTest extends CQLTester
                 return vt3data;
             }
         };
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3)));
+
+        TableMetadata vt4Metadata = TableMetadata.builder(KS_NAME, VT4_NAME)
+                .kind(TableMetadata.Kind.VIRTUAL)
+                .addPartitionKeyColumn("key", UTF8Type.instance)
+                .addRegularColumn("value", Int32Type.instance)
+                .build();
+
+        SimpleDataSet vt4data = new SimpleDataSet(vt4Metadata);
+
+        vt4data.row("pk1").column("value", 1)
+                .row("pk2").column("value", 2);
+
+        VirtualTable vt4 = new TruncatableVirtualTable(vt4Metadata)
+        {
+            public DataSet truncatableData()
+            {
+                return vt4data;
+            }
+        };
+
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4)));
 
         CQLTester.setUpClass();
     }
@@ -249,10 +297,10 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
-    public void testModifications() throws Throwable
+    public void testModificationsOnWritableTable() throws Throwable
     {
         // check for clean state
-        assertRows(execute("SELECT * FROM test_virtual_ks.vt2"));
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
 
         // fill the table, test UNLOGGED batch
         execute("BEGIN UNLOGGED BATCH " +
@@ -318,6 +366,32 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
+    public void testTruncationOnTruncatableTable() throws Throwable
+    {
+        // check for existing records
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt4"),
+                row("pk1", 1),
+                row("pk2", 2));
+
+        // truncate
+        execute("TRUNCATE test_virtual_ks.vt4");
+
+        // check that truncation is applied
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt4"));
+    }
+
+    @Test
+    public void testInvalidDMLOperations() throws Throwable
+    {
+        assertInvalidMessage("Modification is not supported by table test_virtual_ks.vt1",
+                "INSERT INTO test_virtual_ks.vt1 (pk, c, v1, v2) " +
+                        "VALUES ('pk11', 'ck11', 11, 11)");
+
+        assertInvalidMessage("Error during truncate: Truncation is not supported by table test_virtual_ks.vt1",
+                "TRUNCATE TABLE test_virtual_ks.vt1");
+    }
+
+    @Test
     public void testInvalidDDLOperations() throws Throwable
     {
         assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
@@ -337,9 +411,6 @@ public class VirtualTableTest extends CQLTester
 
         assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "ALTER TABLE test_virtual_ks.vt1 DROP v1");
-
-        assertInvalidMessage("Error during truncate: Cannot truncate virtual tables",
-                             "TRUNCATE TABLE test_virtual_ks.vt1");
 
         assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "CREATE INDEX ON test_virtual_ks.vt1 (v1)");

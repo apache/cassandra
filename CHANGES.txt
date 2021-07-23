@@ -1,4 +1,5 @@
 4.1
+ * Allow DELETE and TRUNCATE to work on Virtual Tables if the implementation allows it (CASSANDRA-16806)
  * Provide a nodetool command to invalidate auth caches (CASSANDRA-16404)
  * Catch read repair timeout exceptions and add metric (CASSANDRA-16880)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
@@ -26,7 +27,7 @@ Merged from 4.0:
  * org.apache.cassandra.db.rows.ArrayCell#unsharedHeapSizeExcludingData includes data twice (CASSANDRA-16900)
  * Fix clustering order logic in CREATE MATERIALIZED VIEW (CASSANDRA-16898)
  * Tolerate missing DNS entry when completing a host replacement (CASSANDRA-16873)
- * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866) 
+ * Harden PrunableArrayQueue against Pruner implementations that might throw exceptions (CASSANDRA-16866)
  * Move RepairedDataInfo to the execution controller rather than the ReadCommand to avoid unintended sharing (CASSANDRA-16721)
  * Bump zstd-jni version to 1.5.0-4 (CASSANDRA-16884)
  * Remove assumption that all urgent messages are small (CASSANDRA-16877)

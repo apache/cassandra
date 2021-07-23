@@ -127,6 +127,12 @@ public abstract class AbstractVirtualTable implements VirtualTable
         throw new InvalidRequestException("Modification is not supported by table " + metadata);
     }
 
+    @Override
+    public void truncate()
+    {
+        throw new InvalidRequestException("Truncation is not supported by table " + metadata);
+    }
+
     public interface DataSet
     {
         boolean isEmpty();
