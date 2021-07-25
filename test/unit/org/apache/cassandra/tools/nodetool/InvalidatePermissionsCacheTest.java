@@ -18,8 +18,13 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -29,8 +34,14 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.DataResource;
+import org.apache.cassandra.auth.FunctionResource;
+import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.apache.cassandra.auth.AuthTestUtils.ROLE_A;
@@ -52,14 +63,29 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                 authorizer,
                 new AuthTestUtils.LocalCassandraNetworkAuthorizer());
 
-        DataResource rootDataResource = DataResource.root();
-        Set<Permission> dataPermissions = rootDataResource.applicablePermissions();
-
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOprions());
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, dataPermissions, rootDataResource, ROLE_A);
-
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOprions());
-        authorizer.grant(AuthenticatedUser.SYSTEM_USER, dataPermissions, rootDataResource, ROLE_B);
+
+        List<IResource> resources = Arrays.asList(
+                DataResource.root(),
+                DataResource.keyspace(KEYSPACE),
+                DataResource.table(KEYSPACE, "t1"),
+                RoleResource.root(),
+                RoleResource.role("role_x"),
+                FunctionResource.root(),
+                FunctionResource.keyspace(KEYSPACE),
+                // Particular function is excluded from here and covered by a separate test because in order to grant
+                // permissions we need to have a function registered. However, the function cannot be registered via
+                // CQLTester.createFunction from static contex. That's why we initialize it in a separate test case.
+                JMXResource.root(),
+                JMXResource.mbean("org.apache.cassandra.auth:type=*"));
+
+        for (IResource resource : resources)
+        {
+            Set<Permission> permissions = resource.applicablePermissions();
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
+            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+        }
 
         startJMXServer();
     }
@@ -80,11 +106,41 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "                [(-pp | --print-port)] [(-pw <password> | --password <password>)]\n" +
                         "                [(-pwf <passwordFilePath> | --password-file <passwordFilePath>)]\n" +
                         "                [(-u <username> | --username <username>)] invalidatepermissionscache\n" +
-                        "                [--] [<user> <resource>...]\n" +
+                        "                [--all-functions] [--all-keyspaces] [--all-mbeans] [--all-roles]\n" +
+                        "                [--function <function>]\n" +
+                        "                [--functions-in-keyspace <functions-in-keyspace>]\n" +
+                        "                [--keyspace <keyspace>] [--mbean <mbean>] [--role <role>]\n" +
+                        "                [--table <table>] [--] [<user>]\n" +
                         "\n" +
                         "OPTIONS\n" +
+                        "        --all-functions\n" +
+                        "            Invalidate permissions for 'ALL FUNCTIONS'\n" +
+                        "\n" +
+                        "        --all-keyspaces\n" +
+                        "            Invalidate permissions for 'ALL KEYSPACES'\n" +
+                        "\n" +
+                        "        --all-mbeans\n" +
+                        "            Invalidate permissions for 'ALL MBEANS'\n" +
+                        "\n" +
+                        "        --all-roles\n" +
+                        "            Invalidate permissions for 'ALL ROLES'\n" +
+                        "\n" +
+                        "        --function <function>\n" +
+                        "            Function to invalidate permissions for (you must specify\n" +
+                        "            --functions-in-keyspace for using this option; function format:\n" +
+                        "            name[arg1^..^agrN], for example: foo[Int32Type^DoubleType])\n" +
+                        "\n" +
+                        "        --functions-in-keyspace <functions-in-keyspace>\n" +
+                        "            Keyspace to invalidate permissions for\n" +
+                        "\n" +
                         "        -h <host>, --host <host>\n" +
                         "            Node hostname or ip address\n" +
+                        "\n" +
+                        "        --keyspace <keyspace>\n" +
+                        "            Keyspace to invalidate permissions for\n" +
+                        "\n" +
+                        "        --mbean <mbean>\n" +
+                        "            MBean to invalidate permissions for\n" +
                         "\n" +
                         "        -p <port>, --port <port>\n" +
                         "            Remote jmx agent port number\n" +
@@ -98,6 +154,13 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "        -pwf <passwordFilePath>, --password-file <passwordFilePath>\n" +
                         "            Path to the JMX password file\n" +
                         "\n" +
+                        "        --role <role>\n" +
+                        "            Role to invalidate permissions for\n" +
+                        "\n" +
+                        "        --table <table>\n" +
+                        "            Table to invalidate permissions for (you must specify --keyspace for\n" +
+                        "            using this option)\n" +
+                        "\n" +
                         "        -u <username>, --username <username>\n" +
                         "            Remote jmx agent username\n" +
                         "\n" +
@@ -106,42 +169,107 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                         "            list of argument, (useful when arguments might be mistaken for\n" +
                         "            command-line options\n" +
                         "\n" +
-                        "        [<user> <resource>...]\n" +
-                        "            The user followed by one or many resources. By default, all users\n" +
+                        "        [<user>]\n" +
+                        "            A specific user for whom permissions need to be invalidated\n" +
                         "\n" +
                         "\n";
         assertThat(tool.getStdout()).isEqualTo(help);
     }
 
     @Test
-    public void testInvalidateSinglePermission()
+    public void testInvalidatePermissionsWithIncorrectParameters()
     {
-        DataResource rootDataResource = DataResource.root();
-        Set<Permission> dataPermissions = rootDataResource.applicablePermissions();
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "--all-keyspaces");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("No options allowed without a <user> being specified"));
+        assertThat(tool.getStderr()).isEmpty();
+
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--invalid-option");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("A single <user> is only supported / you have a typo in the options spelling"));
+        assertThat(tool.getStderr()).isEmpty();
+
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--table", "t1");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("--table option should be passed along with --keyspace option"));
+        assertThat(tool.getStderr()).isEmpty();
+
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--function", "f[Int32Type]");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("--function option should be passed along with --functions-in-keyspace option"));
+        assertThat(tool.getStderr()).isEmpty();
+    }
+
+    @Test
+    public void testInvalidatePermissionsForEveryResourceExceptFunction()
+    {
+        assertInvalidation(DataResource.root(), Collections.singletonList("--all-keyspaces"));
+        assertInvalidation(DataResource.keyspace(KEYSPACE), Arrays.asList("--keyspace", KEYSPACE));
+        assertInvalidation(DataResource.table(KEYSPACE, "t1"),
+                Arrays.asList("--keyspace", KEYSPACE, "--table", "t1"));
+        assertInvalidation(RoleResource.root(), Collections.singletonList("--all-roles"));
+        assertInvalidation(RoleResource.role("role_x"), Arrays.asList("--role", "role_x"));
+        assertInvalidation(FunctionResource.root(), Collections.singletonList("--all-functions"));
+        assertInvalidation(FunctionResource.keyspace(KEYSPACE), Arrays.asList("--functions-in-keyspace", KEYSPACE));
+        assertInvalidation(JMXResource.root(), Collections.singletonList("--all-mbeans"));
+        assertInvalidation(JMXResource.mbean("org.apache.cassandra.auth:type=*"),
+                Arrays.asList("--mbean", "org.apache.cassandra.auth:type=*"));
+    }
+
+    @Test
+    public void testInvalidatePermissionsForFunction() throws Throwable
+    {
+        String keyspaceAndFunctionName = createFunction(KEYSPACE, "int",
+                " CREATE FUNCTION %s (val int)" +
+                        " CALLED ON NULL INPUT" +
+                        " RETURNS int" +
+                        " LANGUAGE java" +
+                        " AS 'return val;'");
+        String functionName = StringUtils.split(keyspaceAndFunctionName, ".")[1];
+
+        FunctionResource resource = FunctionResource.function(KEYSPACE, functionName, Collections.singletonList(Int32Type.instance));
+        Set<Permission> permissions = resource.applicablePermissions();
+        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
+        DatabaseDescriptor.getAuthorizer().grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+
+        assertInvalidation(resource,
+                Arrays.asList("--functions-in-keyspace", KEYSPACE, "--function", functionName + "[Int32Type]"));
+    }
+
+    private void assertInvalidation(IResource resource, List<String> options)
+    {
+        Set<Permission> dataPermissions = resource.applicablePermissions();
 
         AuthenticatedUser role = new AuthenticatedUser(ROLE_A.getRoleName());
 
         // cache permission
-        role.getPermissions(rootDataResource);
+        role.getPermissions(resource);
         long originalReadsCount = getRolePermissionsReadCount();
 
         // enure permission is cached
-        assertThat(role.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(role.getPermissions(resource)).isEqualTo(dataPermissions);
         assertThat(originalReadsCount).isEqualTo(getRolePermissionsReadCount());
 
         // invalidate permission
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatepermissionscache",
-                ROLE_A.getRoleName(), "data");
+        List<String> args = new ArrayList<>();
+        args.add("invalidatepermissionscache");
+        args.add(ROLE_A.getRoleName());
+        args.addAll(options);
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool(args);
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).isEmpty();
 
         // ensure permission is reloaded
-        assertThat(role.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
+        assertThat(role.getPermissions(resource)).isEqualTo(dataPermissions);
         assertThat(originalReadsCount).isLessThan(getRolePermissionsReadCount());
     }
 
     @Test
-    public void testInvalidateAllPermissions()
+    public void testInvalidatePermissionsForAllUsers()
     {
         DataResource rootDataResource = DataResource.root();
         Set<Permission> dataPermissions = rootDataResource.applicablePermissions();
@@ -173,5 +301,10 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         assertThat(roleB.getPermissions(rootDataResource)).isEqualTo(dataPermissions);
         long readsCountAfterSecondReLoad = getRolePermissionsReadCount();
         assertThat(readsCountAfterFirstReLoad).isLessThan(readsCountAfterSecondReLoad);
+    }
+
+    private String wrapByDefaultNodetoolMessage(String s)
+    {
+        return "nodetool: " + s + "\nSee 'nodetool help' or 'nodetool help <command>'.\n";
     }
 }
