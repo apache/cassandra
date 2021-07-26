@@ -29,6 +29,7 @@ import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.JMXResource;
 import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -140,7 +141,7 @@ public class InvalidatePermissionsCache extends NodeToolCmd
 
             if (StringUtils.isNotEmpty(function))
                 if (StringUtils.isNotEmpty(functionsInKeyspace))
-                    resourceNames.add("functions/" + functionsInKeyspace + '/' + function);
+                    resourceNames.add(constructFunctionResource(functionsInKeyspace, function));
                 else
                     throw new IllegalArgumentException("--function option should be passed along with --functions-in-keyspace option");
             else
@@ -158,6 +159,16 @@ public class InvalidatePermissionsCache extends NodeToolCmd
 
             for (String resourceName : resourceNames)
                 probe.invalidatePermissionsCache(userName, resourceName);
+        }
+    }
+
+    private String constructFunctionResource(String functionsInKeyspace, String function) {
+        try
+        {
+            return FunctionResource.fromName("functions/" + functionsInKeyspace + '/' + function).getName();
+        } catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException("Unknown function argument type is passed");
         }
     }
 }

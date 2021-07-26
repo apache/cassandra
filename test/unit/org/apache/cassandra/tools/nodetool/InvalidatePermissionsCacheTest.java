@@ -202,6 +202,13 @@ public class InvalidatePermissionsCacheTest extends CQLTester
         assertThat(tool.getStdout())
                 .isEqualTo(wrapByDefaultNodetoolMessage("--function option should be passed along with --functions-in-keyspace option"));
         assertThat(tool.getStderr()).isEmpty();
+
+        tool = ToolRunner.invokeNodetool("invalidatepermissionscache", "user1", "--functions-in-keyspace",
+                KEYSPACE, "--function", "f[x]");
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout())
+                .isEqualTo(wrapByDefaultNodetoolMessage("Unknown function argument type is passed"));
+        assertThat(tool.getStderr()).isEmpty();
     }
 
     @Test
