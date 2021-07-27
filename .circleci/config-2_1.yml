@@ -46,7 +46,7 @@ default_env_vars: &default_env_vars
     # The name of JUnit class to be run multiple times, for example:
     # REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.ViewTest
     # REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.PagingTest
-    REPEATED_UTEST_CLASS:
+    REPEATED_UTEST_CLASS: org.apache.cassandra.tools.SSTableExportTest
     # The optional specific methods within REPEATED_UTEST_CLASS to be run, for example:
     # REPEATED_UTEST_METHODS: testCompoundPartitionKey
     # REPEATED_UTEST_METHODS: testCompoundPartitionKey,testStaticTable
