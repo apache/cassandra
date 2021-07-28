@@ -100,7 +100,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 }
                 assert in.getBytesRead() == sectionLength;
             }
-            logger.trace("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}", session.planId(), fileSeqNum,
+            logger.info("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}", session.planId(), fileSeqNum,
                          session.peer, FBUtilities.prettyPrintMemory(cis.chunkBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
             return writer;
         }

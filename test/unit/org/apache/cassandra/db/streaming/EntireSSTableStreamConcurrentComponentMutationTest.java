@@ -71,7 +71,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.MigrationManager;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.streaming.DefaultConnectionFactory;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionInfo;
@@ -319,13 +319,13 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
 
     private StreamSession setupStreamingSessionForTest()
     {
-        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
+        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
         StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));
 
-        StreamSession session = streamCoordinator.getOrCreateNextSession(peer);
+        StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);
         return session;
     }

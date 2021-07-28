@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
 
@@ -31,7 +31,7 @@ public class PrepareSynAckMessage extends StreamMessage
 {
     public static Serializer<PrepareSynAckMessage> serializer = new Serializer<PrepareSynAckMessage>()
     {
-        public void serialize(PrepareSynAckMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+        public void serialize(PrepareSynAckMessage message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
         {
             out.writeInt(message.summaries.size());
             for (StreamSummary summary : message.summaries)

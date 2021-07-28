@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair.consistent;
 
+import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -44,14 +45,14 @@ public class SyncStatSummary
 
     private static class Session
     {
-        final InetAddressAndPort src;
-        final InetAddressAndPort dst;
+        final InetSocketAddress src;
+        final InetSocketAddress dst;
 
         int files = 0;
         long bytes = 0;
         long ranges = 0;
 
-        Session(InetAddressAndPort src, InetAddressAndPort dst)
+        Session(InetSocketAddress src, InetSocketAddress dst)
         {
             this.src = src;
             this.dst = dst;
@@ -86,7 +87,7 @@ public class SyncStatSummary
         int ranges = -1;
         boolean totalsCalculated = false;
 
-        final Map<Pair<InetAddressAndPort, InetAddressAndPort>, Session> sessions = new HashMap<>();
+        final Map<Pair<InetSocketAddress, InetSocketAddress>, Session> sessions = new HashMap<>();
 
         Table(String keyspace, String table)
         {
@@ -94,9 +95,9 @@ public class SyncStatSummary
             this.table = table;
         }
 
-        Session getOrCreate(InetAddressAndPort from, InetAddressAndPort to)
+        Session getOrCreate(InetSocketAddress from, InetSocketAddress to)
         {
-            Pair<InetAddressAndPort, InetAddressAndPort> k = Pair.create(from, to);
+            Pair<InetSocketAddress, InetSocketAddress> k = Pair.create(from, to);
             if (!sessions.containsKey(k))
             {
                 sessions.put(k, new Session(from, to));

@@ -22,9 +22,9 @@ import java.io.IOException;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -37,7 +37,7 @@ public class OutgoingStreamMessage extends StreamMessage
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing stream");
         }
 
-        public void serialize(OutgoingStreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+        public void serialize(OutgoingStreamMessage message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
         {
             message.startTransfer();
             try
@@ -77,7 +77,7 @@ public class OutgoingStreamMessage extends StreamMessage
                                               stream.getPendingRepair());
     }
 
-    public synchronized void serialize(DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+    public synchronized void serialize(StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
     {
         if (completed)
         {

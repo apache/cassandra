@@ -21,7 +21,6 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.util.UUID;
 
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
 
 /**
@@ -36,7 +35,7 @@ public interface OutgoingStream
     /**
      * Write the streams data into the socket
      */
-    void write(StreamSession session, DataOutputStreamPlus output, int version) throws IOException;
+    void write(StreamSession session, StreamingDataOutputPlus output, int version) throws IOException;
 
     /**
      * Release any resources held by the stream

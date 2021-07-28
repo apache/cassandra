@@ -91,7 +91,7 @@ public class StreamTransferTask extends StreamTask
             if (stream != null)
                 stream.complete();
 
-            logger.debug("recevied sequenceNumber {}, remaining files {}", sequenceNumber, streams.keySet());
+            logger.debug("received sequenceNumber {}, remaining files {}", sequenceNumber, streams.keySet());
             signalComplete = streams.isEmpty();
         }
 

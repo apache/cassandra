@@ -21,6 +21,7 @@ package org.apache.cassandra.net;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.TimeUnit;
 
@@ -184,13 +185,13 @@ public class AsyncStreamingInputPlusTest
         consumeUntilTestCycle(2, 8, 0, 16);
     }
 
-    @Test(expected = EOFException.class)
+    @Test(expected = ClosedChannelException.class)
     public void consumeUntil_SingleBuffer_Fails() throws IOException
     {
         consumeUntilTestCycle(1, 8, 0, 9);
     }
 
-    @Test(expected = EOFException.class)
+    @Test(expected = ClosedChannelException.class)
     public void consumeUntil_MultipleBuffer_Fails() throws IOException
     {
         consumeUntilTestCycle(2, 8, 0, 17);

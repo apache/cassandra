@@ -35,7 +35,7 @@ import io.netty.handler.ssl.SslHandler;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.SharedDefaultFileRegion.SharedFileChannel;
-import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
 
@@ -50,7 +50,7 @@ import static java.lang.Math.min;
  * The correctness of this class depends on the ChannelPromise we create against a Channel always being completed,
  * which appears to be a guarantee provided by Netty so long as the event loop is running.
  */
-public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
+public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus implements StreamingDataOutputPlus
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncStreamingOutputPlus.class);
 
@@ -97,28 +97,6 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
         return flushed() + buffer.position();
     }
 
-    public interface BufferSupplier
-    {
-        /**
-         * Request a buffer with at least the given capacity.
-         * This method may only be invoked once, and the lifetime of buffer it returns will be managed
-         * by the AsyncChannelOutputPlus it was created for.
-         */
-        ByteBuffer get(int capacity) throws IOException;
-    }
-
-    public interface Write
-    {
-        /**
-         * Write to a buffer, and flush its contents to the channel.
-         * <p>
-         * The lifetime of the buffer will be managed by the AsyncChannelOutputPlus you issue this Write to.
-         * If the method exits successfully, the contents of the buffer will be written to the channel, otherwise
-         * the buffer will be cleaned and the exception propagated to the caller.
-         */
-        void write(BufferSupplier supplier) throws IOException;
-    }
-
     /**
      * Provide a lambda that can request a buffer of suitable size, then fill the buffer and have
      * that buffer written and flushed to the underlying channel, without having to handle buffer
@@ -126,7 +104,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
      * <p>
      * Any exception thrown by the Write will be propagated to the caller, after any buffer is cleaned up.
      */
-    public int writeToChannel(Write write, StreamRateLimiter limiter) throws IOException
+    public int writeToChannel(Write write, RateLimiter limiter) throws IOException
     {
         doFlush(0);
         class Holder
@@ -175,7 +153,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
      * WARNING: this method blocks only for permission to write to the netty channel; it exits before
      * the {@link FileRegion}(zero-copy) or {@link ByteBuffer}(ssl) is flushed to the network.
      */
-    public long writeFileToChannel(FileChannel file, StreamRateLimiter limiter) throws IOException
+    public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
     {
         if (channel.pipeline().get(SslHandler.class) != null)
             // each batch is loaded into ByteBuffer, 64kb is more BufferPool friendly.
@@ -187,7 +165,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
     }
 
     @VisibleForTesting
-    long writeFileToChannel(FileChannel fc, StreamRateLimiter limiter, int batchSize) throws IOException
+    long writeFileToChannel(FileChannel fc, RateLimiter limiter, int batchSize) throws IOException
     {
         final long length = fc.size();
         long bytesTransferred = 0;
@@ -224,7 +202,7 @@ public class AsyncStreamingOutputPlus extends AsyncChannelOutputPlus
     }
 
     @VisibleForTesting
-    long writeFileToChannelZeroCopy(FileChannel file, StreamRateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
+    long writeFileToChannelZeroCopy(FileChannel file, RateLimiter limiter, int batchSize, int lowWaterMark, int highWaterMark) throws IOException
     {
         final long length = file.size();
         long bytesTransferred = 0;

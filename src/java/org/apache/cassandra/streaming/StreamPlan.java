@@ -28,6 +28,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
+import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
 
 /**
  * {@link StreamPlan} is a helper class that builds StreamOperation of given configuration.
@@ -63,7 +64,7 @@ public class StreamPlan
                       boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
-        this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, new DefaultConnectionFactory(),
+        this.coordinator = new StreamCoordinator(streamOperation, connectionsPerHost, streamingFactory(),
                                                  false, connectSequentially, pendingRepair, previewKind);
     }
 
@@ -107,7 +108,7 @@ public class StreamPlan
         assert all(fullRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(fullRanges) : fullRanges.toString();
         assert all(transientRanges, Replica::isSelf) || RangesAtEndpoint.isDummyList(transientRanges) : transientRanges.toString();
 
-        StreamSession session = coordinator.getOrCreateNextSession(from);
+        StreamSession session = coordinator.getOrCreateOutboundSession(from);
         session.addStreamRequest(keyspace, fullRanges, transientRanges, Arrays.asList(columnFamilies));
         return this;
     }
@@ -123,7 +124,7 @@ public class StreamPlan
      */
     public StreamPlan transferRanges(InetAddressAndPort to, String keyspace, RangesAtEndpoint replicas, String... columnFamilies)
     {
-        StreamSession session = coordinator.getOrCreateNextSession(to);
+        StreamSession session = coordinator.getOrCreateOutboundSession(to);
         session.addTransferRanges(keyspace, replicas, Arrays.asList(columnFamilies), flushBeforeTransfer);
         return this;
     }
@@ -155,7 +156,7 @@ public class StreamPlan
      * @param factory StreamConnectionFactory to use
      * @return self
      */
-    public StreamPlan connectionFactory(StreamConnectionFactory factory)
+    public StreamPlan connectionFactory(StreamingChannel.Factory factory)
     {
         this.coordinator.setConnectionFactory(factory);
         return this;

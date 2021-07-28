@@ -86,7 +86,6 @@ import org.reflections.util.ConfigurationBuilder;
 
 import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAndPort;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.reflections.ReflectionUtils.forNames;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.

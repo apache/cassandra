@@ -60,7 +60,7 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer);
     }
 
-    public static class StreamRateLimiter
+    public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
     {
         public static final double BYTES_PER_MEGABIT = (1024 * 1024) / 8; // from bits
         private static final RateLimiter limiter = RateLimiter.create(calculateRateInBytes());

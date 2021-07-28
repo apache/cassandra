@@ -38,6 +38,8 @@ import org.apache.cassandra.utils.Pair;
 
 import org.apache.cassandra.utils.concurrent.Ref;
 
+import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
+
 /**
  * Cassandra SSTable bulk loader.
  * Load an externally created sstable into a cluster.
@@ -287,9 +289,9 @@ public class SSTableLoader implements StreamEventHandler
          *
          * @return StreamConnectionFactory to use
          */
-        public StreamConnectionFactory getConnectionFactory()
+        public StreamingChannel.Factory getConnectionFactory()
         {
-            return new DefaultConnectionFactory();
+            return streamingFactory();
         }
 
         /**

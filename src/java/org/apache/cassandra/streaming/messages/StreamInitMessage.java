@@ -20,13 +20,12 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.util.UUID;
 
-import io.netty.channel.Channel;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamResultFuture;
@@ -64,10 +63,12 @@ public class StreamInitMessage extends StreamMessage
     }
 
     @Override
-    public StreamSession getOrCreateSession(Channel channel)
+    public StreamSession getOrCreateAndAttachInboundSession(StreamingChannel channel, int messagingVersion)
     {
-        return StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, pendingRepair, previewKind)
+        StreamSession session = StreamResultFuture.createFollower(sessionIndex, planId, streamOperation, from, channel, messagingVersion, pendingRepair, previewKind)
                                  .getSession(from, sessionIndex);
+        session.attachInbound(channel);
+        return session;
     }
 
     @Override
@@ -81,7 +82,7 @@ public class StreamInitMessage extends StreamMessage
 
     private static class StreamInitMessageSerializer implements Serializer<StreamInitMessage>
     {
-        public void serialize(StreamInitMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+        public void serialize(StreamInitMessage message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
         {
             inetAddressAndPortSerializer.serialize(message.from, out, version);
             out.writeInt(message.sessionIndex);

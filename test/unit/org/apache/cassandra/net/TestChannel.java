@@ -19,26 +19,43 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+
+import com.google.common.net.InetAddresses;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelOutboundBuffer;
 import io.netty.channel.FileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class TestChannel extends EmbeddedChannel
 {
+    public static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 0);
+
     final int inFlightLimit;
     int inFlight;
 
     ChannelOutboundBuffer flush;
     long flushBytes;
 
+    public TestChannel()
+    {
+        this(Integer.MAX_VALUE);
+    }
+
     public TestChannel(int inFlightLimit)
     {
         this.inFlightLimit = inFlightLimit;
+    }
+
+    @Override
+    public SocketAddress remoteAddress()
+    {
+        return REMOTE_ADDR;
     }
 
     // we override ByteBuf to prevent retain() from working, to avoid release() since it is not needed in our usage

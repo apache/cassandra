@@ -24,9 +24,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 
+import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -36,8 +39,6 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelId;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
@@ -46,9 +47,8 @@ import org.apache.cassandra.gms.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.StreamingMetrics;
-import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.streaming.async.NettyStreamingMessageSender;
+import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
 import org.apache.cassandra.streaming.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -57,6 +57,8 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
  * Handles the streaming a one or more streams to and from a specific remote node.
@@ -90,7 +92,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * 3. Streaming phase
  *
  *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(boolean)}.
- *       This will send, sequentially on each outbound streaming connection (see {@link NettyStreamingMessageSender}),
+ *       This will send, sequentially on each outbound streaming connection (see {@link StreamingMultiplexedChannel}),
  *       an {@link OutgoingStreamMessage} for each stream in each of the {@link StreamTransferTask}.
  *       Each {@link OutgoingStreamMessage} consists of a {@link StreamMessageHeader} that contains metadata about
  *       the stream, followed by the stream content itself. Once all the files for a {@link StreamTransferTask} are sent,
@@ -131,7 +133,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  *
  * All messages which derive from {@link StreamMessage} are sent by the standard internode messaging
  * (via {@link org.apache.cassandra.net.MessagingService}, while the actual files themselves are sent by a special
- * "streaming" connection type. See {@link NettyStreamingMessageSender} for details. Because of the asynchronous
+ * "streaming" connection type. See {@link StreamingMultiplexedChannel} for details. Because of the asynchronous
  */
 public class StreamSession implements IEndpointStateChangeSubscriber
 {
@@ -148,7 +150,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * Each {@code StreamSession} is identified by this InetAddressAndPort which is broadcast address of the node streaming.
      */
     public final InetAddressAndPort peer;
-    private final OutboundConnectionSettings template;
 
     private final int index;
 
@@ -167,9 +168,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace = new HashMap<>();
 
     private final boolean isFollower;
-    private final NettyStreamingMessageSender messageSender;
+    private final StreamingMultiplexedChannel channel;
     // contains both inbound and outbound channels
-    private final ConcurrentMap<ChannelId, Channel> channels = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, StreamingChannel> inbound = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Object, StreamingChannel> outbound = new ConcurrentHashMap<>();
 
     // "maybeCompleted()" should be executed at most once. Because it can be executed asynchronously by IO
     // threads(serialization/deserialization) and stream messaging processing thread, causing connection closed before
@@ -230,21 +232,18 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /**
      * Create new streaming session with the peer.
      */
-    public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamConnectionFactory factory,
+    public StreamSession(StreamOperation streamOperation, InetAddressAndPort peer, StreamingChannel.Factory factory, @Nullable StreamingChannel controlChannel, int messagingVersion,
                          boolean isFollower, int index, UUID pendingRepair, PreviewKind previewKind)
     {
         this.streamOperation = streamOperation;
         this.peer = peer;
-        this.template = new OutboundConnectionSettings(peer);
         this.isFollower = isFollower;
         this.index = index;
 
-        this.messageSender = new NettyStreamingMessageSender(this, template, factory, current_version, previewKind.isPreview());
+        this.channel = new StreamingMultiplexedChannel(this, factory, peer, controlChannel, messagingVersion);
         this.metrics = StreamingMetrics.get(peer);
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
-
-        logger.debug("Creating stream session to {} as {}", template, isFollower ? "follower" : "initiator");
     }
 
     public boolean isFollower()
@@ -309,18 +308,19 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * Attach a channel to this session upon receiving the first inbound message.
      *
      * @param channel The channel to attach.
-     * @param isControlChannel If the channel is the one to send control messages to.
      * @return False if the channel was already attached, true otherwise.
      */
-    public synchronized boolean attachInbound(Channel channel, boolean isControlChannel)
+    public synchronized boolean attachInbound(StreamingChannel channel)
     {
         failIfFinished();
 
-        if (!messageSender.hasControlChannel() && isControlChannel)
-            messageSender.injectControlMessageChannel(channel);
-
-        channel.closeFuture().addListener(ignored -> onChannelClose(channel));
-        return channels.putIfAbsent(channel.id(), channel) == null;
+        boolean attached = inbound.putIfAbsent(channel.id(), channel) == null;
+        if (attached)
+            channel.onClose(() -> {
+                if (null != inbound.remove(channel.id()) && inbound.isEmpty())
+                    this.channel.close();
+            });
+        return attached;
     }
 
     /**
@@ -329,22 +329,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param channel The channel to attach.
      * @return False if the channel was already attached, true otherwise.
      */
-    public synchronized boolean attachOutbound(Channel channel)
+    public synchronized boolean attachOutbound(StreamingChannel channel)
     {
         failIfFinished();
 
-        channel.closeFuture().addListener(ignored -> onChannelClose(channel));
-        return channels.putIfAbsent(channel.id(), channel) == null;
-    }
-
-    /**
-     * On channel closing, if no channels are left just close the message sender; this must be closed last to ensure
-     * keep alive messages are sent until the very end of the streaming session.
-     */
-    private void onChannelClose(Channel channel)
-    {
-        if (channels.remove(channel.id()) != null && channels.isEmpty())
-            messageSender.close();
+        boolean attached = outbound.putIfAbsent(channel.id(), channel) == null;
+        if (attached)
+            channel.onClose(() -> outbound.remove(channel.id()));
+        return attached;
     }
 
     /**
@@ -362,9 +354,17 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         try
         {
             logger.info("[Stream #{}] Starting streaming to {}{}", planId(),
-                                                                   peer,
-                                                                   template.connectTo == null ? "" : " through " + template.connectTo);
-            messageSender.initialize();
+                        hostAddressAndPort(channel.peer()),
+                        channel.connectedTo().equals(channel.peer()) ? "" : " through " + hostAddressAndPort(channel.connectedTo()));
+
+            StreamInitMessage message = new StreamInitMessage(getBroadcastAddressAndPort(),
+                                                              sessionIndex(),
+                                                              planId(),
+                                                              streamOperation(),
+                                                              getPendingRepair(),
+                                                              getPreviewKind());
+
+            channel.sendControlMessage(message);
             onInitializationComplete();
         }
         catch (Exception e)
@@ -503,8 +503,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         // due to failure, channels should be always closed regardless, even if this is not the initator.
         if (!isFollower || state != State.COMPLETE)
         {
-            logger.debug("[Stream #{}] Will close attached channels {}", planId(), channels);
-            channels.values().forEach(channel -> futures.add(channel.close()));
+            logger.debug("[Stream #{}] Will close attached inbound {} and outbound {} channels", planId(), inbound, outbound);
+            inbound.values().forEach(channel -> futures.add(channel.close()));
+            outbound.values().forEach(channel -> futures.add(channel.close()));
         }
 
         sink.onClose(peer);
@@ -549,9 +550,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return state;
     }
 
-    public NettyStreamingMessageSender getMessageSender()
+    public StreamingMultiplexedChannel getChannel()
     {
-        return messageSender;
+        return channel;
     }
 
     /**
@@ -625,7 +626,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             prepare.summaries.add(task.getSummary());
         }
 
-        messageSender.sendMessage(prepare);
+        channel.sendControlMessage(prepare);
     }
 
     /**
@@ -657,8 +658,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         logError(e);
         // send session failure message
-        if (messageSender.connected())
-            messageSender.sendMessage(new SessionFailedMessage());
+        if (channel.connected())
+            channel.sendControlMessage(new SessionFailedMessage());
         // fail session
         return closeSession(State.FAILED);
     }
@@ -669,16 +670,16 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             logger.error("[Stream #{}] Did not receive response from peer {}{} for {} secs. Is peer down? " +
                          "If not, maybe try increasing streaming_keep_alive_period_in_secs.", planId(),
-                         peer.getHostAddressAndPort(),
-                         template.connectTo == null ? "" : " through " + template.connectTo.getHostAddressAndPort(),
+                         hostAddressAndPort(channel.peer()),
+                         channel.peer().equals(channel.connectedTo()) ? "" : " through " + hostAddressAndPort(channel.connectedTo()),
                          2 * DatabaseDescriptor.getStreamingKeepAlivePeriod(),
                          e);
         }
         else
         {
             logger.error("[Stream #{}] Streaming error occurred on session with peer {}{}", planId(),
-                         peer.getHostAddressAndPort(),
-                         template.connectTo == null ? "" : " through " + template.connectTo.getHostAddressAndPort(),
+                         hostAddressAndPort(channel.peer()),
+                         channel.peer().equals(channel.connectedTo()) ? "" : " through " + hostAddressAndPort(channel.connectedTo()),
                          e);
         }
     }
@@ -717,7 +718,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (!peer.equals(FBUtilities.getBroadcastAddressAndPort()))
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
-        messageSender.sendMessage(prepareSynAck);
+        channel.sendControlMessage(prepareSynAck);
 
         streamResult.handleSessionPrepared(this);
 
@@ -736,7 +737,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
             // only send the (final) ACK if we are expecting the peer to send this node (the initiator) some files
             if (!isPreview())
-                messageSender.sendMessage(new PrepareAckMessage());
+                channel.sendControlMessage(new PrepareAckMessage());
         }
 
         if (isPreview())
@@ -793,7 +794,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         StreamingMetrics.totalIncomingBytes.inc(headerSize);
         metrics.incomingBytes.inc(headerSize);
         // send back file received message
-        messageSender.sendMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
+        channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber));
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
         long receivedStartNanos = nanoTime();
         try
@@ -872,7 +873,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
         else
         {
-            messageSender.sendMessage(new CompleteMessage());
+            channel.sendControlMessage(new CompleteMessage());
             closeSession(State.COMPLETE);
         }
 
@@ -899,8 +900,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         List<StreamSummary> transferSummaries = Lists.newArrayList();
         for (StreamTask transfer : transfers.values())
             transferSummaries.add(transfer.getSummary());
-        // TODO: the connectTo treatment here is peculiar, and needs thinking about - since the connection factory can change it
-        return new SessionInfo(peer, index, template.connectTo == null ? peer : template.connectTo, receivingSummaries, transferSummaries, state);
+        return new SessionInfo(channel.peer(), index, channel.connectedTo(), receivingSummaries, transferSummaries, state);
     }
 
     public synchronized void taskCompleted(StreamReceiveTask completedTask)
@@ -979,7 +979,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 {
                     // pass the session planId/index to the OFM (which is only set at init(), after the transfers have already been created)
                     ofm.header.addSessionInfo(this);
-                    messageSender.sendMessage(ofm);
+                    channel.sendControlMessage(ofm);
                 }
             }
             else
@@ -1039,5 +1039,35 @@ public class StreamSession implements IEndpointStateChangeSubscriber
          * @param from peer that is being disconnected
          */
         public void onClose(InetAddressAndPort from);
+    }
+
+    public static String createLogTag(StreamSession session)
+    {
+        return createLogTag(session, (Object) null);
+    }
+
+    public static String createLogTag(StreamSession session, StreamingChannel channel)
+    {
+        return createLogTag(session, channel == null ? null : channel.id());
+    }
+
+    public static String createLogTag(StreamSession session, Channel channel)
+    {
+        return createLogTag(session, channel == null ? null : channel.id());
+    }
+
+    public static String createLogTag(StreamSession session, Object channelId)
+    {
+        StringBuilder sb = new StringBuilder(64);
+        sb.append("[Stream");
+
+        if (session != null)
+            sb.append(" #").append(session.planId());
+
+        if (channelId != null)
+            sb.append(" channel: ").append(channelId);
+
+        sb.append(']');
+        return sb.toString();
     }
 }
