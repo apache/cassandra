@@ -25,7 +25,12 @@ import java.nio.channels.FileChannel;
 
 import io.netty.channel.FileRegion;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface StreamingDataOutputPlus extends DataOutputPlus, Closeable
 {
     interface BufferSupplier

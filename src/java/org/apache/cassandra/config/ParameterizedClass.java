@@ -22,6 +22,11 @@ import java.util.Map;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public class ParameterizedClass
 {
     public static final String CLASS_NAME = "class_name";

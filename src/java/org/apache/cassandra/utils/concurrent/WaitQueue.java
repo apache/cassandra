@@ -26,9 +26,13 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.utils.Intercept;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Awaitable.AbstractAwaitable;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * <p>A relatively easy to use utility for general purpose thread signalling.</p>
  * <p>Usage on a thread awaiting a state change using a WaitQueue q is:</p>
@@ -73,6 +77,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  *
  * TODO: this class should not be backed by CLQ (should use an intrusive linked-list with lower overhead)
  */
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface WaitQueue
 {
     /**

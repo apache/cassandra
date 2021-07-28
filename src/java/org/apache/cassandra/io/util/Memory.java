@@ -32,7 +32,7 @@ import sun.misc.Unsafe;
 /**
  * An off-heap region of memory that must be manually free'd when no longer needed.
  */
-public class Memory implements AutoCloseable
+public class Memory implements AutoCloseable, ReadableMemory
 {
     private static final Unsafe unsafe;
     static

@@ -33,6 +33,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Wrapper around time related functions that are either implemented by using the default JVM calls
@@ -45,6 +46,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  *
  * TODO better rationalise MonotonicClock/Clock
  */
+@Shared(scope = SIMULATION)
 public interface MonotonicClock
 {
     /**

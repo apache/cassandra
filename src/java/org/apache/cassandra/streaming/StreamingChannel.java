@@ -24,7 +24,12 @@ import java.util.function.IntFunction;
 
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
+import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface StreamingChannel
 {
     public interface Factory

@@ -210,7 +210,7 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    static ClientState makeFakeClientState()
+    public static ClientState makeFakeClientState()
     {
         return ClientState.forExternalCalls(new InetSocketAddress(FBUtilities.getJustLocalAddress(), 9042));
     }

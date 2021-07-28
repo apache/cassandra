@@ -26,14 +26,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.Future;
+
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Cassandra's extension of {@link ExecutorService}, using our own {@link Future}, supporting
  * {@link #inExecutor()}, and execution with associated resources {@link #execute(WithResources, Runnable)}
  * (which is primarily used for encapsulating {@link ExecutorLocals} without leaking implementing classes).
  */
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface ExecutorPlus extends ExecutorService, ResizableThreadPool
 {
     interface MaximumPoolSizeListener

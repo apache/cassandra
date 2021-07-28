@@ -21,7 +21,11 @@ package org.apache.cassandra.streaming;
 import java.io.Closeable;
 
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public interface StreamingDataInputPlus extends DataInputPlus, Closeable
 {
     @Override

@@ -21,7 +21,11 @@ package org.apache.cassandra.utils.concurrent;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 import org.apache.cassandra.utils.Intercept;
+import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public interface CountDownLatch extends Awaitable
 {
     /**

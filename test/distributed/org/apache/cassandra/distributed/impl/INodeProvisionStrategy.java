@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+
+@Shared(inner = INTERFACES)
 public interface INodeProvisionStrategy
 {
-
     public enum Strategy
     {
         OneNetworkInterface

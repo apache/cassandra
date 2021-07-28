@@ -20,12 +20,15 @@ package org.apache.cassandra.utils;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * A generic interface for encapsulating a Runnable task with related work before and after execution,
  * using the built-in try-with-resources functionality offered by {@link Closeable}.
  *
  * See {@link ExecutorPlus#execute(WithResources, Runnable)}
  */
+@Shared(scope = SIMULATION)
 public interface WithResources
 {
     static class None implements WithResources

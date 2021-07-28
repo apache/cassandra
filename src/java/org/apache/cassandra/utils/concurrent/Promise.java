@@ -25,11 +25,16 @@ import java.util.function.Consumer;
 import com.google.common.util.concurrent.FutureCallback;
 
 import io.netty.util.concurrent.GenericFutureListener;
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * A Promise that integrates {@link io.netty.util.concurrent.Promise} with our {@link Future} API
  * to improve clarity and coherence in the codebase.
  */
+@Shared(scope = SIMULATION, ancestors = INTERFACES)
 public interface Promise<V> extends io.netty.util.concurrent.Promise<V>, Future<V>
 {
     public static <V> GenericFutureListener<? extends Future<V>> listener(FutureCallback<V> callback)

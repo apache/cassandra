@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.utils;
 
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public interface Closeable extends java.io.Closeable
 {
     public void close();

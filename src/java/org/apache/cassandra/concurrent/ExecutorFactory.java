@@ -21,12 +21,15 @@ package org.apache.cassandra.concurrent;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Shared;
 
 import static java.lang.Thread.*;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.createThread;
 import static org.apache.cassandra.concurrent.NamedThreadFactory.setupThread;
 import static org.apache.cassandra.concurrent.ThreadPoolExecutorBuilder.pooledJmx;
 import static org.apache.cassandra.concurrent.ThreadPoolExecutorBuilder.sequentialJmx;
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Entry point for configuring and creating new executors.
@@ -52,6 +55,7 @@ import static org.apache.cassandra.concurrent.ThreadPoolExecutorBuilder.sequenti
  * Supports shared executors via sub-factory {@code localAware().withJMX()}
  * using {@link LocalAwareSubFactoryWithJMX#shared(String, int, ExecutorPlus.MaximumPoolSizeListener)}
  */
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<ExecutorPlus, SequentialExecutorPlus>
 {
     public interface LocalAwareSubFactoryWithJMX extends ExecutorBuilderFactory<LocalAwareExecutorPlus, LocalAwareSequentialExecutorPlus>

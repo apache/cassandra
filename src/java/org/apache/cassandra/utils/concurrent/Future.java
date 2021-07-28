@@ -30,13 +30,17 @@ import com.google.common.util.concurrent.ListenableFuture;
 import io.netty.util.concurrent.GenericFutureListener;
 
 import io.netty.util.internal.PlatformDependent;
+import org.apache.cassandra.utils.Shared;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * A Future that integrates several different (but equivalent) APIs used within Cassandra into a single concept,
  * integrating also with our {@link Awaitable} abstraction, to overall improve coherency and clarity in the codebase.
  */
+@Shared(scope = SIMULATION, ancestors = INTERFACES)
 public interface Future<V> extends io.netty.util.concurrent.Future<V>, ListenableFuture<V>, Awaitable
 {
     /**

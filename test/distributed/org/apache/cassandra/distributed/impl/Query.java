@@ -35,11 +35,10 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.distributed.impl.Coordinator.toCassandraCL;
-
-// TODO: maybe just keep with Simulator?
 public class Query implements IIsolatedExecutor.SerializableCallable<Object[][]>
 {
+    private static final long serialVersionUID = 1L;
+
     final String query;
     final long timestamp;
     final org.apache.cassandra.distributed.api.ConsistencyLevel commitConsistencyOrigin;

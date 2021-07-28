@@ -21,18 +21,22 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.vint.VIntCoding;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Extension to DataOutput that provides for writing ByteBuffer and Memory, potentially with an efficient
  * implementation that is zero copy or at least has reduced bounds checking overhead.
  */
+@Shared(scope = SIMULATION)
 public interface DataOutputPlus extends DataOutput
 {
     // write the buffer without modifying its position
     void write(ByteBuffer buffer) throws IOException;
 
-    default void write(Memory memory, long offset, long length) throws IOException
+    default void write(ReadableMemory memory, long offset, long length) throws IOException
     {
         for (ByteBuffer buffer : memory.asByteBuffers(offset, length))
             write(buffer);
