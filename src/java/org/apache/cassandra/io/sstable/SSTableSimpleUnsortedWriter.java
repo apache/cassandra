@@ -36,6 +36,8 @@ import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
 
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
@@ -165,7 +167,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             }
             catch (InterruptedException e)
             {
-                throw new RuntimeException(e);
+                throw new UncheckedInterruptedException(e);
             }
         }
     }

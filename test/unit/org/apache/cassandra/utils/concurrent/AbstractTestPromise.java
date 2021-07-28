@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net;
+package org.apache.cassandra.utils.concurrent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,9 +33,9 @@ import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import net.openhft.chronicle.core.util.ThrowingConsumer;
 import net.openhft.chronicle.core.util.ThrowingFunction;
 
-abstract class TestAbstractPromise
+public abstract class AbstractTestPromise
 {
-    final ExecutorService exec = Executors.newCachedThreadPool();
+    protected final ExecutorService exec = Executors.newCachedThreadPool();
 
     class Async
     {
@@ -56,19 +56,19 @@ abstract class TestAbstractPromise
         }
         <V> void failure(Promise<V> promise, ThrowingConsumer<Promise<V>, ?> action, Throwable failsWith)
         {
-            waitingOn.add(exec.submit(() -> TestAbstractPromise.failure(promise, action, failsWith))::get);
+            waitingOn.add(exec.submit(() -> AbstractTestPromise.failure(promise, action, failsWith))::get);
         }
         <V> void failure(Promise<V> promise, ThrowingConsumer<Promise<V>, ?> action, Class<? extends Throwable> failsWith)
         {
-            waitingOn.add(exec.submit(() -> TestAbstractPromise.failure(promise, action, failsWith))::get);
+            waitingOn.add(exec.submit(() -> AbstractTestPromise.failure(promise, action, failsWith))::get);
         }
         <V> void failure(Promise<V> promise, ThrowingConsumer<Promise<V>, ?> action, Predicate<Throwable> failsWith)
         {
-            waitingOn.add(exec.submit(() -> TestAbstractPromise.failure(promise, action, failsWith))::get);
+            waitingOn.add(exec.submit(() -> AbstractTestPromise.failure(promise, action, failsWith))::get);
         }
         <P extends Promise<?>, R> void success(P promise, ThrowingFunction<P, R, ?> action, R result)
         {
-            waitingOn.add(exec.submit(() -> TestAbstractPromise.success(promise, action, result))::get);
+            waitingOn.add(exec.submit(() -> AbstractTestPromise.success(promise, action, result))::get);
         }
     }
 

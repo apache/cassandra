@@ -26,10 +26,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
+
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.tracing.Tracing.isTracing;
@@ -140,7 +141,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
         }
     }
 
-    class FutureTask<T> extends SimpleCondition implements Future<T>, Runnable
+    class FutureTask<T> extends Condition.Async implements Future<T>, Runnable
     {
         private boolean failure;
         private Object result = this;
@@ -187,7 +188,7 @@ public abstract class AbstractLocalAwareExecutorService implements LocalAwareExe
 
         public boolean isDone()
         {
-            return isSignaled();
+            return isSignalled();
         }
 
         public T get() throws InterruptedException, ExecutionException

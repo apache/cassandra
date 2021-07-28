@@ -21,9 +21,7 @@ package org.apache.cassandra.schema;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
 
 import javax.annotation.Nullable;
 

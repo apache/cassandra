@@ -50,12 +50,14 @@ import org.apache.cassandra.net.*;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.*;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 public class SimpleClient implements Closeable
 {
@@ -299,7 +301,7 @@ public class SimpleClient implements Closeable
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new UncheckedInterruptedException(e);
         }
     }
 
@@ -341,7 +343,7 @@ public class SimpleClient implements Closeable
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new UncheckedInterruptedException(e);
         }
     }
 
@@ -352,7 +354,7 @@ public class SimpleClient implements Closeable
 
     public static class SimpleEventHandler implements EventHandler
     {
-        public final LinkedBlockingQueue<Event> queue = new LinkedBlockingQueue<>();
+        public final BlockingQueue<Event> queue = newBlockingQueue();
 
         public void onEvent(Event event)
         {
@@ -654,9 +656,9 @@ public class SimpleClient implements Closeable
                 else
                     responses.put(r);
             }
-            catch (InterruptedException ie)
+            catch (InterruptedException e)
             {
-                throw new RuntimeException(ie);
+                throw new UncheckedInterruptedException(e);
             }
         }
 

@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public final class Throwables
 {
@@ -86,6 +87,9 @@ public final class Throwables
 
         if (fail instanceof RuntimeException)
             throw (RuntimeException) fail;
+
+        if (fail instanceof InterruptedException)
+            throw new UncheckedInterruptedException((InterruptedException) fail);
 
         if (checked != null && checked.isInstance(fail))
             throw checked.cast(fail);
@@ -237,7 +241,10 @@ public final class Throwables
      */
     public static RuntimeException unchecked(Throwable t)
     {
-        return t instanceof RuntimeException ? (RuntimeException)t : new RuntimeException(t);
+        return t instanceof RuntimeException ? (RuntimeException)t :
+               t instanceof InterruptedException
+               ? new UncheckedInterruptedException((InterruptedException) t)
+               : new RuntimeException(t);
     }
 
     /**

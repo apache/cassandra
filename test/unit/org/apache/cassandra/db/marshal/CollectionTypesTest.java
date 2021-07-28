@@ -31,7 +31,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 import static org.apache.cassandra.db.marshal.ValueAccessors.ACCESSORS;
 

@@ -25,8 +25,6 @@ import java.nio.channels.WritableByteChannel;
 
 import org.apache.cassandra.utils.memory.MemoryUtil;
 
-import com.google.common.base.Function;
-
 /**
  * Base class for DataOutput implementations that does not have an optimized implementations of Plus methods
  * and does no buffering.

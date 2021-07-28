@@ -25,6 +25,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.concurrent.Promise;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 /**
  * Netty's PromiseCombiner is not threadsafe, and we combine futures from multiple event executors.

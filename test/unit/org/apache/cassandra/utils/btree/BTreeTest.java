@@ -21,7 +21,6 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.junit.Assert;
@@ -31,7 +30,6 @@ import static org.apache.cassandra.utils.btree.BTree.FAN_FACTOR;
 import static org.apache.cassandra.utils.btree.BTree.FAN_SHIFT;
 import static org.apache.cassandra.utils.btree.BTree.POSITIVE_INFINITY;
 import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
 
 public class BTreeTest
 {

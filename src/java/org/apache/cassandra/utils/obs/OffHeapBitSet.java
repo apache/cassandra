@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.utils.obs;
 
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 
 import com.google.common.annotations.VisibleForTesting;

@@ -20,10 +20,12 @@ package org.apache.cassandra.hints;
 import java.io.Closeable;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * A primitive pool of {@link HintsBuffer} buffers. Under normal conditions should only hold two buffers - the currently
@@ -45,7 +47,7 @@ final class HintsBufferPool implements Closeable
 
     HintsBufferPool(int bufferSize, FlushCallback flushCallback)
     {
-        reserveBuffers = new LinkedBlockingQueue<>();
+        reserveBuffers = newBlockingQueue();
         this.bufferSize = bufferSize;
         this.flushCallback = flushCallback;
     }
@@ -117,7 +119,7 @@ final class HintsBufferPool implements Closeable
             }
             catch (InterruptedException e)
             {
-                throw new RuntimeException(e);
+                throw new UncheckedInterruptedException(e);
             }
         }
         currentBuffer = buffer == null ? createBuffer() : buffer;

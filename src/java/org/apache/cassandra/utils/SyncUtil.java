@@ -28,7 +28,6 @@ import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.service.CassandraDaemon;
 
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;

@@ -22,7 +22,6 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.File;
-import java.io.IOException;
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;

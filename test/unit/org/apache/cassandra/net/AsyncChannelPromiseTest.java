@@ -22,8 +22,9 @@ import org.junit.Test;
 
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
+import org.apache.cassandra.utils.concurrent.AbstractTestAsyncPromise;
 
-public class AsyncChannelPromiseTest extends TestAbstractAsyncPromise
+public class AsyncChannelPromiseTest extends AbstractTestAsyncPromise
 {
     @After
     public void shutdown()

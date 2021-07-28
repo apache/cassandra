@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import com.google.common.collect.Lists;
-
 /**
  * A collection of Endpoints for a given ring position.  This will typically reside in a ReplicaLayout,
  * representing some subset of the endpoints for the Token or Range

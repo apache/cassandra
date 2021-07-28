@@ -19,7 +19,6 @@ package org.apache.cassandra.index.sasi.disk;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -43,16 +42,19 @@ import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 public class PerSSTableIndexWriter implements SSTableFlushObserver
 {
@@ -64,14 +66,14 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
     static
     {
-        INDEX_FLUSHER_GENERAL = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, TimeUnit.MINUTES,
-                                                                 new LinkedBlockingQueue<>(),
+        INDEX_FLUSHER_GENERAL = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, MINUTES,
+                                                                 newBlockingQueue(),
                                                                  new NamedThreadFactory("SASI-General"),
                                                                  "internal");
         INDEX_FLUSHER_GENERAL.allowCoreThreadTimeOut(true);
 
-        INDEX_FLUSHER_MEMTABLE = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, TimeUnit.MINUTES,
-                                                                  new LinkedBlockingQueue<>(),
+        INDEX_FLUSHER_MEMTABLE = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, MINUTES,
+                                                                  newBlockingQueue(),
                                                                   new NamedThreadFactory("SASI-Memtable"),
                                                                   "internal");
         INDEX_FLUSHER_MEMTABLE.allowCoreThreadTimeOut(true);
@@ -141,11 +143,11 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
         try
         {
-            CountDownLatch latch = new CountDownLatch(indexes.size());
+            CountDownLatch latch = newCountDownLatch(indexes.size());
             for (Index index : indexes.values())
                 index.complete(latch);
 
-            Uninterruptibles.awaitUninterruptibly(latch);
+            latch.awaitUninterruptibly();
         }
         finally
         {
@@ -339,7 +341,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                         FileUtils.delete(outputFile + "_" + segment);
                     }
 
-                    latch.countDown();
+                    latch.decrement();
                 }
             });
         }

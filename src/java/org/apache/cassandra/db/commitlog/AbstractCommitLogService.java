@@ -25,7 +25,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Timer.Context;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
@@ -33,8 +32,10 @@ import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static com.codahale.metrics.Timer.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 public abstract class AbstractCommitLogService
 {
@@ -55,7 +56,7 @@ public abstract class AbstractCommitLogService
     protected final AtomicLong pending = new AtomicLong(0);
 
     // signal that writers can wait on to be notified of a completed sync
-    protected final WaitQueue syncComplete = new WaitQueue();
+    protected final WaitQueue syncComplete = newWaitQueue();
 
     final CommitLog commitLog;
     private final String name;
@@ -304,7 +305,7 @@ public abstract class AbstractCommitLogService
     {
         do
         {
-            WaitQueue.Signal signal = context != null ? syncComplete.register(context) : syncComplete.register();
+            WaitQueue.Signal signal = context != null ? syncComplete.register(context, Context::stop) : syncComplete.register();
             if (lastSyncedAt < syncTime)
                 signal.awaitUninterruptibly();
             else

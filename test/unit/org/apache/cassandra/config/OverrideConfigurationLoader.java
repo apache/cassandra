@@ -19,7 +19,6 @@
 package org.apache.cassandra.config;
 
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 

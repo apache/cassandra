@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Condition;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -33,7 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -65,7 +64,7 @@ public class ValidationExecutorTest
     @Test
     public void testQueueOnValidationSubmission() throws InterruptedException
     {
-        Condition taskBlocked = new SimpleCondition();
+        CountDownLatch taskBlocked = new CountDownLatch(1);
         AtomicInteger threadsAvailable = new AtomicInteger(DatabaseDescriptor.getConcurrentValidations());
         CountDownLatch taskComplete = new CountDownLatch(5);
         validationExecutor = new CompactionManager.ValidationExecutor();
@@ -85,7 +84,7 @@ public class ValidationExecutorTest
         Util.spinAssertEquals(2, () -> validationExecutor.getActiveTaskCount(), 1);
         assertEquals(3, validationExecutor.getPendingTaskCount());
 
-        taskBlocked.signalAll();
+        taskBlocked.countDown();
         taskComplete.await(10, TimeUnit.SECONDS);
         validationExecutor.shutdownNow();
     }
@@ -110,10 +109,10 @@ public class ValidationExecutorTest
 
     private static class Task implements Runnable
     {
-        private final Condition blocked;
+        private final CountDownLatch blocked;
         private final CountDownLatch complete;
 
-        Task(Condition blocked, CountDownLatch complete)
+        Task(CountDownLatch blocked, CountDownLatch complete)
         {
             this.blocked = blocked;
             this.complete = complete;
@@ -121,7 +120,7 @@ public class ValidationExecutorTest
 
         public void run()
         {
-            Uninterruptibles.awaitUninterruptibly(blocked, 10, TimeUnit.SECONDS);
+            Uninterruptibles.awaitUninterruptibly(blocked);
             complete.countDown();
         }
     }

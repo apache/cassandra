@@ -18,7 +18,11 @@
  */
 package org.apache.cassandra.utils.concurrent;
 
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
  * <p>A class for providing synchronization between producers and consumers that do not
@@ -113,8 +117,6 @@ public class OpOrder
      * after which all new operations will start against a new Group that will not be accepted
      * by barrier.isAfter(), and barrier.await() will return only once all operations started prior to the issue
      * have completed.
-     *
-     * @return
      */
     public Barrier newBarrier()
     {
@@ -162,10 +164,11 @@ public class OpOrder
         private final long id; // monotonically increasing id for compareTo()
         private volatile int running = 0; // number of operations currently running.  < 0 means we're expired, and the count of tasks still running is -(running + 1)
         private volatile boolean isBlocking; // indicates running operations are blocking future barriers
-        private final WaitQueue isBlockingSignal = new WaitQueue(); // signal to wait on to indicate isBlocking is true
-        private final WaitQueue waiting = new WaitQueue(); // signal to wait on for completion
+        private volatile ConcurrentLinkedQueue<WaitQueue.Signal> blocking; // signal to wait on to indicate isBlocking is true
+        private final WaitQueue waiting = newWaitQueue(); // signal to wait on for completion
 
         static final AtomicIntegerFieldUpdater<Group> runningUpdater = AtomicIntegerFieldUpdater.newUpdater(Group.class, "running");
+        static final AtomicReferenceFieldUpdater<Group, ConcurrentLinkedQueue> blockingUpdater = AtomicReferenceFieldUpdater.newUpdater(Group.class, ConcurrentLinkedQueue.class, "blocking");
 
         // constructs first instance only
         private Group()
@@ -318,21 +321,21 @@ public class OpOrder
             return isBlocking;
         }
 
-        /**
-         * register to be signalled when a barrier waiting on us is, or maybe, blocking general progress,
-         * so we should try more aggressively to progress
-         */
-        public WaitQueue.Signal isBlockingSignal()
+        public void notifyIfBlocking(WaitQueue.Signal signal)
         {
-            return isBlockingSignal.register();
+            if (blocking == null)
+                blockingUpdater.compareAndSet(this, null, new ConcurrentLinkedQueue<>());
+            blocking.add(signal);
+            if (isBlocking() && blocking.remove(signal))
+                signal.signal();
         }
 
-        /**
-         * wrap the provided signal to also be signalled if the operation gets marked blocking
-         */
-        public WaitQueue.Signal isBlockingSignal(WaitQueue.Signal signal)
+        private void markBlocking()
         {
-            return WaitQueue.any(signal, isBlockingSignal());
+            isBlocking = true;
+            ConcurrentLinkedQueue<WaitQueue.Signal> blocking = this.blocking;
+            if (blocking != null)
+                blocking.forEach(WaitQueue.Signal::signal);
         }
 
         public int compareTo(Group that)
@@ -406,18 +409,9 @@ public class OpOrder
             Group current = orderOnOrBefore;
             while (current != null)
             {
-                current.isBlocking = true;
-                current.isBlockingSignal.signalAll();
+                current.markBlocking();
                 current = current.prev;
             }
-        }
-
-        /**
-         * Register to be signalled once allPriorOpsAreFinished() or allPriorOpsAreFinishedOrSafe() may return true
-         */
-        public WaitQueue.Signal register()
-        {
-            return orderOnOrBefore.waiting.register();
         }
 
         /**

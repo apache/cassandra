@@ -62,6 +62,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 public class MigrationCoordinator
 {
@@ -133,7 +134,7 @@ public class MigrationCoordinator
         final Set<InetAddressAndPort> outstandingRequests = Sets.newConcurrentHashSet();
         final Deque<InetAddressAndPort> requestQueue      = new ArrayDeque<>();
 
-        private final WaitQueue waitQueue = new WaitQueue();
+        private final WaitQueue waitQueue = newWaitQueue();
 
         volatile boolean receivedSchema;
 
@@ -561,12 +562,12 @@ public class MigrationCoordinator
             logger.debug("Nothing in versionInfo - so no schemas to wait for");
         }
 
-        WaitQueue.Signal signal = null;
+        List<WaitQueue.Signal> signalList = null;
         try
         {
             synchronized (this)
             {
-                List<WaitQueue.Signal> signalList = new ArrayList<>(versionInfo.size());
+                signalList = new ArrayList<>(versionInfo.size());
                 for (VersionInfo version : versionInfo.values())
                 {
                     if (version.wasReceived())
@@ -577,22 +578,15 @@ public class MigrationCoordinator
 
                 if (signalList.isEmpty())
                     return true;
-
-                WaitQueue.Signal[] signals = new WaitQueue.Signal[signalList.size()];
-                signalList.toArray(signals);
-                signal = WaitQueue.all(signals);
             }
 
-            return signal.awaitUntil(nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis));
-        }
-        catch (InterruptedException e)
-        {
-            throw new RuntimeException(e);
+            long deadline = nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis);
+            return signalList.stream().allMatch(signal -> signal.awaitUntilUninterruptibly(deadline));
         }
         finally
         {
-            if (signal != null)
-                signal.cancel();
+            if (signalList != null)
+                signalList.forEach(WaitQueue.Signal::cancel);
         }
     }
 }

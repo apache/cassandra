@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -99,6 +98,8 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 public class RepairRunnable implements Runnable, ProgressEventNotifier
 {
@@ -685,8 +686,8 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     {
         return MoreExecutors.listeningDecorator(new JMXEnabledThreadPoolExecutor(options.getJobThreads(),
                                                                                  Integer.MAX_VALUE,
-                                                                                 TimeUnit.SECONDS,
-                                                                                 new LinkedBlockingQueue<>(),
+                                                                                 SECONDS,
+                                                                                 newBlockingQueue(),
                                                                                  new NamedThreadFactory("Repair#" + cmd),
                                                                                  "internal"));
     }
