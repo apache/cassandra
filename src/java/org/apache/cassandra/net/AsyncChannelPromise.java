@@ -31,7 +31,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
  *
  * This class is all boiler plate, just ensuring we return ourselves and invoke the correct Promise method.
  */
-public class AsyncChannelPromise extends AsyncPromise<Void> implements ChannelPromise
+public class AsyncChannelPromise extends AsyncPromise.WithExecutor<Void> implements ChannelPromise
 {
     private final Channel channel;
 

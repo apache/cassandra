@@ -109,7 +109,7 @@ public class CorruptedSSTablesCompactionsTest
     public static void closeStdErr()
     {
         // These tests generate an error message per CorruptSSTableException since it goes through
-        // DebuggableThreadPoolExecutor, which will log it in afterExecute.  We could stop that by
+        // ExecutorPlus, which will log it in afterExecute.  We could stop that by
         // creating custom CompactionStrategy and CompactionTask classes, but that's kind of a
         // ridiculous amount of effort, especially since those aren't really intended to be wrapped
         // like that.

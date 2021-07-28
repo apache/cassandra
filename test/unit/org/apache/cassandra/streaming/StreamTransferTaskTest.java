@@ -174,7 +174,7 @@ public class StreamTransferTaskTest
 
         //wait for stream to abort asynchronously
         int tries = 10;
-        while (ScheduledExecutors.nonPeriodicTasks.getActiveCount() > 0)
+        while (ScheduledExecutors.nonPeriodicTasks.getActiveTaskCount() > 0)
         {
             if(tries < 1)
                 throw new RuntimeException("test did not complete in time");

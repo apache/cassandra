@@ -22,7 +22,10 @@ import java.io.File;
 import java.io.IOError;
 import java.net.URI;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
 
 import com.google.common.collect.Lists;
@@ -54,6 +57,7 @@ import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.tools.nodetool.CompactionStats;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Tool that allows fast route to loading data for arbitrary schemas to disk

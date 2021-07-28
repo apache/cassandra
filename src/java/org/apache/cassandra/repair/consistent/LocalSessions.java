@@ -32,7 +32,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -49,9 +48,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -97,7 +93,9 @@ import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.Future;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.net.Verb.FAILED_SESSION_MSG;
 import static org.apache.cassandra.net.Verb.FINALIZE_PROMISE_MSG;
 import static org.apache.cassandra.net.Verb.PREPARE_CONSISTENT_RSP;
@@ -739,12 +737,12 @@ public class LocalSessions
     }
 
     @VisibleForTesting
-    ListenableFuture prepareSession(KeyspaceRepairManager repairManager,
-                                    UUID sessionID,
-                                    Collection<ColumnFamilyStore> tables,
-                                    RangesAtEndpoint tokenRanges,
-                                    ExecutorService executor,
-                                    BooleanSupplier isCancelled)
+    Future<List<Void>> prepareSession(KeyspaceRepairManager repairManager,
+                                      UUID sessionID,
+                                      Collection<ColumnFamilyStore> tables,
+                                      RangesAtEndpoint tokenRanges,
+                                      ExecutorService executor,
+                                      BooleanSupplier isCancelled)
     {
         return repairManager.prepareIncrementalRepair(sessionID, tables, tokenRanges, executor, isCancelled);
     }
@@ -802,16 +800,16 @@ public class LocalSessions
         putSessionUnsafe(session);
         logger.info("Beginning local incremental repair session {}", session);
 
-        ExecutorService executor = Executors.newFixedThreadPool(parentSession.getColumnFamilyStores().size());
+        ExecutorService executor = executorFactory().pooled("Repair-" + sessionID, parentSession.getColumnFamilyStores().size());
 
         KeyspaceRepairManager repairManager = parentSession.getKeyspace().getRepairManager();
         RangesAtEndpoint tokenRanges = filterLocalRanges(parentSession.getKeyspace().getName(), parentSession.getRanges());
-        ListenableFuture repairPreparation = prepareSession(repairManager, sessionID, parentSession.getColumnFamilyStores(),
-                                                            tokenRanges, executor, () -> session.getState() != PREPARING);
+        Future<List<Void>> repairPreparation = prepareSession(repairManager, sessionID, parentSession.getColumnFamilyStores(),
+                                                          tokenRanges, executor, () -> session.getState() != PREPARING);
 
-        Futures.addCallback(repairPreparation, new FutureCallback<Object>()
+        repairPreparation.addCallback(new FutureCallback<List<Void>>()
         {
-            public void onSuccess(@Nullable Object result)
+            public void onSuccess(@Nullable List<Void> result)
             {
                 try
                 {
@@ -852,7 +850,7 @@ public class LocalSessions
                     executor.shutdown();
                 }
             }
-        }, MoreExecutors.directExecutor());
+        });
     }
 
     public void maybeSetRepairing(UUID sessionID)

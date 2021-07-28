@@ -25,7 +25,10 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -35,7 +38,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
-import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -493,11 +496,11 @@ public class FBUtilities
         }
         catch (InterruptedException ie)
         {
-            throw new AssertionError(ie);
+            throw new UncheckedInterruptedException(ie);
         }
     }
 
-    public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
+    public static <T, F extends Future<? extends T>> F waitOnFirstFuture(Iterable<? extends F> futures)
     {
         return waitOnFirstFuture(futures, 100);
     }
@@ -506,105 +509,49 @@ public class FBUtilities
      * @param futures The futures to wait on
      * @return future that completed.
      */
-    public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures, long delay)
+    public static <T, F extends Future<? extends T>> F waitOnFirstFuture(Iterable<? extends F> futures, long delay)
     {
         while (true)
         {
-            for (Future<? extends T> f : futures)
+            Iterator<? extends F> iter = futures.iterator();
+            if (!iter.hasNext())
+                throw new IllegalArgumentException();
+
+            while (true)
             {
-                if (f.isDone())
+                F f = iter.next();
+                boolean isDone;
+                if ((isDone = f.isDone()) || !iter.hasNext())
                 {
                     try
                     {
-                        f.get();
+                        f.get(delay, TimeUnit.MILLISECONDS);
                     }
                     catch (InterruptedException e)
                     {
-                        throw new AssertionError(e);
+                        throw new UncheckedInterruptedException(e);
                     }
                     catch (ExecutionException e)
                     {
                         throw new RuntimeException(e);
                     }
+                    catch (TimeoutException e)
+                    {
+                        if (!isDone) // prevent infinite loops on bad implementations (not encountered)
+                            break;
+                    }
                     return f;
                 }
             }
-            Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
         }
     }
 
     /**
      * Returns a new {@link Future} wrapping the given list of futures and returning a list of their results.
      */
-    public static Future<List> allOf(Collection<Future> futures)
+    public static <T> org.apache.cassandra.utils.concurrent.Future<List<T>> allOf(Collection<? extends org.apache.cassandra.utils.concurrent.Future<? extends T>> futures)
     {
-        if (futures.isEmpty())
-            return CompletableFuture.completedFuture(null);
-
-        return new Future<List>()
-        {
-            @Override
-            @SuppressWarnings("unchecked")
-            public List get() throws InterruptedException, ExecutionException
-            {
-                List result = new ArrayList<>(futures.size());
-                for (Future current : futures)
-                {
-                    result.add(current.get());
-                }
-                return result;
-            }
-
-            @Override
-            @SuppressWarnings("unchecked")
-            public List get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
-            {
-                List result = new ArrayList<>(futures.size());
-                long deadline = nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, unit);
-                for (Future current : futures)
-                {
-                    long remaining = deadline - nanoTime();
-                    if (remaining <= 0)
-                        throw new TimeoutException();
-
-                    result.add(current.get(remaining, TimeUnit.NANOSECONDS));
-                }
-                return result;
-            }
-
-            @Override
-            public boolean cancel(boolean mayInterruptIfRunning)
-            {
-                for (Future current : futures)
-                {
-                    if (!current.cancel(mayInterruptIfRunning))
-                        return false;
-                }
-                return true;
-            }
-
-            @Override
-            public boolean isCancelled()
-            {
-                for (Future current : futures)
-                {
-                    if (!current.isCancelled())
-                        return false;
-                }
-                return true;
-            }
-
-            @Override
-            public boolean isDone()
-            {
-                for (Future current : futures)
-                {
-                    if (!current.isDone())
-                        return false;
-                }
-                return true;
-            }
-        };
+        return FutureCombiner.allOf(futures);
     }
 
     /**

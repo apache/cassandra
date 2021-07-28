@@ -19,7 +19,9 @@ package org.apache.cassandra.index;
 
 import java.lang.reflect.Constructor;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -28,26 +30,15 @@ import java.util.stream.Stream;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.SettableFuture;
-
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -58,7 +49,8 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index.IndexBuildingSupport;
@@ -76,13 +68,11 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.concurrent.Refs;
+import org.apache.cassandra.utils.concurrent.*;
 
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.concurrent.Stage.KEEP_ALIVE_SECONDS;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
 import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
-import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * Handles the core maintenance functionality associated with indexes: adding/removing them to or from
@@ -162,16 +152,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     private final Map<String, AtomicInteger> inProgressBuilds = Maps.newConcurrentMap();
 
     // executes tasks returned by Indexer#addIndexColumn which may require index(es) to be (re)built
-    private static final ListeningExecutorService asyncExecutor = MoreExecutors.listeningDecorator(
-    new JMXEnabledThreadPoolExecutor(1,
-                                     KEEP_ALIVE_SECONDS,
-                                     SECONDS,
-                                     newBlockingQueue(),
-                                     new NamedThreadFactory("SecondaryIndexManagement"),
-                                     "internal"));
+    private static final ExecutorPlus asyncExecutor = executorFactory()
+            .withJmxInternal()
+            .sequential("SecondaryIndexManagement");
 
     // executes all blocking tasks produced by Indexers e.g. getFlushTask, getMetadataReloadTask etc
-    private static final ListeningExecutorService blockingExecutor = MoreExecutors.newDirectExecutorService();
+    private static final ExecutorPlus blockingExecutor = ImmediateExecutor.INSTANCE;
 
     /**
      * The underlying column family containing the source data for these indexes
@@ -209,12 +195,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         Index index = indexes.get(indexDef.name);
         Callable<?> reloadTask = index.getMetadataReloadTask(indexDef);
         return reloadTask == null
-               ? Futures.immediateFuture(null)
+               ? ImmediateFuture.success(null)
                : blockingExecutor.submit(reloadTask);
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized Future<?> createIndex(IndexMetadata indexDef, boolean isNewCF)
+    private synchronized Future<Void> createIndex(IndexMetadata indexDef, boolean isNewCF)
     {
         final Index index = createInstance(indexDef);
         index.register(this);
@@ -242,27 +228,21 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (initialBuildTask == null)
         {
             markIndexBuilt(index, true);
-            return Futures.immediateFuture(null);
+            return ImmediateFuture.success(null);
         }
 
         // otherwise run the initialization task asynchronously with a callback to mark it built or failed
-        final SettableFuture initialization = SettableFuture.create();
-        Futures.addCallback(asyncExecutor.submit(initialBuildTask), new FutureCallback()
-        {
-            @Override
-            public void onFailure(Throwable t)
-            {
-                logAndMarkIndexesFailed(Collections.singleton(index), t, true);
-                initialization.setException(t);
-            }
-
-            @Override
-            public void onSuccess(Object o)
-            {
-                markIndexBuilt(index, true);
-                initialization.set(o);
-            }
-        }, MoreExecutors.directExecutor());
+        final Promise<Void> initialization = new AsyncPromise<>();
+        asyncExecutor.submit(initialBuildTask)
+                     .addCallback(
+                         success -> {
+                             markIndexBuilt(index, true);
+                             initialization.trySuccess(null);
+                         },
+                         failure -> {
+                             logAndMarkIndexesFailed(Collections.singleton(index), failure, true);
+                             initialization.tryFailure(failure);
+                         });
 
         return initialization;
     }
@@ -520,15 +500,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             byType.forEach((buildingSupport, groupedIndexes) ->
                            {
                                SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables);
-                               final SettableFuture build = SettableFuture.create();
-                               Futures.addCallback(CompactionManager.instance.submitIndexBuild(builder), new FutureCallback()
+                               final AsyncPromise<Object> build = new AsyncPromise<>();
+                               CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback()
                                {
                                    @Override
                                    public void onFailure(Throwable t)
                                    {
                                        logAndMarkIndexesFailed(groupedIndexes, t, false);
                                        unbuiltIndexes.addAll(groupedIndexes);
-                                       build.setException(t);
+                                       build.tryFailure(t);
                                    }
 
                                    @Override
@@ -537,9 +517,9 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                        groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
                                        logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
                                        builtIndexes.addAll(groupedIndexes);
-                                       build.set(o);
+                                       build.trySuccess(o);
                                    }
-                               }, MoreExecutors.directExecutor());
+                               });
                                futures.add(build);
                            });
 
@@ -1526,17 +1506,17 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         }
     }
 
-    private void executeBlocking(Callable<?> task, FutureCallback<Object> callback)
+    private void executeBlocking(Callable<?> task, FutureCallback callback)
     {
         if (null != task)
         {
-            ListenableFuture<?> f = blockingExecutor.submit(task);
-            if (callback != null) Futures.addCallback(f, callback, MoreExecutors.directExecutor());
+            Future<?> f = blockingExecutor.submit(task);
+            if (callback != null) f.addCallback(callback);
             FBUtilities.waitOnFuture(f);
         }
     }
 
-    private void executeAllBlocking(Stream<Index> indexers, Function<Index, Callable<?>> function, FutureCallback<Object> callback)
+    private void executeAllBlocking(Stream<Index> indexers, Function<Index, Callable<?>> function, FutureCallback callback)
     {
         if (function == null)
         {
@@ -1550,8 +1530,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                              Callable<?> task = function.apply(indexer);
                              if (null != task)
                              {
-                                 ListenableFuture<?> f = blockingExecutor.submit(task);
-                                 if (callback != null) Futures.addCallback(f, callback, MoreExecutors.directExecutor());
+                                 Future<?> f = blockingExecutor.submit(task);
+                                 if (callback != null) f.addCallback(callback);
                                  waitFor.add(f);
                              }
                          });

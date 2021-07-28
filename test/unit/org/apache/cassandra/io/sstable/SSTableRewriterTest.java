@@ -834,7 +834,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 }
             }
         };
-        Thread t = NamedThreadFactory.createThread(r);
+        Thread t = NamedThreadFactory.createAnonymousThread(r);
         try
         {
             t.start();

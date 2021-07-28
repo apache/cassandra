@@ -18,26 +18,21 @@
 
 package org.apache.cassandra.concurrent;
 
-import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.tracing.Tracing;
+import org.junit.Test;
 
-public interface ExecutorLocal<T>
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
+public class ExecutorPlusTest extends AbstractExecutorPlusTest
 {
-    ExecutorLocal[] all = { Tracing.instance, ClientWarn.instance };
+    @Test
+    public void testPooled() throws Throwable
+    {
+        testPooled(() -> executorFactory().configurePooled("test", 1));
+    }
 
-    /**
-     * This is called when scheduling the task, and also before calling {@link #set(Object)} when running on a
-     * executor thread.
-     *
-     * @return The thread-local value that we want to copy across executor boundaries; may be null if not set.
-     */
-    T get();
-
-    /**
-     * Before a task has been run, this will be called with the value from the thread that scheduled the task, and after
-     * the task is finished, the value that was previously retrieved from this thread is restored.
-     *
-     * @param value Value to use for the executor local state; may be null.
-     */
-    void set(T value);
+    @Test
+    public void testSequential() throws Throwable
+    {
+        testSequential(() -> executorFactory().configureSequential("test"));
+    }
 }

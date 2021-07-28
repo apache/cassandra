@@ -21,10 +21,9 @@ import io.netty.util.concurrent.Future;
 
 /**
  * An abstraction for yielding a result performed by an asynchronous task,
- * for whom we may wish to offer cancellation,
- * but no other access to the underlying task
+ * for whom we may wish to offer cancellation, but no other access to the underlying task
  */
-class FutureResult<V> extends FutureDelegate<V>
+public class FutureResult<V> extends FutureDelegate<V>
 {
     private final Future<?> tryCancel;
 
@@ -32,7 +31,7 @@ class FutureResult<V> extends FutureDelegate<V>
      * @param result the Future that will be completed by {@link #cancel}
      * @param cancel the Future that is performing the work, and to whom any cancellation attempts will be proxied
      */
-    FutureResult(Future<V> result, Future<?> cancel)
+    public FutureResult(Future<V> result, Future<?> cancel)
     {
         super(result);
         this.tryCancel = cancel;

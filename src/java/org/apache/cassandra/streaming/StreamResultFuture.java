@@ -21,8 +21,6 @@ import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -145,7 +143,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
 
     public void addEventListener(StreamEventHandler listener)
     {
-        Futures.addCallback(this, listener, MoreExecutors.directExecutor());
+        addCallback(listener);
         eventListeners.add(listener);
     }
 

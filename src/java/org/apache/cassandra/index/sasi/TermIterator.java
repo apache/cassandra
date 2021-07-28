@@ -24,7 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
@@ -39,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode.CONTAINS;
 import static org.apache.cassandra.index.sasi.plan.Expression.Op.PREFIX;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
@@ -57,16 +59,8 @@ public class TermIterator extends RangeIterator<Long, Token>
             logger.info("Search Concurrency Factor is set to {} for {}", concurrencyFactor, currentThread);
 
             return (concurrencyFactor <= 1)
-                    ? MoreExecutors.newDirectExecutorService()
-                    : Executors.newFixedThreadPool(concurrencyFactor, new ThreadFactory()
-            {
-                public final AtomicInteger count = new AtomicInteger();
-
-                public Thread newThread(Runnable task)
-                {
-                    return NamedThreadFactory.createThread(task, currentThread + "-SEARCH-" + count.incrementAndGet(), true);
-                }
-            });
+                    ? ImmediateExecutor.INSTANCE
+                    : executorFactory().pooled(currentThread + "-SEARCH-", concurrencyFactor);
         }
     };
 

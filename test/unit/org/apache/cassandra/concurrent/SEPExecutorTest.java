@@ -87,7 +87,7 @@ public class SEPExecutorTest
         final AtomicInteger notifiedMaxPoolSize = new AtomicInteger();
 
         SharedExecutorPool sharedPool;
-        LocalAwareExecutorService executor;
+        LocalAwareExecutorPlus executor;
 
         Thread makeBusy;
         AtomicBoolean stayBusy;
@@ -132,7 +132,7 @@ public class SEPExecutorTest
             sharedPool.shutdownAndWait(1L, MINUTES);
         }
 
-        public LocalAwareExecutorService getExecutor()
+        public LocalAwareExecutorPlus getExecutor()
         {
             return executor;
         }
@@ -147,7 +147,7 @@ public class SEPExecutorTest
     public void changingMaxWorkersMeetsConcurrencyGoalsTest() throws InterruptedException, TimeoutException
     {
         BusyExecutor busyExecutor = new BusyExecutor("ChangingMaxWorkersMeetsConcurrencyGoalsTest", "resizetest");
-        LocalAwareExecutorService executor = busyExecutor.getExecutor();
+        LocalAwareExecutorPlus executor = busyExecutor.getExecutor();
 
         busyExecutor.start();
         try
@@ -179,12 +179,11 @@ public class SEPExecutorTest
         }
     }
 
-
     @Test
     public void stoppedWorkersProcessTasksWhenConcurrencyIncreases() throws InterruptedException
     {
         BusyExecutor busyExecutor = new BusyExecutor("StoppedWorkersProcessTasksWhenConcurrencyIncreases", "stoptest");
-        LocalAwareExecutorService executor = busyExecutor.getExecutor();
+        LocalAwareExecutorPlus executor = busyExecutor.getExecutor();
         busyExecutor.start();
         try
         {
@@ -249,7 +248,7 @@ public class SEPExecutorTest
         }
     }
 
-    void assertMaxTaskConcurrency(LocalAwareExecutorService executor, int concurrency) throws InterruptedException
+    void assertMaxTaskConcurrency(LocalAwareExecutorPlus executor, int concurrency) throws InterruptedException
     {
         executor.setMaximumPoolSize(concurrency);
 

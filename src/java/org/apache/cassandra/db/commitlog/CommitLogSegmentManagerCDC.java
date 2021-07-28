@@ -39,6 +39,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
 public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 {
     static final Logger logger = LoggerFactory.getLogger(CommitLogSegmentManagerCDC.class);
@@ -208,7 +210,11 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         public void start()
         {
             size = 0;
-            cdcSizeCalculationExecutor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.SECONDS, new SynchronousQueue<>(), new ThreadPoolExecutor.DiscardPolicy());
+            cdcSizeCalculationExecutor = executorFactory().configureSequential("CDCSizeCalculationExecutor")
+                                                          .withRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy())
+                                                          .withQueueLimit(0)
+                                                          .withKeepAlive(1000, TimeUnit.SECONDS)
+                                                          .build();
         }
 
         /**

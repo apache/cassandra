@@ -32,8 +32,6 @@ import java.util.function.Consumer;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -68,6 +66,9 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 import static org.psjava.util.AssertStatus.assertTrue;
@@ -138,16 +139,16 @@ public class LocalSessionTest extends AbstractRepairTest
             sentMessages.get(destination).add(message.payload);
         }
 
-        SettableFuture<Object> prepareSessionFuture = null;
+        AsyncPromise<List<Void>> prepareSessionFuture = null;
         boolean prepareSessionCalled = false;
 
         @Override
-        ListenableFuture prepareSession(KeyspaceRepairManager repairManager,
-                                        UUID sessionID,
-                                        Collection<ColumnFamilyStore> tables,
-                                        RangesAtEndpoint ranges,
-                                        ExecutorService executor,
-                                        BooleanSupplier isCancelled)
+        Future<List<Void>> prepareSession(KeyspaceRepairManager repairManager,
+                                          UUID sessionID,
+                                          Collection<ColumnFamilyStore> tables,
+                                          RangesAtEndpoint ranges,
+                                          ExecutorService executor,
+                                          BooleanSupplier isCancelled)
         {
             prepareSessionCalled = true;
             if (prepareSessionFuture != null)
@@ -169,9 +170,9 @@ public class LocalSessionTest extends AbstractRepairTest
 
         public LocalSession prepareForTest(UUID sessionID)
         {
-            prepareSessionFuture = SettableFuture.create();
+            prepareSessionFuture = new AsyncPromise<>();
             handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
-            prepareSessionFuture.set(new Object());
+            prepareSessionFuture.trySuccess(null);
             sentMessages.clear();
             return getSession(sessionID);
         }
@@ -271,7 +272,7 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
 
         // replacing future so we can inspect state before and after anti compaction callback
-        sessions.prepareSessionFuture = SettableFuture.create();
+        sessions.prepareSessionFuture = new AsyncPromise<>();
         Assert.assertFalse(sessions.prepareSessionCalled);
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
         Assert.assertTrue(sessions.prepareSessionCalled);
@@ -284,7 +285,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // anti compaction has now finished, so state in memory and on disk should be PREPARED
-        sessions.prepareSessionFuture.set(new Object());
+        sessions.prepareSessionFuture.trySuccess(null);
         session = sessions.getSession(sessionID);
         Assert.assertNotNull(session);
         Assert.assertEquals(PREPARED, session.getState());
@@ -306,7 +307,7 @@ public class LocalSessionTest extends AbstractRepairTest
         sessions.start();
 
         // replacing future so we can inspect state before and after anti compaction callback
-        sessions.prepareSessionFuture = SettableFuture.create();
+        sessions.prepareSessionFuture = new AsyncPromise<>();
         Assert.assertFalse(sessions.prepareSessionCalled);
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
         Assert.assertTrue(sessions.prepareSessionCalled);
@@ -319,7 +320,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertEquals(session, sessions.loadUnsafe(sessionID));
 
         // anti compaction has now finished, so state in memory and on disk should be PREPARED
-        sessions.prepareSessionFuture.setException(new RuntimeException());
+        sessions.prepareSessionFuture.tryFailure(new RuntimeException());
         session = sessions.getSession(sessionID);
         Assert.assertNotNull(session);
         Assert.assertEquals(FAILED, session.getState());
@@ -353,10 +354,10 @@ public class LocalSessionTest extends AbstractRepairTest
     {
         UUID sessionID = registerSession();
         AtomicReference<BooleanSupplier> isCancelledRef = new AtomicReference<>();
-        SettableFuture future = SettableFuture.create();
+        Promise<List<Void>> future = new AsyncPromise<>();
 
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions() {
-            ListenableFuture prepareSession(KeyspaceRepairManager repairManager, UUID sessionID, Collection<ColumnFamilyStore> tables, RangesAtEndpoint ranges, ExecutorService executor, BooleanSupplier isCancelled)
+            Future<List<Void>> prepareSession(KeyspaceRepairManager repairManager, UUID sessionID, Collection<ColumnFamilyStore> tables, RangesAtEndpoint ranges, ExecutorService executor, BooleanSupplier isCancelled)
             {
                 isCancelledRef.set(isCancelled);
                 return future;
@@ -375,7 +376,7 @@ public class LocalSessionTest extends AbstractRepairTest
         Assert.assertTrue(isCancelled.getAsBoolean());
 
         // now that the session has failed, it send a negative response to the coordinator (even if the anti-compaction completed successfully)
-        future.set(new Object());
+        future.trySuccess(null);
         assertMessagesSent(sessions, COORDINATOR, new PrepareConsistentResponse(sessionID, PARTICIPANT1, false));
     }
 
@@ -708,7 +709,7 @@ public class LocalSessionTest extends AbstractRepairTest
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
-        sessions.prepareSessionFuture = SettableFuture.create();  // prevent moving to prepared
+        sessions.prepareSessionFuture = new AsyncPromise<>();  // prevent moving to prepared
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
 
         LocalSession session = sessions.getSession(sessionID);
@@ -735,9 +736,9 @@ public class LocalSessionTest extends AbstractRepairTest
         UUID sessionID = registerSession();
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
-        sessions.prepareSessionFuture = SettableFuture.create();
+        sessions.prepareSessionFuture = new AsyncPromise<>();
         sessions.handlePrepareMessage(PARTICIPANT1, new PrepareConsistentRequest(sessionID, COORDINATOR, PARTICIPANTS));
-        sessions.prepareSessionFuture.set(new Object());
+        sessions.prepareSessionFuture.trySuccess(null);
 
         Assert.assertTrue(sessions.isSessionInProgress(sessionID));
         sessions.failSession(sessionID);

@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.auth;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
@@ -29,22 +32,33 @@ import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.Shutdownable;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
-public class AuthCache<K, V> implements AuthCacheMBean
+public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AuthCache.class);
 
     public static final String MBEAN_NAME_BASE = "org.apache.cassandra.auth:type=";
 
+    // Keep a handle on created instances so their executors can be terminated cleanly
+    private static final Set<Shutdownable> REGISTRY = new HashSet<>(4);
+
+    public static void shutdownAllAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, REGISTRY);
+    }
+
     /**
      * Underlying cache. LoadingCache will call underlying load function on {@link #get} if key is not present
      */
     protected volatile LoadingCache<K, V> cache;
-    private DebuggableThreadPoolExecutor cacheRefreshExecutor;
+    private ExecutorPlus cacheRefreshExecutor;
 
     private String name;
     private IntConsumer setValidityDelegate;
@@ -94,9 +108,10 @@ public class AuthCache<K, V> implements AuthCacheMBean
      */
     protected void init()
     {
-        this.cacheRefreshExecutor = new DebuggableThreadPoolExecutor(name + "Refresh", Thread.NORM_PRIORITY);
+        this.cacheRefreshExecutor = executorFactory().sequential(name + "Refresh");
         cache = initCache(null);
         MBeanWrapper.instance.registerMBean(this, getObjectName());
+        REGISTRY.add(this);
     }
 
     protected void unregisterMBean()
@@ -232,5 +247,29 @@ public class AuthCache<K, V> implements AuthCacheMBean
         cache.policy().eviction().ifPresent(policy ->
             policy.setMaximum(getMaxEntries()));
         return cache;
+    }
+
+    @Override
+    public boolean isTerminated()
+    {
+        return cacheRefreshExecutor.isTerminated();
+    }
+
+    @Override
+    public void shutdown()
+    {
+        cacheRefreshExecutor.shutdown();
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        return cacheRefreshExecutor.shutdownNow();
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        return cacheRefreshExecutor.awaitTermination(timeout, units);
     }
 }

@@ -191,7 +191,6 @@ public interface Awaitable
 
     abstract class AbstractAwaitable implements Awaitable
     {
-        // WARNING: if you extend this class, be sure to consider interaction with WaitManager to ensure Simulator compatibility
         protected AbstractAwaitable() {}
 
         /**
@@ -321,7 +320,6 @@ public interface Awaitable
         private static final AtomicReferenceFieldUpdater<AsyncAwaitable, WaitQueue> waitingUpdater = AtomicReferenceFieldUpdater.newUpdater(AsyncAwaitable.class, WaitQueue.class, "waiting");
         private volatile WaitQueue waiting;
 
-        // WARNING: if you extend this class, be sure to consider interaction with WaitManager to ensure Simulator compatibility
         protected AsyncAwaitable() {}
 
         /**

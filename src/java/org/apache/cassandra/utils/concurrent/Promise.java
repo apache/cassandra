@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.utils.concurrent;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 
 import com.google.common.util.concurrent.FutureCallback;
 
@@ -45,6 +47,13 @@ public interface Promise<V> extends io.netty.util.concurrent.Promise<V>, Future<
             else callback.onFailure(future.cause());
         });
     }
+
+    @Override
+    Promise<V> addCallback(FutureCallback<? super V> callback);
+
+    Promise<V> addCallback(FutureCallback<? super V> callback, Executor executor);
+
+    Promise<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure);
 
     @Override
     Promise<V> addListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> var1);
@@ -92,7 +101,7 @@ public interface Promise<V> extends io.netty.util.concurrent.Promise<V>, Future<
     Promise<V> awaitUninterruptibly();
 
     /**
-     * Wait indefinitely for this promise to complete, throwing any interrupt as an UnhandledInterruptedException
+     * Wait indefinitely for this promise to complete, throwing any interrupt as an UncheckedInterruptedException
      * @throws UncheckedInterruptedException if interrupted
      */
     @Override
@@ -112,3 +121,4 @@ public interface Promise<V> extends io.netty.util.concurrent.Promise<V>, Future<
     @Override
     Promise<V> syncUninterruptibly();
 }
+

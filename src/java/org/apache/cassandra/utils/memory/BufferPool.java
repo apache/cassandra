@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 import com.google.common.annotations.VisibleForTesting;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static com.google.common.collect.ImmutableList.of;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.utils.ExecutorUtils.*;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
 import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
@@ -162,7 +163,7 @@ public class BufferPool
     private final Set<LocalPoolRef> localPoolReferences = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private final ReferenceQueue<Object> localPoolRefQueue = new ReferenceQueue<>();
-    private final InfiniteLoopExecutor localPoolCleaner;
+    private final Shutdownable localPoolCleaner;
 
     public BufferPool(String name, long memoryUsageThreshold, boolean recyclePartially)
     {
@@ -172,7 +173,7 @@ public class BufferPool
         this.globalPool = new GlobalPool();
         this.metrics = new BufferPoolMetrics(name, this);
         this.recyclePartially = recyclePartially;
-        this.localPoolCleaner = new InfiniteLoopExecutor("LocalPool-Cleaner-" + name, this::cleanupOneReference).start();
+        this.localPoolCleaner = executorFactory().infiniteLoop("LocalPool-Cleaner-" + name, this::cleanupOneReference, false);
     }
 
     /**

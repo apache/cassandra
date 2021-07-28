@@ -24,8 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -43,40 +42,33 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.Futures;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
-import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 public class PerSSTableIndexWriter implements SSTableFlushObserver
 {
     private static final Logger logger = LoggerFactory.getLogger(PerSSTableIndexWriter.class);
 
     private static final int POOL_SIZE = 8;
-    private static final ThreadPoolExecutor INDEX_FLUSHER_MEMTABLE;
-    private static final ThreadPoolExecutor INDEX_FLUSHER_GENERAL;
+    private static final ExecutorPlus INDEX_FLUSHER_MEMTABLE;
+    private static final ExecutorPlus INDEX_FLUSHER_GENERAL;
 
     static
     {
-        INDEX_FLUSHER_GENERAL = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, MINUTES,
-                                                                 newBlockingQueue(),
-                                                                 new NamedThreadFactory("SASI-General"),
-                                                                 "internal");
-        INDEX_FLUSHER_GENERAL.allowCoreThreadTimeOut(true);
+        INDEX_FLUSHER_GENERAL = executorFactory().withJmxInternal()
+                                                 .pooled("SASI-General", POOL_SIZE);
 
-        INDEX_FLUSHER_MEMTABLE = new JMXEnabledThreadPoolExecutor(POOL_SIZE, POOL_SIZE, 1, MINUTES,
-                                                                  newBlockingQueue(),
-                                                                  new NamedThreadFactory("SASI-Memtable"),
-                                                                  "internal");
-        INDEX_FLUSHER_MEMTABLE.allowCoreThreadTimeOut(true);
+        INDEX_FLUSHER_MEMTABLE = executorFactory().withJmxInternal()
+                                                  .pooled("SASI-Memtable", POOL_SIZE);
     }
 
     private final int nowInSec = FBUtilities.nowInSeconds();
@@ -298,7 +290,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     {
                         @SuppressWarnings("resource")
                         OnDiskIndex last = scheduleSegmentFlush(false).call();
-                        segments.add(Futures.immediateFuture(last));
+                        segments.add(ImmediateFuture.success(last));
                     }
 
                     int index = 0;

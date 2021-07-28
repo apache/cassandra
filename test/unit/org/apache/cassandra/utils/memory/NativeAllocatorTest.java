@@ -26,6 +26,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class NativeAllocatorTest
@@ -65,7 +66,7 @@ public class NativeAllocatorTest
                 allocatorRef.get().offHeap().released(80);
                 isClean.countDown();
             }
-            return CompletableFuture.completedFuture(true);
+            return ImmediateFuture.success(true);
         });
         allocator = new NativeAllocator(pool);
         allocatorRef.set(allocator);

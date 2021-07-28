@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.utils.memory;
 
-import java.util.concurrent.CompletableFuture;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * The cleaner is used by {@link MemtableCleanerThread} in order to reclaim space from memtables, normally
@@ -36,5 +36,5 @@ public interface MemtableCleaner
      * The future will complete with an error if the cleaning operation encounters an error.
      *
      */
-    CompletableFuture<Boolean> clean();
+    Future<Boolean> clean();
 }

@@ -20,14 +20,13 @@ package org.apache.cassandra.service;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.concurrent.ExecutorLocal;
+import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class ClientWarn implements ExecutorLocal<ClientWarn.State>
+@SuppressWarnings("resource")
+public class ClientWarn extends ExecutorLocals.Impl
 {
     private static final String TRUNCATED = " [truncated]";
-    private static final FastThreadLocal<State> warnLocal = new FastThreadLocal<>();
     public static ClientWarn instance = new ClientWarn();
 
     private ClientWarn()
@@ -36,29 +35,30 @@ public class ClientWarn implements ExecutorLocal<ClientWarn.State>
 
     public State get()
     {
-        return warnLocal.get();
+        return ExecutorLocals.current().clientWarnState;
     }
 
     public void set(State value)
     {
-        warnLocal.set(value);
+        ExecutorLocals current = ExecutorLocals.current();
+        ExecutorLocals.Impl.set(current.traceState, value);
     }
 
     public void warn(String text)
     {
-        State state = warnLocal.get();
+        State state = get();
         if (state != null)
             state.add(text);
     }
 
     public void captureWarnings()
     {
-        warnLocal.set(new State());
+        set(new State());
     }
 
     public List<String> getWarnings()
     {
-        State state = warnLocal.get();
+        State state = get();
         if (state == null || state.warnings.isEmpty())
             return null;
         return state.warnings;
@@ -71,7 +71,7 @@ public class ClientWarn implements ExecutorLocal<ClientWarn.State>
 
     public void resetWarnings()
     {
-        warnLocal.remove();
+        set(null);
     }
 
     public static class State
@@ -90,6 +90,5 @@ public class ClientWarn implements ExecutorLocal<ClientWarn.State>
                    ? warning.substring(0, FBUtilities.MAX_UNSIGNED_SHORT - TRUNCATED.length()) + TRUNCATED
                    : warning;
         }
-
     }
 }

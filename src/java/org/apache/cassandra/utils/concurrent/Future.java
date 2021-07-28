@@ -19,8 +19,15 @@
 package org.apache.cassandra.utils.concurrent;
 
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
+import com.google.common.util.concurrent.AsyncFunction;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+
+import io.netty.util.concurrent.GenericFutureListener;
 
 import io.netty.util.internal.PlatformDependent;
 
@@ -46,7 +53,7 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     Future<V> awaitUninterruptibly();
 
     /**
-     * Wait indefinitely for this promise to complete, throwing any interrupt as an UnhandledInterruptedException
+     * Wait indefinitely for this promise to complete, throwing any interrupt as an UncheckedInterruptedException
      * @throws UncheckedInterruptedException if interrupted
      */
     @Override
@@ -100,22 +107,55 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     }
 
     /**
+     * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
+     */
+    Future<V> addCallback(BiConsumer<? super V, Throwable> callback);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
+     */
+    Future<V> addCallback(FutureCallback<? super V> callback);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
+     */
+    Future<V> addCallback(FutureCallback<? super V> callback, Executor executor);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#addCallback} natively
+     */
+    Future<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, Executor executor);
+
+    /**
      * Invoke {@code runnable} on completion, using {@code executor}.
+     *
      * Tasks are submitted to their executors in the order they were added to this Future.
      */
     @Override
-    default void addListener(Runnable runnable, Executor executor)
-    {
-        addListener(future -> executor.execute(runnable));
-    }
+    void addListener(Runnable runnable, Executor executor);
 
     /**
      * Invoke {@code runnable} on completion. Depending on the implementation and its configuration, this
      * may be executed immediately by the notifying/completing thread, or asynchronously by an executor.
      * Tasks are executed, or submitted to the executor, in the order they were added to this Future.
      */
-    default void addListener(Runnable runnable)
-    {
-        addListener(future -> runnable.run());
-    }
+    void addListener(Runnable runnable);
+
+    Executor notifyExecutor();
+
+    @Override Future<V> addListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> genericFutureListener);
+    @Override Future<V> addListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... genericFutureListeners);
+    @Override Future<V> removeListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> genericFutureListener);
+    @Override Future<V> removeListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... genericFutureListeners);
 }
+

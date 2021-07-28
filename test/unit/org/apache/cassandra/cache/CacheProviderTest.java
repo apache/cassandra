@@ -133,7 +133,7 @@ public class CacheProviderTest
         List<Thread> threads = new ArrayList<>(100);
         for (int i = 0; i < 100; i++)
         {
-            Thread thread = NamedThreadFactory.createThread(runnable);
+            Thread thread = NamedThreadFactory.createAnonymousThread(runnable);
             threads.add(thread);
             thread.start();
         }

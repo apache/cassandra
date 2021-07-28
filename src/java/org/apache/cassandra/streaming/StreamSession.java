@@ -20,15 +20,19 @@ package org.apache.cassandra.streaming;
 import java.io.EOFException;
 import java.net.SocketTimeoutException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 
+import io.netty.util.concurrent.Future;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -171,7 +175,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     // threads(serialization/deserialization) and stream messaging processing thread, causing connection closed before
     // receiving peer's CompleteMessage.
     private boolean maybeCompleted = false;
-    private Future closeFuture;
+    private Future<?> closeFuture;
 
     private final UUID pendingRepair;
     private final PreviewKind previewKind;
@@ -488,7 +492,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         state(finalState);
 
-        List<Future> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>();
 
         // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
         // as we don't want any blocking disk IO to stop the network thread
@@ -505,7 +509,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
         sink.onClose(peer);
         streamResult.handleSessionComplete(this);
-        closeFuture = FBUtilities.allOf(futures);
+        closeFuture = FutureCombiner.allOf(futures);
 
         return closeFuture;
     }

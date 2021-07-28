@@ -56,17 +56,12 @@ public abstract class OfflineToolUtils
 
     private static List<ThreadInfo> initialThreads;
 
-    static final String[] EXPECTED_THREADS_WITH_SCHEMA = {
-    "PerDiskMemtableFlushWriter_0:[1-9]",
-    "MemtablePostFlush:[1-9]",
-    "MemtableFlushWriter:[1-9]",
-    "MemtableReclaimMemory:[1-9]",
-    };
     static final String[] OPTIONAL_THREADS_WITH_SCHEMA = {
     "ScheduledTasks:[1-9]",
+    "ScheduledFastTasks:[1-9]",
     "OptionalTasks:[1-9]",
-    "Reference-Reaper:[1-9]",
-    "LocalPool-Cleaner(-networking|-chunk-cache)?:[1-9]",
+    "Reference-Reaper",
+    "LocalPool-Cleaner(-networking|-chunk-cache)",
     "CacheCleanupExecutor:[1-9]",
     "CompactionExecutor:[1-9]",
     "ValidationExecutor:[1-9]",
@@ -77,11 +72,11 @@ public abstract class OfflineToolUtils
     "Background_Reporter:[1-9]",
     "EXPIRING-MAP-REAPER:[1-9]",
     "ObjectCleanerThread",
-    "process reaper"   // spawned by the jvm when executing external processes
+    "process reaper",  // spawned by the jvm when executing external processes
                        // and may still be active when we check
     };
 
-    public void assertNoUnexpectedThreadsStarted(String[] expectedThreadNames, String[] optionalThreadNames)
+    public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames)
     {
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
 
@@ -95,31 +90,20 @@ public abstract class OfflineToolUtils
                                     .map(ThreadInfo::getThreadName)
                                     .collect(Collectors.toSet());
 
-        List<Pattern> expected = expectedThreadNames != null
-                                 ? Arrays.stream(expectedThreadNames).map(Pattern::compile).collect(Collectors.toList())
-                                 : Collections.emptyList();
-
         List<Pattern> optional = optionalThreadNames != null
                                  ? Arrays.stream(optionalThreadNames).map(Pattern::compile).collect(Collectors.toList())
                                  : Collections.emptyList();
 
         current.removeAll(initial);
 
-        List<Pattern> notPresent = expected.stream()
-                                           .filter(threadNamePattern -> !current.stream().anyMatch(threadName -> threadNamePattern.matcher(threadName).matches()))
-                                           .collect(Collectors.toList());
-
         Set<String> remain = current.stream()
-                                    .filter(threadName -> expected.stream().anyMatch(pattern -> pattern.matcher(threadName).matches()))
-                                    .filter(threadName -> optional.stream().anyMatch(pattern -> pattern.matcher(threadName).matches()))
+                                    .filter(threadName -> optional.stream().noneMatch(pattern -> pattern.matcher(threadName).matches()))
                                     .collect(Collectors.toSet());
 
         if (!remain.isEmpty())
             System.err.println("Unexpected thread names: " + remain);
-        if (!notPresent.isEmpty())
-            System.err.println("Mandatory thread missing: " + notPresent);
 
-        assertTrue("Wrong thread status", remain.isEmpty() && notPresent.isEmpty());
+        assertTrue("Wrong thread status, active threads unaccounted for: " + remain, remain.isEmpty());
     }
 
     public void assertSchemaNotLoaded()
@@ -237,7 +221,7 @@ public abstract class OfflineToolUtils
     
     protected void assertCorrectEnvPostTest()
     {
-        assertNoUnexpectedThreadsStarted(EXPECTED_THREADS_WITH_SCHEMA, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();
     }

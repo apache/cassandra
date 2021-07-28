@@ -1100,7 +1100,7 @@ public class OutboundConnection
 
                 if (hasPending())
                 {
-                    Promise<Result<MessagingSuccess>> result = new AsyncPromise<>(eventLoop);
+                    Promise<Result<MessagingSuccess>> result = AsyncPromise.withExecutor(eventLoop);
                     state = new Connecting(state.disconnected(), result, eventLoop.schedule(() -> attempt(result), max(100, retryRateMillis), MILLISECONDS));
                     retryRateMillis = min(1000, retryRateMillis * 2);
                 }
@@ -1229,7 +1229,7 @@ public class OutboundConnection
 
             Future<Result<MessagingSuccess>> initiate()
             {
-                Promise<Result<MessagingSuccess>> result = new AsyncPromise<>(eventLoop);
+                Promise<Result<MessagingSuccess>> result = AsyncPromise.withExecutor(eventLoop);
                 state = new Connecting(state.disconnected(), result);
                 attempt(result);
                 return result;

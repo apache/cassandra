@@ -29,7 +29,7 @@ import io.netty.util.concurrent.GenericFutureListener;
  *
  * See {@link FutureCombiner} and {@link FutureResult}
  */
-class FutureDelegate<V> implements Future<V>
+public class FutureDelegate<V> implements Future<V>
 {
     final Future<V> delegate;
 
@@ -51,26 +51,6 @@ class FutureDelegate<V> implements Future<V>
     public Throwable cause()
     {
         return delegate.cause();
-    }
-
-    public Future<V> addListener(GenericFutureListener<? extends Future<? super V>> genericFutureListener)
-    {
-        return delegate.addListener(genericFutureListener);
-    }
-
-    public Future<V> addListeners(GenericFutureListener<? extends Future<? super V>>... genericFutureListeners)
-    {
-        return delegate.addListeners(genericFutureListeners);
-    }
-
-    public Future<V> removeListener(GenericFutureListener<? extends Future<? super V>> genericFutureListener)
-    {
-        return delegate.removeListener(genericFutureListener);
-    }
-
-    public Future<V> removeListeners(GenericFutureListener<? extends Future<? super V>>... genericFutureListeners)
-    {
-        return delegate.removeListeners(genericFutureListeners);
     }
 
     public Future<V> sync() throws InterruptedException
@@ -141,5 +121,29 @@ class FutureDelegate<V> implements Future<V>
     public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
     {
         return delegate.get(timeout, unit);
+    }
+
+    @Override
+    public io.netty.util.concurrent.Future<V> addListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> genericFutureListener)
+    {
+        return delegate.addListener(genericFutureListener);
+    }
+
+    @Override
+    public io.netty.util.concurrent.Future<V> addListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... genericFutureListeners)
+    {
+        return delegate.addListeners(genericFutureListeners);
+    }
+
+    @Override
+    public io.netty.util.concurrent.Future<V> removeListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> genericFutureListener)
+    {
+        return delegate.removeListener(genericFutureListener);
+    }
+
+    @Override
+    public io.netty.util.concurrent.Future<V> removeListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... genericFutureListeners)
+    {
+        return delegate.removeListeners(genericFutureListeners);
     }
 }

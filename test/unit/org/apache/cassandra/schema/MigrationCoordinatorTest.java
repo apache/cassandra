@@ -332,7 +332,7 @@ public class MigrationCoordinatorTest
 
         coordinator.shouldPullFromEndpoint = true;
         Assert.assertEquals(0, coordinator.requests.size());
-        List<Future<Void>> futures = coordinator.pullUnreceivedSchemaVersions();
+        List<? extends Future<Void>> futures = coordinator.pullUnreceivedSchemaVersions();
         futures.forEach(Futures::getUnchecked);
         Assert.assertEquals(1, coordinator.requests.size());
     }

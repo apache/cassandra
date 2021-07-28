@@ -94,7 +94,7 @@ final class ScriptBasedUDFunction extends UDFunction
     "org.apache.cassandra.cql3.functions.types.utils"
     };
 
-    // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal
+    // use a JVM standard ExecutorService as ExecutorPlus references internal
     // classes, which triggers AccessControlException from the UDF sandbox
     private static final UDFExecutorService executor =
         new UDFExecutorService(new NamedThreadFactory("UserDefinedScriptFunctions",

@@ -19,6 +19,7 @@ package org.apache.cassandra.concurrent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,6 +27,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.WithResources;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
@@ -37,9 +40,11 @@ import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.*
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
-public class SEPExecutor extends AbstractLocalAwareExecutorService implements SEPExecutorMBean
+public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPExecutor.class);
+    private static final TaskFactory taskFactory = TaskFactory.localAware();
+
     private final SharedExecutorPool pool;
 
     private final AtomicInteger maximumPoolSize;
@@ -60,7 +65,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     final Condition shutdown = newOneTimeCondition();
 
     // TODO: see if other queue implementations might improve throughput
-    protected final ConcurrentLinkedQueue<FutureTask<?>> tasks = new ConcurrentLinkedQueue<>();
+    protected final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
 
     SEPExecutor(SharedExecutorPool pool, int maximumPoolSize, MaximumPoolSizeListener maximumPoolSizeListener, String jmxPath, String name)
     {
@@ -96,7 +101,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
         return true;
     }
 
-    protected void addTask(FutureTask<?> task)
+    protected <T extends Runnable> T addTask(T task)
     {
         // we add to the queue first, so that when a worker takes a task permit it can be certain there is a task available
         // this permits us to schedule threads non-spuriously; it also means work is serviced fairly
@@ -121,6 +126,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
             // worker, we simply start a worker in a spinning state
             pool.maybeStartSpinningWorker();
         }
+        return task;
     }
 
     public enum TakeTaskPermitResult
@@ -128,7 +134,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
         NONE_AVAILABLE,        // No task permits available
         TOOK_PERMIT,           // Took a permit and reduced task permits
         RETURNED_WORK_PERMIT   // Detected pool shrinking and returned work permit ahead of SEPWorker exit.
-    };
+    }
 
     // takes permission to perform a task, if any are available; once taken it is guaranteed
     // that a proceeding call to tasks.poll() will return some work
@@ -194,18 +200,18 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     }
 
     @Override
-    public void maybeExecuteImmediately(Runnable command)
+    public void maybeExecuteImmediately(Runnable task)
     {
-        FutureTask<?> ft = newTaskFor(command, null);
+        task = taskFactory.toExecute(task);
         if (!takeWorkPermit(false))
         {
-            addTask(ft);
+            addTask(task);
         }
         else
         {
             try
             {
-                ft.run();
+                task.run();
             }
             finally
             {
@@ -216,6 +222,60 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
                 maybeSchedule();
             }
         }
+    }
+
+    @Override
+    public void execute(Runnable run)
+    {
+        addTask(taskFactory.toExecute(run));
+    }
+
+    @Override
+    public void execute(WithResources withResources, Runnable run)
+    {
+        addTask(taskFactory.toExecute(withResources, run));
+    }
+
+    @Override
+    public Future<?> submit(Runnable run)
+    {
+        return addTask(taskFactory.toSubmit(run));
+    }
+
+    @Override
+    public <T> Future<T> submit(Runnable run, T result)
+    {
+        return addTask(taskFactory.toSubmit(run, result));
+    }
+
+    @Override
+    public <T> Future<T> submit(Callable<T> call)
+    {
+        return addTask(taskFactory.toSubmit(call));
+    }
+
+    @Override
+    public <T> Future<T> submit(WithResources withResources, Runnable run, T result)
+    {
+        return addTask(taskFactory.toSubmit(withResources, run, result));
+    }
+
+    @Override
+    public Future<?> submit(WithResources withResources, Runnable run)
+    {
+        return addTask(taskFactory.toSubmit(withResources, run));
+    }
+
+    @Override
+    public <T> Future<T> submit(WithResources withResources, Callable<T> call)
+    {
+        return addTask(taskFactory.toSubmit(withResources, call));
+    }
+
+    @Override
+    public boolean inExecutor()
+    {
+        throw new UnsupportedOperationException();
     }
 
     public synchronized void shutdown()

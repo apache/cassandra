@@ -30,10 +30,10 @@ import java.util.concurrent.TimeoutException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 /**
  * Manages the fixed-size memory pool for index summaries, periodically resizing them
  * in order to give more memory to hot sstables and less memory to cold sstables.
@@ -64,7 +65,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     private int resizeIntervalInMinutes = 0;
     private long memoryPoolBytes;
 
-    private final DebuggableScheduledThreadPoolExecutor executor;
+    private final ScheduledExecutorPlus executor;
 
     // our next scheduled resizing run
     private ScheduledFuture future;
@@ -77,7 +78,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
 
     private IndexSummaryManager()
     {
-        executor = new DebuggableScheduledThreadPoolExecutor(1, "IndexSummaryManager", Thread.MIN_PRIORITY);
+        executor = executorFactory().scheduled(false, "IndexSummaryManager", Thread.MIN_PRIORITY);
 
         long indexSummarySizeInMB = DatabaseDescriptor.getIndexSummaryCapacityInMB();
         int interval = DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes();
@@ -278,6 +279,6 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     @VisibleForTesting
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        ExecutorUtils.shutdownAndWait(timeout, unit, executor);
+        ExecutorUtils.shutdownNowAndWait(timeout, unit, executor);
     }
 }

@@ -46,6 +46,7 @@ import javax.management.NotificationListener;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.GlobalEventExecutor;
+import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.concurrent.ExecutorLocals;
@@ -65,6 +66,7 @@ import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.SystemKeyspaceMigrator40;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.compaction.CompactionLogger;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -99,6 +101,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -337,7 +340,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
     public void uncaughtException(Thread thread, Throwable throwable)
     {
-        sync(CassandraDaemon::uncaughtException).accept(thread, throwable);
+        sync(JVMStabilityInspector::uncaughtException).accept(thread, throwable);
     }
 
     private static IMessage serializeMessage(InetAddressAndPort from, InetAddressAndPort to, Message<?> messageOut)
@@ -444,8 +447,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             Message.Header header = messageIn.header;
             TraceState state = Tracing.instance.initializeFromMessage(header);
             if (state != null) state.trace("{} message received from {}", header.verb, header.from);
-            header.verb.stage.execute(() -> MessagingService.instance().inboundSink.accept(messageIn),
-                                      ExecutorLocals.create(state));
+            header.verb.stage.execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn)
+            );
         }).run();
     }
 
@@ -758,6 +761,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
                                 HintsService.instance::shutdownBlocking,
                                 StreamingInboundHandler::shutdown,
+                                () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),
+                                () -> AuthCache.shutdownAllAndWait(1L, MINUTES),
+                                () -> Sampler.shutdownNowAndWait(1L, MINUTES),
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),
@@ -768,10 +774,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> Ref.shutdownReferenceReaper(1L, MINUTES),
                                 () -> Memtable.MEMORY_POOL.shutdownAndWait(1L, MINUTES),
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
-                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ScheduledExecutors.shutdownAndWait(1L, MINUTES),
+                                () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 

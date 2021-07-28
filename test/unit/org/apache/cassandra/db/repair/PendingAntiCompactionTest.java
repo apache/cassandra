@@ -29,7 +29,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -41,9 +40,11 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListenableFutureTask;
-import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -80,6 +81,7 @@ import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -100,11 +102,11 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
 
         Set<TableId> submittedCompactions = new HashSet<>();
 
-        ListenableFuture<?> submitPendingAntiCompaction(PendingAntiCompaction.AcquireResult result)
+        Future<Void> submitPendingAntiCompaction(PendingAntiCompaction.AcquireResult result)
         {
             submittedCompactions.add(result.cfs.metadata.id);
             result.abort();  // prevent ref leak complaints
-            return ListenableFutureTask.create(() -> {}, null);
+            return new FutureTask<>(() -> {});
         }
     }
 
@@ -411,7 +413,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         cfs.disableAutoCompaction();
         makeSSTables(2);
         UUID prsid = UUID.randomUUID();
-        ListeningExecutorService es = MoreExecutors.listeningDecorator(MoreExecutors.newDirectExecutorService());
+        ExecutorPlus es = ImmediateExecutor.INSTANCE;
         PendingAntiCompaction pac = new PendingAntiCompaction(prsid, Collections.singleton(cfs), atEndpoint(FULL_RANGE, NO_RANGES), es, () -> false) {
             @Override
             protected AcquisitionCallback getAcquisitionCallback(UUID prsId, RangesAtEndpoint tokenRanges)
@@ -419,7 +421,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                 return new AcquisitionCallback(prsid, tokenRanges, () -> false)
                 {
                     @Override
-                    ListenableFuture<?> submitPendingAntiCompaction(AcquireResult result)
+                    Future submitPendingAntiCompaction(AcquireResult result)
                     {
                         Runnable r = new WrappedRunnable()
                         {
@@ -640,7 +642,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         ColumnFamilyStore cfs = MockSchema.newCFS();
         cfs.addSSTable(MockSchema.sstable(1, true, cfs));
         CountDownLatch cdl = new CountDownLatch(5);
-        ExecutorService es = Executors.newFixedThreadPool(1);
+        ExecutorPlus es = executorFactory().sequential("test");
         CompactionInfo.Holder holder = new CompactionInfo.Holder()
         {
             public CompactionInfo getCompactionInfo()
@@ -684,7 +686,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         cfs.addSSTable(MockSchema.sstable(1, true, cfs));
-        ExecutorService es = Executors.newFixedThreadPool(1);
+        ExecutorPlus es = executorFactory().sequential("test");
         CompactionInfo.Holder holder = new CompactionInfo.Holder()
         {
             public CompactionInfo getCompactionInfo()

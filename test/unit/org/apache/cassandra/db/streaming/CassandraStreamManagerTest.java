@@ -222,7 +222,7 @@ public class CassandraStreamManagerTest
                 }
             }
         };
-        Thread t = NamedThreadFactory.createThread(r);
+        Thread t = NamedThreadFactory.createAnonymousThread(r);
         try
         {
             t.start();
