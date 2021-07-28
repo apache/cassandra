@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Wrapper around time related functions that are either implemented by using the default JVM calls
@@ -33,6 +34,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOB
  * Please note that {@link java.time.Clock} wasn't used, as it would not be possible to provide an
  * implementation for {@link #nanoTime()} with the exact same properties of {@link System#nanoTime()}.
  */
+@Shared(scope = SIMULATION)
 public interface Clock
 {
     static final Logger logger = LoggerFactory.getLogger(Clock.class);

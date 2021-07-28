@@ -18,8 +18,13 @@
 
 package org.apache.cassandra.concurrent;
 
-import static org.apache.cassandra.concurrent.Interruptible.State.*;
+import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.concurrent.Interruptible.State.*;
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface Interruptible extends Shutdownable
 {
     public enum State { NORMAL, INTERRUPTED, SHUTTING_DOWN }

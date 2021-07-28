@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.concurrent;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * Entry point for configuring and creating new executors.
  *
@@ -29,6 +34,7 @@ package org.apache.cassandra.concurrent;
  * <li>{@link #configureSequential(String)}
  * <li>{@link #configurePooled(String, int)}
  */
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface ExecutorBuilderFactory<E extends ExecutorPlus, S extends SequentialExecutorPlus>
 {
     /**

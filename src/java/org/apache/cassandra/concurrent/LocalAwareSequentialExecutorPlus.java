@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.concurrent;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * A {@link SequentialExecutorPlus} that is aware of, and propagates to execution, any ExecutorLocals
  */
+@Shared(scope = SIMULATION)
 public interface LocalAwareSequentialExecutorPlus extends LocalAwareExecutorPlus, SequentialExecutorPlus
 {
 }

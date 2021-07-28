@@ -16,24 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.shared;
+package org.apache.cassandra.io.util;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.nio.ByteBuffer;
 
-/**
- * Tells jvm-dtest that a class should be shared accross all {@link ClassLoader}s.
- *
- * Jvm-dtest relies on classloader isolation to run multiple cassandra instances in the same JVM, this makes it
- * so some classes do not get shared (outside a blesssed set of classes/packages). When the default behavior
- * is not desirable, this annotation will tell jvm-dtest to share the class accross all class loaders.
- *
- * This is the oposite of {@link Isolated}.
- */
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ ElementType.TYPE })
-public @interface Shared
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
+public interface ReadableMemory
 {
+    ByteBuffer[] asByteBuffers(long offset, long length);
 }

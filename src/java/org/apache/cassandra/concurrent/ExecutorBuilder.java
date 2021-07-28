@@ -26,11 +26,15 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Configure an executor before creating it.
  * See {@link ThreadPoolExecutorBuilder}
  */
+@Shared(scope = SIMULATION)
 public interface ExecutorBuilder<E extends ExecutorService>
 {
     /**

@@ -18,12 +18,18 @@
 
 package org.apache.cassandra.concurrent;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * An {@link ExecutorPlus} that guarantees the order of execution matches the order of task submission,
  * and provides a simple mechanism for the recurring pattern of ensuring a job is executed at least once
  * after some point in time (i.e. ensures that at most one copy of the task is queued, with up to one
  * copy running as well)
  */
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface SequentialExecutorPlus extends ExecutorPlus
 {
     public interface AtLeastOnceTrigger

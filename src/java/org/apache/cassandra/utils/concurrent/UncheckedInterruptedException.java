@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.utils.concurrent;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
 /**
  * Unchecked {@link InterruptedException}, to be thrown in places where an interrupt is unexpected
  */
+@Shared(scope = SIMULATION)
 public class UncheckedInterruptedException extends RuntimeException
 {
     public UncheckedInterruptedException()

@@ -21,10 +21,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Exceptions code, as defined by the binary protocol.
  */
+@Shared(scope = SIMULATION)
 public enum ExceptionCode
 {
     SERVER_ERROR    (0x0000),

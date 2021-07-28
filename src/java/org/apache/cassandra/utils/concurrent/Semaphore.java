@@ -24,10 +24,13 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import net.openhft.chronicle.core.util.ThrowingConsumer;
 import org.apache.cassandra.utils.Intercept;
+import org.apache.cassandra.utils.Shared;
 
 import static java.lang.System.nanoTime;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
+@Shared(scope = SIMULATION)
 public interface Semaphore
 {
     /**

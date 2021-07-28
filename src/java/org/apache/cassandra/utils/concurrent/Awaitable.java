@@ -23,17 +23,20 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Predicate;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.utils.Shared;
 
 import org.apache.cassandra.utils.Intercept;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * A generic signal consumer, supporting all of the typical patterns used in Cassandra.
  * All of the methods defined in {@link Awaitable} may be waited on without a loop,
  * as this interface declares that there are no spurious wake-ups.
  */
+@Shared(scope = SIMULATION)
 public interface Awaitable
 {
     /**

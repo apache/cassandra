@@ -20,10 +20,13 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.Callable;
 
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
 
 import static org.apache.cassandra.concurrent.FutureTask.callable;
+import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * A simple mechanism to impose our desired semantics on the execution of a task without requiring a specialised
@@ -32,6 +35,7 @@ import static org.apache.cassandra.concurrent.FutureTask.callable;
  * The encapsulations handle any exceptions in our standard way, as well as ensuring {@link ExecutorLocals} are
  * propagated in the case of {@link #localAware()}
  */
+@Shared(scope = SIMULATION, inner = INTERFACES)
 public interface TaskFactory
 {
     Runnable toExecute(Runnable runnable);

@@ -19,6 +19,9 @@
 package org.apache.cassandra.utils.concurrent;
 
 import org.apache.cassandra.utils.Intercept;
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
  * Simpler API than java.util.concurrent.Condition; would be nice to extend it, but also nice
@@ -26,6 +29,7 @@ import org.apache.cassandra.utils.Intercept;
  *
  * {@link Awaitable} for explicit external signals.
  */
+@Shared(scope = SIMULATION)
 public interface Condition extends Awaitable
 {
     /**

@@ -20,6 +20,11 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
+
+@Shared(scope = SIMULATION)
 public interface ScheduledExecutorPlus extends ExecutorPlus, ScheduledExecutorService
 {
 }
