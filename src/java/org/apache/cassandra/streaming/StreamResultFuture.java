@@ -25,9 +25,10 @@ import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
 
 /**
  * A future on the result ({@link StreamState}) of a streaming plan.
@@ -72,7 +73,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
 
     private StreamResultFuture(UUID planId, StreamOperation streamOperation, UUID pendingRepair, PreviewKind previewKind)
     {
-        this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, new DefaultConnectionFactory(), true, false, pendingRepair, previewKind));
+        this(planId, streamOperation, new StreamCoordinator(streamOperation, 0, streamingFactory(), true, false, pendingRepair, previewKind));
     }
 
     public static StreamResultFuture createInitiator(UUID planId, StreamOperation streamOperation, Collection<StreamEventHandler> listeners,
@@ -102,24 +103,24 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
                                                                  UUID planId,
                                                                  StreamOperation streamOperation,
                                                                  InetAddressAndPort from,
-                                                                 Channel channel,
+                                                                 StreamingChannel channel,
+                                                                 int messagingVersion,
                                                                  UUID pendingRepair,
                                                                  PreviewKind previewKind)
     {
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
         if (future == null)
         {
-            logger.info("[Stream #{} ID#{}] Creating new streaming plan for {} from {} channel.remote {} channel.local {}" +
-                        " channel.id {}", planId, sessionIndex, streamOperation.getDescription(),
-                        from, channel.remoteAddress(), channel.localAddress(), channel.id());
+            logger.info("[Stream #{} ID#{}] Creating new streaming plan for {} from {} {}", planId, sessionIndex, streamOperation.getDescription(),
+                        from, channel.description());
 
             // The main reason we create a StreamResultFuture on the receiving side is for JMX exposure.
             future = new StreamResultFuture(planId, streamOperation, pendingRepair, previewKind);
             StreamManager.instance.registerFollower(future);
         }
-        future.attachConnection(from, sessionIndex, channel);
-        logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} channel.remote {} channel.local {} channel.id {}",
-                    planId, sessionIndex, streamOperation.getDescription(), from, channel.remoteAddress(), channel.localAddress(), channel.id());
+        future.initInbound(from, channel, messagingVersion, sessionIndex);
+        logger.info("[Stream #{}, ID#{}] Received streaming plan for {} from {} {}",
+                    planId, sessionIndex, streamOperation.getDescription(), from, channel.description());
         return future;
     }
 
@@ -135,9 +136,9 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
         return coordinator;
     }
 
-    private void attachConnection(InetAddressAndPort from, int sessionIndex, Channel channel)
+    private void initInbound(InetAddressAndPort from, StreamingChannel channel, int messagingVersion, int sessionIndex)
     {
-        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex);
+        StreamSession session = coordinator.getOrCreateInboundSession(from, channel, messagingVersion, sessionIndex);
         session.init(this);
     }
 

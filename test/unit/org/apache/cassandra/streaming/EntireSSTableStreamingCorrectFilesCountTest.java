@@ -56,6 +56,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -193,7 +194,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
     {
         StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP,
                                                                     1,
-                                                                    new DefaultConnectionFactory(),
+                                                                    new NettyStreamingConnectionFactory(),
                                                                     false,
                                                                     false,
                                                                     null,
@@ -212,7 +213,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                          Collections.emptyList(),
                                                          StreamSession.State.INITIALIZED));
 
-        StreamSession session = streamCoordinator.getOrCreateNextSession(peer);
+        StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);
 
         return session;

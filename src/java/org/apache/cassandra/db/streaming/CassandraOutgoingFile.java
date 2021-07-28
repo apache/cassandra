@@ -30,10 +30,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -148,11 +147,8 @@ public class CassandraOutgoingFile implements OutgoingStream
     }
 
     @Override
-    public void write(StreamSession session, DataOutputStreamPlus out, int version) throws IOException
+    public void write(StreamSession session, StreamingDataOutputPlus out, int version) throws IOException
     {
-        // FileStreamTask uses AsyncStreamingOutputPlus for streaming.
-        assert out instanceof AsyncStreamingOutputPlus : "Unexpected DataOutputStreamPlus " + out.getClass();
-
         SSTableReader sstable = ref.get();
 
         if (shouldStreamEntireSSTable)
@@ -169,7 +165,7 @@ public class CassandraOutgoingFile implements OutgoingStream
                 out.flush();
 
                 CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
-                writer.write((AsyncStreamingOutputPlus) out);
+                writer.write(out);
             }
         }
         else

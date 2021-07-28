@@ -19,14 +19,18 @@
 package org.apache.cassandra.tools;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 
-import io.netty.channel.Channel;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionSettings;
-import org.apache.cassandra.streaming.DefaultConnectionFactory;
-import org.apache.cassandra.streaming.StreamConnectionFactory;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
+import org.apache.cassandra.streaming.async.NettyStreamingChannel;
 
-public class BulkLoadConnectionFactory extends DefaultConnectionFactory implements StreamConnectionFactory
+import static org.apache.cassandra.locator.InetAddressAndPort.getByAddress;
+
+public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
 {
     // TODO: what is this unused variable for?
     private final boolean outboundBindAny;
@@ -40,15 +44,15 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
         this.outboundBindAny = outboundBindAny;
     }
 
-    public Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException
+    public NettyStreamingChannel connect(InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind) throws IOException
     {
         // Connect to secure port for all peers if ServerEncryptionOptions is configured other than 'none'
         // When 'all', 'dc' and 'rack', server nodes always have SSL port open, and since thin client like sstableloader
         // does not know which node is in which dc/rack, connecting to SSL port is always the option.
-
+        OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to));
         if (encryptionOptions != null && encryptionOptions.internode_encryption != EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none)
             template = template.withConnectTo(template.to.withPort(secureStoragePort));
 
-        return super.createConnection(template, messagingVersion);
+        return connect(template, messagingVersion, kind);
     }
 }

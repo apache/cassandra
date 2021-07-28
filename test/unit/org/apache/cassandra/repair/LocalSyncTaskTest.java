@@ -40,7 +40,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.StreamCoordinator;
-import org.apache.cassandra.streaming.DefaultConnectionFactory;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamSession;
@@ -134,14 +134,14 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         TreeResponse r2 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.2"), tree2);
         LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
-        DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
+        NettyStreamingConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
         try
         {
             task.run();
         }
         finally
         {
-            DefaultConnectionFactory.MAX_CONNECT_ATTEMPTS = 3;
+            NettyStreamingConnectionFactory.MAX_CONNECT_ATTEMPTS = 3;
         }
 
         // ensure that the changed range was recorded
