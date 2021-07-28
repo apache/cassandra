@@ -28,6 +28,7 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4SafeDecompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 import static org.apache.cassandra.net.MessagingService.current_version;
 
@@ -54,7 +55,7 @@ public class StreamCompressionSerializer
      */
     private static final int HEADER_LENGTH = 8;
 
-    public static AsyncStreamingOutputPlus.Write serialize(LZ4Compressor compressor, ByteBuffer in, int version)
+    public static StreamingDataOutputPlus.Write serialize(LZ4Compressor compressor, ByteBuffer in, int version)
     {
         assert version == current_version;
         return bufferSupplier -> {

@@ -49,7 +49,7 @@ import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.streaming.DefaultConnectionFactory;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamCoordinator;
@@ -204,13 +204,13 @@ public class CassandraEntireSSTableStreamWriterTest
 
     private StreamSession setupStreamingSessionForTest()
     {
-        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new DefaultConnectionFactory(), false, false, null, PreviewKind.NONE);
+        StreamCoordinator streamCoordinator = new StreamCoordinator(StreamOperation.BOOTSTRAP, 1, new NettyStreamingConnectionFactory(), false, false, null, PreviewKind.NONE);
         StreamResultFuture future = StreamResultFuture.createInitiator(UUID.randomUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
         streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));
 
-        StreamSession session = streamCoordinator.getOrCreateNextSession(peer);
+        StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);
         return session;
     }

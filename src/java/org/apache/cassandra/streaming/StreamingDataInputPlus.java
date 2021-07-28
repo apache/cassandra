@@ -15,27 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
 
-import java.nio.ByteBuffer;
+package org.apache.cassandra.streaming;
 
-import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.utils.memory.BufferPool;
+import java.io.Closeable;
 
-/**
- * Primary {@link ByteBuf} / {@link ByteBuffer} allocator - using the global {@link BufferPool}.
- */
-public class GlobalBufferPoolAllocator extends BufferPoolAllocator
+import org.apache.cassandra.io.util.DataInputPlus;
+
+public interface StreamingDataInputPlus extends DataInputPlus, Closeable
 {
-    public static final GlobalBufferPoolAllocator instance = new GlobalBufferPoolAllocator();
-
-    private GlobalBufferPoolAllocator()
-    {
-        super();
-    }
-
-    public static ByteBuf wrap(ByteBuffer buffer)
-    {
-        return new Wrapped(instance, buffer, buffer.capacity());
-    }
+    @Override
+    void close();
 }

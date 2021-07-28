@@ -122,7 +122,7 @@ import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
-import org.apache.cassandra.streaming.async.StreamingInboundHandler;
+import org.apache.cassandra.streaming.async.NettyStreamingChannel;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.SystemExitException;
@@ -180,7 +180,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
         // Enable streaming inbound handler tracking so they can be closed properly without leaking
         // the blocking IO thread.
-        StreamingInboundHandler.trackInboundHandlers();
+        NettyStreamingChannel.trackInboundHandlers();
     }
 
     @Override
@@ -760,10 +760,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 CompactionManager.instance::forceShutdown,
                                 () -> BatchlogManager.instance.shutdownAndWait(1L, MINUTES),
                                 HintsService.instance::shutdownBlocking,
-                                StreamingInboundHandler::shutdown,
                                 () -> CompactionLogger.shutdownNowAndWait(1L, MINUTES),
                                 () -> AuthCache.shutdownAllAndWait(1L, MINUTES),
                                 () -> Sampler.shutdownNowAndWait(1L, MINUTES),
+                                NettyStreamingChannel::shutdown,
                                 () -> StreamReceiveTask.shutdownAndWait(1L, MINUTES),
                                 () -> StreamTransferTask.shutdownAndWait(1L, MINUTES),
                                 () -> SecondaryIndexManager.shutdownAndWait(1L, MINUTES),

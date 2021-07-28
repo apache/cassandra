@@ -19,6 +19,7 @@
 package org.apache.cassandra.streaming.async;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -39,25 +40,28 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
+import org.apache.cassandra.net.TestChannel;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.streaming.StreamDeserializingTask;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.messages.CompleteMessage;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 
+import static org.apache.cassandra.net.TestChannel.REMOTE_ADDR;
+
 public class StreamingInboundHandlerTest
 {
     private static final int VERSION = MessagingService.current_version;
-    private static final InetAddressAndPort REMOTE_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 0);
 
-    private StreamingInboundHandler handler;
+    private NettyStreamingChannel streamingChannel;
     private EmbeddedChannel channel;
-    private AsyncStreamingInputPlus buffers;
     private ByteBuf buf;
 
     @BeforeClass
@@ -69,10 +73,9 @@ public class StreamingInboundHandlerTest
     @Before
     public void setup()
     {
-        handler = new StreamingInboundHandler(REMOTE_ADDR, VERSION, null);
-        channel = new EmbeddedChannel(handler);
-        buffers = new AsyncStreamingInputPlus(channel);
-        handler.setPendingBuffers(buffers);
+        channel = new TestChannel();
+        streamingChannel = new NettyStreamingChannel(VERSION, channel, StreamingChannel.Kind.CONTROL);
+        channel.pipeline().addLast("stream", streamingChannel);
     }
 
     @After
@@ -88,24 +91,10 @@ public class StreamingInboundHandlerTest
     }
 
     @Test
-    public void channelRead_Closed()
-    {
-        int size = 8;
-        buf = channel.alloc().buffer(size);
-        Assert.assertEquals(1, buf.refCnt());
-        buf.writerIndex(size);
-        handler.close();
-        channel.writeInbound(buf);
-        Assert.assertEquals(0, buffers.unsafeAvailable());
-        Assert.assertEquals(0, buf.refCnt());
-        Assert.assertFalse(channel.releaseInbound());
-    }
-
-    @Test
     public void channelRead_WrongObject()
     {
         channel.writeInbound("homer");
-        Assert.assertEquals(0, buffers.unsafeAvailable());
+        Assert.assertEquals(0, streamingChannel.in.unsafeAvailable());
         Assert.assertFalse(channel.releaseInbound());
     }
 
@@ -113,7 +102,7 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deriveSession_StreamInitMessage()
     {
         StreamInitMessage msg = new StreamInitMessage(REMOTE_ADDR, 0, UUID.randomUUID(), StreamOperation.REPAIR, UUID.randomUUID(), PreviewKind.ALL);
-        StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(null, channel);
+        StreamDeserializingTask task = new StreamDeserializingTask(null, streamingChannel, streamingChannel.messagingVersion);
         StreamSession session = task.deriveSession(msg);
         Assert.assertNotNull(session);
     }
@@ -122,7 +111,7 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deriveSession_NoSession()
     {
         CompleteMessage msg = new CompleteMessage();
-        StreamingInboundHandler.StreamDeserializingTask task = handler.new StreamDeserializingTask(null, channel);
+        StreamDeserializingTask task = new StreamDeserializingTask(null, streamingChannel, streamingChannel.messagingVersion);
         task.deriveSession(msg);
     }
 
@@ -146,7 +135,7 @@ public class StreamingInboundHandlerTest
     public void StreamDeserializingTask_deserialize_ISM_HasSession()
     {
         UUID planId = UUID.randomUUID();
-        StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, channel, UUID.randomUUID(), PreviewKind.ALL);
+        StreamResultFuture future = StreamResultFuture.createFollower(0, planId, StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, streamingChannel.messagingVersion, UUID.randomUUID(), PreviewKind.ALL);
         StreamManager.instance.registerFollower(future);
         StreamMessageHeader header = new StreamMessageHeader(TableId.generate(), REMOTE_ADDR, planId, false,
                                                              0, 0, 0, UUID.randomUUID());

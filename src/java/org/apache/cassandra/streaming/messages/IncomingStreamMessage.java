@@ -20,13 +20,12 @@ package org.apache.cassandra.streaming.messages;
 import java.io.IOException;
 import java.util.Objects;
 
-import io.netty.channel.Channel;
-
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.util.DataInputPlus;
 
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.IncomingStream;
+import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamReceiveException;
 import org.apache.cassandra.streaming.StreamSession;
@@ -36,7 +35,6 @@ public class IncomingStreamMessage extends StreamMessage
 {
     public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
-        @SuppressWarnings("resource")
         public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
         {
             StreamMessageHeader header = StreamMessageHeader.serializer.deserialize(input, version);
@@ -61,7 +59,7 @@ public class IncomingStreamMessage extends StreamMessage
             }
         }
 
-        public void serialize(IncomingStreamMessage message, DataOutputStreamPlus out, int version, StreamSession session)
+        public void serialize(IncomingStreamMessage message, StreamingDataOutputPlus out, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call serialize on an incoming stream");
         }
@@ -83,8 +81,9 @@ public class IncomingStreamMessage extends StreamMessage
     }
 
     @Override
-    public StreamSession getOrCreateSession(Channel channel)
+    public StreamSession getOrCreateAndAttachInboundSession(StreamingChannel channel, int messagingVersion)
     {
+        stream.session().attachInbound(channel);
         return stream.session();
     }
 

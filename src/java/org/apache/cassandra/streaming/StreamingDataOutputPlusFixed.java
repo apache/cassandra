@@ -19,16 +19,32 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
-import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.io.util.DataOutputBufferFixed;
 
-public interface StreamingMessageSender
+public class StreamingDataOutputPlusFixed extends DataOutputBufferFixed implements StreamingDataOutputPlus
 {
-    void initialize() throws IOException;
+    public StreamingDataOutputPlusFixed(ByteBuffer buffer)
+    {
+        super(buffer);
+    }
 
-    void sendMessage(StreamMessage message) throws IOException;
+    @Override
+    public int writeToChannel(Write write, RateLimiter limiter) throws IOException
+    {
+        int position = buffer.position();
+        write.write(size -> buffer);
+        return buffer.position() - position;
+    }
 
-    boolean connected();
-
-    void close();
+    @Override
+    public long writeFileToChannel(FileChannel file, RateLimiter limiter) throws IOException
+    {
+        long count = 0;
+        long tmp;
+        while (0 <= (tmp = file.read(buffer))) count += tmp;
+        return count;
+    }
 }

@@ -19,6 +19,7 @@
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -33,14 +34,14 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
 
 public class SessionSummary
 {
-    public final InetAddressAndPort coordinator;
-    public final InetAddressAndPort peer;
+    public final InetSocketAddress coordinator;
+    public final InetSocketAddress peer;
     /** Immutable collection of receiving summaries */
     public final Collection<StreamSummary> receivingSummaries;
     /** Immutable collection of sending summaries*/
     public final Collection<StreamSummary> sendingSummaries;
 
-    public SessionSummary(InetAddressAndPort coordinator, InetAddressAndPort peer,
+    public SessionSummary(InetSocketAddress coordinator, InetSocketAddress peer,
                           Collection<StreamSummary> receivingSummaries,
                           Collection<StreamSummary> sendingSummaries)
     {
