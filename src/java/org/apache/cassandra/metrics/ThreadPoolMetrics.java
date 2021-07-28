@@ -21,7 +21,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
-import org.apache.cassandra.concurrent.LocalAwareExecutorService;
+import org.apache.cassandra.concurrent.ResizableThreadPool;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 
 import static java.lang.String.format;
@@ -75,7 +75,7 @@ public class ThreadPoolMetrics
      * @param path Type of thread pool
      * @param poolName Name of thread pool to identify metrics
      */
-    public ThreadPoolMetrics(LocalAwareExecutorService executor, String path, String poolName)
+    public ThreadPoolMetrics(ResizableThreadPool executor, String path, String poolName)
     {
         this.path = path;
         this.poolName = poolName;

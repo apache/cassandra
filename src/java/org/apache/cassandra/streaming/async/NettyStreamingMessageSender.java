@@ -23,13 +23,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Collection;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadPoolExecutor;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,8 +39,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.OutboundConnectionSettings;
@@ -64,6 +61,7 @@ import static java.lang.String.format;
 import static java.lang.System.getProperty;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
 import static org.apache.cassandra.config.DatabaseDescriptor.getStreamingKeepAlivePeriod;
 import static org.apache.cassandra.net.AsyncChannelPromise.writeAndFlush;
@@ -122,7 +120,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     // note: this really doesn't need to be a LBQ, just something that's thread safe
     private final Collection<ScheduledFuture<?>> channelKeepAlives = newBlockingQueue();
 
-    private final ThreadPoolExecutor fileTransferExecutor;
+    private final ExecutorPlus fileTransferExecutor;
 
     /**
      * A mapping of each {@link #fileTransferExecutor} thread to a channel that can be written to (on that thread).
@@ -146,9 +144,9 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         this.isPreview = isPreview;
 
         String name = session.peer.toString().replace(':', '.');
-        fileTransferExecutor = new DebuggableThreadPoolExecutor(1, MAX_PARALLEL_TRANSFERS, 1L, SECONDS, newBlockingQueue(),
-                                                                new NamedThreadFactory("NettyStreaming-Outbound-" + name));
-        fileTransferExecutor.allowCoreThreadTimeOut(true);
+        fileTransferExecutor = executorFactory()
+                .configurePooled("NettyStreaming-Outbound-" + name, MAX_PARALLEL_TRANSFERS)
+                .withKeepAlive(1L, SECONDS).build();
     }
 
     @Override

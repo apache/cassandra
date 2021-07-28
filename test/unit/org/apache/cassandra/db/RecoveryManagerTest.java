@@ -23,11 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Assert;
@@ -61,6 +57,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.junit.Assert.assertEquals;
 
@@ -160,7 +157,7 @@ public class RecoveryManagerTest
             Assert.assertTrue(Util.getAllUnfiltered(Util.cmd(keyspace2.getColumnFamilyStore(CF_STANDARD3), dk).build()).isEmpty());
 
             final AtomicReference<Throwable> err = new AtomicReference<Throwable>();
-            Thread t = NamedThreadFactory.createThread(() ->
+            Thread t = NamedThreadFactory.createAnonymousThread(() ->
             {
                 try
                 {
@@ -345,31 +342,21 @@ public class RecoveryManagerTest
         final Semaphore blocked = new Semaphore(0);
 
         @Override
-        protected Future<Integer> initiateMutation(final Mutation mutation,
-                final long segmentId,
-                final int serializedSize,
-                final int entryLocation,
-                final CommitLogReplayer clr)
+        protected org.apache.cassandra.utils.concurrent.Future<Integer> initiateMutation(final Mutation mutation,
+                                                                                         final long segmentId,
+                                                                                         final int serializedSize,
+                                                                                         final int entryLocation,
+                                                                                         final CommitLogReplayer clr)
         {
-            final Future<Integer> toWrap = super.initiateMutation(mutation,
-                                                                  segmentId,
-                                                                  serializedSize,
-                                                                  entryLocation,
-                                                                  clr);
-            return new Future<Integer>()
+            final org.apache.cassandra.utils.concurrent.Future<Integer> toWrap =
+                super.initiateMutation(mutation,
+                                       segmentId,
+                                       serializedSize,
+                                       entryLocation,
+                                       clr);
+
+            return new AsyncFuture<Integer>()
             {
-
-                @Override
-                public boolean cancel(boolean mayInterruptIfRunning)
-                {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public boolean isCancelled()
-                {
-                    throw new UnsupportedOperationException();
-                }
 
                 @Override
                 public boolean isDone()
@@ -380,7 +367,6 @@ public class RecoveryManagerTest
                 @Override
                 public Integer get() throws InterruptedException, ExecutionException
                 {
-                    System.out.println("Got blocker once");
                     blocked.release();
                     blocker.acquire();
                     return toWrap.get();

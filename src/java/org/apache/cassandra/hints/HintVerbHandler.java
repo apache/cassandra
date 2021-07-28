@@ -94,7 +94,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         else
         {
             // the common path - the node is both the destination and a valid replica for the hint.
-            hint.applyFuture().thenAccept(o -> respond(message)).exceptionally(e -> {logger.debug("Failed to apply hint", e); return null;});
+            hint.applyFuture().addCallback(o -> respond(message), e -> logger.debug("Failed to apply hint", e));
         }
     }
 

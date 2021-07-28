@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -41,6 +40,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
@@ -137,7 +137,7 @@ public class CellSpecTest
 
         byte[] rawBytes = { 0, 1, 2, 3, 4, 5, 6 };
         ByteBuffer bbBytes = ByteBuffer.wrap(rawBytes);
-        NativePool pool = new NativePool(1024, 1024, 1, () -> CompletableFuture.completedFuture(true));
+        NativePool pool = new NativePool(1024, 1024, 1, () -> ImmediateFuture.success(true));
         NativeAllocator allocator = pool.newAllocator();
         OpOrder order = new OpOrder();
 

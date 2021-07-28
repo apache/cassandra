@@ -18,30 +18,127 @@
 
 package org.apache.cassandra.concurrent;
 
+import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.WithResources;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-public class ImmediateExecutor extends AbstractExecutorService implements LocalAwareExecutorService
+public class ImmediateExecutor implements LocalAwareExecutorPlus
 {
     public static final ImmediateExecutor INSTANCE = new ImmediateExecutor();
 
     private ImmediateExecutor() {}
 
-    public void execute(Runnable command, ExecutorLocals locals)
+    public <T> Future<T> submit(Callable<T> task)
     {
-        command.run();
+        try
+        {
+            return ImmediateFuture.success(task.call());
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+            return ImmediateFuture.failure(t);
+        }
     }
 
-    public void maybeExecuteImmediately(Runnable command)
+    public <T> Future<T> submit(Runnable task, T result)
     {
-        command.run();
+        try
+        {
+            task.run();
+            return ImmediateFuture.success(result);
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+            return ImmediateFuture.failure(t);
+        }
     }
 
-    public void execute(Runnable command)
+    public Future<?> submit(Runnable task)
     {
-        command.run();
+        try
+        {
+            task.run();
+            return ImmediateFuture.success(null);
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+            return ImmediateFuture.failure(t);
+        }
+    }
+
+    @Override
+    public void execute(WithResources withResources, Runnable task)
+    {
+        try (Closeable ignored = withResources.get())
+        {
+            task.run();
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+        }
+    }
+
+    @Override
+    public <T> Future<T> submit(WithResources withResources, Callable<T> task)
+    {
+        try (Closeable ignored = withResources.get())
+        {
+            return ImmediateFuture.success(task.call());
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+            return ImmediateFuture.failure(t);
+        }
+    }
+
+    @Override
+    public Future<?> submit(WithResources withResources, Runnable task)
+    {
+        return submit(withResources, task, null);
+    }
+
+    @Override
+    public <T> Future<T> submit(WithResources withResources, Runnable task, T result)
+    {
+        try (Closeable ignored = withResources.get())
+        {
+            task.run();
+            return ImmediateFuture.success(result);
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+            return ImmediateFuture.failure(t);
+        }
+    }
+
+    @Override
+    public boolean inExecutor()
+    {
+        return true;
+    }
+
+    public void execute(Runnable task)
+    {
+        try
+        {
+            task.run();
+        }
+        catch (Throwable t)
+        {
+            ExecutionFailure.handle(t);
+        }
     }
 
     public int  getActiveTaskCount()    { return 0; }

@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.Stage;
@@ -35,7 +36,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.LogAction;
-import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
@@ -80,7 +80,7 @@ public class JVMDTestTest extends TestBaseImpl
             long mark = logs.mark(); // get the current position so watching doesn't see any previous exceptions
             cluster.get(2).runOnInstance(() -> {
                 // pretend that an uncaught exception was thrown
-                CassandraDaemon.uncaughtException(Thread.currentThread(), new RuntimeException("fail without fail"));
+                JVMStabilityInspector.uncaughtException(Thread.currentThread(), new RuntimeException("fail without fail"));
             });
             List<String> errors = logs.watchFor(mark, "^ERROR").getResult();
             Assertions.assertThat(errors)

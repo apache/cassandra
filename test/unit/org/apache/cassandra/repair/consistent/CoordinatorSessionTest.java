@@ -28,9 +28,10 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -209,8 +210,8 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -220,7 +221,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future sessionResult = coordinator.execute(sessionSupplier, hasFailures);
 
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
@@ -252,7 +253,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
                                                                     createResult(coordinator));
 
         coordinator.sentMessages.clear();
-        repairFuture.set(results);
+        repairFuture.trySuccess(results);
 
         // propose messages should have been sent once all repair sessions completed successfully
         for (InetAddressAndPort participant : PARTICIPANTS)
@@ -293,8 +294,8 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -304,7 +305,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future sessionResult = coordinator.execute(sessionSupplier, hasFailures);
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             PrepareConsistentRequest expected = new PrepareConsistentRequest(coordinator.sessionID, COORDINATOR, new HashSet<>(PARTICIPANTS));
@@ -336,7 +337,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         coordinator.sentMessages.clear();
         Assert.assertFalse(coordinator.failCalled);
         coordinator.onFail = () -> Assert.assertEquals(REPAIRING, coordinator.getState());
-        repairFuture.set(results);
+        repairFuture.trySuccess(results);
         Assert.assertTrue(coordinator.failCalled);
 
         // all participants should have been notified of session failure
@@ -355,8 +356,8 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -366,7 +367,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future sessionResult = coordinator.execute(sessionSupplier, hasFailures);
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
             PrepareConsistentRequest expected = new PrepareConsistentRequest(coordinator.sessionID, COORDINATOR, new HashSet<>(PARTICIPANTS));
@@ -421,8 +422,8 @@ public class CoordinatorSessionTest extends AbstractRepairTest
     {
         InstrumentedCoordinatorSession coordinator = createInstrumentedSession();
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -432,7 +433,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
         AtomicBoolean hasFailures = new AtomicBoolean(false);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertTrue(coordinator.sentMessages.isEmpty());
-        ListenableFuture sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future sessionResult = coordinator.execute(sessionSupplier, hasFailures);
 
         for (InetAddressAndPort participant : PARTICIPANTS)
         {
@@ -464,7 +465,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
                                                                     createResult(coordinator));
 
         coordinator.sentMessages.clear();
-        repairFuture.set(results);
+        repairFuture.trySuccess(results);
 
         // propose messages should have been sent once all repair sessions completed successfully
         for (InetAddressAndPort participant : PARTICIPANTS)

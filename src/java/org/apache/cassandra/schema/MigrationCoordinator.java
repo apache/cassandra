@@ -30,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
@@ -40,7 +38,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Futures;
+import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,7 +67,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
-    private static final Future<Void> FINISHED_FUTURE = Futures.immediateFuture(null);
+    private static final Future<Void> FINISHED_FUTURE = ImmediateFuture.success(null);
 
     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
 
@@ -419,7 +419,7 @@ public class MigrationCoordinator
 
     Future<Void> scheduleSchemaPull(InetAddressAndPort endpoint, VersionInfo info)
     {
-        FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)), null);
+        FutureTask<Void> task = new FutureTask<>(() -> pullSchema(new Callback(endpoint, info)));
         if (shouldPullImmediately(endpoint, info.version))
         {
             submitToMigrationIfNotShutdown(task);

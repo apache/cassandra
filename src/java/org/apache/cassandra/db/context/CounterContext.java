@@ -465,7 +465,7 @@ public class CounterContext
                 if (leftClock == rightClock)
                 {
                     // Can happen if an sstable gets lost and disk failure policy is set to 'best effort'
-                    if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
+                    if (leftCount != rightCount && CompactionManager.isCompactor(Thread.currentThread()))
                     {
                         logger.warn("invalid global counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
                                     + "count; will pick highest to self-heal on compaction",
@@ -506,7 +506,7 @@ public class CounterContext
             // We should never see non-local shards w/ same id+clock but different counts. However, if we do
             // we should "heal" the problem by being deterministic in our selection of shard - and
             // log the occurrence so that the operator will know something is wrong.
-            if (leftCount != rightCount && CompactionManager.isCompactionManager.get())
+            if (leftCount != rightCount && CompactionManager.isCompactor(Thread.currentThread()))
             {
                 logger.warn("invalid remote counter shard detected; ({}, {}, {}) and ({}, {}, {}) differ only in "
                             + "count; will pick highest to self-heal on compaction",

@@ -26,6 +26,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -56,8 +58,6 @@ import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
-import javax.annotation.Nullable;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.junit.Assert.assertEquals;

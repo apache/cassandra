@@ -21,12 +21,11 @@ package org.apache.cassandra.db.compaction;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
-import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -34,29 +33,15 @@ import static org.junit.Assert.assertNotNull;
 public class CompactionExecutorTest
 {
     static Throwable testTaskThrowable = null;
-    private static class TestTaskExecutor extends CompactionManager.CompactionExecutor
-    {
-        @Override
-        public void afterExecute(Runnable r, Throwable t)
-        {
-            if (t == null)
-            {
-                t = DebuggableThreadPoolExecutor.extractThrowable(r);
-            }
-            testTaskThrowable = t;
-        }
-        @Override
-        protected void beforeExecute(Thread t, Runnable r)
-        {
-        }
-    }
     private CompactionManager.CompactionExecutor executor;
 
     @Before
     public void setup()
     {
-        DatabaseDescriptor.daemonInitialization();
-        executor = new TestTaskExecutor();
+        executor = new CompactionManager.CompactionExecutor(new ExecutorFactory.Default(null, null, (thread, throwable) -> {
+            if (throwable != null)
+                testTaskThrowable = throwable;
+        }), 1, "test", Integer.MAX_VALUE);
     }
 
     @After

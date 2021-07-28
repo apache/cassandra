@@ -652,7 +652,7 @@ public class IndexSummaryManagerTest
         {
             CompactionManager.instance.active.beginCompaction(ongoingCompaction);
 
-            Thread t = NamedThreadFactory.createThread(new Runnable()
+            Thread t = NamedThreadFactory.createAnonymousThread(new Runnable()
             {
                 public void run()
                 {

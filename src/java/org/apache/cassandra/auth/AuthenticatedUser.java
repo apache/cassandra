@@ -18,7 +18,6 @@
 package org.apache.cassandra.auth;
 
 import java.util.Set;
-
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -164,5 +163,4 @@ public class AuthenticatedUser
     {
         return Objects.hashCode(name);
     }
-
 }

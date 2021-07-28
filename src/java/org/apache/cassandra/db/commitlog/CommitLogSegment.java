@@ -514,7 +514,7 @@ public abstract class CommitLogSegment
         {
             WaitQueue.Signal signal = syncComplete.register();
             if (lastSyncedOffset < position)
-                signal.awaitUninterruptibly();
+                signal.awaitThrowUncheckedOnInterrupt();
             else
                 signal.cancel();
         }

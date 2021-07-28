@@ -19,17 +19,18 @@ package org.apache.cassandra.metrics;
 
 import java.io.Serializable;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MonotonicClock;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public abstract class Sampler<T>
 {
@@ -42,19 +43,12 @@ public abstract class Sampler<T>
     MonotonicClock clock = MonotonicClock.approxTime;
 
     @VisibleForTesting
-    static final ThreadPoolExecutor samplerExecutor = new JMXEnabledThreadPoolExecutor(1, 1,
-            TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(1000),
-            new NamedThreadFactory("Sampler"),
-            "internal");
-
-    static
-    {
-        samplerExecutor.setRejectedExecutionHandler((runnable, executor) ->
-        {
-            MessagingService.instance().metrics.recordSelfDroppedMessage(Verb._SAMPLE);
-        });
-    }
+    static final ExecutorPlus samplerExecutor = executorFactory()
+            .withJmxInternal()
+            .configureSequential("Sampler")
+            .withQueueLimit(1000)
+            .withRejectedExecutionHandler((runnable, executor) -> MessagingService.instance().metrics.recordSelfDroppedMessage(Verb._SAMPLE))
+            .build();
 
     public void addSample(final T item, final int value)
     {
@@ -93,5 +87,10 @@ public abstract class Sampler<T>
         {
             return "Sample [value=" + value + ", count=" + count + ", error=" + error + "]";
         }
+    }
+
+    public static void shutdownNowAndWait(long time, TimeUnit units) throws InterruptedException, TimeoutException
+    {
+        ExecutorUtils.shutdownNowAndWait(time, units, samplerExecutor);
     }
 }

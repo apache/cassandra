@@ -30,6 +30,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,8 +40,8 @@ import com.clearspring.analytics.stream.cardinality.ICardinality;
 
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
@@ -71,6 +72,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.*;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
@@ -137,17 +139,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
-    private static final ScheduledThreadPoolExecutor syncExecutor = initSyncExecutor();
-    private static ScheduledThreadPoolExecutor initSyncExecutor()
+    private static final ScheduledExecutorPlus syncExecutor = initSyncExecutor();
+    private static ScheduledExecutorPlus initSyncExecutor()
     {
         if (DatabaseDescriptor.isClientOrToolInitialized())
             return null;
 
         // Do NOT start this thread pool in client mode
 
-        ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("read-hotness-tracker"));
+        ScheduledExecutorPlus syncExecutor = executorFactory().scheduled("read-hotness-tracker");
         // Immediately remove readMeter sync task when cancelled.
-        syncExecutor.setRemoveOnCancelPolicy(true);
+        // TODO: should we set this by default on all scheduled executors?
+        if (syncExecutor instanceof ScheduledThreadPoolExecutor)
+            ((ScheduledThreadPoolExecutor)syncExecutor).setRemoveOnCancelPolicy(true);
         return syncExecutor;
     }
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
@@ -525,37 +529,43 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         final Collection<SSTableReader> sstables = newBlockingQueue();
 
-        ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
-        for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
+        ExecutorPlus executor = executorFactory().pooled("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
+        try
         {
-            Runnable runnable = new Runnable()
+            for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
             {
-                public void run()
+                Runnable runnable = new Runnable()
                 {
-                    SSTableReader sstable;
-                    try
+                    public void run()
                     {
-                        sstable = open(entry.getKey(), entry.getValue(), metadata);
+                        SSTableReader sstable;
+                        try
+                        {
+                            sstable = open(entry.getKey(), entry.getValue(), metadata);
+                        }
+                        catch (CorruptSSTableException ex)
+                        {
+                            JVMStabilityInspector.inspectThrowable(ex);
+                            logger.error("Corrupt sstable {}; skipping table", entry, ex);
+                            return;
+                        }
+                        catch (FSError ex)
+                        {
+                            JVMStabilityInspector.inspectThrowable(ex);
+                            logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
+                            return;
+                        }
+                        sstables.add(sstable);
                     }
-                    catch (CorruptSSTableException ex)
-                    {
-                        JVMStabilityInspector.inspectThrowable(ex);
-                        logger.error("Corrupt sstable {}; skipping table", entry, ex);
-                        return;
-                    }
-                    catch (FSError ex)
-                    {
-                        JVMStabilityInspector.inspectThrowable(ex);
-                        logger.error("Cannot read sstable {}; file system error, skipping table", entry, ex);
-                        return;
-                    }
-                    sstables.add(sstable);
-                }
-            };
-            executor.submit(runnable);
+                };
+                executor.submit(runnable);
+            }
+        }
+        finally
+        {
+            executor.shutdown();
         }
 
-        executor.shutdown();
         try
         {
             executor.awaitTermination(7, TimeUnit.DAYS);

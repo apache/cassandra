@@ -121,7 +121,7 @@ public class ViewLongTest extends CQLTester
         for (int i = 0; i < writers; i++)
         {
             final int writer = i;
-            Thread t = NamedThreadFactory.createThread(new WrappedRunnable()
+            Thread t = NamedThreadFactory.createAnonymousThread(new WrappedRunnable()
             {
                 public void runMayThrow()
                 {

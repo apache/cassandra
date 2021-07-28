@@ -19,9 +19,8 @@
 package org.apache.cassandra.utils.progress.jmx;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * Holds dedicated executor for JMX event handling. Events will internally queued by ArrayNotificationBuffer,
@@ -32,6 +31,6 @@ public final class JMXBroadcastExecutor
 
     private JMXBroadcastExecutor() { }
 
-    public final static ExecutorService executor = Executors.newSingleThreadExecutor(new NamedThreadFactory("JMX"));
+    public final static ExecutorService executor = executorFactory().sequential("JMX");
 
 }

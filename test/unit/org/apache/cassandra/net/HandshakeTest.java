@@ -83,7 +83,7 @@ public class HandshakeTest
                               new OutboundConnectionSettings(endpoint)
                                                     .withAcceptVersions(acceptOutbound)
                                                     .withDefaults(ConnectionCategory.MESSAGING),
-                              req, new AsyncPromise<>(eventLoop));
+                              req, AsyncPromise.withExecutor(eventLoop));
             return future.get();
         }
         finally

@@ -33,11 +33,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.*;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -57,6 +58,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.Future;
 
 /**
  * Coordinates the (active) repair of a list of non overlapping token ranges.
@@ -120,7 +122,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     private final ConcurrentMap<Pair<RepairJobDesc, SyncNodePair>, CompletableRemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
-    public final ListeningExecutorService taskExecutor;
+    public final ExecutorPlus taskExecutor;
     public final boolean optimiseStreams;
 
     private volatile boolean terminated = false;
@@ -158,12 +160,12 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
         this.optimiseStreams = optimiseStreams;
-        this.taskExecutor = MoreExecutors.listeningDecorator(createExecutor());
+        this.taskExecutor = createExecutor();
     }
 
-    protected DebuggableThreadPoolExecutor createExecutor()
+    protected ExecutorPlus createExecutor()
     {
-        return DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask");
+        return ExecutorFactory.Global.executorFactory().pooled("RepairJobTask", Integer.MAX_VALUE);
     }
 
     public UUID getId()
@@ -262,7 +264,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      *
      * @param executor Executor to run validation
      */
-    public void start(ListeningExecutorService executor)
+    public void start(ExecutorPlus executor)
     {
         String message;
         if (terminated)
@@ -306,7 +308,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         }
 
         // Create and submit RepairJob for each ColumnFamily
-        List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
+        List<Future<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
             RepairJob job = new RepairJob(this, cfname);
@@ -315,7 +317,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         }
 
         // When all RepairJobs are done without error, cleanup and set the final result
-        Futures.addCallback(Futures.allAsList(jobs), new FutureCallback<List<RepairResult>>()
+        FBUtilities.allOf(jobs).addCallback(new FutureCallback<List<RepairResult>>()
         {
             public void onSuccess(List<RepairResult> results)
             {
@@ -339,7 +341,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                 Tracing.traceRepair("Session completed with the following error: {}", t);
                 forceShutdown(t);
             }
-        }, MoreExecutors.directExecutor());
+        });
     }
 
     public void terminate()

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,6 +27,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.*;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.junit.Assert.*;
 
 public class ThreadPoolMetricsTest
@@ -35,25 +35,23 @@ public class ThreadPoolMetricsTest
     @Test
     public void testJMXEnabledThreadPoolMetricsWithNoBlockedThread()
     {
-        JMXEnabledThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(2,
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.SECONDS,
-                                                                                 new ArrayBlockingQueue<>(2),
-                                                                                 new NamedThreadFactory("ThreadPoolMetricsTest-1"),
-                                                                                 "internal");
-        testMetricsWithNoBlockedThreads(executor, executor.metrics);
+        ThreadPoolExecutorPlus executor = (ThreadPoolExecutorPlus) executorFactory()
+                .withJmxInternal()
+                .configurePooled("ThreadPoolMetricsTest-1", 2)
+                .withQueueLimit(2)
+                .build();
+        testMetricsWithNoBlockedThreads(executor, ((ThreadPoolExecutorJMXAdapter)executor.onShutdown()).metrics());
     }
 
     @Test
     public void testJMXEnabledThreadPoolMetricsWithBlockedThread()
     {
-        JMXEnabledThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(2,
-                                                                                 Integer.MAX_VALUE,
-                                                                                 TimeUnit.SECONDS,
-                                                                                 new ArrayBlockingQueue<>(2),
-                                                                                 new NamedThreadFactory("ThreadPoolMetricsTest-2"),
-                                                                                 "internal");
-        testMetricsWithBlockedThreads(executor, executor.metrics);
+        ThreadPoolExecutorPlus executor = (ThreadPoolExecutorPlus) executorFactory()
+                .withJmxInternal()
+                .configurePooled("ThreadPoolMetricsTest-2", 2)
+                .withQueueLimit(2)
+                .build();
+        testMetricsWithBlockedThreads(executor, ((ThreadPoolExecutorJMXAdapter)executor.onShutdown()).metrics());
     }
 
     @Test
@@ -66,7 +64,7 @@ public class ThreadPoolMetricsTest
         testMetricsWithNoBlockedThreads(executor, executor.metrics);
     }
 
-    private static void testMetricsWithBlockedThreads(LocalAwareExecutorService threadPool, ThreadPoolMetrics metrics)
+    private static void testMetricsWithBlockedThreads(ExecutorPlus threadPool, ThreadPoolMetrics metrics)
     {
         assertEquals(2, metrics.maxPoolSize.getValue().intValue());
 
@@ -187,7 +185,7 @@ public class ThreadPoolMetricsTest
         spinAssertEquals(2L, metrics.totalBlocked::getCount);
     }
 
-    private static void testMetricsWithNoBlockedThreads(LocalAwareExecutorService threadPool, ThreadPoolMetrics metrics)
+    private static void testMetricsWithNoBlockedThreads(ExecutorPlus threadPool, ThreadPoolMetrics metrics)
     {
         spinAssertEquals(0, metrics.activeTasks::getValue);
         spinAssertEquals(0L, metrics.completedTasks::getValue);

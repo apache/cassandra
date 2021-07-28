@@ -32,7 +32,6 @@ import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompressionParams;
@@ -44,6 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Strings;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class CommitLogArchiver
 {
@@ -75,7 +76,11 @@ public class CommitLogArchiver
         this.restoreDirectories = restoreDirectories;
         this.restorePointInTime = restorePointInTime;
         this.precision = precision;
-        executor = !Strings.isNullOrEmpty(archiveCommand) ? new JMXEnabledThreadPoolExecutor("CommitLogArchiver") : null;
+        executor = !Strings.isNullOrEmpty(archiveCommand)
+                ? executorFactory()
+                    .withJmxInternal()
+                    .sequential("CommitLogArchiver")
+                : null;
     }
 
     public static CommitLogArchiver disabled()

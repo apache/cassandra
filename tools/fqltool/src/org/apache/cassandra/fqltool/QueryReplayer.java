@@ -27,7 +27,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -47,11 +46,13 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.Statement;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
 public class QueryReplayer implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryReplayer.class);
     private static final int PRINT_RATE = 5000;
-    private final ExecutorService es = Executors.newFixedThreadPool(1);
+    private final ExecutorService es = executorFactory().sequential("QueryReplayer");
     private final Iterator<List<FQLQuery>> queryIterator;
     private final List<Predicate<FQLQuery>> filters;
     private final List<Session> sessions;

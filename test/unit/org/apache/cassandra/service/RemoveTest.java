@@ -143,7 +143,7 @@ public class RemoveTest
     {
         // start removal in background and send replication confirmations
         final AtomicBoolean success = new AtomicBoolean(false);
-        Thread remover = NamedThreadFactory.createThread(() ->
+        Thread remover = NamedThreadFactory.createAnonymousThread(() ->
         {
             try
             {
