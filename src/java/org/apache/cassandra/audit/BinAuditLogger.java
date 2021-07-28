@@ -22,7 +22,6 @@ import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,10 +40,8 @@ public class BinAuditLogger implements IAuditLogger
 
     private volatile BinLog binLog;
 
-    public BinAuditLogger(Map<String, String> params)
+    public BinAuditLogger(AuditLogOptions auditLoggingOptions)
     {
-        AuditLogOptions auditLoggingOptions = DatabaseDescriptor.getAuditLoggingOptions();
-
         this.binLog = new BinLog.Builder().path(Paths.get(auditLoggingOptions.audit_logs_dir))
                                           .rollCycle(auditLoggingOptions.roll_cycle)
                                           .blocking(auditLoggingOptions.block)
@@ -53,6 +50,11 @@ public class BinAuditLogger implements IAuditLogger
                                           .archiveCommand(auditLoggingOptions.archive_command)
                                           .maxArchiveRetries(auditLoggingOptions.max_archive_retries)
                                           .build(false);
+    }
+
+    public BinAuditLogger(Map<String, String> params)
+    {
+        this(DatabaseDescriptor.getAuditLoggingOptions());
     }
 
     /**

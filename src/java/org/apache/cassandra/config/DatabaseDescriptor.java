@@ -3149,7 +3149,7 @@ public class DatabaseDescriptor
 
     public static void setAuditLoggingOptions(AuditLogOptions auditLoggingOptions)
     {
-        conf.audit_logging_options = auditLoggingOptions;
+        conf.audit_logging_options = new AuditLogOptions.Builder(auditLoggingOptions).build();
     }
 
     public static Config.CorruptedTombstoneStrategy getCorruptedTombstoneStrategy()
