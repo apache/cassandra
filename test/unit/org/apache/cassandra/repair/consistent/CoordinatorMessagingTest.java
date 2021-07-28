@@ -31,8 +31,9 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -105,8 +106,8 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         UUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -117,7 +118,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertFalse(repairSubmitted.get());
 
         // execute repair and start prepare phase
-        ListenableFuture<Boolean> sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future<Boolean> sessionResult = coordinator.execute(sessionSupplier, hasFailures);
         Assert.assertFalse(sessionResult.isDone());
         Assert.assertFalse(hasFailures.get());
         // prepare completed
@@ -127,7 +128,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertFalse(hasFailures.get());
 
         // set result from local repair session
-        repairFuture.set(Lists.newArrayList(createResult(coordinator), createResult(coordinator), createResult(coordinator)));
+        repairFuture.trySuccess(Lists.newArrayList(createResult(coordinator), createResult(coordinator), createResult(coordinator)));
 
         // finalize phase
         finalizeLatch.countDown();
@@ -196,8 +197,8 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         UUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -208,7 +209,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertFalse(repairSubmitted.get());
 
         // execute repair and start prepare phase
-        ListenableFuture<Boolean> sessionResult = coordinator.execute(sessionSupplier, proposeFailed);
+        Future<Boolean> sessionResult = coordinator.execute(sessionSupplier, proposeFailed);
         prepareLatch.countDown();
         // prepare completed
         try
@@ -235,8 +236,8 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         UUID uuid = registerSession(cfs, true, true);
         CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
-        SettableFuture<List<RepairSessionResult>> repairFuture = SettableFuture.create();
-        Supplier<ListenableFuture<List<RepairSessionResult>>> sessionSupplier = () ->
+        Promise<List<RepairSessionResult>> repairFuture = AsyncPromise.uncancellable();
+        Supplier<Future<List<RepairSessionResult>>> sessionSupplier = () ->
         {
             repairSubmitted.set(true);
             return repairFuture;
@@ -247,7 +248,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertFalse(repairSubmitted.get());
 
         // execute repair and start prepare phase
-        ListenableFuture<Boolean> sessionResult = coordinator.execute(sessionSupplier, hasFailures);
+        Future<Boolean> sessionResult = coordinator.execute(sessionSupplier, hasFailures);
         try
         {
             sessionResult.get(1, TimeUnit.SECONDS);

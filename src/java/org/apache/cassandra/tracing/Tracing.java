@@ -31,8 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.concurrent.ExecutorLocal;
+import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -50,7 +49,7 @@ import org.apache.cassandra.utils.UUIDGen;
  * A trace session context. Able to track and store trace sessions. A session is usually a user initiated query, and may
  * have multiple local and remote events before it is completed.
  */
-public abstract class Tracing implements ExecutorLocal<TraceState>
+public abstract class Tracing extends ExecutorLocals.Impl
 {
     public static final IVersionedSerializer<TraceType> traceTypeSerializer = new IVersionedSerializer<TraceType>()
     {
@@ -105,8 +104,6 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     private final InetAddressAndPort localAddress = FBUtilities.getLocalAddressAndPort();
 
-    private final FastThreadLocal<TraceState> state = new FastThreadLocal<>();
-
     protected final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<>();
 
     public static final Tracing instance;
@@ -134,19 +131,19 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
     public UUID getSessionId()
     {
         assert isTracing();
-        return state.get().sessionId;
+        return get().sessionId;
     }
 
     public TraceType getTraceType()
     {
         assert isTracing();
-        return state.get().traceType;
+        return get().traceType;
     }
 
     public int getTTL()
     {
         assert isTracing();
-        return state.get().ttl;
+        return get().ttl;
     }
 
     /**
@@ -221,7 +218,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public TraceState get()
     {
-        return state.get();
+        return ExecutorLocals.current().traceState;
     }
 
     public TraceState get(UUID sessionId)
@@ -229,9 +226,11 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
         return sessions.get(sessionId);
     }
 
-    public void set(final TraceState tls)
+    public void set(TraceState tls)
     {
-        state.set(tls);
+        @SuppressWarnings("resource")
+        ExecutorLocals current = ExecutorLocals.current();
+        ExecutorLocals.Impl.set(tls, current.clientWarnState);
     }
 
     public TraceState begin(final String request, final Map<String, String> parameters)

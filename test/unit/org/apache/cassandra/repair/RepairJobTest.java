@@ -45,7 +45,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
@@ -118,11 +119,13 @@ public class RepairJobTest
             super(parentRepairSession, id, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair, previewKind, optimiseStreams, cfnames);
         }
 
-        protected DebuggableThreadPoolExecutor createExecutor()
+        protected ExecutorPlus createExecutor()
         {
-            DebuggableThreadPoolExecutor executor = super.createExecutor();
-            executor.setKeepAliveTime(THREAD_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            return executor;
+            return ExecutorFactory.Global.executorFactory()
+                    .configurePooled("RepairJobTask", Integer.MAX_VALUE)
+                    .withDefaultThreadGroup()
+                    .withKeepAlive(THREAD_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
+                    .build();
         }
 
         @Override

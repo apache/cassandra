@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.util.AttributeKey;
-import org.apache.cassandra.concurrent.LocalAwareExecutorService;
+import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.service.ClientWarn;
@@ -50,10 +50,10 @@ public class Dispatcher
 {
     private static final Logger logger = LoggerFactory.getLogger(Dispatcher.class);
     
-    private static final LocalAwareExecutorService requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
-                                                                                        DatabaseDescriptor::setNativeTransportMaxThreads,
-                                                                                        "transport",
-                                                                                        "Native-Transport-Requests");
+    private static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+                                                                                     DatabaseDescriptor::setNativeTransportMaxThreads,
+                                                                                     "transport",
+                                                                                     "Native-Transport-Requests");
 
     private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
     private final boolean useLegacyFlusher;

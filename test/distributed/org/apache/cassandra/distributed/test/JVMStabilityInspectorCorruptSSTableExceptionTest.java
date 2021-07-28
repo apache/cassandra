@@ -55,13 +55,13 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseImpl
 {
     @Test
-    public void testAbstractLocalAwareExecutorServiceOnIgnoredDiskFailurePolicy() throws Exception
+    public void testAbstractLocalAwareExecutorPlusOnIgnoredDiskFailurePolicy() throws Exception
     {
         test(DiskFailurePolicy.ignore, true, true);
     }
 
     @Test
-    public void testAbstractLocalAwareExecutorServiceOnStopParanoidDiskFailurePolicy() throws Exception
+    public void testAbstractLocalAwareExecutorPlusOnStopParanoidDiskFailurePolicy() throws Exception
     {
         test(DiskFailurePolicy.stop_paranoid, false, false);
     }

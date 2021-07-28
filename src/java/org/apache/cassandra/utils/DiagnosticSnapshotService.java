@@ -28,7 +28,6 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -38,6 +37,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * Provides a means to take snapshots when triggered by anomalous events or when the breaking of invariants is
@@ -64,7 +64,7 @@ public class DiagnosticSnapshotService
     private static final Logger logger = LoggerFactory.getLogger(DiagnosticSnapshotService.class);
 
     public static final DiagnosticSnapshotService instance =
-        new DiagnosticSnapshotService(Executors.newSingleThreadExecutor(new NamedThreadFactory("DiagnosticSnapshot")));
+        new DiagnosticSnapshotService(executorFactory().sequential("DiagnosticSnapshot"));
 
     public static final String REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX = "RepairedDataMismatch-";
     public static final String DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX = "DuplicateRows-";

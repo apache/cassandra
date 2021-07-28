@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.cache;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -28,10 +31,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
-
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -50,6 +50,9 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.concurrent.Future;
+
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -155,12 +158,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
     }
 
-    public ListenableFuture<Integer> loadSavedAsync()
+    public Future<Integer> loadSavedAsync()
     {
-        final ListeningExecutorService es = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+        final ExecutorPlus es = executorFactory().sequential("loadSavedCache");
         final long start = nanoTime();
 
-        ListenableFuture<Integer> cacheLoad = es.submit(this::loadSaved);
+        Future<Integer> cacheLoad = es.submit(this::loadSaved);
         cacheLoad.addListener(() -> {
             if (size() > 0)
                 logger.info("Completed loading ({} ms; {} keys) {} cache",
@@ -168,7 +171,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                         CacheService.instance.keyCache.size(),
                         cacheType);
             es.shutdown();
-        }, MoreExecutors.directExecutor());
+        });
 
         return cacheLoad;
     }

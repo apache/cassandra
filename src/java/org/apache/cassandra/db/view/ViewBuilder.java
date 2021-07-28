@@ -22,16 +22,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +45,9 @@ import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static java.util.stream.Collectors.toList;
 
@@ -73,7 +72,7 @@ class ViewBuilder
     private final Set<ViewBuilderTask> tasks = Sets.newConcurrentHashSet();
     private volatile long keysBuilt = 0;
     private volatile boolean isStopped = false;
-    private volatile Future<?> future = Futures.immediateFuture(null);
+    private volatile Future<?> future = ImmediateFuture.success(null);
 
     ViewBuilder(ColumnFamilyStore baseCfs, View view)
     {
@@ -162,21 +161,21 @@ class ViewBuilder
 
         // Submit a new view build task for each building range.
         // We keep record of all the submitted tasks to be able of stopping them.
-        List<ListenableFuture<Long>> futures = pendingRanges.entrySet()
-                                                            .stream()
-                                                            .map(e -> new ViewBuilderTask(baseCfs,
-                                                                                          view,
-                                                                                          e.getKey(),
-                                                                                          e.getValue().left,
-                                                                                          e.getValue().right))
-                                                            .peek(tasks::add)
-                                                            .map(CompactionManager.instance::submitViewBuilder)
-                                                            .collect(toList());
+        List<Future<Long>> futures = pendingRanges.entrySet()
+                                                  .stream()
+                                                  .map(e -> new ViewBuilderTask(baseCfs,
+                                                                                view,
+                                                                                e.getKey(),
+                                                                                e.getValue().left,
+                                                                                e.getValue().right))
+                                                  .peek(tasks::add)
+                                                  .map(CompactionManager.instance::submitViewBuilder)
+                                                  .collect(toList());
 
         // Add a callback to process any eventual new local range and mark the view as built, doing a delayed retry if
         // the tasks don't succeed
-        ListenableFuture<List<Long>> future = Futures.allAsList(futures);
-        Futures.addCallback(future, new FutureCallback<List<Long>>()
+        Future<List<Long>> future = FutureCombiner.allOf(futures);
+        future.addCallback(new FutureCallback<List<Long>>()
         {
             public void onSuccess(List<Long> result)
             {
@@ -200,7 +199,7 @@ class ViewBuilder
                     logger.warn("Materialized View failed to complete, sleeping 5 minutes before restarting", t);
                 }
             }
-        }, MoreExecutors.directExecutor());
+        });
         this.future = future;
     }
 
@@ -228,10 +227,16 @@ class ViewBuilder
     /**
      * Stops the view building.
      */
-    synchronized void stop()
+    void stop()
     {
-        boolean wasStopped = isStopped;
-        internalStop(false);
+        boolean wasStopped;
+        synchronized (this)
+        {
+            wasStopped = isStopped;
+            internalStop(false);
+        }
+        // TODO: very unclear what the goal is here. why do we wait only if we were the first to invoke stop?
+        // but we wait outside the synchronized block to avoid a deadlock with `build` in the future callback
         if (!wasStopped)
             FBUtilities.waitOnFuture(future);
     }

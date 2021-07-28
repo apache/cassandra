@@ -41,7 +41,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
         assertThat(tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
         Assertions.assertThat(tool.getCleanedStderr()).isEmpty();
         assertEquals(1, tool.getExitCode());
-        assertNoUnexpectedThreadsStarted(null, null);
+        assertNoUnexpectedThreadsStarted(null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -79,7 +79,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
                                                        "--is-repaired",
                                                        findOneSSTable("legacy_sstables", "legacy_ma_simple"));
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -95,7 +95,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
                                                  "--is-unrepaired",
                                                  findOneSSTable("legacy_sstables", "legacy_ma_simple"));
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
@@ -113,7 +113,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
         String file = tmpFile.getAbsolutePath();
         ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class, "--really-set", "--is-repaired", "-f", file);
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

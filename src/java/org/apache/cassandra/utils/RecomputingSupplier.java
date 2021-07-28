@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -26,6 +25,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.Promise;
 
 /**
  * Supplier that caches the last computed value until it is reset, forcing every caller of
@@ -38,7 +41,7 @@ import java.util.function.Supplier;
 public class RecomputingSupplier<T>
 {
     private final Supplier<T> supplier;
-    private final AtomicReference<CompletableFuture<T>> cached = new AtomicReference<>(null);
+    private final AtomicReference<Future<T>> cached = new AtomicReference<>(null);
     private final AtomicBoolean workInProgress = new AtomicBoolean(false);
     private final ExecutorService executor;
 
@@ -50,7 +53,7 @@ public class RecomputingSupplier<T>
 
     public void recompute()
     {
-        CompletableFuture<T> current = cached.get();
+        Future<T> current = cached.get();
         boolean origWip = workInProgress.get();
 
         if (origWip || (current != null && !current.isDone()))
@@ -63,14 +66,14 @@ public class RecomputingSupplier<T>
         assert current == null || current.isDone();
 
         // The work is not in progress, and current future is done. Try to submit a new task.
-        CompletableFuture<T> lazyValue = new CompletableFuture<>();
+        Promise<T> lazyValue = new AsyncPromise<>();
         if (cached.compareAndSet(current, lazyValue))
             executor.submit(() -> doWork(lazyValue));
         else
             executor.submit(this::recompute); // Lost CAS, resubmit
     }
 
-    private void doWork(CompletableFuture<T> lazyValue)
+    private void doWork(Promise<T> lazyValue)
     {
         T value = null;
         Throwable err = null;
@@ -89,9 +92,9 @@ public class RecomputingSupplier<T>
         }
 
         if (err == null)
-            lazyValue.complete(value);
+            lazyValue.trySuccess(value);
         else
-            lazyValue.completeExceptionally(err);
+            lazyValue.tryFailure(err);
     }
 
     private static void sanityCheck(boolean check)
@@ -101,7 +104,7 @@ public class RecomputingSupplier<T>
 
     public T get(long timeout, TimeUnit timeUnit) throws InterruptedException, ExecutionException, TimeoutException
     {
-        CompletableFuture<T> lazyValue = cached.get();
+        Future<T> lazyValue = cached.get();
 
         // recompute was never called yet, return null.
         if (lazyValue == null)

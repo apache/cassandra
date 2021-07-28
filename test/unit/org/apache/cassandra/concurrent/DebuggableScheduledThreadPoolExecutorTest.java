@@ -33,6 +33,8 @@ import org.junit.Assert;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+
 public class DebuggableScheduledThreadPoolExecutorTest
 {
 
@@ -50,7 +52,7 @@ public class DebuggableScheduledThreadPoolExecutorTest
     @Test
     public void testShutdown() throws ExecutionException, InterruptedException, IOException
     {
-        DebuggableScheduledThreadPoolExecutor testPool = new DebuggableScheduledThreadPoolExecutor("testpool");
+        ScheduledExecutorPlus testPool = executorFactory().scheduled("testpool");
 
         final AtomicInteger value = new AtomicInteger(0);
 

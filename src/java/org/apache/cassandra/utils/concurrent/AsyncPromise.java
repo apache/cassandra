@@ -19,8 +19,10 @@
 package org.apache.cassandra.utils.concurrent;
 
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
-import io.netty.util.concurrent.EventExecutor;
+import com.google.common.util.concurrent.FutureCallback;
+
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 
@@ -29,46 +31,68 @@ import io.netty.util.concurrent.GenericFutureListener;
  */
 public class AsyncPromise<V> extends AsyncFuture<V> implements Promise<V>
 {
+    public static class WithExecutor<V> extends AsyncPromise<V>
+    {
+        final Executor notifyExecutor;
+        protected WithExecutor(Executor notifyExecutor)
+        {
+            this.notifyExecutor = notifyExecutor;
+        }
+
+        protected WithExecutor(Executor notifyExecutor, FailureHolder initialState)
+        {
+            super(initialState);
+            this.notifyExecutor = notifyExecutor;
+        }
+
+        protected WithExecutor(Executor notifyExecutor, GenericFutureListener<? extends Future<? super V>> listener)
+        {
+            super(listener);
+            this.notifyExecutor = notifyExecutor;
+        }
+
+        @Override
+        public Executor notifyExecutor()
+        {
+            return notifyExecutor;
+        }
+    }
+
     public AsyncPromise() {}
 
-    public AsyncPromise(Executor notifyExecutor)
+    AsyncPromise(FailureHolder initialState)
     {
-        super(notifyExecutor);
+        super(initialState);
     }
 
-    AsyncPromise(Executor notifyExecutor, V immediateSuccess)
+    public AsyncPromise(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
     {
-        super(notifyExecutor, immediateSuccess);
+        super(listener);
     }
 
-    AsyncPromise(Executor notifyExecutor, Throwable immediateFailure)
+    AsyncPromise(FailureHolder initialState, GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
     {
-        super(notifyExecutor, immediateFailure);
+        super(initialState, listener);
     }
 
-    AsyncPromise(Executor notifyExecutor, FailureHolder initialState)
+    public static <V> AsyncPromise<V> withExecutor(Executor executor)
     {
-        super(notifyExecutor, initialState);
+        return new AsyncPromise.WithExecutor<>(executor);
     }
 
-    public AsyncPromise(Executor notifyExecutor, GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
+    public static <V> AsyncPromise<V> uncancellable()
     {
-        super(notifyExecutor, listener);
+        return new AsyncPromise<>(UNCANCELLABLE);
     }
 
-    AsyncPromise(Executor notifyExecutor, FailureHolder initialState, GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
+    public static <V> AsyncPromise<V> uncancellable(Executor executor)
     {
-        super(notifyExecutor, initialState, listener);
+        return new WithExecutor<>(executor, UNCANCELLABLE);
     }
 
-    public static <V> AsyncPromise<V> uncancellable(EventExecutor executor)
+    public static <V> AsyncPromise<V> uncancellable(GenericFutureListener<? extends Future<? super V>> listener)
     {
-        return new AsyncPromise<>(executor, UNCANCELLABLE);
-    }
-
-    public static <V> AsyncPromise<V> uncancellable(EventExecutor executor, GenericFutureListener<? extends Future<? super V>> listener)
-    {
-        return new AsyncPromise<>(executor, UNCANCELLABLE, listener);
+        return new AsyncPromise<>(UNCANCELLABLE, listener);
     }
 
     /**
@@ -164,29 +188,50 @@ public class AsyncPromise<V> extends AsyncFuture<V> implements Promise<V>
     }
 
     @Override
-    public Promise<V> addListener(GenericFutureListener<? extends Future<? super V>> listener)
+    public AsyncPromise<V> addListener(GenericFutureListener<? extends Future<? super V>> listener)
     {
         super.addListener(listener);
         return this;
     }
 
     @Override
-    public Promise<V> addListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... listeners)
+    public AsyncPromise<V> addListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... listeners)
     {
         super.addListeners(listeners);
         return this;
     }
 
     @Override
-    public Promise<V> removeListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
+    public AsyncPromise<V> removeListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Promise<V> removeListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... listeners)
+    public AsyncPromise<V> removeListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... listeners)
     {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public AsyncPromise<V> addCallback(FutureCallback<? super V> callback)
+    {
+        super.addCallback(callback);
+        return this;
+    }
+
+    @Override
+    public AsyncPromise<V> addCallback(FutureCallback<? super V> callback, Executor executor)
+    {
+        super.addCallback(callback, executor);
+        return this;
+    }
+
+    @Override
+    public AsyncPromise<V> addCallback(Consumer<? super V> onSuccess, Consumer<? super Throwable> onFailure)
+    {
+        super.addCallback(onSuccess, onFailure);
+        return this;
     }
 
     /**
@@ -211,7 +256,7 @@ public class AsyncPromise<V> extends AsyncFuture<V> implements Promise<V>
     }
 
     /**
-     * Wait for this promise to complete, throwing any interrupt as an UnhandledInterruptedException
+     * Wait for this promise to complete, throwing any interrupt as an UncheckedInterruptedException
      * @throws UncheckedInterruptedException if interrupted
      */
     @Override
@@ -221,3 +266,4 @@ public class AsyncPromise<V> extends AsyncFuture<V> implements Promise<V>
         return this;
     }
 }
+

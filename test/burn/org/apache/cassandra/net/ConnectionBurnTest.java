@@ -43,6 +43,7 @@ import java.util.stream.IntStream;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -482,7 +483,7 @@ public class ConnectionBurnTest
                 reporters.print();
 
                 inbound.sockets.close().get();
-                new FutureCombiner(Arrays.stream(connections)
+                FutureCombiner.allOf(Arrays.stream(connections)
                                          .map(c -> c.outbound.close(false))
                                          .collect(Collectors.toList()))
                 .get();

@@ -165,6 +165,8 @@ public interface WaitQueue
         // the waiting signals
         private final ConcurrentLinkedQueue<RegisteredSignal> queue = new ConcurrentLinkedQueue<>();
 
+        protected Standard() {}
+
         /**
          * The calling thread MUST be the thread that uses the signal
          * @return                                x

@@ -18,22 +18,15 @@
 
 package org.apache.cassandra.utils.concurrent;
 
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.util.concurrent.AsyncFunction;
+import com.google.common.util.concurrent.ListenableFuture;
 
-import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GenericFutureListener;
-import io.netty.util.internal.ThrowableUtil;
-
-import static java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater;
 
 /**
  * Our default {@link Future} implementation, with all state being managed without locks (except those used by the JVM).
@@ -50,122 +43,41 @@ import static java.util.concurrent.atomic.AtomicReferenceFieldUpdater.newUpdater
  *      This means that once isSuccess() holds, the result must be a correctly typed object (modulo generics pitfalls).
  *    - All special values are also instances of FailureHolder, which simplifies a number of the logical conditions.
  */
-@SuppressWarnings("rawtypes")
-public class AsyncFuture<V> extends Awaitable.AsyncAwaitable implements Future<V>
+public class AsyncFuture<V> extends AbstractFuture<V>
 {
-    private static final Logger logger = LoggerFactory.getLogger(AsyncFuture.class);
-
-    protected static final FailureHolder UNSET = new FailureHolder(null);
-    protected static final FailureHolder UNCANCELLABLE = new FailureHolder(null);
-    protected static final FailureHolder CANCELLED = new FailureHolder(ThrowableUtil.unknownStackTrace(new CancellationException(), AsyncFuture.class, "cancel(...)"));
-
-    static class FailureHolder
-    {
-        final Throwable cause;
-        FailureHolder(Throwable cause)
-        {
-            this.cause = cause;
-        }
-    }
-
-    protected static Throwable cause(Object result)
-    {
-        return result instanceof FailureHolder ? ((FailureHolder) result).cause : null;
-    }
-    protected static boolean isSuccess(Object result)
-    {
-        return !(result instanceof FailureHolder);
-    }
-    protected static boolean isCancelled(Object result)
-    {
-        return result == CANCELLED;
-    }
-    protected static boolean isDone(Object result)
-    {
-        return result != UNSET && result != UNCANCELLABLE;
-    }
-
-    private final @Nullable Executor notifyExecutor;
-    private volatile Object result;
-    private volatile GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listeners;
-    private static final AtomicReferenceFieldUpdater<AsyncFuture, Object> resultUpdater = newUpdater(AsyncFuture.class, Object.class, "result");
-    private static final AtomicReferenceFieldUpdater<AsyncFuture, GenericFutureListener> listenersUpdater = newUpdater(AsyncFuture.class, GenericFutureListener.class, "listeners");
-
-    private static final DeferredGenericFutureListener NOTIFYING = future -> {};
-
-    private static interface DeferredGenericFutureListener<F extends Future<?>> extends GenericFutureListener<F> {}
+    @SuppressWarnings({ "rawtypes" })
+    private static final AtomicReferenceFieldUpdater<AsyncFuture, WaitQueue> waitingUpdater = AtomicReferenceFieldUpdater.newUpdater(AsyncFuture.class, WaitQueue.class, "waiting");
+    @SuppressWarnings({ "unused" })
+    private volatile WaitQueue waiting;
 
     public AsyncFuture()
     {
-        this(null, UNSET);
+        super();
     }
 
-    public AsyncFuture(Executor notifyExecutor)
+    protected AsyncFuture(V immediateSuccess)
     {
-        this(notifyExecutor, UNSET);
+        super(immediateSuccess);
     }
 
-    protected AsyncFuture(Executor notifyExecutor, V immediateSuccess)
+    protected AsyncFuture(Throwable immediateFailure)
     {
-        resultUpdater.lazySet(this, immediateSuccess);
-        this.notifyExecutor = notifyExecutor;
+        super(immediateFailure);
     }
 
-    protected AsyncFuture(Executor notifyExecutor, Throwable immediateFailure)
+    protected AsyncFuture(FailureHolder initialState)
     {
-        resultUpdater.lazySet(this, new FailureHolder(immediateFailure));
-        this.notifyExecutor = notifyExecutor;
+        super(initialState);
     }
 
-    protected AsyncFuture(Executor notifyExecutor, FailureHolder initialState)
+    protected AsyncFuture(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
     {
-        resultUpdater.lazySet(this, initialState);
-        this.notifyExecutor = notifyExecutor;
+        super(listener);
     }
 
-    protected AsyncFuture(Executor notifyExecutor, GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
+    protected AsyncFuture(FailureHolder initialState, GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
     {
-        this(notifyExecutor);
-        this.listeners = listener;
-    }
-
-    protected AsyncFuture(Executor notifyExecutor, FailureHolder initialState, GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
-    {
-        this(notifyExecutor, initialState);
-        this.listeners = listener;
-    }
-
-    protected boolean trySuccess(V v)
-    {
-        return trySet(v);
-    }
-
-    protected boolean tryFailure(Throwable throwable)
-    {
-        return trySet(new FailureHolder(throwable));
-    }
-
-    protected boolean setUncancellable()
-    {
-        if (trySet(UNCANCELLABLE))
-            return true;
-        return isUncancellable();
-    }
-
-    protected boolean setUncancellableExclusive()
-    {
-        return trySet(UNCANCELLABLE);
-    }
-
-    protected boolean isUncancellable()
-    {
-        Object result = this.result;
-        return result == UNCANCELLABLE || (isDone(result) && !isCancelled(result));
-    }
-
-    public boolean cancel(boolean b)
-    {
-        return trySet(CANCELLED);
+        super(initialState, listener);
     }
 
     /**
@@ -178,203 +90,47 @@ public class AsyncFuture<V> extends Awaitable.AsyncAwaitable implements Future<V
      *
      * If the update succeeds, and the new state implies isDone(), any listeners and waiters will be notified
      */
-    private boolean trySet(Object v)
+    boolean trySet(Object v)
     {
         while (true)
         {
             Object current = result;
-            if (isDone(current) || (current == UNCANCELLABLE && v == CANCELLED))
+            if (isDone(current) || (current == UNCANCELLABLE && (v == CANCELLED || v == UNCANCELLABLE)))
                 return false;
             if (resultUpdater.compareAndSet(this, current, v))
             {
                 if (v != UNCANCELLABLE)
                 {
-                    notifyListeners();
-                    signal();
+                    ListenerList.notify(listenersUpdater, this);
+                    AsyncAwaitable.signalAll(waitingUpdater, this);
                 }
                 return true;
             }
         }
     }
 
-    @Override
-    public boolean isSuccess()
-    {
-        return isSuccess(result);
-    }
-
-    @Override
-    public boolean isCancelled()
-    {
-        return isCancelled(result);
-    }
-
-    @Override
-    public boolean isDone()
-    {
-        return isDone(result);
-    }
-
-    @Override
-    public boolean isCancellable()
-    {
-        return result == UNSET;
-    }
-
-    @Override
-    public Throwable cause()
-    {
-        return cause(result);
-    }
-
     /**
-     * if isSuccess(), returns the value, otherwise returns null
+     * Logically append {@code newListener} to {@link #listeners}
+     * (at this stage it is a stack, so we actually prepend)
+     *
+     * @param newListener must be either a {@link ListenerList} or {@link GenericFutureListener}
      */
-    @Override
-    public V getNow()
+    void appendListener(ListenerList<V> newListener)
     {
-        Object result = this.result;
-        if (isSuccess(result))
-            return (V) result;
-        return null;
-    }
-
-    /**
-     * Shared implementation of get() after suitable await(); assumes isDone(), and returns
-     * either the success result or throws the suitable exception under failure
-     */
-    protected V getWhenDone() throws ExecutionException
-    {
-        Object result = this.result;
-        if (isSuccess(result))
-            return (V) result;
-        if (result == CANCELLED)
-            throw new CancellationException();
-        throw new ExecutionException(((FailureHolder) result).cause);
-    }
-
-    @Override
-    public V get() throws InterruptedException, ExecutionException
-    {
-        await();
-        return getWhenDone();
-    }
-
-    @Override
-    public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
-    {
-        if (!await(timeout, unit))
-            throw new TimeoutException();
-        return getWhenDone();
-    }
-
-    @Override
-    public Future<V> addListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
-    {
-        listenersUpdater.accumulateAndGet(this, listener, AsyncFuture::appendListener);
+        ListenerList.push(listenersUpdater, this, newListener);
         if (isDone())
-            notifyListeners();
-        return this;
+            ListenerList.notify(listenersUpdater, this);
     }
 
-    private void notifyListeners()
-    {
-        if (notifyExecutor != null)
-        {
-            // TODO: could generify to any executor able to say if already executing within
-            if (notifyExecutor instanceof EventExecutor && ((EventExecutor) notifyExecutor).inEventLoop())
-                doNotifyListenersExclusive();
-            else if (listeners != null) // submit this method, to guarantee we invoke in the submitted order
-                notifyExecutor.execute(this::doNotifyListenersExclusive);
-        }
-        else
-        {
-            doNotifyListeners();
-        }
-    }
-
-    private void doNotifyListeners()
-    {
-        @SuppressWarnings("rawtypes") GenericFutureListener listeners;
-        while (true)
-        {
-            listeners = this.listeners;
-            if (listeners == null || listeners instanceof DeferredGenericFutureListener<?>)
-                return; // either no listeners, or we are already notifying listeners, so we'll get to the new one when ready
-
-            if (listenersUpdater.compareAndSet(this, listeners, NOTIFYING))
-            {
-                while (true)
-                {
-                    invokeListener(listeners, this);
-                    if (listenersUpdater.compareAndSet(this, NOTIFYING, null))
-                        return;
-                    listeners = listenersUpdater.getAndSet(this, NOTIFYING);
-                }
-            }
-        }
-    }
-
-    private void doNotifyListenersExclusive()
-    {
-        if (listeners == null || listeners instanceof DeferredGenericFutureListener<?>)
-            return; // either no listeners, or we are already notifying listeners, so we'll get to the new one when ready
-
-        while (true)
-        {
-            @SuppressWarnings("rawtypes") GenericFutureListener listeners = listenersUpdater.getAndSet(this, NOTIFYING);
-            if (listeners != null)
-                invokeListener(listeners, this);
-
-            if (listenersUpdater.compareAndSet(this, NOTIFYING, null))
-                return;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     *
+     * See {@link #addListener(GenericFutureListener)} for ordering semantics.
+     */
     @Override
-    public Future<V> addListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... listeners)
+    public <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, @Nullable Executor executor)
     {
-        // this could be more efficient if we cared, but we do not
-        return addListener(future -> {
-            for (GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener : listeners)
-                invokeListener((GenericFutureListener<io.netty.util.concurrent.Future<? super V>>)listener, future);
-        });
-    }
-
-    @Override
-    public Future<V> removeListener(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>> listener)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public Future<V> removeListeners(GenericFutureListener<? extends io.netty.util.concurrent.Future<? super V>>... listeners)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    private static <F extends Future<?>> GenericFutureListener<F> appendListener(GenericFutureListener<F> prevListener, GenericFutureListener<F> newListener)
-    {
-        GenericFutureListener<F> result = newListener;
-
-        if (prevListener != null && prevListener != NOTIFYING)
-        {
-            result = future -> {
-                invokeListener(prevListener, future);
-                // we will wrap the outer invocation with invokeListener, so no need to do it here too
-                newListener.operationComplete(future);
-            };
-        }
-
-        if (prevListener instanceof DeferredGenericFutureListener<?>)
-        {
-            GenericFutureListener<F> wrap = result;
-            result = (DeferredGenericFutureListener<F>) wrap::operationComplete;
-        }
-
-        return result;
+        return andThenAsync(new AsyncFuture<>(), andThen, executor);
     }
 
     /**
@@ -383,62 +139,14 @@ public class AsyncFuture<V> extends Awaitable.AsyncAwaitable implements Future<V
     @Override
     public AsyncFuture<V> await() throws InterruptedException
     {
-        super.await();
-        return this;
+        //noinspection unchecked
+        return AsyncAwaitable.await(waitingUpdater, Future::isDone, this);
     }
 
-    /**
-     * Wait for this future to complete {@link Awaitable#awaitUninterruptibly()}
-     */
     @Override
-    public AsyncFuture<V> awaitUninterruptibly()
+    public boolean awaitUntil(long nanoTimeDeadline) throws InterruptedException
     {
-        super.awaitUninterruptibly();
-        return this;
-    }
-
-    /**
-     * Wait for this future to complete {@link Awaitable#awaitThrowUncheckedOnInterrupt()}
-     */
-    @Override
-    public AsyncFuture<V> awaitThrowUncheckedOnInterrupt() throws UncheckedInterruptedException
-    {
-        super.awaitThrowUncheckedOnInterrupt();
-        return this;
-    }
-
-    /**
-     * {@link AsyncAwaitable#isSignalled()}
-     */
-    @Override
-    protected boolean isSignalled()
-    {
-        return isDone(result);
-    }
-
-    public String toString()
-    {
-        Object result = this.result;
-        if (isSuccess(result))
-            return "(success: " + result + ')';
-        if (result == UNCANCELLABLE)
-            return "(uncancellable)";
-        if (result == CANCELLED)
-            return "(cancelled)";
-        if (isDone(result))
-            return "(failure: " + ((FailureHolder) result).cause + ')';
-        return "(incomplete)";
-    }
-
-    protected static <F extends io.netty.util.concurrent.Future<?>> void invokeListener(GenericFutureListener<F> listener, F future)
-    {
-        try
-        {
-            listener.operationComplete(future);
-        }
-        catch (Throwable t)
-        {
-            logger.error("Failed to invoke listener {} to {}", listener, future, t);
-        }
+        return AsyncAwaitable.awaitUntil(waitingUpdater, Future::isDone, this, nanoTimeDeadline);
     }
 }
+

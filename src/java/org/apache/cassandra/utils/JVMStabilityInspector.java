@@ -29,6 +29,8 @@ import java.util.function.Consumer;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
+import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.tracing.Tracing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +59,20 @@ public final class JVMStabilityInspector
     public static OnKillHook killerHook;
 
     private JVMStabilityInspector() {}
+
+    public static void uncaughtException(Thread thread, Throwable t)
+    {
+        try { StorageMetrics.uncaughtExceptions.inc(); } catch (Throwable ignore) { /* might not be initialised */ }
+        logger.error("Exception in thread {}", thread, t);
+        Tracing.trace("Exception in thread {}", thread, t);
+        for (Throwable t2 = t; t2 != null; t2 = t2.getCause())
+        {
+            // make sure error gets logged exactly once.
+            if (t2 != t && (t2 instanceof FSError || t2 instanceof CorruptSSTableException))
+                logger.error("Exception in thread {}", thread, t2);
+        }
+        JVMStabilityInspector.inspectThrowable(t);
+    }
 
     /**
      * Certain Throwables and Exceptions represent "Die" conditions for the server.

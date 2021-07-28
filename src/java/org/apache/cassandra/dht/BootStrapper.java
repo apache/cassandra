@@ -20,8 +20,7 @@ package org.apache.cassandra.dht;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.util.concurrent.ListenableFuture;
-
+import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +60,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
         this.tokenMetadata = tmd;
     }
 
-    public ListenableFuture<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
+    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
     {
         logger.trace("Beginning bootstrap process");
 

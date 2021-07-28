@@ -20,28 +20,27 @@ package org.apache.cassandra.hints;
 import java.io.File;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
-import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.cassandra.utils.concurrent.Future;
 
-import static java.lang.Thread.MIN_PRIORITY;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 /**
  * A multi-threaded (by default) executor for dispatching hints.
@@ -53,7 +52,7 @@ final class HintsDispatchExecutor
     private static final Logger logger = LoggerFactory.getLogger(HintsDispatchExecutor.class);
 
     private final File hintsDirectory;
-    private final ExecutorService executor;
+    private final ExecutorPlus executor;
     private final AtomicBoolean isPaused;
     private final Predicate<InetAddressAndPort> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
@@ -65,10 +64,11 @@ final class HintsDispatchExecutor
         this.isAlive = isAlive;
 
         scheduledDispatches = new ConcurrentHashMap<>();
-        executor = new JMXEnabledThreadPoolExecutor(maxThreads, 1, MINUTES,
-                                                    newBlockingQueue(),
-                                                    new NamedThreadFactory("HintsDispatcher", MIN_PRIORITY),
-                                                    "internal");
+        executor = executorFactory()
+                .withJmxInternal()
+                .configurePooled("HintsDispatcher", maxThreads)
+                .withThreadPriority(Thread.MIN_PRIORITY)
+                .build();
     }
 
     /*

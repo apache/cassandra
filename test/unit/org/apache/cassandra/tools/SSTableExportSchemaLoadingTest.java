@@ -182,7 +182,7 @@ public class SSTableExportSchemaLoadingTest extends OfflineToolUtils
      */
     private void assertPostTestEnv()
     {
-        assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
         assertKeyspaceNotLoaded();

@@ -493,7 +493,7 @@ public class ViewTest extends ViewAbstractTest
         createView(viewName1, "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
 
         cfs.enableAutoCompaction();
-        List<Future<?>> futures = CompactionManager.instance.submitBackground(cfs);
+        List<? extends Future<?>> futures = CompactionManager.instance.submitBackground(cfs);
 
         String viewName2 = viewName1 + "_2";
         //Force a second MV on the same base table, which will restart the first MV builder...

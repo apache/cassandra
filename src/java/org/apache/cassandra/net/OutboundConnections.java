@@ -27,6 +27,7 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,7 +126,7 @@ public class OutboundConnections
     synchronized Future<Void> reconnectWithNewIp(InetAddressAndPort addr)
     {
         template = template.withConnectTo(addr);
-        return new FutureCombiner(
+        return FutureCombiner.nettySuccessListener(
             apply(c -> c.reconnectWith(template))
         );
     }
@@ -139,7 +140,7 @@ public class OutboundConnections
     {
         // immediately release our metrics, so that if we need to re-open immediately we can safely register a new one
         releaseMetrics();
-        return new FutureCombiner(
+        return FutureCombiner.nettySuccessListener(
             apply(c -> c.scheduleClose(time, unit, flushQueues))
         );
     }
@@ -153,7 +154,7 @@ public class OutboundConnections
     {
         // immediately release our metrics, so that if we need to re-open immediately we can safely register a new one
         releaseMetrics();
-        return new FutureCombiner(
+        return FutureCombiner.nettySuccessListener(
             apply(c -> c.close(flushQueues))
         );
     }
