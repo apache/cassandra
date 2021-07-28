@@ -33,7 +33,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -66,8 +65,8 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.Refs;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 import static org.apache.cassandra.repair.messages.RepairOption.DATACENTERS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.FORCE_REPAIR_KEY;
@@ -76,6 +75,7 @@ import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -383,7 +383,7 @@ public class ActiveRepairServiceTest
         ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.reject);
         try
         {
-            Condition blocked = new SimpleCondition();
+            Condition blocked = newOneTimeCondition();
             CountDownLatch completed = new CountDownLatch(2);
 
             /*
@@ -433,8 +433,8 @@ public class ActiveRepairServiceTest
         ExecutorService validationExecutor = ActiveRepairService.initializeExecutor(2, Config.RepairCommandPoolFullStrategy.queue);
         try
         {
-            Condition allSubmitted = new SimpleCondition();
-            Condition blocked = new SimpleCondition();
+            Condition allSubmitted = newOneTimeCondition();
+            Condition blocked = newOneTimeCondition();
             CountDownLatch completed = new CountDownLatch(5);
             ExecutorService testExecutor = Executors.newSingleThreadExecutor();
             for (int i = 0; i < 5; i++)
@@ -482,7 +482,7 @@ public class ActiveRepairServiceTest
 
         public void run()
         {
-            Uninterruptibles.awaitUninterruptibly(blocked, TASK_SECONDS, TimeUnit.SECONDS);
+            blocked.awaitUninterruptibly(TASK_SECONDS, TimeUnit.SECONDS);
             complete.countDown();
         }
     }

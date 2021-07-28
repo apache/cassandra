@@ -30,7 +30,6 @@ import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamState;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * Store and update available ranges (data already received) to system keyspace.

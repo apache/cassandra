@@ -21,7 +21,6 @@ package org.apache.cassandra.db.commitlog;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Random;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;

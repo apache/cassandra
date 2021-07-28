@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.function.Supplier;
-
 import com.google.common.collect.ImmutableMap;
 
 import io.netty.buffer.ByteBuf;

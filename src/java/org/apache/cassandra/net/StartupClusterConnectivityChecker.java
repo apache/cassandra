@@ -23,7 +23,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +47,7 @@ import static org.apache.cassandra.net.Verb.PING_REQ;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class StartupClusterConnectivityChecker
 {
@@ -123,7 +123,7 @@ public class StartupClusterConnectivityChecker
         for (String datacenter: datacenterToPeers.keys())
         {
             dcToRemainingPeers.put(datacenter,
-                                   new CountDownLatch(Math.max(datacenterToPeers.get(datacenter).size() - 1, 0)));
+                                   newCountDownLatch(Math.max(datacenterToPeers.get(datacenter).size() - 1, 0)));
         }
 
         long startNanos = nanoTime();
@@ -144,7 +144,7 @@ public class StartupClusterConnectivityChecker
                 String datacenter = peerToDatacenter.get(peer);
                 // We have to check because we might only have the local DC in the map
                 if (dcToRemainingPeers.containsKey(datacenter))
-                    dcToRemainingPeers.get(datacenter).countDown();
+                    dcToRemainingPeers.get(datacenter).decrement();
             }
         }
 
@@ -153,14 +153,14 @@ public class StartupClusterConnectivityChecker
         {
             long remainingNanos = Math.max(1, timeoutNanos - (nanoTime() - startNanos));
             //noinspection UnstableApiUsage
-            succeeded &= Uninterruptibles.awaitUninterruptibly(countDownLatch, remainingNanos, TimeUnit.NANOSECONDS);
+            succeeded &= countDownLatch.awaitUninterruptibly(remainingNanos, TimeUnit.NANOSECONDS);
         }
 
         Gossiper.instance.unregister(listener);
 
-        Map<String, Long> numDown = dcToRemainingPeers.entrySet().stream()
+        Map<String, Integer> numDown = dcToRemainingPeers.entrySet().stream()
                                                       .collect(Collectors.toMap(Map.Entry::getKey,
-                                                                                e -> e.getValue().getCount()));
+                                                                                e -> e.getValue().count()));
 
         if (succeeded)
         {
@@ -189,7 +189,7 @@ public class StartupClusterConnectivityChecker
                 String datacenter = getDatacenter.apply(msg.from());
                 // We have to check because we might only have the local DC in the map
                 if (dcToRemainingPeers.containsKey(datacenter))
-                    dcToRemainingPeers.get(datacenter).countDown();
+                    dcToRemainingPeers.get(datacenter).decrement();
             }
         };
 
@@ -228,7 +228,7 @@ public class StartupClusterConnectivityChecker
             {
                 String datacenter = getDatacenter.apply(endpoint);
                 if (dcToRemainingPeers.containsKey(datacenter))
-                    dcToRemainingPeers.get(datacenter).countDown();
+                    dcToRemainingPeers.get(datacenter).decrement();
             }
         }
     }

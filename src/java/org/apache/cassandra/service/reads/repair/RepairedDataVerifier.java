@@ -18,11 +18,7 @@
 
 package org.apache.cassandra.service.reads.repair;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,14 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.SnapshotCommand;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TableMetrics;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.NoSpamLogger;

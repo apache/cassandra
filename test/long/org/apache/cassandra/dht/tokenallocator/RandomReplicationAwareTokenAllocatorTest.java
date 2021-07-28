@@ -20,7 +20,6 @@ package org.apache.cassandra.dht.tokenallocator;
 
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.dht.RandomPartitioner;
 
 public class RandomReplicationAwareTokenAllocatorTest extends AbstractReplicationAwareTokenAllocatorTest

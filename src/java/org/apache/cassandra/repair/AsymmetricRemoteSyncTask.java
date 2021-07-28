@@ -60,11 +60,11 @@ public class AsymmetricRemoteSyncTask extends SyncTask implements CompletableRem
     {
         if (success)
         {
-            set(stat.withSummaries(summaries));
+            trySuccess(stat.withSummaries(summaries));
         }
         else
         {
-            setException(RepairException.warn(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
+            tryFailure(RepairException.warn(desc, previewKind, String.format("Sync failed between %s and %s", nodePair.coordinator, nodePair.peer)));
         }
     }
 

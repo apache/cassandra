@@ -19,7 +19,7 @@ package org.apache.cassandra.net;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.util.concurrent.ImmediateEventExecutor;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 /**
  * A callback specialized for returning a value from a single target; that is, this is for messages
@@ -27,11 +27,6 @@ import io.netty.util.concurrent.ImmediateEventExecutor;
  */
 public class AsyncOneResponse<T> extends AsyncPromise<T> implements RequestCallback<T>
 {
-    public AsyncOneResponse()
-    {
-        super(ImmediateEventExecutor.INSTANCE);
-    }
-
     public void onResponse(Message<T> response)
     {
         setSuccess(response.payload);

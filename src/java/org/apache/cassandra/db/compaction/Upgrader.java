@@ -20,7 +20,6 @@ package org.apache.cassandra.db.compaction;
 import java.io.File;
 import java.util.*;
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;

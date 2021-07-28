@@ -23,11 +23,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.MessageParams;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
@@ -36,7 +38,6 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
@@ -45,17 +46,21 @@ import org.apache.cassandra.service.reads.trackwarnings.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.trackwarnings.WarningContext;
 import org.apache.cassandra.service.reads.trackwarnings.WarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.atomic.AtomicIntegerFieldUpdater.newUpdater;
+import static org.apache.cassandra.tracing.Tracing.isTracing;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E>> implements RequestCallback<ReadResponse>
 {
-    protected static final Logger logger = LoggerFactory.getLogger( ReadCallback.class );
+    protected static final Logger logger = LoggerFactory.getLogger(ReadCallback.class);
 
     public final ResponseResolver<E, P> resolver;
-    final SimpleCondition condition = new SimpleCondition();
+    final Condition condition = newOneTimeCondition();
     private final long queryStartNanoTime;
     final int blockFor; // TODO: move to replica plan as well?
     // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
@@ -63,7 +68,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     final ReplicaPlan.Shared<E, P> replicaPlan;
     private final ReadCommand command;
     private static final AtomicIntegerFieldUpdater<ReadCallback> failuresUpdater
-            = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
+            = newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private volatile WarningContext warningContext;
@@ -95,11 +100,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         long time = unit.toNanos(timePastStart) - (nanoTime() - queryStartNanoTime);
         try
         {
-            return condition.await(time, TimeUnit.NANOSECONDS);
+            return condition.await(time, NANOSECONDS);
         }
-        catch (InterruptedException ex)
+        catch (InterruptedException e)
         {
-            throw new AssertionError(ex);
+            throw new UncheckedInterruptedException(e);
         }
     }
 
@@ -130,7 +135,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (signaled && !failed)
             return;
 
-        if (Tracing.isTracing())
+        if (isTracing())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
             Tracing.trace("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
@@ -203,7 +208,6 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         message = MessageParams.addToMessage(message);
         onResponse(message);
     }
-
 
     @Override
     public boolean trackLatencyForSnitch()

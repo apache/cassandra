@@ -45,6 +45,7 @@ import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,11 +80,12 @@ import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
 
 import static org.apache.cassandra.distributed.shared.NetworkTopology.addressAndPort;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.reflections.ReflectionUtils.forNames;
 
 /**
  * AbstractCluster creates, initializes and manages Cassandra instances ({@link Instance}.
@@ -672,7 +674,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public abstract class ChangeMonitor implements AutoCloseable
     {
         final List<IListen.Cancel> cleanup;
-        final SimpleCondition completed;
+        final Condition completed;
         private final long timeOut;
         private final TimeUnit timeoutUnit;
         protected Predicate<IInstance> instanceFilter;
@@ -684,7 +686,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             this.timeoutUnit = timeoutUnit;
             this.instanceFilter = i -> true;
             this.cleanup = new ArrayList<>(instances.size());
-            this.completed = new SimpleCondition();
+            this.completed = newOneTimeCondition();
         }
 
         public void ignoreStoppedInstances()
@@ -694,7 +696,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         protected void signal()
         {
-            if (initialized && !completed.isSignaled() && isCompleted())
+            if (initialized && !completed.isSignalled() && isCompleted())
                 completed.signalAll();
         }
 

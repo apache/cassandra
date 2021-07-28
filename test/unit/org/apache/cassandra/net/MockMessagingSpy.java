@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,6 +34,8 @@ import org.slf4j.LoggerFactory;
 
 import junit.framework.AssertionFailedError;
 
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
+
 /**
  * Allows inspecting the behavior of mocked messaging by observing {@link MatcherResponse}.
  */
@@ -45,8 +46,8 @@ public class MockMessagingSpy
     private final AtomicInteger messagesIntercepted = new AtomicInteger();
     private final AtomicInteger mockedMessageResponses = new AtomicInteger();
 
-    private final BlockingQueue<Message<?>> interceptedMessages = new LinkedBlockingQueue<>();
-    private final BlockingQueue<Message<?>> deliveredResponses = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Message<?>> interceptedMessages = newBlockingQueue();
+    private final BlockingQueue<Message<?>> deliveredResponses = newBlockingQueue();
 
     private static final Executor executor = Executors.newSingleThreadExecutor();
 

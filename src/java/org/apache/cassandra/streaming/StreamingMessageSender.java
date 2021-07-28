@@ -20,9 +20,6 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 
 public interface StreamingMessageSender

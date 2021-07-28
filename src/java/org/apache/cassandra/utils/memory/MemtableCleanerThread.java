@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.InfiniteLoopExecutor;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
+
 /**
  * A thread that reclaims memory from a MemtablePool on demand.  The actual reclaiming work is delegated to the
  * cleaner Runnable, e.g., FlushLargestColumnFamily
@@ -47,7 +49,7 @@ public class MemtableCleanerThread<P extends MemtablePool> extends InfiniteLoopE
         final MemtableCleaner cleaner;
 
         /** signalled whenever needsCleaning() may return true */
-        final WaitQueue wait = new WaitQueue();
+        final WaitQueue wait = newWaitQueue();
 
         private Clean(P pool, MemtableCleaner cleaner)
         {

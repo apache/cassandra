@@ -29,7 +29,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PendingRangeMaps;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaUtils;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 

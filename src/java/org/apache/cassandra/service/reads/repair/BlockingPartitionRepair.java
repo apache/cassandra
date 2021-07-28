@@ -21,7 +21,9 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
+
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -30,7 +32,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -38,7 +39,6 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -51,12 +51,14 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.net.Verb.*;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public class BlockingPartitionRepair
-        extends AbstractFuture<Object> implements RequestCallback<Object>
+        extends AsyncFuture<Object> implements RequestCallback<Object>
 {
     private final DecoratedKey key;
     private final ReplicaPlan.ForTokenWrite writePlan;
@@ -94,7 +96,7 @@ public class BlockingPartitionRepair
         // empty mutations. If we'd also speculated on either of the read stages, the number
         // of empty mutations would be greater than blockFor, causing the latch ctor to throw
         // an illegal argument exception due to a negative start value. So here we clamp it 0
-        latch = new CountDownLatch(Math.max(blockFor, 0));
+        latch = newCountDownLatch(Math.max(blockFor, 0));
     }
 
     int blockFor()
@@ -105,7 +107,7 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     int waitingOn()
     {
-        return (int) latch.getCount();
+        return (int) latch.count();
     }
 
     @VisibleForTesting
@@ -114,7 +116,7 @@ public class BlockingPartitionRepair
         if (shouldBlockOn.test(from))
         {
             pendingRepairs.remove(writePlan.lookup(from));
-            latch.countDown();
+            latch.decrement();
         }
     }
 
@@ -185,7 +187,7 @@ public class BlockingPartitionRepair
         }
         catch (InterruptedException e)
         {
-            throw new AssertionError(e);
+            throw new UncheckedInterruptedException(e);
         }
     }
 

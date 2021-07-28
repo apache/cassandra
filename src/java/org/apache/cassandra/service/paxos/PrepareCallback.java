@@ -70,8 +70,8 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         if (!response.promised)
         {
             promised = false;
-            while (latch.getCount() > 0)
-                latch.countDown();
+            while (latch.count() > 0)
+                latch.decrement();
             return;
         }
 
@@ -79,7 +79,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
         if (response.mostRecentCommit.isAfter(mostRecentCommit))
             mostRecentCommit = response.mostRecentCommit;
 
-        latch.countDown();
+        latch.decrement();
     }
 
     public Iterable<InetAddressAndPort> replicasMissingMostRecentCommit(TableMetadata metadata, int nowInSec)

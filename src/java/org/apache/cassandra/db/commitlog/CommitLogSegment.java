@@ -48,8 +48,10 @@ import org.apache.cassandra.utils.IntegerInterval;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static com.codahale.metrics.Timer.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /*
  * A single commit log file on disk. Manages creation of the file and writing mutations to disk,
@@ -111,7 +113,7 @@ public abstract class CommitLogSegment
     private int endOfBuffer;
 
     // a signal for writers to wait on to confirm the log message they provided has been written to disk
-    private final WaitQueue syncComplete = new WaitQueue();
+    private final WaitQueue syncComplete = newWaitQueue();
 
     // a map of Cf->dirty interval in this segment; if interval is not covered by the clean set, the log contains unflushed data
     private final NonBlockingHashMap<TableId, IntegerInterval> tableDirty = new NonBlockingHashMap<>(1024);
@@ -511,7 +513,6 @@ public abstract class CommitLogSegment
         while (lastSyncedOffset < position)
         {
             WaitQueue.Signal signal = syncComplete.register();
-            
             if (lastSyncedOffset < position)
                 signal.awaitUninterruptibly();
             else

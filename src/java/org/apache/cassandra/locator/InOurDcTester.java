@@ -19,7 +19,7 @@
 package org.apache.cassandra.locator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.FBUtilities;
+
 import java.util.function.Predicate;
 
 public class InOurDcTester

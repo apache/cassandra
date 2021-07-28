@@ -22,8 +22,6 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.Verb;
 
 public class SnapshotCommand
 {

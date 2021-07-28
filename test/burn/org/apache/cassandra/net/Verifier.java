@@ -32,14 +32,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.predicates.LongObjectPredicate;
 import com.carrotsearch.hppc.procedures.LongObjectProcedure;
-import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.cassandra.net.Verifier.ExpiredMessageEvent.ExpirationType;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static java.util.concurrent.TimeUnit.*;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
@@ -67,6 +64,7 @@ import static org.apache.cassandra.net.Verifier.EventType.SERIALIZE;
 import static org.apache.cassandra.net.Verifier.ExpiredMessageEvent.ExpirationType.ON_SENT;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
  * This class is a single-threaded verifier monitoring a single link, with events supplied by inbound and outbound threads
@@ -1282,7 +1280,7 @@ public class Verifier
 
         // we use a concurrent skip list to permit efficient searching, even if we always append
         final ConcurrentSkipListMap<Long, Chunk> chunkList = new ConcurrentSkipListMap<>();
-        final WaitQueue writerWaiting = new WaitQueue();
+        final WaitQueue writerWaiting = newWaitQueue();
 
         volatile Chunk writerChunk = new Chunk(0);
         Chunk readerChunk = writerChunk;

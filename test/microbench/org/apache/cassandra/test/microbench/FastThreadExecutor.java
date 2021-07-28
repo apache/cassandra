@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.test.microbench;
 
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import io.netty.util.concurrent.DefaultThreadFactory;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * Created to test perf of FastThreadLocal
@@ -34,6 +35,6 @@ public class FastThreadExecutor extends ThreadPoolExecutor
 {
     public FastThreadExecutor(int size, String name)
     {
-        super(size, size, 10, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new DefaultThreadFactory(name, true));
+        super(size, size, 10, SECONDS, newBlockingQueue(), new DefaultThreadFactory(name, true));
     }
 }

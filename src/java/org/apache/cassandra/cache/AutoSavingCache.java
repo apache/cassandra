@@ -19,7 +19,6 @@ package org.apache.cassandra.cache;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
@@ -46,7 +45,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.io.util.CorruptFileException;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -162,26 +160,14 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         final ListeningExecutorService es = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         final long start = nanoTime();
 
-        ListenableFuture<Integer> cacheLoad = es.submit(new Callable<Integer>()
-        {
-            @Override
-            public Integer call()
-            {
-                return loadSaved();
-            }
-        });
-        cacheLoad.addListener(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                if (size() > 0)
-                    logger.info("Completed loading ({} ms; {} keys) {} cache",
-                            TimeUnit.NANOSECONDS.toMillis(nanoTime() - start),
-                            CacheService.instance.keyCache.size(),
-                            cacheType);
-                es.shutdown();
-            }
+        ListenableFuture<Integer> cacheLoad = es.submit(this::loadSaved);
+        cacheLoad.addListener(() -> {
+            if (size() > 0)
+                logger.info("Completed loading ({} ms; {} keys) {} cache",
+                        TimeUnit.NANOSECONDS.toMillis(nanoTime() - start),
+                        CacheService.instance.keyCache.size(),
+                        cacheType);
+            es.shutdown();
         }, MoreExecutors.directExecutor());
 
         return cacheLoad;

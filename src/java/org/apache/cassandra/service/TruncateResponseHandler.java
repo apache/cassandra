@@ -21,26 +21,28 @@ import java.net.InetAddress;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TruncateResponse;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TruncateException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getTruncateRpcTimeout;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class TruncateResponseHandler implements RequestCallback<TruncateResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger(TruncateResponseHandler.class);
-    protected final SimpleCondition condition = new SimpleCondition();
+    protected final Condition condition = newOneTimeCondition();
     private final int responseCount;
     protected final AtomicInteger responses = new AtomicInteger(0);
     private final long start;
@@ -64,9 +66,9 @@ public class TruncateResponseHandler implements RequestCallback<TruncateResponse
         {
             completedInTime = condition.await(timeoutNanos, NANOSECONDS); // TODO truncate needs a much longer timeout
         }
-        catch (InterruptedException ex)
+        catch (InterruptedException e)
         {
-            throw new AssertionError(ex);
+            throw new UncheckedInterruptedException(e);
         }
 
         if (!completedInTime)

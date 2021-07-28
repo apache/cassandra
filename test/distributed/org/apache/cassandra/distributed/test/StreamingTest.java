@@ -34,7 +34,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.locator.InetAddressAndPort;

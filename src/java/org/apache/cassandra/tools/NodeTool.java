@@ -50,7 +50,6 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.tools.nodetool.*;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.tools.nodetool.Sjk;
 
 import com.google.common.collect.Maps;
 

@@ -49,9 +49,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static java.lang.Integer.MAX_VALUE;
-import static org.apache.cassandra.cql3.QueryOptions.create;
-import static org.apache.cassandra.service.QueryState.forInternalCalls;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class Coordinator implements ICoordinator
