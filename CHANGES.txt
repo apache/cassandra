@@ -21,6 +21,8 @@ Merged from 3.11:
  * Enable tombstone compactions when unchecked_tombstone_compaction is set in TWCS (CASSANDRA-14496)
  * Read only the required SSTables for single partition queries (CASSANDRA-16737)
 Merged from 3.0:
+ * Binary releases no longer bundle the apidocs (javadoc) (CASSANDRA-16557)
+ * Migrate dependency handling from maven-ant-tasks to resolver-ant-tasks, removing lib/ directory from version control (CASSANDRA-16557)
  * Don't allow seeds to replace without using unsafe (CASSANDRA-14463)
  * Calculate time remaining correctly for all compaction types in compactionstats (CASSANDRA-14701)
  * Receipt of gossip shutdown notification updates TokenMetadata (CASSANDRA-16796)
