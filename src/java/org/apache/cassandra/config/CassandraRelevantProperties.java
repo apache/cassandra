@@ -136,6 +136,8 @@ public enum CassandraRelevantProperties
     /** mx4jport */
     MX4JPORT ("mx4jport"),
 
+    RING_DELAY("cassandra.ring_delay_ms"),
+
     /**
      * When bootstraping we wait for all schema versions found in gossip to be seen, and if not seen in time we fail
      * the bootstrap; this property will avoid failing and allow bootstrap to continue if set to true.
@@ -151,6 +153,10 @@ public enum CassandraRelevantProperties
      * Gossip quarantine delay is used while evaluating membership changes and should only be changed with extreme care.
      */
     GOSSIPER_QUARANTINE_DELAY("cassandra.gossip_quarantine_delay_ms"),
+
+    GOSSIPER_SKIP_WAITING_TO_SETTLE("cassandra.skip_wait_for_gossip_to_settle", "-1"),
+
+    SHUTDOWN_ANNOUNCE_DELAY_IN_MS("cassandra.shutdown_announce_in_ms", "2000"),
 
     /**
      * When doing a host replacement its possible that the gossip state is "empty" meaning that the endpoint is known
@@ -171,6 +177,9 @@ public enum CassandraRelevantProperties
     LOG_DIR_AUDIT("cassandra.logdir.audit"),
 
     CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
+    CLOCK_GLOBAL("cassandra.clock", null),
+    CLOCK_MONOTONIC_APPROX("cassandra.monotonic_clock.approx", null),
+    CLOCK_MONOTONIC_PRECISE("cassandra.monotonic_clock.precise", null),
 
     //cassandra properties (without the "cassandra." prefix)
 
@@ -183,9 +192,6 @@ public enum CassandraRelevantProperties
 
     DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES ("default.provide.overlapping.tombstones"),
     ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION ("org.apache.cassandra.disable_mbean_registration"),
-    //only for testing
-    ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
-    ORG_APACHE_CASSANDRA_DB_VIRTUAL_SYSTEM_PROPERTIES_TABLE_TEST("org.apache.cassandra.db.virtual.SystemPropertiesTableTest"),
 
     /** This property indicates whether disable_mbean_registration is true */
     IS_DISABLED_MBEAN_REGISTRATION("org.apache.cassandra.disable_mbean_registration"),
@@ -200,7 +206,39 @@ public enum CassandraRelevantProperties
     SNAPSHOT_MIN_ALLOWED_TTL_SECONDS("cassandra.snapshot.min_allowed_ttl_seconds", "60"),
 
     /** what class to use for mbean registeration */
-    MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class");
+    MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
+
+    BATCH_COMMIT_LOG_SYNC_INTERVAL("cassandra.batch_commitlog_sync_interval_millis", "1000"),
+
+    SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),
+
+    MEMTABLE_OVERHEAD_SIZE("cassandra.memtable.row_overhead_size", "-1"),
+    MEMTABLE_OVERHEAD_COMPUTE_STEPS("cassandra.memtable_row_overhead_computation_step", "100000"),
+    MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
+
+    PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS("cassandra.paxos_repair_retry_timeout_millis", "60000"),
+
+    // properties for debugging simulator ASM output
+    TEST_SIMULATOR_PRINT_ASM("cassandra.test.simulator.print_asm", "none"),
+    TEST_SIMULATOR_PRINT_ASM_TYPES("cassandra.test.simulator.print_asm_types", ""),
+
+    // determinism properties for testing
+    DETERMINISM_SSTABLE_COMPRESSION_DEFAULT("cassandra.sstable_compression_default", "true"),
+    DETERMINISM_CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
+    DETERMINISM_UNSAFE_UUID_NODE("cassandra.unsafe.deterministicuuidnode", "false"),
+
+    // properties to disable certain behaviours for testing
+    DISABLE_GOSSIP_ENDPOINT_REMOVAL("cassandra.gossip.disable_endpoint_removal"),
+    IGNORE_MISSING_NATIVE_FILE_HINTS("cassandra.require_native_file_hints", "false"),
+    DISABLE_SSTABLE_ACTIVITY_TRACKING("cassandra.sstable_activity_tracking", "true"),
+    TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar", "false"),
+    PAXOS_EXECUTE_ON_SELF("cassandra.paxos.use_self_execution", "true"),
+
+    // for specific tests
+    ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
+    ORG_APACHE_CASSANDRA_DB_VIRTUAL_SYSTEM_PROPERTIES_TABLE_TEST("org.apache.cassandra.db.virtual.SystemPropertiesTableTest"),
+
+    ;
 
 
     CassandraRelevantProperties(String key, String defaultVal)
@@ -302,6 +340,17 @@ public enum CassandraRelevantProperties
 
     /**
      * Gets the value of a system property as a int.
+     * @return system property int value if it exists, defaultValue otherwise.
+     */
+    public long getLong()
+    {
+        String value = System.getProperty(key);
+
+        return LONG_CONVERTER.convert(value == null ? defaultVal : value);
+    }
+
+    /**
+     * Gets the value of a system property as a int.
      * @return system property int value if it exists, overrideDefaultValue otherwise.
      */
     public int getInt(int overrideDefaultValue)
@@ -322,6 +371,15 @@ public enum CassandraRelevantProperties
         System.setProperty(key, Integer.toString(value));
     }
 
+    /**
+     * Sets the value into system properties.
+     * @param value to set
+     */
+    public void setLong(long value)
+    {
+        System.setProperty(key, Long.toString(value));
+    }
+
     private interface PropertyConverter<T>
     {
         T convert(String value);
@@ -336,6 +394,19 @@ public enum CassandraRelevantProperties
         try
         {
             return Integer.decode(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system property: " +
+                                                           "expected integer value but got '%s'", value));
+        }
+    };
+
+    private static final PropertyConverter<Long> LONG_CONVERTER = value ->
+    {
+        try
+        {
+            return Long.decode(value);
         }
         catch (NumberFormatException e)
         {

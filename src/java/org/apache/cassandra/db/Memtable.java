@@ -76,6 +76,8 @@ import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_COMPUTE_STEPS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
 
 public class Memtable implements Comparable<Memtable>
 {
@@ -91,6 +93,8 @@ public class Memtable implements Comparable<Memtable>
         final MemtableCleaner cleaner = ColumnFamilyStore::flushLargestMemtable;
         switch (DatabaseDescriptor.getMemtableAllocationType())
         {
+            case unslabbed_heap_buffers_logged:
+                return new HeapPool.Logged(heapLimit, cleaningThreshold, cleaner);
             case unslabbed_heap_buffers:
                 return new HeapPool(heapLimit, cleaningThreshold, cleaner);
             case heap_buffers:
@@ -104,7 +108,13 @@ public class Memtable implements Comparable<Memtable>
         }
     }
 
-    private static final int ROW_OVERHEAD_HEAP_SIZE = estimateRowOverhead(Integer.parseInt(System.getProperty("cassandra.memtable_row_overhead_computation_step", "100000")));
+    private static final int ROW_OVERHEAD_HEAP_SIZE;
+    static
+    {
+        int userDefinedOverhead = MEMTABLE_OVERHEAD_SIZE.getInt(-1);
+        if (userDefinedOverhead > 0) ROW_OVERHEAD_HEAP_SIZE = userDefinedOverhead;
+        else ROW_OVERHEAD_HEAP_SIZE = estimateRowOverhead(MEMTABLE_OVERHEAD_COMPUTE_STEPS.getInt());
+    }
 
     private final MemtableAllocator allocator;
     private final AtomicLong liveDataSize = new AtomicLong(0);
@@ -157,7 +167,7 @@ public class Memtable implements Comparable<Memtable>
     {
         this.cfs = cfs;
         this.commitLogLowerBound = commitLogLowerBound;
-        this.allocator = MEMORY_POOL.newAllocator();
+        this.allocator = MEMORY_POOL.newAllocator(cfs);
         this.initialComparator = cfs.metadata().comparator;
         this.cfs.scheduleFlush();
         this.columnsCollector = new ColumnsCollector(cfs.metadata().regularAndStaticColumns());
@@ -531,6 +541,12 @@ public class Memtable implements Comparable<Memtable>
             writeSortedContents();
             return writer;
         }
+
+        @Override
+        public String toString()
+        {
+            return "Flush " + cfs.keyspace + '.' + cfs.name;
+        }
     }
 
     private static int estimateRowOverhead(final int count)
@@ -539,7 +555,7 @@ public class Memtable implements Comparable<Memtable>
         try (final OpOrder.Group group = new OpOrder().start())
         {
             int rowOverhead;
-            MemtableAllocator allocator = MEMORY_POOL.newAllocator();
+            MemtableAllocator allocator = MEMORY_POOL.newAllocator(null);
             ConcurrentNavigableMap<PartitionPosition, Object> partitions = new ConcurrentSkipListMap<>();
             final Object val = new Object();
             for (int i = 0 ; i < count ; i++)

@@ -103,7 +103,7 @@ public abstract class MemtableAllocator
     }
 
     /** Mark the BB as unused, permitting it to be reclaimed */
-    public static final class SubAllocator
+    public static class SubAllocator
     {
         // the tracker we are owning memory from
         private final MemtablePool.SubPool parent;

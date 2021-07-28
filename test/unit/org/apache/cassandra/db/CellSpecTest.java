@@ -138,7 +138,7 @@ public class CellSpecTest
         byte[] rawBytes = { 0, 1, 2, 3, 4, 5, 6 };
         ByteBuffer bbBytes = ByteBuffer.wrap(rawBytes);
         NativePool pool = new NativePool(1024, 1024, 1, () -> ImmediateFuture.success(true));
-        NativeAllocator allocator = pool.newAllocator();
+        NativeAllocator allocator = pool.newAllocator(null);
         OpOrder order = new OpOrder();
 
         List<Cell<?>> tests = new ArrayList<>();

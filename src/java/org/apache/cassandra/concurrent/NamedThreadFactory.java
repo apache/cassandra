@@ -96,6 +96,7 @@ public class NamedThreadFactory implements ThreadFactory
     {
         this(id, priority, contextClassLoader, threadGroup, JVMStabilityInspector::uncaughtException);
     }
+
     public NamedThreadFactory(String id, int priority, ClassLoader contextClassLoader, ThreadGroup threadGroup, Thread.UncaughtExceptionHandler uncaughtExceptionHandler)
     {
         this.id = id;

@@ -86,6 +86,23 @@ public class Hex
         return wrapCharArray(c);
     }
 
+    public static long parseLong(String hex, int start, int end)
+    {
+        int len = end - start;
+        if (len > 16)
+            throw new IllegalArgumentException();
+
+        long result = 0;
+        int shift = 4 * (len - 1);
+        for (int i = start ; i < end ; ++i)
+        {
+            char c = hex.charAt(i);
+            result |= (long)(c - (c >= 'a' ? 'a' - 10 : '0')) << shift;
+            shift -= 4;
+        }
+        return result;
+    }
+
     /**
      * Create a String from a char array with zero-copy (if available), using reflection to access a package-protected constructor of String.
      * */

@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -61,6 +62,7 @@ import com.google.common.util.concurrent.*;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -139,6 +141,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.concurrent.FutureTask.callable;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
@@ -171,7 +174,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static int getRingDelay()
     {
-        String newdelay = System.getProperty("cassandra.ring_delay_ms");
+        String newdelay = CassandraRelevantProperties.RING_DELAY.getString();
         if (newdelay != null)
         {
             logger.info("Overriding RING_DELAY to {}ms", newdelay);
@@ -1817,6 +1820,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     public Future<StreamState> startBootstrap(Collection<Token> tokens)
+    {
+        return startBootstrap(tokens, replacing);
+    }
+
+    public Future<StreamState> startBootstrap(Collection<Token> tokens, boolean replacing)
     {
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddressAndPort(), tokens, tokenMetadata);
@@ -4118,6 +4126,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public Pair<Integer, Future<?>> repair(String keyspace, Map<String, String> repairSpec, List<ProgressListener> listeners)
     {
         RepairOption option = RepairOption.parse(repairSpec, tokenMetadata.partitioner);
+        return repair(keyspace, option, listeners);
+    }
+
+    public Pair<Integer, Future<?>> repair(String keyspace, RepairOption option, List<ProgressListener> listeners)
+    {
         // if ranges are not specified
         if (option.getRanges().isEmpty())
         {
@@ -4207,6 +4220,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void forceTerminateAllRepairSessions()
     {
         ActiveRepairService.instance.terminateSessions();
+    }
+
+    // TODO: remove this after forward-porting Paxos, before final commit
+    public Future<?> startRepairPaxosForTopologyChange(String reason)
+    {
+        // PLACEHOLDER METHOD for simple porting of Simulator without breaking correctness
+        return ImmediateFuture.success(null);
     }
 
     @Nullable
@@ -4593,7 +4613,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Uninterruptibles.sleepUninterruptibly(delay, MILLISECONDS);
     }
 
-    private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
+    public Supplier<Future<StreamState>> prepareUnbootstrapStreaming()
     {
         Map<String, EndpointsByReplica> rangesToStream = new HashMap<>();
 
@@ -4607,11 +4627,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             rangesToStream.put(keyspaceName, rangesMM);
         }
 
+        return () -> streamRanges(rangesToStream);
+    }
+
+    private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
+    {
+        Supplier<Future<StreamState>> startStreaming = prepareUnbootstrapStreaming();
+
         setMode(Mode.LEAVING, "replaying batch log and streaming data to other nodes", true);
 
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();
-        Future<StreamState> streamSuccess = streamRanges(rangesToStream);
+        Future<StreamState> streamSuccess = startStreaming.get();
 
         // Wait for batch log to complete before streaming hints.
         logger.debug("waiting for batch log processing.");

@@ -48,7 +48,7 @@ public class NativeCellTest
     private static final NativeAllocator nativeAllocator = new NativePool(Integer.MAX_VALUE,
                                                                           Integer.MAX_VALUE,
                                                                           1f,
-                                                                          () -> ImmediateFuture.success(true)).newAllocator();
+                                                                          () -> ImmediateFuture.success(true)).newAllocator(null);
     @SuppressWarnings("resource")
     private static final OpOrder.Group group = new OpOrder().start();
     private static Random rand;

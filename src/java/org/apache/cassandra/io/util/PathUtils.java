@@ -56,7 +56,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  */
 public final class PathUtils
 {
-    private static final boolean consistentDirectoryListings = CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS.getBoolean();
+    private static final boolean consistentDirectoryListings = CassandraRelevantProperties.DETERMINISM_CONSISTENT_DIRECTORY_LISTINGS.getBoolean();
 
     private static final Set<StandardOpenOption> READ_OPTIONS = unmodifiableSet(EnumSet.of(READ));
     private static final Set<StandardOpenOption> WRITE_OPTIONS = unmodifiableSet(EnumSet.of(WRITE, CREATE));

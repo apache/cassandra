@@ -23,13 +23,21 @@ package org.apache.cassandra.gms;
 
 import static org.junit.Assert.*;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class ArrivalWindowTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.setDefaultFailureDetector();
+    }
+
     @Test
     public void testWithNanoTime()
     {

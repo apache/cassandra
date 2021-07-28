@@ -18,6 +18,8 @@
  */
 package org.apache.cassandra.utils.memory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+
 public class NativePool extends MemtablePool
 {
     public NativePool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanThreshold, MemtableCleaner cleaner)
@@ -26,7 +28,7 @@ public class NativePool extends MemtablePool
     }
 
     @Override
-    public NativeAllocator newAllocator()
+    public NativeAllocator newAllocator(ColumnFamilyStore table)
     {
         return new NativeAllocator(this);
     }
