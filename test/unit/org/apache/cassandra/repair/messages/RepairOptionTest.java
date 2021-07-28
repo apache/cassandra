@@ -26,8 +26,6 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;

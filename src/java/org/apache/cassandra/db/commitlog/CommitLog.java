@@ -46,6 +46,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.CommitLogSegmentFileComparator;
@@ -469,7 +470,7 @@ public class CommitLog implements CommitLogMBean
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new UncheckedInterruptedException(e);
         }
         segmentManager.stopUnsafe(deleteSegments);
         CommitLogSegment.resetReplayLimit();
@@ -549,7 +550,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean useEncryption()
         {
-            return encryptionContext.isEnabled();
+            return encryptionContext != null && encryptionContext.isEnabled();
         }
 
         /**

@@ -19,7 +19,6 @@ package org.apache.cassandra.service;
  * under the License.
  *
  */
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;

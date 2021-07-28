@@ -71,6 +71,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.RecomputingSupplier;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -531,7 +532,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             task.get();
         }
-        catch (InterruptedException | ExecutionException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
         {
             throw new AssertionError(e);
         }
@@ -1850,9 +1855,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 }
             }
         }
-        catch (InterruptedException wtf)
+        catch (InterruptedException e)
         {
-            throw new RuntimeException(wtf);
+            throw new UncheckedInterruptedException(e);
         }
 
         return ImmutableMap.copyOf(endpointShadowStateMap);

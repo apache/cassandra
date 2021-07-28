@@ -22,5 +22,5 @@
         "https://checkstyle.org/dtds/suppressions_1_1.dtd">
 
 <suppressions>
-  <suppress checks="RegexpSinglelineJava" files="Clock\.java"/>
+  <suppress checks="RegexpSinglelineJava" files="Clock\.java|Semaphore\.java"/>
 </suppressions>

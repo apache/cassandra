@@ -20,20 +20,20 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
-import java.util.concurrent.locks.Condition;
 
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class BootstrapMonitor extends JMXNotificationProgressListener
 {
     private final SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
     private final PrintStream out;
-    private final Condition condition = new SimpleCondition();
+    private final Condition condition = newOneTimeCondition();
 
     public BootstrapMonitor(PrintStream out)
     {

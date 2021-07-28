@@ -48,7 +48,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -79,8 +78,11 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.concurrent.Stage.KEEP_ALIVE_SECONDS;
 import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
 import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * Handles the core maintenance functionality associated with indexes: adding/removing them to or from
@@ -162,9 +164,9 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     // executes tasks returned by Indexer#addIndexColumn which may require index(es) to be (re)built
     private static final ListeningExecutorService asyncExecutor = MoreExecutors.listeningDecorator(
     new JMXEnabledThreadPoolExecutor(1,
-                                     Stage.KEEP_ALIVE_SECONDS,
-                                     TimeUnit.SECONDS,
-                                     new LinkedBlockingQueue<>(),
+                                     KEEP_ALIVE_SECONDS,
+                                     SECONDS,
+                                     newBlockingQueue(),
                                      new NamedThreadFactory("SecondaryIndexManagement"),
                                      "internal"));
 

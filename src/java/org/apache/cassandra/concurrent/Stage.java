@@ -25,7 +25,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -45,7 +44,9 @@ import org.apache.cassandra.utils.ExecutorUtils;
 
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 public enum Stage
 {
@@ -182,8 +183,8 @@ public enum Stage
     {
         return new JMXEnabledThreadPoolExecutor(numThreads,
                                                 KEEP_ALIVE_SECONDS,
-                                                TimeUnit.SECONDS,
-                                                new LinkedBlockingQueue<>(),
+                                                SECONDS,
+                                                newBlockingQueue(),
                                                 new NamedThreadFactory(jmxName),
                                                 jmxType);
     }

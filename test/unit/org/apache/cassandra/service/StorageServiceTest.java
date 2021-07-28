@@ -37,7 +37,6 @@ import org.apache.cassandra.locator.ReplicaMultimap;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class StorageServiceTest

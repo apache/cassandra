@@ -28,8 +28,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.utils.btree.BTree.Dir;
 import org.junit.Test;
 

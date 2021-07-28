@@ -29,7 +29,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.utils.FBUtilities;
 
 public final class ViewUtils
 {

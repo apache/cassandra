@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.Multimap;
 import org.apache.cassandra.locator.EndpointsByRange;
 import org.junit.Assert;

@@ -22,10 +22,8 @@ package org.apache.cassandra.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
-import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.locator.EndpointsByReplica;
@@ -48,7 +46,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;

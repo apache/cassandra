@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +52,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 /**
  * RepairJob runs repair on given ColumnFamily.
  */
-public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
+public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
@@ -162,7 +163,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
-                set(new RepairResult(desc, stats));
+                trySuccess(new RepairResult(desc, stats));
             }
 
             /**
@@ -179,7 +180,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                     SystemDistributedKeyspace.failedRepairJob(session.getId(), desc.keyspace, desc.columnFamily, t);
                 }
                 cfs.metric.repairsCompleted.inc();
-                setException(t);
+                tryFailure(t);
             }
         }, taskExecutor);
     }

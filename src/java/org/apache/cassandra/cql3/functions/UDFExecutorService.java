@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.cql3.functions;
 
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.utils.FBUtilities;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * Executor service which exposes stats via JMX, but which doesn't reference
@@ -35,10 +35,10 @@ final class UDFExecutorService extends JMXEnabledThreadPoolExecutor
 
     UDFExecutorService(NamedThreadFactory threadFactory, String jmxPath)
     {
-        super(FBUtilities.getAvailableProcessors(),
+        super(getAvailableProcessors(),
               KEEPALIVE,
-              TimeUnit.MILLISECONDS,
-              new LinkedBlockingQueue<>(),
+              MILLISECONDS,
+              newBlockingQueue(),
               threadFactory,
               jmxPath);
     }

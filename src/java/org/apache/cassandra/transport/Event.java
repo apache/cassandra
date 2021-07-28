@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.transport;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Iterator;
 import java.util.List;

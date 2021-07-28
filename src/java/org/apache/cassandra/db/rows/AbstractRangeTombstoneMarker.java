@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.db.ClusteringBoundOrBoundary;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.db.ClusteringBoundOrBoundary;
 
 public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBoundary<?>> implements RangeTombstoneMarker
 {

@@ -22,7 +22,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import io.netty.buffer.Unpooled;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import org.junit.Test;

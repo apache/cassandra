@@ -22,7 +22,6 @@ import java.util.NavigableSet;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.ColumnFilter;

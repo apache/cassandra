@@ -24,6 +24,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
+import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -40,9 +41,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
  * Performs eager-creation of commit log segments in a background thread. All the
@@ -62,7 +65,7 @@ public abstract class AbstractCommitLogSegmentManager
      */
     private volatile CommitLogSegment availableSegment = null;
 
-    private final WaitQueue segmentPrepared = new WaitQueue();
+    private final WaitQueue segmentPrepared = newWaitQueue();
 
     /** Active segments, containing unflushed data. The tail of this queue is the one we allocate writes to */
     private final ConcurrentLinkedQueue<CommitLogSegment> activeSegments = new ConcurrentLinkedQueue<>();
@@ -89,7 +92,7 @@ public abstract class AbstractCommitLogSegmentManager
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
-    private final WaitQueue managerThreadWaitQueue = new WaitQueue();
+    private final WaitQueue managerThreadWaitQueue = newWaitQueue();
 
     private volatile SimpleCachedBufferPool bufferPool;
 
@@ -265,7 +268,7 @@ public abstract class AbstractCommitLogSegmentManager
     {
         do
         {
-            WaitQueue.Signal prepared = segmentPrepared.register(commitLog.metrics.waitingOnSegmentAllocation.time());
+            WaitQueue.Signal prepared = segmentPrepared.register(commitLog.metrics.waitingOnSegmentAllocation.time(), Context::stop);
             if (availableSegment == null && allocatingFrom == currentAllocatingFrom)
                 prepared.awaitUninterruptibly();
             else
@@ -430,7 +433,7 @@ public abstract class AbstractCommitLogSegmentManager
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException(e);
+            throw new UncheckedInterruptedException(e);
         }
 
         for (CommitLogSegment segment : activeSegments)

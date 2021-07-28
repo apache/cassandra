@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.net;
+package org.apache.cassandra.utils.concurrent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,9 +32,9 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.Promise;
 
-abstract class TestAbstractAsyncPromise extends TestAbstractPromise
+public abstract class AbstractTestAsyncPromise extends AbstractTestPromise
 {
-    <V> void testOneSuccess(Promise<V> promise, boolean setUncancellable, boolean tryOrSet, V value, V otherValue)
+    protected <V> void testOneSuccess(Promise<V> promise, boolean setUncancellable, boolean tryOrSet, V value, V otherValue)
     {
         List<V> results = new ArrayList<>();
         List<Integer> order = new ArrayList<>();
@@ -108,7 +108,7 @@ abstract class TestAbstractAsyncPromise extends TestAbstractPromise
             Assert.assertEquals(i, order.get(i).intValue());
     }
 
-    <V> void testOneFailure(Promise<V> promise, boolean setUncancellable, boolean tryOrSet, Throwable cause, V otherValue)
+    protected <V> void testOneFailure(Promise<V> promise, boolean setUncancellable, boolean tryOrSet, Throwable cause, V otherValue)
     {
         List<Throwable> results = new ArrayList<>();
         List<Integer> order = new ArrayList<>();

@@ -110,6 +110,7 @@ import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -1360,7 +1361,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException("Interrupted while waiting on rebuild streaming");
+            throw new UncheckedInterruptedException(e);
         }
         catch (ExecutionException e)
         {
@@ -1699,7 +1700,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 catch (InterruptedException e)
                 {
-                    throw new AssertionError(e);
+                    throw new UncheckedInterruptedException(e);
                 }
 
                 // check for operator errors...
@@ -1727,7 +1728,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 }
                 catch (InterruptedException e)
                 {
-                    throw new AssertionError(e);
+                    throw new UncheckedInterruptedException(e);
                 }
 
             }
@@ -4564,7 +4565,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         catch (InterruptedException e)
         {
-            throw new RuntimeException("Node interrupted while decommissioning");
+            throw new UncheckedInterruptedException(e);
         }
         catch (ExecutionException e)
         {
@@ -4728,7 +4729,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 relocator.stream().get();
             }
-            catch (ExecutionException | InterruptedException e)
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+            catch (ExecutionException e)
             {
                 throw new RuntimeException("Interrupted while waiting for stream/fetch ranges to finish: " + e.getMessage());
             }

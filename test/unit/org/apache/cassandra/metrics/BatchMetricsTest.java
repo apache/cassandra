@@ -33,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
-import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.EstimatedHistogramReservoirSnapshot;
 
 import static org.apache.cassandra.cql3.statements.BatchStatement.metrics;
 import static org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir.*;

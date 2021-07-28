@@ -72,6 +72,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -613,7 +614,7 @@ public class Keyspace
                             }
                             catch (InterruptedException e)
                             {
-                                // Just continue
+                                throw new UncheckedInterruptedException(e);
                             }
                             continue;
                         }

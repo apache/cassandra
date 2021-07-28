@@ -23,7 +23,6 @@ import java.util.regex.Pattern;
 import com.google.common.base.Objects;
 
 import com.codahale.metrics.Snapshot;
-import com.codahale.metrics.Timer;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.TableParams;
 

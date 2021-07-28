@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.net;
 
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReference;
@@ -28,13 +26,17 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.MonotonicClock;
 
+import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;
+import static java.util.Collections.newSetFromMap;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 /**
  * A composite queue holding messages to be delivered by an {@link OutboundConnection}.
@@ -437,8 +439,8 @@ class OutboundMessageQueue
 
     private class RemoveRunner extends AtomicReference<Remove> implements Runnable
     {
-        final CountDownLatch done = new CountDownLatch(1);
-        final Set<Message<?>> removed = Collections.newSetFromMap(new IdentityHashMap<>());
+        final CountDownLatch done = newCountDownLatch(1);
+        final Set<Message<?>> removed = newSetFromMap(new IdentityHashMap<>());
 
         RemoveRunner() { super(new Remove(null, null)); }
 
@@ -449,7 +451,7 @@ class OutboundMessageQueue
 
         public void run()
         {
-            Set<Message<?>> remove = Collections.newSetFromMap(new IdentityHashMap<>());
+            Set<Message<?>> remove = newSetFromMap(new IdentityHashMap<>());
             removeRunner = null;
             Remove undo = getAndSet(null);
             while (undo.message != null)
@@ -460,7 +462,7 @@ class OutboundMessageQueue
 
             class Remover implements PrunableArrayQueue.Pruner<Message<?>>
             {
-                private long earliestExpiresAt = Long.MAX_VALUE;
+                private long earliestExpiresAt = MAX_VALUE;
 
                 @Override
                 public boolean shouldPrune(Message<?> message)
@@ -488,7 +490,7 @@ class OutboundMessageQueue
             long nowNanos = clock.now();
             maybeUpdateNextExpirationDeadline(nowNanos, maybeUpdateEarliestExpiresAt(nowNanos, remover.earliestExpiresAt));
 
-            done.countDown();
+            done.decrement();
         }
     }
 
@@ -518,7 +520,7 @@ class OutboundMessageQueue
         }
 
         //noinspection UnstableApiUsage
-        Uninterruptibles.awaitUninterruptibly(runner.done);
+        runner.done.awaitUninterruptibly();
         return runner.removed.contains(remove);
     }
 

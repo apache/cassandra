@@ -20,7 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collections;
 
 import org.junit.After;
 import org.junit.BeforeClass;

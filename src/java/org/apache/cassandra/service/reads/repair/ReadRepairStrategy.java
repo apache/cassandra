@@ -20,7 +20,6 @@ package org.apache.cassandra.service.reads.repair;
 
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaPlan;
 
 public enum ReadRepairStrategy implements ReadRepair.Factory

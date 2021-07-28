@@ -37,6 +37,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static java.lang.Thread.MIN_PRIORITY;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * A multi-threaded (by default) executor for dispatching hints.
@@ -60,9 +65,9 @@ final class HintsDispatchExecutor
         this.isAlive = isAlive;
 
         scheduledDispatches = new ConcurrentHashMap<>();
-        executor = new JMXEnabledThreadPoolExecutor(maxThreads, 1, TimeUnit.MINUTES,
-                                                    new LinkedBlockingQueue<>(),
-                                                    new NamedThreadFactory("HintsDispatcher", Thread.MIN_PRIORITY),
+        executor = new JMXEnabledThreadPoolExecutor(maxThreads, 1, MINUTES,
+                                                    newBlockingQueue(),
+                                                    new NamedThreadFactory("HintsDispatcher", MIN_PRIORITY),
                                                     "internal");
     }
 
@@ -79,7 +84,7 @@ final class HintsDispatchExecutor
         }
         catch (InterruptedException e)
         {
-            throw new AssertionError(e);
+            throw new UncheckedInterruptedException(e);
         }
     }
 
@@ -120,7 +125,11 @@ final class HintsDispatchExecutor
             if (future != null)
                 future.get();
         }
-        catch (ExecutionException | InterruptedException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
         {
             throw new RuntimeException(e);
         }
@@ -167,7 +176,7 @@ final class HintsDispatchExecutor
             }
             catch (InterruptedException e)
             {
-                throw new RuntimeException(e);
+                throw new UncheckedInterruptedException(e);
             }
 
             hostId = hostIdSupplier.get();

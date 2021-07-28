@@ -34,7 +34,6 @@ import static org.junit.Assert.assertEquals;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.Duration.*;
-import static org.apache.cassandra.cql3.Duration.NANOS_PER_HOUR;
 
 public class DurationTest
 {

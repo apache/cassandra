@@ -21,7 +21,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -32,6 +31,8 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.apache.cassandra.io.util.RebufferingInputStream;
+
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 // TODO: rewrite
 public class AsyncStreamingInputPlus extends RebufferingInputStream
@@ -65,7 +66,7 @@ public class AsyncStreamingInputPlus extends RebufferingInputStream
         super(Unpooled.EMPTY_BUFFER.nioBuffer());
         currentBuf = Unpooled.EMPTY_BUFFER;
 
-        queue = new LinkedBlockingQueue<>();
+        queue = newBlockingQueue();
         rebufferTimeoutNanos = rebufferTimeoutUnit.toNanos(rebufferTimeout);
 
         this.channel = channel;

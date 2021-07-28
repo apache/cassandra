@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
-import org.apache.cassandra.utils.memory.BufferPool;
 
 import static org.apache.cassandra.net.FrameEncoderCrc.HEADER_LENGTH;
 import static org.apache.cassandra.net.FrameEncoderCrc.writeHeader;

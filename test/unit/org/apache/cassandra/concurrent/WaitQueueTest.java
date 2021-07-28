@@ -29,6 +29,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 import static org.junit.Assert.*;
 
 public class WaitQueueTest
@@ -37,7 +38,7 @@ public class WaitQueueTest
     @Test
     public void testSerial() throws InterruptedException
     {
-        testSerial(new WaitQueue());
+        testSerial(newWaitQueue());
     }
     public void testSerial(final WaitQueue queue) throws InterruptedException
     {
@@ -77,7 +78,7 @@ public class WaitQueueTest
     @Test
     public void testCondition() throws InterruptedException
     {
-        testCondition(new WaitQueue());
+        testCondition(newWaitQueue());
     }
     public void testCondition(final WaitQueue queue) throws InterruptedException
     {

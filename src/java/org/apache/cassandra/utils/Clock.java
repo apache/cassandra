@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.utils;
 
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,10 +33,10 @@ import org.slf4j.LoggerFactory;
  */
 public interface Clock
 {
+    static final Logger logger = LoggerFactory.getLogger(Clock.class);
+
     public static class Global
     {
-        private static final Logger logger = LoggerFactory.getLogger(Clock.class);
-
         /**
          * Static singleton object that will be instantiated by default with a system clock
          * implementation. Set <code>cassandra.clock</code> system property to a FQCN to use a
@@ -107,4 +109,11 @@ public interface Clock
      */
     public long currentTimeMillis();
 
+    @Intercept
+    public static void waitUntil(long deadlineNanos) throws InterruptedException
+    {
+        long waitNanos = Clock.Global.nanoTime() - deadlineNanos;
+        if (waitNanos > 0)
+            TimeUnit.NANOSECONDS.sleep(waitNanos);
+    }
 }

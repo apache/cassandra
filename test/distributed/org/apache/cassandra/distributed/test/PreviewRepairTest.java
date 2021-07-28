@@ -33,8 +33,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -50,9 +52,7 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.RepairResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
@@ -63,14 +63,22 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
-import org.apache.cassandra.utils.progress.ProgressEventType;
 
+import static com.google.common.collect.ImmutableList.of;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher;
+import static org.apache.cassandra.distributed.impl.Instance.deserializeMessage;
+import static org.apache.cassandra.distributed.test.PreviewRepairTest.DelayFirstRepairTypeMessageFilter.finalizePropose;
+import static org.apache.cassandra.distributed.test.PreviewRepairTest.DelayFirstRepairTypeMessageFilter.validationRequest;
+import static org.apache.cassandra.net.Verb.FINALIZE_PROPOSE_MSG;
+import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
+import static org.apache.cassandra.service.StorageService.instance;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.apache.cassandra.utils.progress.ProgressEventType.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -168,11 +176,11 @@ public class PreviewRepairTest extends TestBaseImpl
             insert(cluster.coordinator(1), 100, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
             
-            SimpleCondition previewRepairStarted = new SimpleCondition();
-            SimpleCondition continuePreviewRepair = new SimpleCondition();
-            DelayFirstRepairTypeMessageFilter filter = DelayFirstRepairTypeMessageFilter.validationRequest(previewRepairStarted, continuePreviewRepair);
+            Condition previewRepairStarted = newOneTimeCondition();
+            Condition continuePreviewRepair = newOneTimeCondition();
+            DelayFirstRepairTypeMessageFilter filter = validationRequest(previewRepairStarted, continuePreviewRepair);
             // this pauses the validation request sent from node1 to node2 until we have run a full inc repair below
-            cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
+            cluster.filters().outbound().verbs(VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
             Future<RepairResult> rsFuture = es.submit(() -> cluster.get(1).callOnInstance(repair(options(true, false))));
             previewRepairStarted.await();
@@ -207,24 +215,24 @@ public class PreviewRepairTest extends TestBaseImpl
             insert(cluster.coordinator(1), 100, 100);
             cluster.forEach((node) -> node.flush(KEYSPACE));
 
-            SimpleCondition previewRepairStarted = new SimpleCondition();
-            SimpleCondition continuePreviewRepair = new SimpleCondition();
+            Condition previewRepairStarted = newOneTimeCondition();
+            Condition continuePreviewRepair = newOneTimeCondition();
             // this pauses the validation request sent from node1 to node2 until the inc repair below has run
             cluster.filters()
                    .outbound()
-                   .verbs(Verb.VALIDATION_REQ.id)
+                   .verbs(VALIDATION_REQ.id)
                    .from(1).to(2)
-                   .messagesMatching(DelayFirstRepairTypeMessageFilter.validationRequest(previewRepairStarted, continuePreviewRepair))
+                   .messagesMatching(validationRequest(previewRepairStarted, continuePreviewRepair))
                    .drop();
 
-            SimpleCondition irRepairStarted = new SimpleCondition();
-            SimpleCondition continueIrRepair = new SimpleCondition();
+            Condition irRepairStarted = newOneTimeCondition();
+            Condition continueIrRepair = newOneTimeCondition();
             // this blocks the IR from committing, so we can reenable the preview
             cluster.filters()
                    .outbound()
-                   .verbs(Verb.FINALIZE_PROPOSE_MSG.id)
+                   .verbs(FINALIZE_PROPOSE_MSG.id)
                    .from(1).to(2)
-                   .messagesMatching(DelayFirstRepairTypeMessageFilter.finalizePropose(irRepairStarted, continueIrRepair))
+                   .messagesMatching(finalizePropose(irRepairStarted, continueIrRepair))
                    .drop();
 
             Future<RepairResult> previewResult = cluster.get(1).asyncCallsOnInstance(repair(options(true, false))).call();
@@ -268,15 +276,15 @@ public class PreviewRepairTest extends TestBaseImpl
             cluster.forEach((node) -> node.flush(KEYSPACE));
 
             // pause preview repair validation messages on node2 until node1 has finished
-            SimpleCondition previewRepairStarted = new SimpleCondition();
-            SimpleCondition continuePreviewRepair = new SimpleCondition();
-            DelayFirstRepairTypeMessageFilter filter = DelayFirstRepairTypeMessageFilter.validationRequest(previewRepairStarted, continuePreviewRepair);
-            cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
+            Condition previewRepairStarted = newOneTimeCondition();
+            Condition continuePreviewRepair = newOneTimeCondition();
+            DelayFirstRepairTypeMessageFilter filter = validationRequest(previewRepairStarted, continuePreviewRepair);
+            cluster.filters().outbound().verbs(VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
 
             // get local ranges to repair two separate ranges:
             List<String> localRanges = cluster.get(1).callOnInstance(() -> {
                 List<String> res = new ArrayList<>();
-                for (Range<Token> r : StorageService.instance.getLocalReplicas(KEYSPACE).ranges())
+                for (Range<Token> r : instance.getLocalReplicas(KEYSPACE).ranges())
                     res.add(r.left.getTokenValue()+ ":"+ r.right.getTokenValue());
                 return res;
             });
@@ -319,8 +327,8 @@ public class PreviewRepairTest extends TestBaseImpl
             cluster.forEach((node) -> node.flush(KEYSPACE));
 
             // pause inc repair validation messages on node2 until node1 has finished
-            SimpleCondition incRepairStarted = new SimpleCondition();
-            SimpleCondition continueIncRepair = new SimpleCondition();
+            Condition incRepairStarted = newOneTimeCondition();
+            Condition continueIncRepair = newOneTimeCondition();
 
             DelayFirstRepairTypeMessageFilter filter = DelayFirstRepairTypeMessageFilter.validationRequest(incRepairStarted, continueIncRepair);
             cluster.filters().outbound().verbs(Verb.VALIDATION_REQ.id).from(1).to(2).messagesMatching(filter).drop();
@@ -444,13 +452,13 @@ public class PreviewRepairTest extends TestBaseImpl
         }));
     }
 
-    static abstract class DelayFirstRepairMessageFilter implements IMessageFilters.Matcher
+    static abstract class DelayFirstRepairMessageFilter implements Matcher
     {
-        private final SimpleCondition pause;
-        private final SimpleCondition resume;
+        private final Condition pause;
+        private final Condition resume;
         private final AtomicBoolean waitForRepair = new AtomicBoolean(true);
 
-        protected DelayFirstRepairMessageFilter(SimpleCondition pause, SimpleCondition resume)
+        protected DelayFirstRepairMessageFilter(Condition pause, Condition resume)
         {
             this.pause = pause;
             this.resume = resume;
@@ -462,7 +470,7 @@ public class PreviewRepairTest extends TestBaseImpl
         {
             try
             {
-                Message<?> msg = Instance.deserializeMessage(message);
+                Message<?> msg = deserializeMessage(message);
                 RepairMessage repairMessage = (RepairMessage) msg.payload;
                 // only the first message should be delayed:
                 if (matchesMessage(repairMessage) && waitForRepair.compareAndSet(true, false))
@@ -483,18 +491,18 @@ public class PreviewRepairTest extends TestBaseImpl
     {
         private final Class<? extends RepairMessage> type;
 
-        public DelayFirstRepairTypeMessageFilter(SimpleCondition pause, SimpleCondition resume, Class<? extends RepairMessage> type)
+        public DelayFirstRepairTypeMessageFilter(Condition pause, Condition resume, Class<? extends RepairMessage> type)
         {
             super(pause, resume);
             this.type = type;
         }
 
-        public static DelayFirstRepairTypeMessageFilter validationRequest(SimpleCondition pause, SimpleCondition resume)
+        public static DelayFirstRepairTypeMessageFilter validationRequest(Condition pause, Condition resume)
         {
             return new DelayFirstRepairTypeMessageFilter(pause, resume, ValidationRequest.class);
         }
 
-        public static DelayFirstRepairTypeMessageFilter finalizePropose(SimpleCondition pause, SimpleCondition resume)
+        public static DelayFirstRepairTypeMessageFilter finalizePropose(Condition pause, Condition resume)
         {
             return new DelayFirstRepairTypeMessageFilter(pause, resume, FinalizePropose.class);
         }
@@ -522,25 +530,25 @@ public class PreviewRepairTest extends TestBaseImpl
     private static IIsolatedExecutor.SerializableCallable<RepairResult> repair(Map<String, String> options)
     {
         return () -> {
-            SimpleCondition await = new SimpleCondition();
+            Condition await = newOneTimeCondition();
             AtomicBoolean success = new AtomicBoolean(true);
             AtomicBoolean wasInconsistent = new AtomicBoolean(false);
-            StorageService.instance.repair(KEYSPACE, options, ImmutableList.of((tag, event) -> {
-                if (event.getType() == ProgressEventType.ERROR)
+            instance.repair(KEYSPACE, options, of((tag, event) -> {
+                if (event.getType() == ERROR)
                 {
                     success.set(false);
                     await.signalAll();
                 }
-                else if (event.getType() == ProgressEventType.NOTIFICATION && event.getMessage().contains("Repaired data is inconsistent"))
+                else if (event.getType() == NOTIFICATION && event.getMessage().contains("Repaired data is inconsistent"))
                 {
                     wasInconsistent.set(true);
                 }
-                else if (event.getType() == ProgressEventType.COMPLETE)
+                else if (event.getType() == COMPLETE)
                     await.signalAll();
             }));
             try
             {
-                await.await(1, TimeUnit.MINUTES);
+                await.await(1, MINUTES);
             }
             catch (InterruptedException e)
             {

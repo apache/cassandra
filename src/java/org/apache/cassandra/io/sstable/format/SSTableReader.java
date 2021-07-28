@@ -69,12 +69,10 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.SelfRefCounted;
-import org.apache.cassandra.utils.BloomFilterSerializer;
+import org.apache.cassandra.utils.concurrent.*;
 
 import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * An SSTableReader can be constructed in a number of places, but typically is either
@@ -525,7 +523,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
                                                     final TableMetadataRef metadata)
     {
-        final Collection<SSTableReader> sstables = new LinkedBlockingQueue<>();
+        final Collection<SSTableReader> sstables = newBlockingQueue();
 
         ExecutorService executor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("SSTableBatchOpen", FBUtilities.getAvailableProcessors());
         for (final Map.Entry<Descriptor, Set<Component>> entry : entries)
@@ -564,7 +562,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
         catch (InterruptedException e)
         {
-            throw new AssertionError(e);
+            throw new UncheckedInterruptedException(e);
         }
 
         return sstables;

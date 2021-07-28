@@ -22,8 +22,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.apache.cassandra.index.sasi.utils.LongIterator.convert;
-
 public class LongIteratorTest
 {
     @Test

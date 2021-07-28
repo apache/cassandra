@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.io.Files;
 
 import org.junit.Before;
 import org.junit.BeforeClass;

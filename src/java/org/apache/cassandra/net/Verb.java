@@ -87,8 +87,6 @@ import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.*;
-import static org.apache.cassandra.concurrent.Stage.INTERNAL_RESPONSE;
-import static org.apache.cassandra.concurrent.Stage.MISC;
 import static org.apache.cassandra.net.VerbTimeouts.*;
 import static org.apache.cassandra.net.Verb.Kind.*;
 import static org.apache.cassandra.net.Verb.Priority.*;

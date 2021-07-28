@@ -32,6 +32,8 @@ import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.apache.cassandra.utils.ExecutorUtils;
 
+import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
+
 
 /**
  * Represents an amount of memory used for a given purpose, that can be allocated to specific tasks through
@@ -48,7 +50,7 @@ public abstract class MemtablePool
     public final Timer blockedOnAllocating;
     public final Gauge<Long> numPendingTasks;
 
-    final WaitQueue hasRoom = new WaitQueue();
+    final WaitQueue hasRoom = newWaitQueue();
 
     MemtablePool(long maxOnHeapMemory, long maxOffHeapMemory, float cleanThreshold, MemtableCleaner cleaner)
     {

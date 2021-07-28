@@ -29,7 +29,6 @@ import com.google.common.base.Preconditions;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.apache.cassandra.utils.memory.MemoryUtil;
 
 /**
  * An implementation of the DataOutputStreamPlus interface using a ByteBuffer to stage writes

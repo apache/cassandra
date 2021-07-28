@@ -25,8 +25,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -37,14 +37,16 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
-import org.apache.cassandra.utils.progress.ProgressEventType;
 
+import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.apache.cassandra.service.StorageService.instance;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
 
 public class RepairTest extends TestBaseImpl
 {
@@ -95,9 +97,9 @@ public class RepairTest extends TestBaseImpl
     static void repair(ICluster<IInvokableInstance> cluster, String keyspace, Map<String, String> options)
     {
         cluster.get(1).runOnInstance(rethrow(() -> {
-            SimpleCondition await = new SimpleCondition();
-            StorageService.instance.repair(keyspace, options, ImmutableList.of((tag, event) -> {
-                if (event.getType() == ProgressEventType.COMPLETE)
+            Condition await = newOneTimeCondition();
+            instance.repair(keyspace, options, of((tag, event) -> {
+                if (event.getType() == COMPLETE)
                     await.signalAll();
             })).right.get();
             await.await(1L, MINUTES);

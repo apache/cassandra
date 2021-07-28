@@ -26,14 +26,16 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
-import org.apache.cassandra.utils.MBeanWrapper;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
+import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.*;
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class SEPExecutor extends AbstractLocalAwareExecutorService implements SEPExecutorMBean
 {
@@ -55,7 +57,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     private final AtomicLong completedTasks = new AtomicLong();
 
     volatile boolean shuttingDown = false;
-    final SimpleCondition shutdown = new SimpleCondition();
+    final Condition shutdown = newOneTimeCondition();
 
     // TODO: see if other queue implementations might improve throughput
     protected final ConcurrentLinkedQueue<FutureTask<?>> tasks = new ConcurrentLinkedQueue<>();
@@ -144,14 +146,14 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
                 // Work permits are negative when the pool is reducing in size.  Atomically
                 // adjust the number of work permits so there is no race of multiple SEPWorkers
                 // exiting.  On conflicting update, recheck.
-                result = TakeTaskPermitResult.RETURNED_WORK_PERMIT;
+                result = RETURNED_WORK_PERMIT;
                 updated = updateWorkPermits(current, workPermits + 1);
             }
             else
             {
                 if (taskPermits == 0)
-                    return TakeTaskPermitResult.NONE_AVAILABLE;
-                result = TakeTaskPermitResult.TOOK_PERMIT;
+                    return NONE_AVAILABLE;
+                result = TOOK_PERMIT;
                 updated = updateTaskPermits(current, taskPermits - 1);
             }
             if (permits.compareAndSet(current, updated))
@@ -234,7 +236,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
     {
         shutdown();
         List<Runnable> aborted = new ArrayList<>();
-        while (takeTaskPermit(false) == TakeTaskPermitResult.TOOK_PERMIT)
+        while (takeTaskPermit(false) == TOOK_PERMIT)
             aborted.add(tasks.poll());
         return aborted;
     }
@@ -246,7 +248,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService implements SE
 
     public boolean isTerminated()
     {
-        return shuttingDown && shutdown.isSignaled();
+        return shuttingDown && shutdown.isSignalled();
     }
 
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException

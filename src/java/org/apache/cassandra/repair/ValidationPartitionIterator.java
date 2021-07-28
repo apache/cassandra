@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair;
 
-import java.io.IOException;
 import java.util.Map;
 
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;

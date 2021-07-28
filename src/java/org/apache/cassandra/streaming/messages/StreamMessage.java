@@ -27,8 +27,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamSession;
 
-import static java.lang.Math.max;
-
 /**
  * StreamMessage is an abstract base class that every messages in streaming protocol inherit.
  *

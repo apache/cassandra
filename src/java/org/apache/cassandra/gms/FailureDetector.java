@@ -27,7 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
-import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.*;
 import org.apache.cassandra.locator.Replica;
 import org.slf4j.Logger;

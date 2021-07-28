@@ -23,8 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class EndpointsByReplica extends ReplicaMultimap<Replica, EndpointsForRange>

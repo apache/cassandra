@@ -40,7 +40,6 @@ import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
 import static org.apache.cassandra.net.Crc.*;
-import static org.apache.cassandra.net.Crc.computeCrc32;
 import static org.apache.cassandra.net.OutboundConnectionSettings.*;
 
 /**
@@ -53,7 +52,8 @@ import static org.apache.cassandra.net.OutboundConnectionSettings.*;
  * it will simply disconnect and reconnect with a more appropriate version. But if the version is acceptable, the connection
  * initiator sends the third message of the protocol, after which it considers the connection ready.
  */
-class HandshakeProtocol
+@VisibleForTesting
+public class HandshakeProtocol
 {
     static final long TIMEOUT_MILLIS = 3 * DatabaseDescriptor.getRpcTimeout(MILLISECONDS);
 

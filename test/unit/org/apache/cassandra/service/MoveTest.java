@@ -23,14 +23,12 @@ import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
 import java.util.function.Consumer;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.gms.GossiperEvent;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -40,11 +38,7 @@ import org.apache.cassandra.locator.RangesByEndpoint;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;

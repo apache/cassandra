@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -137,7 +138,11 @@ public class ExternalArchiver implements BinLogArchiver
             // and try to archive all remaining files before exiting
             archiveExisting(path);
         }
-        catch (InterruptedException | ExecutionException e)
+        catch (InterruptedException e)
+        {
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (ExecutionException e)
         {
             throw new RuntimeException(e);
         }

@@ -21,7 +21,6 @@ package org.apache.cassandra.db.compaction;
 import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.function.LongPredicate;
-import java.util.function.Predicate;
 
 import com.google.common.collect.Sets;
 import org.junit.BeforeClass;

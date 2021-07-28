@@ -25,14 +25,12 @@ import java.nio.channels.ClosedByInterruptException;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
+
+import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,11 +43,8 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.net.AsyncChannelPromise;
 import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
 import org.apache.cassandra.streaming.StreamConnectionFactory;
@@ -60,8 +55,25 @@ import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static com.google.common.base.Throwables.getRootCause;
+import static io.netty.util.AttributeKey.valueOf;
+import static java.lang.Boolean.FALSE;
+import static java.lang.Integer.parseInt;
+import static java.lang.String.format;
+import static java.lang.System.getProperty;
+import static java.lang.Thread.currentThread;
+import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
+import static org.apache.cassandra.config.DatabaseDescriptor.getStreamingKeepAlivePeriod;
+import static org.apache.cassandra.net.AsyncChannelPromise.writeAndFlush;
+import static org.apache.cassandra.streaming.messages.StreamMessage.serialize;
+import static org.apache.cassandra.streaming.messages.StreamMessage.serializedSize;
+import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+import static org.apache.cassandra.utils.JVMStabilityInspector.inspectThrowable;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
+import static org.apache.cassandra.utils.concurrent.Semaphore.newFairSemaphore;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -85,13 +97,13 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 {
     private static final Logger logger = LoggerFactory.getLogger(NettyStreamingMessageSender.class);
 
-    private static final int DEFAULT_MAX_PARALLEL_TRANSFERS = FBUtilities.getAvailableProcessors();
-    private static final int MAX_PARALLEL_TRANSFERS = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "streaming.session.parallelTransfers", Integer.toString(DEFAULT_MAX_PARALLEL_TRANSFERS)));
+    private static final int DEFAULT_MAX_PARALLEL_TRANSFERS = getAvailableProcessors();
+    private static final int MAX_PARALLEL_TRANSFERS = parseInt(getProperty(PROPERTY_PREFIX + "streaming.session.parallelTransfers", Integer.toString(DEFAULT_MAX_PARALLEL_TRANSFERS)));
 
-    private static final long DEFAULT_CLOSE_WAIT_IN_MILLIS = TimeUnit.MINUTES.toMillis(5);
+    private static final long DEFAULT_CLOSE_WAIT_IN_MILLIS = MINUTES.toMillis(5);
 
-    // a simple mechansim for allowing a degree of fairnes across multiple sessions
-    private static final Semaphore fileTransferSemaphore = new Semaphore(DEFAULT_MAX_PARALLEL_TRANSFERS, true);
+    // a simple mechansim for allowing a degree of fairness across multiple sessions
+    private static final Semaphore fileTransferSemaphore = newFairSemaphore(DEFAULT_MAX_PARALLEL_TRANSFERS);
 
     private final StreamSession session;
     private final boolean isPreview;
@@ -108,7 +120,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     private volatile Channel controlMessageChannel;
 
     // note: this really doesn't need to be a LBQ, just something that's thread safe
-    private final Collection<ScheduledFuture<?>> channelKeepAlives = new LinkedBlockingQueue<>();
+    private final Collection<ScheduledFuture<?>> channelKeepAlives = newBlockingQueue();
 
     private final ThreadPoolExecutor fileTransferExecutor;
 
@@ -123,7 +135,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
      * (application level) keep-alive in the middle of a stream would be bad news.
      */
     @VisibleForTesting
-    static final AttributeKey<Boolean> TRANSFERRING_FILE_ATTR = AttributeKey.valueOf("transferringFile");
+    static final AttributeKey<Boolean> TRANSFERRING_FILE_ATTR = valueOf("transferringFile");
 
     public NettyStreamingMessageSender(StreamSession session, OutboundConnectionSettings template, StreamConnectionFactory factory, int streamingVersion, boolean isPreview)
     {
@@ -134,7 +146,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         this.isPreview = isPreview;
 
         String name = session.peer.toString().replace(':', '.');
-        fileTransferExecutor = new DebuggableThreadPoolExecutor(1, MAX_PARALLEL_TRANSFERS, 1L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(),
+        fileTransferExecutor = new DebuggableThreadPoolExecutor(1, MAX_PARALLEL_TRANSFERS, 1L, SECONDS, newBlockingQueue(),
                                                                 new NamedThreadFactory("NettyStreaming-Outbound-" + name));
         fileTransferExecutor.allowCoreThreadTimeOut(true);
     }
@@ -142,7 +154,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     @Override
     public void initialize()
     {
-        StreamInitMessage message = new StreamInitMessage(FBUtilities.getBroadcastAddressAndPort(),
+        StreamInitMessage message = new StreamInitMessage(getBroadcastAddressAndPort(),
                                                           session.sessionIndex(),
                                                           session.planId(),
                                                           session.streamOperation(),
@@ -162,7 +174,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
     public void injectControlMessageChannel(Channel channel)
     {
         this.controlMessageChannel = channel;
-        channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
+        channel.attr(TRANSFERRING_FILE_ATTR).set(FALSE);
         scheduleKeepAliveTask(channel);
     }
 
@@ -186,12 +198,12 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
     private void scheduleKeepAliveTask(Channel channel)
     {
-        int keepAlivePeriod = DatabaseDescriptor.getStreamingKeepAlivePeriod();
+        int keepAlivePeriod = getStreamingKeepAlivePeriod();
         if (logger.isDebugEnabled())
             logger.debug("{} Scheduling keep-alive task with {}s period.", createLogTag(session, channel), keepAlivePeriod);
 
         KeepAliveTask task = new KeepAliveTask(channel, session);
-        ScheduledFuture<?> scheduledFuture = channel.eventLoop().scheduleAtFixedRate(task, 0, keepAlivePeriod, TimeUnit.SECONDS);
+        ScheduledFuture<?> scheduledFuture = channel.eventLoop().scheduleAtFixedRate(task, 0, keepAlivePeriod, SECONDS);
         channelKeepAlives.add(scheduledFuture);
         task.future = scheduledFuture;
     }
@@ -206,7 +218,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             ChannelPipeline pipeline = channel.pipeline();
             pipeline.addLast("stream", new StreamingInboundHandler(template.to, streamingVersion, session));
         }
-        channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
+        channel.attr(TRANSFERRING_FILE_ATTR).set(FALSE);
         logger.debug("Creating channel id {} local {} remote {}", channel.id(), channel.localAddress(), channel.remoteAddress());
         return channel;
     }
@@ -260,10 +272,10 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             logger.debug("{} Sending {}", createLogTag(session, channel), message);
 
         // we anticipate that the control messages are rather small, so allocating a ByteBuf shouldn't  blow out of memory.
-        long messageSize = StreamMessage.serializedSize(message, streamingVersion);
+        long messageSize = serializedSize(message, streamingVersion);
         if (messageSize > 1 << 30)
         {
-            throw new IllegalStateException(String.format("%s something is seriously wrong with the calculated stream control message's size: %d bytes, type is %s",
+            throw new IllegalStateException(format("%s something is seriously wrong with the calculated stream control message's size: %d bytes, type is %s",
                                                           createLogTag(session, channel), messageSize, message.type));
         }
 
@@ -272,11 +284,11 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         ByteBuffer nioBuf = buf.nioBuffer(0, (int) messageSize);
         @SuppressWarnings("resource")
         DataOutputBufferFixed out = new DataOutputBufferFixed(nioBuf);
-        StreamMessage.serialize(message, out, streamingVersion, session);
+        serialize(message, out, streamingVersion, session);
         assert nioBuf.position() == nioBuf.limit();
         buf.writerIndex(nioBuf.position());
 
-        AsyncChannelPromise.writeAndFlush(channel, buf, listener);
+        writeAndFlush(channel, buf, listener);
     }
 
     /**
@@ -346,11 +358,11 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                 // close the DataOutputStreamPlus as we're done with it - but don't close the channel
                 try (DataOutputStreamPlus outPlus = new AsyncStreamingOutputPlus(channel))
                 {
-                    StreamMessage.serialize(msg, outPlus, streamingVersion, session);
+                    serialize(msg, outPlus, streamingVersion, session);
                 }
                 finally
                 {
-                    channel.attr(TRANSFERRING_FILE_ATTR).set(Boolean.FALSE);
+                    channel.attr(TRANSFERRING_FILE_ATTR).set(FALSE);
                 }
             }
             catch (Exception e)
@@ -359,26 +371,26 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
             }
             catch (Throwable t)
             {
-                if (closed && Throwables.getRootCause(t) instanceof ClosedByInterruptException && fileTransferExecutor.isShutdown())
+                if (closed && getRootCause(t) instanceof ClosedByInterruptException && fileTransferExecutor.isShutdown())
                 {
                     logger.debug("{} Streaming channel was closed due to the executor pool being shutdown", createLogTag(session, channel));
                 }
                 else
                 {
-                    JVMStabilityInspector.inspectThrowable(t);
+                    inspectThrowable(t);
                     if (!session.state().isFinalState())
                         session.onError(t);
                 }
             }
             finally
             {
-                fileTransferSemaphore.release();
+                fileTransferSemaphore.release(1);
             }
         }
 
         boolean acquirePermit(int logInterval)
         {
-            long logIntervalNanos = TimeUnit.MINUTES.toNanos(logInterval);
+            long logIntervalNanos = MINUTES.toNanos(logInterval);
             long timeOfLastLogging = nanoTime();
             while (true)
             {
@@ -386,7 +398,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                     return false;
                 try
                 {
-                    if (fileTransferSemaphore.tryAcquire(1, TimeUnit.SECONDS))
+                    if (fileTransferSemaphore.tryAcquire(1, 1, SECONDS))
                         return true;
 
                     // log a helpful message to operators in case they are wondering why a given session might not be making progress.
@@ -410,7 +422,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
         private Channel getOrCreateChannel()
         {
-            Thread currentThread = Thread.currentThread();
+            Thread currentThread = currentThread();
             try
             {
                 Channel channel = threadToChannelMap.get(currentThread);
@@ -431,7 +443,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
         {
             try
             {
-                session.onError(t).get(DEFAULT_CLOSE_WAIT_IN_MILLIS, TimeUnit.MILLISECONDS);
+                session.onError(t).get(DEFAULT_CLOSE_WAIT_IN_MILLIS, MILLISECONDS);
             }
             catch (Exception e)
             {
@@ -444,7 +456,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
          */
         void injectChannel(Channel channel)
         {
-            Thread currentThread = Thread.currentThread();
+            Thread currentThread = currentThread();
             if (threadToChannelMap.get(currentThread) != null)
                 throw new IllegalStateException("previous channel already set");
 
@@ -456,7 +468,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
          */
         void unsetChannel()
         {
-            threadToChannelMap.remove(Thread.currentThread());
+            threadToChannelMap.remove(currentThread());
         }
     }
 
@@ -535,7 +547,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
 
     int semaphoreAvailablePermits()
     {
-        return fileTransferSemaphore.availablePermits();
+        return fileTransferSemaphore.permits();
     }
 
     @Override

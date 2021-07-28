@@ -64,12 +64,12 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
         if (msg.payload)
             accepts.incrementAndGet();
 
-        latch.countDown();
+        latch.decrement();
 
-        if (isSuccessful() || (failFast && (latch.getCount() + accepts.get() < requiredAccepts)))
+        if (isSuccessful() || (failFast && (latch.count() + accepts.get() < requiredAccepts)))
         {
-            while (latch.getCount() > 0)
-                latch.countDown();
+            while (latch.count() > 0)
+                latch.decrement();
         }
     }
 
@@ -88,6 +88,6 @@ public class ProposeCallback extends AbstractPaxosCallback<Boolean>
     {
         // We need to check the latch first to avoid racing with a late arrival
         // between the latch check and the accepts one
-        return latch.getCount() == 0 && accepts.get() == 0;
+        return latch.count() == 0 && accepts.get() == 0;
     }
 }

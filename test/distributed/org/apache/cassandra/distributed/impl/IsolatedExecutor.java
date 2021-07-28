@@ -49,6 +49,8 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.Throwables;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 public class IsolatedExecutor implements IIsolatedExecutor
 {
     final ExecutorService isolatedExecutor;
@@ -78,7 +80,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
             t.setDaemon(true);
             return t;
         };
-        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
+        ExecutorService shutdownExecutor = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 0, SECONDS,
                                                                   new LinkedBlockingQueue<>(), threadFactory);
         return shutdownExecutor.submit(() -> {
             try

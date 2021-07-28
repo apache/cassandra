@@ -21,9 +21,9 @@ import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +44,7 @@ import org.apache.cassandra.utils.FBUtilities;
  * You can attach {@link StreamEventHandler} to this object to listen on {@link StreamEvent}s to
  * track progress of the streaming.
  */
-public final class StreamResultFuture extends AbstractFuture<StreamState>
+public final class StreamResultFuture extends AsyncFuture<StreamState>
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamResultFuture.class);
 
@@ -69,7 +69,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
         // if there is no session to listen to, we immediately set result for returning
         if (!coordinator.isFollower() && !coordinator.hasActiveSessions())
-            set(getCurrentState());
+            trySuccess(getCurrentState());
     }
 
     private StreamResultFuture(UUID planId, StreamOperation streamOperation, UUID pendingRepair, PreviewKind previewKind)
@@ -217,12 +217,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             if (finalState.hasFailedSession())
             {
                 logger.warn("[Stream #{}] Stream failed", planId);
-                setException(new StreamException(finalState, "Stream failed"));
+                tryFailure(new StreamException(finalState, "Stream failed"));
             }
             else
             {
                 logger.info("[Stream #{}] All sessions completed", planId);
-                set(finalState);
+                trySuccess(finalState);
             }
         }
     }

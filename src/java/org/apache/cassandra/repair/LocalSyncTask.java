@@ -40,7 +40,6 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * LocalSyncTask performs streaming between local(coordinator) node and remote replica.
@@ -150,13 +149,13 @@ public class LocalSyncTask extends SyncTask implements StreamEventHandler
         String message = String.format("Sync complete using session %s between %s and %s on %s", desc.sessionId, nodePair.coordinator, nodePair.peer, desc.columnFamily);
         logger.info("{} {}", previewKind.logPrefix(desc.sessionId), message);
         Tracing.traceRepair(message);
-        set(stat.withSummaries(result.createSummaries()));
+        trySuccess(stat.withSummaries(result.createSummaries()));
         finished();
     }
 
     public void onFailure(Throwable t)
     {
-        setException(t);
+        tryFailure(t);
         finished();
     }
 

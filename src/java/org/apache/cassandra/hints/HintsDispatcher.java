@@ -24,6 +24,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import com.google.common.util.concurrent.RateLimiter;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,10 +34,13 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
+
+import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.*;
+import static org.apache.cassandra.metrics.HintsServiceMetrics.updateDelayMetrics;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 /**
  * Dispatches a single hints file to a specified node in a batched manner.
@@ -205,12 +209,12 @@ final class HintsDispatcher implements AutoCloseable
         return callback;
     }
 
-    private static final class Callback implements RequestCallback
+    static final class Callback implements RequestCallback
     {
         enum Outcome { SUCCESS, TIMEOUT, FAILURE, INTERRUPTED }
 
         private final long start = approxTime.now();
-        private final SimpleCondition condition = new SimpleCondition();
+        private final Condition condition = newOneTimeCondition();
         private volatile Outcome outcome;
         private final long hintCreationNanoTime;
 
@@ -229,10 +233,10 @@ final class HintsDispatcher implements AutoCloseable
             catch (InterruptedException e)
             {
                 logger.warn("Hint dispatch was interrupted", e);
-                return Outcome.INTERRUPTED;
+                return INTERRUPTED;
             }
 
-            return timedOut ? Outcome.TIMEOUT : outcome;
+            return timedOut ? TIMEOUT : outcome;
         }
 
         @Override
@@ -244,15 +248,15 @@ final class HintsDispatcher implements AutoCloseable
         @Override
         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
         {
-            outcome = Outcome.FAILURE;
+            outcome = FAILURE;
             condition.signalAll();
         }
 
         @Override
         public void onResponse(Message msg)
         {
-            HintsServiceMetrics.updateDelayMetrics(msg.from(), approxTime.now() - this.hintCreationNanoTime);
-            outcome = Outcome.SUCCESS;
+            updateDelayMetrics(msg.from(), approxTime.now() - this.hintCreationNanoTime);
+            outcome = SUCCESS;
             condition.signalAll();
         }
     }

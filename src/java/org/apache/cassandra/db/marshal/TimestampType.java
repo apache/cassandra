@@ -23,7 +23,6 @@ import java.util.Date;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.statements.RequestValidations;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

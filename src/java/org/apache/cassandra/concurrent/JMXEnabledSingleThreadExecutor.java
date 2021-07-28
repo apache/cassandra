@@ -18,15 +18,16 @@
 
 package org.apache.cassandra.concurrent;
 
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 public class JMXEnabledSingleThreadExecutor extends JMXEnabledThreadPoolExecutor
 {
     public JMXEnabledSingleThreadExecutor(String threadPoolName, String jmxPath)
     {
-        super(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<>(), new SingleThreadFactory(threadPoolName), jmxPath);
+        super(1, Integer.MAX_VALUE, SECONDS, newBlockingQueue(), new SingleThreadFactory(threadPoolName), jmxPath);
     }
 
     @Override

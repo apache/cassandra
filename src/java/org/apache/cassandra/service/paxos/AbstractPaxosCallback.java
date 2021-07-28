@@ -20,16 +20,18 @@
  */
 package org.apache.cassandra.service.paxos;
 
-import java.util.concurrent.CountDownLatch;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 
 public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
 {
@@ -42,13 +44,13 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
     {
         this.targets = targets;
         this.consistency = consistency;
-        latch = new CountDownLatch(targets);
+        latch = newCountDownLatch(targets);
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
     public int getResponseCount()
     {
-        return (int) (targets - latch.getCount());
+        return (int) (targets - latch.count());
     }
 
     public void await() throws WriteTimeoutException
@@ -59,9 +61,9 @@ public abstract class AbstractPaxosCallback<T> implements RequestCallback<T>
             if (!latch.await(timeout, NANOSECONDS))
                 throw new WriteTimeoutException(WriteType.CAS, consistency, getResponseCount(), targets);
         }
-        catch (InterruptedException ex)
+        catch (InterruptedException e)
         {
-            throw new AssertionError("This latch shouldn't have been interrupted.");
+            throw new UncheckedInterruptedException(e);
         }
     }
 }

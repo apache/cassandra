@@ -23,8 +23,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.AbstractFuture;
 
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,7 +37,7 @@ import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runnable
+public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
 {
     private static Logger logger = LoggerFactory.getLogger(SyncTask.class);
 
@@ -81,7 +81,7 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
         {
             logger.info(String.format(format, "are consistent"));
             Tracing.traceRepair("Endpoint {} is consistent with {} for {}", nodePair.coordinator, nodePair.peer, desc.columnFamily);
-            set(stat);
+            trySuccess(stat);
             return;
         }
 

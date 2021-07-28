@@ -22,8 +22,6 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.tools.nodetool.stats.TpStatsHolder;
-import org.apache.cassandra.tools.nodetool.stats.TpStatsPrinter;
 import org.apache.cassandra.tools.nodetool.stats.*;
 
 

@@ -19,8 +19,6 @@ package org.apache.cassandra.repair;
 
 import java.util.concurrent.ExecutionException;
 
-import com.google.common.util.concurrent.AbstractFuture;
-
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -28,6 +26,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 
@@ -35,7 +34,7 @@ import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
  * ValidationTask sends {@link ValidationRequest} to a replica.
  * When a replica sends back message, task completes.
  */
-public class ValidationTask extends AbstractFuture<TreeResponse> implements Runnable
+public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnable
 {
     private final RepairJobDesc desc;
     private final InetAddressAndPort endpoint;
@@ -71,17 +70,17 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
         if (trees == null)
         {
             active = false;
-            setException(RepairException.warn(desc, previewKind, "Validation failed in " + endpoint));
+            tryFailure(RepairException.warn(desc, previewKind, "Validation failed in " + endpoint));
         }
         else if (active)
         {
-            set(new TreeResponse(endpoint, trees));
+            trySuccess(new TreeResponse(endpoint, trees));
         }
         else
         {
             // If the task has already been aborted, just release the possibly off-heap trees and move along.
             trees.release();
-            set(null);
+            trySuccess(null);
         }
     }
 
