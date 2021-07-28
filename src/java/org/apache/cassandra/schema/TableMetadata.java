@@ -739,7 +739,10 @@ public class TableMetadata implements SchemaElement
                 partitioner = DatabaseDescriptor.getPartitioner();
 
             if (id == null)
-                id = TableId.generate();
+            {
+                if (DatabaseDescriptor.useDeterministicTableID()) id = TableId.unsafeDeterministic(keyspace, name);
+                else id = TableId.generate();
+            }
 
             if (Flag.isCQLTable(flags))
                 return new TableMetadata(this);

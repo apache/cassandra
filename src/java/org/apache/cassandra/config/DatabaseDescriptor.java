@@ -32,6 +32,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,6 +104,7 @@ public class DatabaseDescriptor
      */
     static final long LOWEST_ACCEPTED_TIMEOUT = 10L;
 
+    private static Supplier<IFailureDetector> newFailureDetector;
     private static IEndpointSnitch snitch;
     private static InetAddress listenAddress; // leave null so we can fall through to getLocalHost
     private static InetAddress broadcastAddress;
@@ -1131,6 +1133,7 @@ public class DatabaseDescriptor
                 return 1;
             return 0;
         };
+        newFailureDetector = () -> createFailureDetector(conf.failure_detector);
     }
 
     // definitely not safe for tools + clients - implicitly instantiates schema
@@ -1185,6 +1188,14 @@ public class DatabaseDescriptor
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
         return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
+    }
+
+    private static IFailureDetector createFailureDetector(String detectorClassName) throws ConfigurationException
+    {
+        if (!detectorClassName.contains("."))
+            detectorClassName = "org.apache.cassandra.gms." + detectorClassName;
+        IFailureDetector detector = FBUtilities.construct(detectorClassName, "failure detector");
+        return detector;
     }
 
     public static IAuthenticator getAuthenticator()
@@ -1403,6 +1414,16 @@ public class DatabaseDescriptor
     public static void setEndpointSnitch(IEndpointSnitch eps)
     {
         snitch = eps;
+    }
+
+    public static IFailureDetector newFailureDetector()
+    {
+        return newFailureDetector.get();
+    }
+
+    public static void setDefaultFailureDetector()
+    {
+        newFailureDetector = () -> createFailureDetector("FailureDetector");
     }
 
     public static int getColumnIndexSize()
@@ -1732,6 +1753,11 @@ public class DatabaseDescriptor
     public static int getFlushWriters()
     {
         return conf.memtable_flush_writers;
+    }
+
+    public static int getAvailableProcessors()
+    {
+        return conf == null ? -1 : conf.available_processors;
     }
 
     public static int getConcurrentCompactors()
@@ -2435,6 +2461,16 @@ public class DatabaseDescriptor
     public static Set<String> hintedHandoffDisabledDCs()
     {
         return conf.hinted_handoff_disabled_datacenters;
+    }
+
+    public static boolean useDeterministicTableID()
+    {
+        return conf != null && conf.use_deterministic_table_id;
+    }
+
+    public static void useDeterministicTableID(boolean value)
+    {
+        conf.use_deterministic_table_id = value;
     }
 
     public static void enableHintsForDC(String dc)

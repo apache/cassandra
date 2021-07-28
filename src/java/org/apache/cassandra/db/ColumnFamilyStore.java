@@ -1228,6 +1228,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
             }, reclaimExecutor);
         }
+
+        @Override
+        public String toString()
+        {
+            return "Flush " + keyspace + '.' + name;
+        }
     }
 
     // atomically set the upper bound for the commit log

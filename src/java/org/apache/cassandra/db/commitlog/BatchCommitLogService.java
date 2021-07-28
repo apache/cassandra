@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.BATCH_COMMIT_LOG_SYNC_INTERVAL;
+
 class BatchCommitLogService extends AbstractCommitLogService
 {
     /**
@@ -24,7 +26,7 @@ class BatchCommitLogService extends AbstractCommitLogService
      * the disk sync. Instead we trigger it explicitly in {@link #maybeWaitForSync(CommitLogSegment.Allocation)}.
      * This value here is largely irrelevant, but should high enough so the sync thread is not continually waking up.
      */
-    private static final int POLL_TIME_MILLIS = 1000;
+    private static final int POLL_TIME_MILLIS = BATCH_COMMIT_LOG_SYNC_INTERVAL.getInt();
 
     public BatchCommitLogService(CommitLog commitLog)
     {

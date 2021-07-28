@@ -250,7 +250,7 @@ public class ClientState
      * it may be returned multiple times). Note that we still ensure Paxos "ballot" are unique (for different
      * proposal) by (securely) randomizing the non-timestamp part of the UUID.
      */
-    public long getTimestampForPaxos(long minTimestampToUse)
+    public static long getTimestampForPaxos(long minTimestampToUse)
     {
         while (true)
         {
@@ -264,6 +264,11 @@ public class ClientState
             if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
+    }
+
+    public static long getLastTimestampMicros()
+    {
+        return lastTimestampMicros.get();
     }
 
     public Optional<String> getDriverName()

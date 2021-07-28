@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
+
 /**
  * Wrapper around time related functions that are either implemented by using the default JVM calls
  * or by using a custom implementation for testing purposes.
@@ -46,7 +48,7 @@ public interface Clock
 
         static
         {
-            String classname = System.getProperty("cassandra.clock");
+            String classname = CLOCK_GLOBAL.getString();
             Clock clock = new Default();
             if (classname != null)
             {

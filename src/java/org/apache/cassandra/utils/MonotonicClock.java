@@ -30,6 +30,8 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -79,7 +81,7 @@ public interface MonotonicClock
 
         private static MonotonicClock precise()
         {
-            String sclock = System.getProperty("cassandra.monotonic_clock.precise");
+            String sclock = CLOCK_MONOTONIC_PRECISE.getString();
 
             if (sclock != null)
             {
@@ -99,7 +101,7 @@ public interface MonotonicClock
 
         private static MonotonicClock approx(MonotonicClock precise)
         {
-            String sclock = System.getProperty("cassandra.monotonic_clock.approx");
+            String sclock = CLOCK_MONOTONIC_APPROX.getString();
             if (sclock != null)
             {
                 try

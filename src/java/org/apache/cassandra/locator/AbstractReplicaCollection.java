@@ -23,12 +23,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+import java.util.AbstractList;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -394,6 +396,22 @@ public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollect
         else subList = list.subList(start, end);
 
         return snapshot(subList);
+    }
+
+    public final <T> List<T> asList(Function<Replica, T> viewTransform)
+    {
+        return new AbstractList<T>()
+        {
+            public T get(int index)
+            {
+                return viewTransform.apply(list.get(index));
+            }
+
+            public int size()
+            {
+                return list.size;
+            }
+        };
     }
 
     /** see {@link ReplicaCollection#count(Predicate)}*/

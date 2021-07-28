@@ -89,7 +89,8 @@ public class RequestCallbacks implements OutboundMessageCallbacks
      * Remove and return the {@link CallbackInfo} associated with given id and peer, if known.
      */
     @Nullable
-    CallbackInfo remove(long id, InetAddressAndPort peer)
+    @VisibleForTesting
+    public CallbackInfo remove(long id, InetAddressAndPort peer)
     {
         return callbacks.remove(key(id, peer));
     }
@@ -250,13 +251,14 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         }
     }
 
-    static class CallbackInfo
+    @VisibleForTesting
+    public static class CallbackInfo
     {
         final long createdAtNanos;
         final long expiresAtNanos;
 
         final InetAddressAndPort peer;
-        final RequestCallback callback;
+        public final RequestCallback callback;
 
         @Deprecated // for 3.0 compatibility purposes only
         public final Verb responseVerb;

@@ -94,6 +94,7 @@ public class ColumnFilterTest
     {
         DatabaseDescriptor.setSeedProvider(Arrays::asList);
         DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
+        DatabaseDescriptor.setDefaultFailureDetector();
         Gossiper.instance.start(0);
     }
 

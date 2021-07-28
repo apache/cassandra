@@ -115,11 +115,17 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
+    private static int availableProcessors = Integer.getInteger("cassandra.available_processors", DatabaseDescriptor.getAvailableProcessors());
+
+    public static void setAvailableProcessors(int value)
+    {
+        availableProcessors = value;
+    }
+
     public static int getAvailableProcessors()
     {
-        String availableProcessors = System.getProperty("cassandra.available_processors");
-        if (!Strings.isNullOrEmpty(availableProcessors))
-            return Integer.parseInt(availableProcessors);
+        if (availableProcessors > 0)
+            return availableProcessors;
         else
             return Runtime.getRuntime().availableProcessors();
     }

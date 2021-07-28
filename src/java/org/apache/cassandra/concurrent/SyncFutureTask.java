@@ -36,10 +36,21 @@ public class SyncFutureTask<T> extends SyncFuture<T> implements RunnableFuture<T
 
     public SyncFutureTask(WithResources withResources, Callable<T> call)
     {
-        this.call = () -> {
-            try (Closeable close = withResources.get())
+        this.call = new Callable<T>()
+        {
+            @Override
+            public T call() throws Exception
             {
-                return call.call();
+                try (Closeable close = withResources.get())
+                {
+                    return call.call();
+                }
+            }
+
+            @Override
+            public String toString()
+            {
+                return call.toString();
             }
         };
     }

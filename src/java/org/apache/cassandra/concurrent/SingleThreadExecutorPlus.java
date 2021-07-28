@@ -59,6 +59,12 @@ public class SingleThreadExecutorPlus extends ThreadPoolExecutorPlus implements 
             set(false);
             run.run();
         }
+
+        @Override
+        public String toString()
+        {
+            return run.toString();
+        }
     }
 
     SingleThreadExecutorPlus(ThreadPoolExecutorBuilder<? extends SingleThreadExecutorPlus> builder)

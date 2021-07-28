@@ -96,7 +96,8 @@ public class Descriptor
         this.generation = generation;
         this.formatType = formatType;
 
-        hashCode = Objects.hashCode(version, this.directory, generation, ksname, cfname, formatType);
+        // directory is unnecessary for hashCode, and for simulator consistency we do not include it
+        hashCode = Objects.hashCode(version, generation, ksname, cfname, formatType);
     }
 
     public Descriptor withGeneration(int newGeneration)

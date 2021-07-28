@@ -72,7 +72,7 @@ public class ClusteringHeapSizeTest
         return Arrays.asList(new Object[][] {
         { array },
         { buffer },
-        { new NativeClustering(pool.newAllocator(), order.getCurrent(), array)}
+        { new NativeClustering(pool.newAllocator(null), order.getCurrent(), array)}
         });
     }
 }
