@@ -22,10 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
+import javax.management.openmbean.CompositeData;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -46,29 +46,32 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
  * Central location for managing the logging of client/user-initated actions (like queries, log in commands, and so on).
  *
  */
-public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listener
+public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listener, AuditLogManagerMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(AuditLogManager.class);
+
+    public static final String MBEAN_NAME = "org.apache.cassandra.db:type=AuditLogManager";
     public static final AuditLogManager instance = new AuditLogManager();
 
     // auditLogger can write anywhere, as it's pluggable (logback, BinLog, DiagnosticEvents, etc ...)
     private volatile IAuditLogger auditLogger;
-
     private volatile AuditLogFilter filter;
+    private volatile AuditLogOptions auditLogOptions;
 
     private AuditLogManager()
     {
-        final AuditLogOptions auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
+        auditLogOptions = DatabaseDescriptor.getAuditLoggingOptions();
 
         if (auditLogOptions.enabled)
         {
             logger.info("Audit logging is enabled.");
-            auditLogger = getAuditLogger(auditLogOptions.logger);
+            auditLogger = getAuditLogger(auditLogOptions);
         }
         else
         {
@@ -83,16 +86,21 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     {
         if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
             registerAsListener();
+
+        if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
+            MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
-    private IAuditLogger getAuditLogger(ParameterizedClass logger) throws ConfigurationException
+    private IAuditLogger getAuditLogger(AuditLogOptions options) throws ConfigurationException
     {
-        if (logger.class_name != null)
+        final ParameterizedClass logger = options.logger;
+
+        if (logger != null && logger.class_name != null)
         {
             return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
         }
 
-        return FBUtilities.newAuditLogger(BinAuditLogger.class.getName(), Collections.emptyMap());
+        return new BinAuditLogger(options);
     }
 
     @VisibleForTesting
@@ -104,6 +112,17 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
     public boolean isEnabled()
     {
         return auditLogger.isEnabled();
+    }
+
+    public AuditLogOptions getAuditLogOptions()
+    {
+        return auditLogger.isEnabled() ? auditLogOptions : DatabaseDescriptor.getAuditLoggingOptions();
+    }
+
+    @Override
+    public CompositeData getAuditLogOptionsData()
+    {
+        return AuditLogOptionsCompositeData.toCompositeData(AuditLogManager.instance.getAuditLogOptions());
     }
 
     /**
@@ -158,16 +177,28 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
      */
     public synchronized void enable(AuditLogOptions auditLogOptions) throws ConfigurationException
     {
-        // always reload the filters
-        filter = AuditLogFilter.create(auditLogOptions);
-
-        // next, check to see if we're changing the logging implementation; if not, keep the same instance and bail.
-        // note: auditLogger should never be null
         IAuditLogger oldLogger = auditLogger;
-        if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger.class_name))
-            return;
 
-        auditLogger = getAuditLogger(auditLogOptions.logger);
+        try
+        {
+            // next, check to see if we're changing the logging implementation; if not, keep the same instance and bail.
+            // note: auditLogger should never be null
+            if (oldLogger.getClass().getSimpleName().equals(auditLogOptions.logger.class_name))
+                return;
+
+            auditLogger = getAuditLogger(auditLogOptions);
+            // switch to these audit log options after getAuditLogger() has not thrown
+            // otherwise we might stay with new options but with old logger if it failed
+            this.auditLogOptions = auditLogOptions;
+        }
+        finally
+        {
+            // always reload the filters
+            filter = AuditLogFilter.create(auditLogOptions);
+            // update options so the changed filters are reflected in options,
+            // for example upon nodetool's getauditlog command
+            updateAuditLogOptions(this.auditLogOptions, filter);
+        }
 
         // note that we might already be registered here and we rely on the fact that Query/AuthEvents have a Set of listeners
         registerAsListener();
@@ -175,6 +206,16 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
         // ensure oldLogger's stop() is called after we swap it with new logger,
         // otherwise, we might be calling log() on the stopped logger.
         oldLogger.stop();
+    }
+
+    private void updateAuditLogOptions(final AuditLogOptions options, final AuditLogFilter filter)
+    {
+        options.included_keyspaces = String.join(",", filter.includedKeyspaces.asList());
+        options.excluded_keyspaces = String.join(",", filter.excludedKeyspaces.asList());
+        options.included_categories = String.join(",", filter.includedCategories.asList());
+        options.excluded_categories = String.join(",", filter.excludedCategories.asList());
+        options.included_users = String.join(",", filter.includedUsers.asList());
+        options.excluded_users = String.join(",", filter.excludedUsers.asList());
     }
 
     private void registerAsListener()

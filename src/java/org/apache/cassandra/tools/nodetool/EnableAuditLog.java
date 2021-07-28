@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.Collections;
+
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
@@ -47,9 +49,37 @@ public class EnableAuditLog extends NodeToolCmd
     @Option(title = "excluded_users", name = { "--excluded-users" }, description = "Comma separated list of users to be excluded for audit log. If not set the value from cassandra.yaml will be used")
     private String excluded_users = null;
 
+    @Option(title = "roll_cycle", name = {"--roll-cycle"}, description = "How often to roll the log file (MINUTELY, HOURLY, DAILY).")
+    private String rollCycle = null;
+
+    @Option(title = "blocking", name = {"--blocking"}, description = "If the queue is full whether to block producers or drop samples [true|false].")
+    private String blocking = null;
+
+    @Option(title = "max_queue_weight", name = {"--max-queue-weight"}, description = "Maximum number of bytes of query data to queue to disk before blocking or dropping samples.")
+    private int maxQueueWeight = Integer.MIN_VALUE;
+
+    @Option(title = "max_log_size", name = {"--max-log-size"}, description = "How many bytes of log data to store before dropping segments. Might not be respected if a log file hasn't rolled so it can be deleted.")
+    private long maxLogSize = Long.MIN_VALUE;
+
+    @Option(title = "archive_command", name = {"--archive-command"}, description = "Command that will handle archiving rolled audit log files." +
+                                                                                   " Format is \"/path/to/script.sh %path\" where %path will be replaced with the file to archive")
+    private String archiveCommand = null;
+
+    @Option(title = "archive_retries", name = {"--max-archive-retries"}, description = "Max number of archive retries.")
+    private int archiveRetries = Integer.MIN_VALUE;
+
     @Override
     public void execute(NodeProbe probe)
     {
-        probe.enableAuditLog(logger, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users);
+        Boolean bblocking = null;
+        if (blocking != null)
+        {
+            if (!blocking.equalsIgnoreCase("TRUE") && !blocking.equalsIgnoreCase("FALSE"))
+                throw new IllegalArgumentException("Invalid [" + blocking + "]. Blocking only accepts 'true' or 'false'.");
+            else
+                bblocking = Boolean.parseBoolean(blocking);
+        }
+        probe.enableAuditLog(logger, Collections.EMPTY_MAP, included_keyspaces, excluded_keyspaces, included_categories, excluded_categories, included_users, excluded_users,
+                             archiveRetries, bblocking, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
 }

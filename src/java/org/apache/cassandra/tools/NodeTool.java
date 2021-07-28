@@ -124,6 +124,7 @@ public class NodeTool
                 EnableFullQueryLog.class,
                 DisableFullQueryLog.class,
                 GcStats.class,
+                GetAuditLog.class,
                 GetBatchlogReplayTrottle.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
