@@ -182,8 +182,7 @@ public class TokenMetadata
     public void updateNormalTokens(Collection<Token> tokens, InetAddressAndPort endpoint)
     {
         Multimap<InetAddressAndPort, Token> endpointTokens = HashMultimap.create();
-        for (Token token : tokens)
-            endpointTokens.put(endpoint, token);
+        endpointTokens.putAll(endpoint, tokens);
         updateNormalTokens(endpointTokens);
     }
 
@@ -250,29 +249,51 @@ public class TokenMetadata
         lock.writeLock().lock();
         try
         {
-            InetAddressAndPort storedEp = endpointToHostIdMap.inverse().get(hostId);
-            if (storedEp != null)
-            {
-                if (!storedEp.equals(endpoint) && (FailureDetector.instance.isAlive(storedEp)))
-                {
-                    throw new RuntimeException(String.format("Host ID collision between active endpoint %s and %s (id=%s)",
-                                                             storedEp,
-                                                             endpoint,
-                                                             hostId));
-                }
-            }
-
-            UUID storedId = endpointToHostIdMap.get(endpoint);
-            if ((storedId != null) && (!storedId.equals(hostId)))
-                logger.warn("Changing {}'s host ID from {} to {}", endpoint, storedId, hostId);
-
-            endpointToHostIdMap.forcePut(endpoint, hostId);
+            updateEndpointToHostIdMap(hostId, endpoint);
         }
         finally
         {
             lock.writeLock().unlock();
         }
 
+    }
+
+    public void updateHostIds(Map<UUID, InetAddressAndPort> hostIdToEndpointMap)
+    {
+        lock.writeLock().lock();
+        try
+        {
+            for (Map.Entry<UUID, InetAddressAndPort> entry : hostIdToEndpointMap.entrySet())
+            {
+                updateEndpointToHostIdMap(entry.getKey(), entry.getValue());
+            }
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+
+    }
+    
+    private void updateEndpointToHostIdMap(UUID hostId, InetAddressAndPort endpoint)
+    {
+        InetAddressAndPort storedEp = endpointToHostIdMap.inverse().get(hostId);
+        if (storedEp != null)
+        {
+            if (!storedEp.equals(endpoint) && (FailureDetector.instance.isAlive(storedEp)))
+            {
+                throw new RuntimeException(String.format("Host ID collision between active endpoint %s and %s (id=%s)",
+                                                         storedEp,
+                                                         endpoint,
+                                                         hostId));
+            }
+        }
+
+        UUID storedId = endpointToHostIdMap.get(endpoint);
+        if ((storedId != null) && (!storedId.equals(hostId)))
+            logger.warn("Changing {}'s host ID from {} to {}", endpoint, storedId, hostId);
+
+        endpointToHostIdMap.forcePut(endpoint, hostId);
     }
 
     /** Return the unique host ID for an end-point. */
