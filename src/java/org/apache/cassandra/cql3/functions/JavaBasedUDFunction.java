@@ -350,6 +350,7 @@ public final class JavaBasedUDFunction extends UDFunction
         catch (InvocationTargetException e)
         {
             // in case of an ITE, use the cause
+            logger.error(String.format("Could not compile function '%s' from Java source:%n%s", name, javaSource), e);
             throw new InvalidRequestException(String.format("Could not compile function '%s' from Java source: %s", name, e.getCause()));
         }
         catch (InvalidRequestException | VirtualMachineError e)
