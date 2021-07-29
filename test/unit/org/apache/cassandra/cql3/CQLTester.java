@@ -1130,7 +1130,7 @@ public abstract class CQLTester
                                         userProto -> initClientCluster(user, protocolVersion));
     }
 
-    private static Cluster initClientCluster(User user, ProtocolVersion version)
+    private Cluster initClientCluster(User user, ProtocolVersion version)
     {
         Pair<User, ProtocolVersion> key = Pair.create(user, version);
         Cluster cluster = clusters.get(key);
@@ -1142,9 +1142,37 @@ public abstract class CQLTester
             builder.withCredentials(user.username, user.password);
         cluster = builder.build();
 
-        logger.info("Started Java Driver instance for protocol version {}", version);
+        logger.info("Started Java Driver session for {} with protocol version {}", user, version);
 
         return cluster;
+    }
+
+    protected void closeClientCluster(String username, String password)
+    {
+        // Close driver cluster belonging to user
+        User user = new User(username, password);
+        for (ProtocolVersion protocolVersion : PROTOCOL_VERSIONS)
+        {
+            closeClientCluster(user, protocolVersion);
+        }
+    }
+
+    private void closeClientCluster(User user, ProtocolVersion protocolVersion)
+    {
+        Pair<User, ProtocolVersion> key = Pair.create(user, protocolVersion);
+        Session session = sessions.remove(key);
+        if (session != null)
+        {
+            session.close();
+        }
+        
+        Cluster cluster = clusters.remove(key);
+        if (cluster != null)
+        {
+            cluster.close();
+        }
+
+        logger.info("Closed Java Driver session for {} with protocol version {}", user, protocolVersion);
     }
 
     public static Cluster.Builder clusterBuilder(ProtocolVersion version)
@@ -2286,6 +2314,11 @@ public abstract class CQLTester
 
             return Objects.equal(username, u.username)
                    && Objects.equal(password, u.password);
+        }
+
+        public String toString()
+        {
+            return username;
         }
     }
 }
