@@ -48,7 +48,8 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  */
 public class File implements Comparable<File>
 {
-    private static final FileSystem filesystem = FileSystems.getDefault();
+    private static FileSystem filesystem = FileSystems.getDefault();
+
     public enum WriteMode { OVERWRITE, APPEND }
 
     public static String pathSeparator()
@@ -603,6 +604,11 @@ public class File implements Comparable<File>
         if (path == null)
             throw new IllegalStateException("Cannot read from an empty path");
         return path;
+    }
+
+    public static void unsafeSetFilesystem(FileSystem fs)
+    {
+        filesystem = fs;
     }
 }
 

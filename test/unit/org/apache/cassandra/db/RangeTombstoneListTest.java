@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -610,7 +611,7 @@ public class RangeTombstoneListTest
         }
     }
 
-    private void assertHasException(IsolatedExecutor.ThrowingRunnable block, Consumer<Throwable> verifier)
+    private void assertHasException(ThrowingRunnable block, Consumer<Throwable> verifier)
     {
         try
         {

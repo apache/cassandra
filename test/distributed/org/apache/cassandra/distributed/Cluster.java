@@ -34,7 +34,6 @@ import org.apache.cassandra.distributed.shared.Versions;
 @Shared
 public class Cluster extends AbstractCluster<IInvokableInstance>
 {
-
     private Cluster(Builder builder)
     {
         super(builder);

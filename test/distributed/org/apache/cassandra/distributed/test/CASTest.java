@@ -39,7 +39,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.impl.Instance;
+import org.apache.cassandra.distributed.impl.UnsafeGossipHelper;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
@@ -384,7 +384,7 @@ public class CASTest extends TestBaseImpl
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
             // make it so {1} is unaware (yet) that {4} is an owner of the token
-            cluster.get(1).acceptsOnInstance(Instance::removeFromRing).accept(cluster.get(4));
+            cluster.get(1).acceptsOnInstance(UnsafeGossipHelper::removeFromRing).accept(cluster.get(4));
 
             int pk = pk(cluster, 1, 2);
 
@@ -396,7 +396,7 @@ public class CASTest extends TestBaseImpl
                     row(true));
 
             for (int i = 1 ; i <= 3 ; ++i)
-                cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
+                cluster.get(i).acceptsOnInstance(UnsafeGossipHelper::addToRingNormal).accept(cluster.get(4));
 
             // {4} reads from !{2} => {3, 4}
             cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(4).to(2).drop();
@@ -425,7 +425,7 @@ public class CASTest extends TestBaseImpl
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
             // make it so {1} is unaware (yet) that {4} is an owner of the token
-            cluster.get(1).acceptsOnInstance(Instance::removeFromRing).accept(cluster.get(4));
+            cluster.get(1).acceptsOnInstance(UnsafeGossipHelper::removeFromRing).accept(cluster.get(4));
 
             // {4} promises, accepts and commits on !{2} => {3, 4}
             int pk = pk(cluster, 1, 2);
@@ -466,8 +466,8 @@ public class CASTest extends TestBaseImpl
 
             // make it so {4} is bootstrapping, and this has not propagated to other nodes yet
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(1).acceptsOnInstance(Instance::removeFromRing).accept(cluster.get(4));
-            cluster.get(4).acceptsOnInstance(Instance::addToRingBootstrapping).accept(cluster.get(4));
+                cluster.get(1).acceptsOnInstance(UnsafeGossipHelper::removeFromRing).accept(cluster.get(4));
+            cluster.get(4).acceptsOnInstance(UnsafeGossipHelper::addToRingBootstrapping).accept(cluster.get(4));
 
             int pk = pk(cluster, 1, 2);
 
@@ -480,7 +480,7 @@ public class CASTest extends TestBaseImpl
 
             // finish topology change
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
+                cluster.get(i).acceptsOnInstance(UnsafeGossipHelper::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
             cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
@@ -510,8 +510,8 @@ public class CASTest extends TestBaseImpl
 
             // make it so {4} is bootstrapping, and this has not propagated to other nodes yet
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(1).acceptsOnInstance(Instance::removeFromRing).accept(cluster.get(4));
-            cluster.get(4).acceptsOnInstance(Instance::addToRingBootstrapping).accept(cluster.get(4));
+                cluster.get(1).acceptsOnInstance(UnsafeGossipHelper::removeFromRing).accept(cluster.get(4));
+            cluster.get(4).acceptsOnInstance(UnsafeGossipHelper::addToRingBootstrapping).accept(cluster.get(4));
 
             int pk = pk(cluster, 1, 2);
 
@@ -524,7 +524,7 @@ public class CASTest extends TestBaseImpl
 
             // finish topology change
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
+                cluster.get(i).acceptsOnInstance(UnsafeGossipHelper::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
             cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
@@ -562,8 +562,8 @@ public class CASTest extends TestBaseImpl
 
             // make it so {4} is bootstrapping, and this has not propagated to other nodes yet
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(1).acceptsOnInstance(Instance::removeFromRing).accept(cluster.get(4));
-            cluster.get(4).acceptsOnInstance(Instance::addToRingBootstrapping).accept(cluster.get(4));
+                cluster.get(1).acceptsOnInstance(UnsafeGossipHelper::removeFromRing).accept(cluster.get(4));
+            cluster.get(4).acceptsOnInstance(UnsafeGossipHelper::addToRingBootstrapping).accept(cluster.get(4));
 
             int pk = pk(cluster, 1, 2);
 
@@ -589,7 +589,7 @@ public class CASTest extends TestBaseImpl
 
             // finish topology change
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
+                cluster.get(i).acceptsOnInstance(UnsafeGossipHelper::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
             cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
@@ -626,8 +626,8 @@ public class CASTest extends TestBaseImpl
 
             // make it so {4} is bootstrapping, and this has not propagated to other nodes yet
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(1).acceptsOnInstance(Instance::removeFromRing).accept(cluster.get(4));
-            cluster.get(4).acceptsOnInstance(Instance::addToRingBootstrapping).accept(cluster.get(4));
+                cluster.get(1).acceptsOnInstance(UnsafeGossipHelper::removeFromRing).accept(cluster.get(4));
+            cluster.get(4).acceptsOnInstance(UnsafeGossipHelper::addToRingBootstrapping).accept(cluster.get(4));
 
             int pk = pk(cluster, 1, 2);
 
@@ -653,7 +653,7 @@ public class CASTest extends TestBaseImpl
 
             // finish topology change
             for (int i = 1 ; i <= 4 ; ++i)
-                cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
+                cluster.get(i).acceptsOnInstance(UnsafeGossipHelper::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
             cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();

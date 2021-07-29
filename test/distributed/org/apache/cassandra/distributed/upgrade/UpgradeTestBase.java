@@ -39,6 +39,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -108,7 +109,7 @@ public class UpgradeTestBase extends DistributedTestBase
         }
     }
 
-    public static class TestCase implements Instance.ThrowingRunnable
+    public static class TestCase implements ThrowingRunnable
     {
         private final Versions versions;
         private final List<TestVersions> upgrade = new ArrayList<>();
