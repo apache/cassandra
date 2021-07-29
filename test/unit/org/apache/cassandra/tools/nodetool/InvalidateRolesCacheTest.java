@@ -44,8 +44,8 @@ public class InvalidateRolesCacheTest extends CQLTester
                 new AuthTestUtils.LocalCassandraAuthorizer(),
                 new AuthTestUtils.LocalCassandraNetworkAuthorizer());
 
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOprions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOprions());
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
 
         startJMXServer();
     }

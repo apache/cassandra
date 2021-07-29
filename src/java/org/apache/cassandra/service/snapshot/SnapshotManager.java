@@ -18,7 +18,6 @@
 package org.apache.cassandra.service.snapshot;
 
 
-import java.io.File;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
@@ -42,6 +41,7 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ExecutorUtils;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 

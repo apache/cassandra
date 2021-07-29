@@ -17,8 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.FileFilter;
+
 import java.io.IOException;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
@@ -31,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 
@@ -91,19 +91,15 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     private static int getNextGeneration(File directory, final String columnFamily)
     {
         final Set<Descriptor> existing = new HashSet<>();
-        directory.listFiles(new FileFilter()
-        {
-            public boolean accept(File file)
-            {
-                Descriptor desc = SSTable.tryDescriptorFromFilename(file);
-                if (desc == null)
-                    return false;
-
-                if (desc.cfname.equals(columnFamily))
-                    existing.add(desc);
-
+        directory.tryList(file -> {
+            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+            if (desc == null)
                 return false;
-            }
+
+            if (desc.cfname.equals(columnFamily))
+                existing.add(desc);
+
+            return false;
         });
         int maxGen = generation.getAndIncrement();
         for (Descriptor desc : existing)

@@ -20,11 +20,11 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
-import java.io.FilenameFilter;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -33,7 +33,9 @@ import java.util.zip.CRC32;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -283,8 +285,8 @@ final class LogRecord
 
     public static List<File> getExistingFiles(String absoluteFilePath)
     {
-        Path path = Paths.get(absoluteFilePath);
-        File[] files = path.getParent().toFile().listFiles((dir, name) -> name.startsWith(path.getFileName().toString()));
+        File file = new File(absoluteFilePath);
+        File[] files = file.parent().tryList((dir, name) -> name.startsWith(file.name()));
         // files may be null if the directory does not exist yet, e.g. when tracking new files
         return files == null ? Collections.emptyList() : Arrays.asList(files);
     }
@@ -302,13 +304,13 @@ final class LogRecord
         Map<File, TreeSet<String>> dirToFileNamePrefix = new HashMap<>();
         for (String absolutePath : absoluteFilePaths)
         {
-            Path fullPath = Paths.get(absolutePath);
+            Path fullPath = new File(absolutePath).toPath();
             Path path = fullPath.getParent();
             if (path != null)
-                dirToFileNamePrefix.computeIfAbsent(path.toFile(), (k) -> new TreeSet<>()).add(fullPath.getFileName().toString());
+                dirToFileNamePrefix.computeIfAbsent(new File(path), (k) -> new TreeSet<>()).add(fullPath.getFileName().toString());
         }
 
-        FilenameFilter ff = (dir, name) -> {
+        BiPredicate<File, String> ff = (dir, name) -> {
             TreeSet<String> dirSet = dirToFileNamePrefix.get(dir);
             // if the set contains a prefix of the current file name, the file name we have here should sort directly
             // after the prefix in the tree set, which means we can use 'floor' to get the prefix (returns the largest
@@ -317,7 +319,7 @@ final class LogRecord
             String baseName = dirSet.floor(name);
             if (baseName != null && name.startsWith(baseName))
             {
-                String absolutePath = new File(dir, baseName).getPath();
+                String absolutePath = new File(dir, baseName).path();
                 fileMap.computeIfAbsent(absolutePath, k -> new ArrayList<>()).add(new File(dir, name));
             }
             return false;
@@ -325,7 +327,7 @@ final class LogRecord
 
         // populate the file map:
         for (File f : dirToFileNamePrefix.keySet())
-            f.listFiles(ff);
+            f.tryList(ff);
 
         return fileMap;
     }
@@ -338,14 +340,12 @@ final class LogRecord
 
     String fileName()
     {
-        return absolutePath.isPresent() ? Paths.get(absolutePath.get()).getFileName().toString() : "";
+        return absolutePath.isPresent() ? new File(absolutePath.get()).name() : "";
     }
 
     boolean isInFolder(Path folder)
     {
-        return absolutePath.isPresent()
-               ? FileUtils.isContained(folder.toFile(), Paths.get(absolutePath.get()).toFile())
-               : false;
+        return absolutePath.isPresent() && PathUtils.isContained(folder, new File(absolutePath.get()).toPath());
     }
 
     String absolutePath()

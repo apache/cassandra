@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Random;
 
 import com.google.common.io.Files;
+import org.apache.cassandra.io.util.File;
 import static org.junit.Assert.*;
 import org.junit.Assert;
 import org.junit.Test;
@@ -143,7 +144,7 @@ public class CompressorTest
         dest.clear();
         channel.write(dest);
 
-        MappedByteBuffer mappedData = Files.map(temp);
+        MappedByteBuffer mappedData = Files.map(temp.toJavaIOFile());
         ByteBuffer result = makeBB(data.length + 100);
         mappedData.position(outOffset).limit(outOffset + compressedLength);
 

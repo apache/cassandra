@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.FileUtils;
@@ -110,7 +110,7 @@ public class SSTableRepairedAtSetterTest extends OfflineToolUtils
         tmpFile.deleteOnExit();
         Files.write(tmpFile.toPath(), findOneSSTable("legacy_sstables", "legacy_ma_simple").getBytes());
         
-        String file = tmpFile.getAbsolutePath();
+        String file = tmpFile.absolutePath();
         ToolResult tool = ToolRunner.invokeClass(SSTableRepairedAtSetter.class, "--really-set", "--is-repaired", "-f", file);
         tool.assertOnCleanExit();
         assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);

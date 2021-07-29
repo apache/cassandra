@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming.compression;
 import java.io.*;
 import java.util.*;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -113,7 +114,7 @@ public class CompressedInputStreamTest
         assert valuesToCheck != null && valuesToCheck.length > 0;
 
         // write compressed data file of longs
-        File parentDir = tempFolder.newFolder();
+        File parentDir = new File(tempFolder.newFolder());
         Descriptor desc = new Descriptor(parentDir, "ks", "cf", 1);
         File tmp = new File(desc.filenameFor(Component.DATA));
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
@@ -133,7 +134,7 @@ public class CompressedInputStreamTest
             writer.finish();
         }
 
-        CompressionMetadata comp = CompressionMetadata.create(tmp.getAbsolutePath());
+        CompressionMetadata comp = CompressionMetadata.create(tmp.absolutePath());
         List<SSTableReader.PartitionPositionBounds> sections = new ArrayList<>();
         for (long l : valuesToCheck)
         {
@@ -153,7 +154,7 @@ public class CompressedInputStreamTest
             size += (c.length + 4); // 4bytes CRC
         byte[] toRead = new byte[size];
 
-        try (RandomAccessFile f = new RandomAccessFile(tmp, "r"))
+        try (RandomAccessFile f = new RandomAccessFile(tmp.toJavaIOFile(), "r"))
         {
             int pos = 0;
             for (CompressionMetadata.Chunk c : chunks)

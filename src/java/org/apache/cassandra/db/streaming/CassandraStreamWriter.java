@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.db.streaming;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

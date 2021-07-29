@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.security;
 
-import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -36,6 +35,8 @@ import javax.net.ssl.TrustManagerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.io.util.File;
 
 /**
  * Abstract implementation for {@link ISslContextFactory} using file based, standard keystore format with the ability

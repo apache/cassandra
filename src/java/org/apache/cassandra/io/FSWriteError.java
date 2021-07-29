@@ -17,10 +17,18 @@
  */
 package org.apache.cassandra.io;
 
-import java.io.File;
+
+import java.nio.file.Path;
+
+import org.apache.cassandra.io.util.File;
 
 public class FSWriteError extends FSError
 {
+    public FSWriteError(Throwable cause, Path path)
+    {
+        super(cause, path);
+    }
+
     public FSWriteError(Throwable cause, File path)
     {
         super(cause, path);

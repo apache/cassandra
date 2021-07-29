@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -28,6 +27,7 @@ import javax.annotation.Nullable;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

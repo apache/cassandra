@@ -18,7 +18,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.DataInput;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +26,7 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.io.compress.LZ4Compressor;
@@ -104,18 +104,18 @@ public class HintsDescriptorTest
         ImmutableMap<String, Object> parameters = ImmutableMap.of();
         HintsDescriptor expected = new HintsDescriptor(hostId, version, timestamp, parameters);
 
-        Path directory = Files.createTempDirectory("hints");
+        File directory = new File(Files.createTempDirectory("hints"));
         try
         {
-            try (HintsWriter ignored = HintsWriter.create(directory.toFile(), expected))
+            try (HintsWriter ignored = HintsWriter.create(directory, expected))
             {
             }
-            HintsDescriptor actual = HintsDescriptor.readFromFile(directory.resolve(expected.fileName()));
+            HintsDescriptor actual = HintsDescriptor.readFromFile(new File(directory, expected.fileName()));
             assertEquals(expected, actual);
         }
         finally
         {
-            directory.toFile().deleteOnExit();
+            directory.deleteOnExit();
         }
     }
 
@@ -146,7 +146,7 @@ public class HintsDescriptorTest
         HintsDescriptor.handleDescriptorIOE(new IOException("test"), p);
         File newFile = new File(p.getParent().toFile(), p.getFileName().toString().replace(".hints", ".corrupt.hints"));
         assertThat(p).doesNotExist();
-        assertThat(newFile).exists();
+        assertThat(newFile.exists());
         newFile.deleteOnExit();
     }
 

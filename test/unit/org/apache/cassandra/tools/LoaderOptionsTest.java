@@ -17,8 +17,8 @@
  */
 
 package org.apache.cassandra.tools;
-import java.io.File;
 import java.nio.file.Paths;
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import static org.apache.cassandra.tools.OfflineToolUtils.sstableDirName;
@@ -30,15 +30,15 @@ public class LoaderOptionsTest
     @Test
     public void testNativePort() throws Exception {
         //Default Cassandra config
-        File config = Paths.get(".", "test", "conf", "cassandra.yaml").normalize().toFile();
-        String[] args = {"-d", "127.9.9.1", "-f", config.getAbsolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
+        File config = new File(Paths.get(".", "test", "conf", "cassandra.yaml").normalize());
+        String[] args = { "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
         LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
         assertEquals(9042, options.nativePort);
 
 
         // SSL Enabled Cassandra config
-        config = Paths.get(".", "test", "conf", "unit-test-conf/test-native-port.yaml").normalize().toFile();
-        String[] args2 = {"-d", "127.9.9.1", "-f", config.getAbsolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
+        config = new File(Paths.get(".", "test", "conf", "unit-test-conf/test-native-port.yaml").normalize());
+        String[] args2 = { "-d", "127.9.9.1", "-f", config.absolutePath(), sstableDirName("legacy_sstables", "legacy_ma_simple")};
         options = LoaderOptions.builder().parseArgs(args2).build();
         assertEquals(9142, options.nativePort);
     }

@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Random;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;

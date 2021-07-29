@@ -17,13 +17,9 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.*;
 import java.nio.file.FileStore;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -36,6 +32,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,6 +56,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy;
 import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
@@ -549,23 +547,13 @@ public class DatabaseDescriptor
         if (conf.commitlog_total_space_in_mb == null)
         {
             final int preferredSizeInMB = 8192;
-            try
-            {
-                // use 1/4 of available space.  See discussion on #10013 and #10199
-                final long totalSpaceInBytes = guessFileStore(conf.commitlog_directory).getTotalSpace();
-                conf.commitlog_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
-                                                                             conf.commitlog_directory,
-                                                                             "commitlog_total_space_in_mb",
-                                                                             preferredSizeInMB,
-                                                                             totalSpaceInBytes, 1, 4);
-
-            }
-            catch (IOException e)
-            {
-                logger.debug("Error checking disk space", e);
-                throw new ConfigurationException(String.format("Unable to check disk space available to '%s'. Perhaps the Cassandra user does not have the necessary permissions",
-                                                               conf.commitlog_directory), e);
-            }
+            // use 1/4 of available space.  See discussion on #10013 and #10199
+            final long totalSpaceInBytes = tryGetSpace(conf.commitlog_directory, FileStore::getTotalSpace);
+            conf.commitlog_total_space_in_mb = calculateDefaultSpaceInMB("commitlog",
+                                                                         conf.commitlog_directory,
+                                                                         "commitlog_total_space_in_mb",
+                                                                         preferredSizeInMB,
+                                                                         totalSpaceInBytes, 1, 4);
         }
 
         if (conf.cdc_enabled)
@@ -582,22 +570,13 @@ public class DatabaseDescriptor
             if (conf.cdc_total_space_in_mb == 0)
             {
                 final int preferredSizeInMB = 4096;
-                try
-                {
-                    // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
-                    final long totalSpaceInBytes = guessFileStore(conf.cdc_raw_directory).getTotalSpace();
-                    conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("cdc",
-                                                                           conf.cdc_raw_directory,
-                                                                           "cdc_total_space_in_mb",
-                                                                           preferredSizeInMB,
-                                                                           totalSpaceInBytes, 1, 8);
-                }
-                catch (IOException e)
-                {
-                    logger.debug("Error checking disk space", e);
-                    throw new ConfigurationException(String.format("Unable to check disk space available to '%s'. Perhaps the Cassandra user does not have the necessary permissions",
-                                                                   conf.cdc_raw_directory), e);
-                }
+                // use 1/8th of available space.  See discussion on #10013 and #10199 on the CL, taking half that for CDC
+                final long totalSpaceInBytes = tryGetSpace(conf.cdc_raw_directory, FileStore::getTotalSpace);
+                conf.cdc_total_space_in_mb = calculateDefaultSpaceInMB("cdc",
+                                                                       conf.cdc_raw_directory,
+                                                                       "cdc_total_space_in_mb",
+                                                                       preferredSizeInMB,
+                                                                       totalSpaceInBytes, 1, 8);
             }
 
             logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
@@ -609,7 +588,7 @@ public class DatabaseDescriptor
         }
         if (conf.data_file_directories == null || conf.data_file_directories.length == 0)
         {
-            conf.data_file_directories = new String[]{ storagedir("data_file_directories") + File.separator + "data" };
+            conf.data_file_directories = new String[]{ storagedir("data_file_directories") + File.pathSeparator() + "data" };
         }
 
         long dataFreeBytes = 0;
@@ -627,7 +606,7 @@ public class DatabaseDescriptor
             if (datadir.equals(conf.saved_caches_directory))
                 throw new ConfigurationException("saved_caches_directory must not be the same as any data_file_directories", false);
 
-            dataFreeBytes = saturatedSum(dataFreeBytes, getUnallocatedSpace(datadir));
+            dataFreeBytes = saturatedSum(dataFreeBytes, tryGetSpace(datadir, FileStore::getUnallocatedSpace));
         }
         if (dataFreeBytes < 64 * ONE_GB) // 64 GB
             logger.warn("Only {} free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
@@ -642,7 +621,7 @@ public class DatabaseDescriptor
             if (conf.local_system_data_file_directory.equals(conf.hints_directory))
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as the hints_directory", false);
 
-            long freeBytes = getUnallocatedSpace(conf.local_system_data_file_directory);
+            long freeBytes = tryGetSpace(conf.local_system_data_file_directory, FileStore::getUnallocatedSpace);
 
             if (freeBytes < ONE_GB)
                 logger.warn("Only {} free in the system data volume. Consider adding more capacity or removing obsolete snapshots",
@@ -875,7 +854,7 @@ public class DatabaseDescriptor
 
     private static String storagedirFor(String type)
     {
-        return storagedir(type + "_directory") + File.separator + type;
+        return storagedir(type + "_directory") + File.pathSeparator() + type;
     }
 
     private static String storagedir(String errMsgType)
@@ -1195,45 +1174,9 @@ public class DatabaseDescriptor
         return sum < 0 ? Long.MAX_VALUE : sum;
     }
 
-    private static FileStore guessFileStore(String dir) throws IOException
+    private static long tryGetSpace(String dir, PathUtils.IOToLongFunction<FileStore> getSpace)
     {
-        Path path = Paths.get(dir);
-        while (true)
-        {
-            try
-            {
-                return FileUtils.getFileStore(path);
-            }
-            catch (IOException e)
-            {
-                if (e instanceof NoSuchFileException)
-                {
-                    path = path.getParent();
-                    if (path == null)
-                    {
-                        throw new ConfigurationException("Unable to find filesystem for '" + dir + "'.");
-                    }
-                }
-                else
-                {
-                    throw e;
-                }
-            }
-        }
-    }
-
-    private static long getUnallocatedSpace(String directory)
-    {
-        try
-        {
-            return guessFileStore(directory).getUnallocatedSpace();
-        }
-        catch (IOException e)
-        {
-            logger.debug("Error checking disk space", e);
-            throw new ConfigurationException(String.format("Unable to check disk space available to %s. Perhaps the Cassandra user does not have the necessary permissions",
-                                                           directory), e);
-        }
+        return PathUtils.tryGetSpace(new File(dir).toPath(), getSpace, e -> { throw new ConfigurationException("Unable check disk space in '" + dir + "'. Perhaps the Cassandra user does not have the necessary permissions"); });
     }
 
     public static IEndpointSnitch createEndpointSnitch(boolean dynamic, String snitchClassName) throws ConfigurationException

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -28,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.primitives.Ints;
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 

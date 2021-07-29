@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -149,8 +149,8 @@ public class StandaloneUpgraderOnSStablesTest
             return Lists.emptyList();
 
         String sstableFileName = sstables.iterator().next().getFilename();
-        File sstablesDir = new File(sstableFileName).getParentFile();
-        return Arrays.asList(sstablesDir.listFiles())
+        File sstablesDir = new File(sstableFileName).parent();
+        return Arrays.asList(sstablesDir.tryList())
                      .stream()
                      .filter(f -> f.isFile())
                      .map(file -> file.toString())

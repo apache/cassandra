@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.net;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -26,6 +25,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.Random;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
@@ -138,7 +138,7 @@ public class AsyncStreamingOutputPlusTest
         EmbeddedChannel channel = new TestChannel(4);
         StreamManager.StreamRateLimiter limiter = new StreamManager.StreamRateLimiter(FBUtilities.getBroadcastAddressAndPort());
 
-        try (RandomAccessFile raf = new RandomAccessFile(file.getPath(), "r");
+        try (RandomAccessFile raf = new RandomAccessFile(file.path(), "r");
              FileChannel fileChannel = raf.getChannel();
              AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel))
         {
@@ -159,7 +159,7 @@ public class AsyncStreamingOutputPlusTest
 
     private File populateTempData(String name) throws IOException
     {
-        File file = Files.createTempFile(name, ".txt").toFile();
+        File file = new File(Files.createTempFile(name, ".txt"));
         file.deleteOnExit();
 
         Random r = new Random();

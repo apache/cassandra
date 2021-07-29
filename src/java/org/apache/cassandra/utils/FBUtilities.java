@@ -17,7 +17,14 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
 import java.net.*;
@@ -38,6 +45,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -365,7 +373,7 @@ public class FBUtilities
         if (scpurl == null)
             throw new ConfigurationException("unable to locate " + filename);
 
-        return new File(scpurl.getFile()).getAbsolutePath();
+        return new File(scpurl.getFile()).absolutePath();
     }
 
     public static File cassandraTriggerDir()

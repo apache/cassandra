@@ -17,13 +17,16 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.*;
+
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -147,22 +150,22 @@ public class CommitLog implements CommitLogMBean
      */
     public int recoverSegmentsOnDisk() throws IOException
     {
-        FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+        BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
         // archiving pass, which we should not treat as serious.
-        for (File file : new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter))
+        for (File file : new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter))
         {
-            archiver.maybeArchive(file.getPath(), file.getName());
-            archiver.maybeWaitForArchiving(file.getName());
+            archiver.maybeArchive(file.path(), file.name());
+            archiver.maybeWaitForArchiving(file.name());
         }
 
         assert archiver.archivePending.isEmpty() : "Not all commit log archive tasks were completed before restore";
         archiver.maybeRestoreArchive();
 
         // List the files again as archiver may have added segments.
-        File[] files = new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter);
+        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
         int replayed = 0;
         if (files.length == 0)
         {
@@ -475,7 +478,7 @@ public class CommitLog implements CommitLogMBean
         segmentManager.stopUnsafe(deleteSegments);
         CommitLogSegment.resetReplayLimit();
         if (DatabaseDescriptor.isCDCEnabled() && deleteSegments)
-            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
+            for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).tryList())
                 FileUtils.deleteWithConfirm(f);
     }
 

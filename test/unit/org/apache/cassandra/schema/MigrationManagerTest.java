@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.schema;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,6 +25,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -227,7 +227,7 @@ public class MigrationManagerTest
         Supplier<Object> lambda = () -> {
             for (File file : store.getDirectories().sstableLister(Directories.OnTxnErr.THROW).listFiles())
             {
-                if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
+                if (file.path().endsWith("Data.db") && !new File(file.path().replace("Data.db", "Compacted")).exists())
                     return false;
             }
             return true;

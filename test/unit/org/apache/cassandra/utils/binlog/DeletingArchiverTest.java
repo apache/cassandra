@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -40,7 +40,7 @@ public class DeletingArchiverTest
         DeletingArchiver da = new DeletingArchiver(45);
         List<File> files = generateFiles(10, 5);
         for (File f : files)
-            da.onReleased(1, f);
+            da.onReleased(1, f.toJavaIOFile());
         // adding 5 files, each with size 10, this means the first one should have been deleted:
         assertFalse(files.get(0).exists());
         for (int i = 1; i < files.size(); i++)
@@ -53,7 +53,7 @@ public class DeletingArchiverTest
     {
         DeletingArchiver da = new DeletingArchiver(45);
         List<File> largeFiles = generateFiles(50, 1);
-        da.onReleased(1, largeFiles.get(0));
+        da.onReleased(1, largeFiles.get(0).toJavaIOFile());
         assertFalse(largeFiles.get(0).exists());
         assertEquals(0, da.getBytesInStoreFiles());
     }
@@ -67,11 +67,11 @@ public class DeletingArchiverTest
 
         for (File f : smallFiles)
         {
-            da.onReleased(1, f);
+            da.onReleased(1, f.toJavaIOFile());
         }
         assertEquals(40, da.getBytesInStoreFiles());
         // we now have 40 bytes in deleting archiver, adding the large 40 byte file should delete all the small ones
-        da.onReleased(1, largeFiles.get(0));
+        da.onReleased(1, largeFiles.get(0).toJavaIOFile());
         for (File f : smallFiles)
             assertFalse(f.exists());
 
@@ -79,7 +79,7 @@ public class DeletingArchiverTest
 
         // make sure that size tracking is ok - all 4 new small files should still be there and the large one should be gone
         for (File f : smallFiles)
-            da.onReleased(1, f);
+            da.onReleased(1, f.toJavaIOFile());
 
         assertFalse(largeFiles.get(0).exists());
         for (File f : smallFiles)
@@ -99,7 +99,7 @@ public class DeletingArchiverTest
         {
             Path p = Files.createTempFile("logfile", ".cq4");
             Files.write(p, content);
-            files.add(p.toFile());
+            files.add(new File(p));
         }
         files.forEach(File::deleteOnExit);
         return files;
