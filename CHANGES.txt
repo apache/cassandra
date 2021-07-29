@@ -1,3 +1,8 @@
+3.11.12
+Merged from 3.0:
+ * Remove mutation data from error log message (CASSANDRA-16817)
+
+
 3.11.11
  * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
  * Optimize bytes skipping when reading SSTable files (CASSANDRA-14415)
