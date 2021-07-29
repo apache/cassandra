@@ -19,6 +19,8 @@ package org.apache.cassandra.gms;
 
 import java.io.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -89,7 +91,8 @@ public class HeartBeatState
         generation += 1;
     }
 
-    void forceHighestPossibleVersionUnsafe()
+    @VisibleForTesting
+    public void forceHighestPossibleVersionUnsafe()
     {
         version = Integer.MAX_VALUE;
     }

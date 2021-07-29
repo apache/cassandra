@@ -21,6 +21,8 @@ package org.apache.cassandra.distributed.impl;
 import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.util.UUID;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -31,6 +33,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IListen;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
@@ -134,6 +137,18 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
+    public IIsolatedExecutor with(ExecutorService executor)
+    {
+        return delegate().with(executor);
+    }
+
+    @Override
+    public Executor executor()
+    {
+        return delegate().executor();
+    }
+
+    @Override
     public void startup(ICluster cluster)
     {
         delegateForStartup().startup(cluster);
@@ -143,6 +158,12 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     public void receiveMessage(IMessage message)
     {
         delegate().receiveMessage(message);
+    }
+
+    @Override
+    public void receiveMessageWithInvokingThread(IMessage message)
+    {
+        delegate().receiveMessageWithInvokingThread(message);
     }
 
     @Override
@@ -194,6 +215,18 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
     }
 
     @Override
+    public <I1, I2, I3> TriFunction<I1, I2, I3, Future<?>> async(TriConsumer<I1, I2, I3> consumer)
+    {
+        return delegate().async(consumer);
+    }
+
+    @Override
+    public <I1, I2, I3> TriConsumer<I1, I2, I3> sync(TriConsumer<I1, I2, I3> consumer)
+    {
+        return delegate().sync(consumer);
+    }
+
+    @Override
     public <I, O> Function<I, Future<O>> async(Function<I, O> f)
     {
         return delegate().async(f);
@@ -229,4 +262,27 @@ public abstract class DelegatingInvokableInstance implements IInvokableInstance
         return delegate().sync(f);
     }
 
+    @Override
+    public <I1, I2, I3, I4, O> QuadFunction<I1, I2, I3, I4, Future<O>> async(QuadFunction<I1, I2, I3, I4, O> f)
+    {
+        return delegate().async(f);
+    }
+
+    @Override
+    public <I1, I2, I3, I4, O> QuadFunction<I1, I2, I3, I4, O> sync(QuadFunction<I1, I2, I3, I4, O> f)
+    {
+        return delegate().sync(f);
+    }
+
+    @Override
+    public <I1, I2, I3, I4, I5, O> QuintFunction<I1, I2, I3, I4, I5, Future<O>> async(QuintFunction<I1, I2, I3, I4, I5, O> f)
+    {
+        return delegate().async(f);
+    }
+
+    @Override
+    public <I1, I2, I3, I4, I5, O> QuintFunction<I1, I2, I3, I4, I5, O> sync(QuintFunction<I1, I2, I3, I4, I5, O> f)
+    {
+        return delegate().sync(f);
+    }
 }

@@ -44,7 +44,7 @@ public class TriggerExecutor
     public static final TriggerExecutor instance = new TriggerExecutor();
 
     private final Map<String, ITrigger> cachedTriggers = Maps.newConcurrentMap();
-    private final ClassLoader parent = Thread.currentThread().getContextClassLoader();
+    private final ClassLoader parent = TriggerExecutor.class.getClassLoader();
     private volatile ClassLoader customClassLoader;
 
     private TriggerExecutor()

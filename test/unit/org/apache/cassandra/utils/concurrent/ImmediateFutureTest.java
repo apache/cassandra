@@ -28,6 +28,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.distributed.shared.ThrowingRunnable;
 
 public class ImmediateFutureTest
 {
@@ -88,7 +89,7 @@ public class ImmediateFutureTest
         testSimple(p, isCancelled);
     }
 
-    private static void assertFailure(IsolatedExecutor.ThrowingRunnable run, Predicate<Throwable> test)
+    private static void assertFailure(ThrowingRunnable run, Predicate<Throwable> test)
     {
         Throwable failure = null;
         try

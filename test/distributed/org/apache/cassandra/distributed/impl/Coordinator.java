@@ -80,7 +80,7 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    protected org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
+    static org.apache.cassandra.db.ConsistencyLevel toCassandraCL(ConsistencyLevel cl)
     {
         return org.apache.cassandra.db.ConsistencyLevel.fromCode(cl.ordinal());
     }
@@ -210,7 +210,7 @@ public class Coordinator implements ICoordinator
         }).call();
     }
 
-    private static final ClientState makeFakeClientState()
+    static ClientState makeFakeClientState()
     {
         return ClientState.forExternalCalls(new InetSocketAddress(FBUtilities.getJustLocalAddress(), 9042));
     }

@@ -146,7 +146,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
     {
         // deliberately not volatile to ensure zero overhead outside of testing;
         // depend on other memory visibility primitives to ensure visibility
-        private static ExecutorFactory FACTORY = new ExecutorFactory.Default(null, null, JVMStabilityInspector::uncaughtException);
+        private static ExecutorFactory FACTORY = new ExecutorFactory.Default(Global.class.getClassLoader(), null, JVMStabilityInspector::uncaughtException);
         public static ExecutorFactory executorFactory()
         {
             return FACTORY;

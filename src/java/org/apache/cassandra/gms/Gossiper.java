@@ -662,6 +662,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         GossiperDiagnostics.removedEndpoint(this, endpoint);
     }
 
+    @VisibleForTesting
+    public void unsafeAnnulEndpoint(InetAddressAndPort endpoint)
+    {
+        removeEndpoint(endpoint);
+        justRemovedEndpoints.remove(endpoint);
+        endpointStateMap.remove(endpoint);
+        expireTimeEndpointMap.remove(endpoint);
+        unreachableEndpoints.remove(endpoint);
+    }
+
     /**
      * Quarantines the endpoint for QUARANTINE_DELAY
      *

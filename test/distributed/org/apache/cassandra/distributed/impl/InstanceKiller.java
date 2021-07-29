@@ -43,6 +43,7 @@ public class InstanceKiller extends JVMStabilityInspector.Killer
         // the bad part is that System.exit kills the JVM, so all code which calls kill won't hit the
         // next line; yet in in-JVM dtests System.exit is not desirable, so need to rely on a runtime exception
         // as a means to try to stop execution
+        // TODO (now): this is only used for one dtest, and can cause infinite loops with Simulator in e.g. AbstractCommitLogSegmentManager (failing its first assert, invoking the handler, throwing this exception, restarting)
         throw new InstanceShutdown();
     }
 
