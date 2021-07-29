@@ -841,12 +841,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.removeEndpoint(FBUtilities.getBroadcastAddressAndPort());
 
         Map<InetAddressAndPort, UUID> loadedHostIds = SystemKeyspace.loadHostIds();
+        Map<UUID, InetAddressAndPort> hostIdToEndpointMap = new HashMap<>();
         for (InetAddressAndPort ep : loadedTokens.keySet())
         {
-            tokenMetadata.updateNormalTokens(loadedTokens.get(ep), ep);
-            if (loadedHostIds.containsKey(ep))
-                tokenMetadata.updateHostId(loadedHostIds.get(ep), ep);
+            UUID hostId = loadedHostIds.get(ep);
+            if (hostId != null)
+                hostIdToEndpointMap.put(hostId, ep);
         }
+        tokenMetadata.updateNormalTokens(loadedTokens);
+        tokenMetadata.updateHostIds(hostIdToEndpointMap);
     }
 
     private boolean isReplacing()
