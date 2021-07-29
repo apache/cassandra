@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -1052,6 +1053,11 @@ public class NodeProbe implements AutoCloseable
     public void truncateHints()
     {
         hsProxy.deleteAllHints();
+    }
+
+    public void transferHints() throws ExecutionException, InterruptedException
+    {
+        ssProxy.streamHintsBlocking();
     }
 
     public void refreshSizeEstimates()

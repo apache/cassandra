@@ -715,6 +715,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     Map<String, Boolean> getAutoCompactionStatus(String ks, String... tables) throws IOException;
 
     public void deliverHints(String host) throws UnknownHostException;
+    
+    /** Waits for hints on node to finish streaming to other target */
+    public void streamHintsBlocking() throws ExecutionException, InterruptedException;
 
     /** Returns the name of the cluster */
     public String getClusterName();

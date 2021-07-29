@@ -196,6 +196,7 @@ public class NodeTool
                 SetCacheKeysToSave.class,
                 DisableHandoff.class,
                 Drain.class,
+                TransferHints.class,
                 TruncateHints.class,
                 TpStats.class,
                 TopPartitions.class,
