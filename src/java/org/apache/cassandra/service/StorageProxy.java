@@ -877,7 +877,8 @@ public class StorageProxy implements StorageProxyMBean
                         }
                         catch (Exception exc)
                         {
-                            logger.error("Error applying local view update to keyspace {}: {}", mutation.getKeyspaceName(), mutation);
+                            logger.error("Error applying local view update: Mutation (keyspace {}, tables {}, partition key {})",
+                                         mutation.getKeyspaceName(), mutation.getColumnFamilyIds(), mutation.key());
                             throw exc;
                         }
                     else

@@ -1,3 +1,7 @@
+3.0.26:
+ * Remove mutation data from error log message (CASSANDRA-16817)
+
+
 3.0.25:
  * Binary releases no longer bundle the apidocs (javadoc) (CASSANDRA-16557)
  * Migrate dependency handling from maven-ant-tasks to resolver-ant-tasks, removing lib/ directory from version control (CASSANDRA-16557)
