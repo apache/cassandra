@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -71,6 +69,8 @@ import io.airlift.airline.Command;
 import io.airlift.airline.Help;
 import io.airlift.airline.HelpOption;
 import io.airlift.airline.Option;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
@@ -229,8 +229,8 @@ public class JMXTool
             Preconditions.checkArgument(files.size() == 2, "files requires 2 arguments but given %s", files);
             Map<String, Info> left;
             Map<String, Info> right;
-            try (FileInputStream leftStream = new FileInputStream(files.get(0));
-                 FileInputStream rightStream = new FileInputStream(files.get(1)))
+            try (FileInputStreamPlus leftStream = new FileInputStreamPlus(files.get(0));
+                 FileInputStreamPlus rightStream = new FileInputStreamPlus(files.get(1)))
             {
                 left = format.load(leftStream);
                 right = format.load(rightStream);

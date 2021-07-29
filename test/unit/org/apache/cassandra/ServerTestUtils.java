@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -31,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -167,7 +168,7 @@ public final class ServerTestUtils
     {
         if (directory.exists())
         {
-            FileUtils.deleteChildrenRecursive(directory);
+            Arrays.stream(directory.tryList()).forEach(File::deleteRecursive);
         }
     }
 

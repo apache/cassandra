@@ -19,7 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.util.File;
 
 /**
  * Ownership markers on disk are compatible with the java property file format.
@@ -103,7 +103,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
         this(() -> Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
                                     Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                   DatabaseDescriptor.getSavedCachesLocation(),
-                                                  DatabaseDescriptor.getHintsDirectory().getAbsolutePath())));
+                                                  DatabaseDescriptor.getHintsDirectory().absolutePath())));
     }
 
     @VisibleForTesting
@@ -251,7 +251,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
     {
         try
         {
-            return dir.resolve(filename).toFile();
+            return new File(dir.resolve(filename));
         }
         catch (Exception e)
         {

@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -152,7 +152,7 @@ public final class Throwables
     @SafeVarargs
     public static void perform(File against, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
     {
-        perform(against.getPath(), opType, actions);
+        perform(against.path(), opType, actions);
     }
 
     @SafeVarargs

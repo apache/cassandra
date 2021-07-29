@@ -21,10 +21,7 @@ package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.SyncUtil;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -193,7 +190,7 @@ public class BufferedRandomAccessFileTest
             w.finish();
     
             // will use cachedlength
-            try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
+            try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.path());
                  FileHandle fh = builder.complete();
                  RandomAccessReader r = fh.createReader())
             {
@@ -354,7 +351,7 @@ public class BufferedRandomAccessFileTest
             for (final int offset : Arrays.asList(0, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
-                try (FileHandle.Builder builder = new FileHandle.Builder(file1.getPath()).bufferSize(bufferSize);
+                try (FileHandle.Builder builder = new FileHandle.Builder(file1.path()).bufferSize(bufferSize);
                      FileHandle fh = builder.complete();
                      RandomAccessReader file = fh.createReader())
                 {
@@ -366,7 +363,7 @@ public class BufferedRandomAccessFileTest
             for (final int n : Arrays.asList(1, 2, 4, 8))
             {
                 File file1 = writeTemporaryFile(new byte[16]);
-                try (FileHandle.Builder builder = new FileHandle.Builder(file1.getPath()).bufferSize(bufferSize);
+                try (FileHandle.Builder builder = new FileHandle.Builder(file1.path()).bufferSize(bufferSize);
                      FileHandle fh = builder.complete();
                      RandomAccessReader file = fh.createReader())
                 {
@@ -427,11 +424,11 @@ public class BufferedRandomAccessFileTest
         tmpFile.deleteOnExit();
 
         // Create the BRAF by filename instead of by file.
-        try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
+        try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.path());
              FileHandle fh = builder.complete();
              RandomAccessReader r = fh.createReader())
         {
-            assert tmpFile.getPath().equals(r.getPath());
+            assert tmpFile.path().equals(r.getPath());
 
             // Create a mark and move the rw there.
             final DataPosition mark = r.mark();
@@ -607,9 +604,9 @@ public class BufferedRandomAccessFileTest
     {
         File f = FileUtils.createTempFile("BRAFTestFile", null);
         f.deleteOnExit();
-        FileOutputStream fout = new FileOutputStream(f);
+        FileOutputStreamPlus fout = new FileOutputStreamPlus(f);
         fout.write(data);
-        SyncUtil.sync(fout);
+        fout.sync();
         fout.close();
         return f;
     }

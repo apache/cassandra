@@ -36,8 +36,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.FileDigestValidator;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -52,8 +54,8 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
+import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -66,6 +68,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
+
+import org.apache.cassandra.io.util.File;
 
 public class Verifier implements Closeable
 {
@@ -447,7 +451,7 @@ public class Verifier implements Closeable
         Path bfPath = Paths.get(sstable.descriptor.filenameFor(Component.FILTER));
         if (Files.exists(bfPath))
         {
-            try (DataInputStream stream = new DataInputStream(new BufferedInputStream(Files.newInputStream(bfPath)));
+            try (FileInputStreamPlus stream = new File(bfPath).newInputStream();
                  IFilter bf = BloomFilterSerializer.deserialize(stream, sstable.descriptor.version.hasOldBfFormat()))
             {
             }

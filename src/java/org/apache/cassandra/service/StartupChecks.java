@@ -18,7 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
@@ -32,12 +31,14 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -339,8 +340,7 @@ public class StartupChecks
         Iterable<String> dirs = Iterables.concat(Arrays.asList(DatabaseDescriptor.getAllDataFileLocations()),
                                                  Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                                DatabaseDescriptor.getSavedCachesLocation(),
-                                                               DatabaseDescriptor.getHintsDirectory().getAbsolutePath()));
-
+                                                               DatabaseDescriptor.getHintsDirectory().absolutePath()));
         for (String dataDir : dirs)
         {
             logger.debug("Checking directory {}", dataDir);
@@ -351,7 +351,7 @@ public class StartupChecks
             {
                 logger.warn("Directory {} doesn't exist", dataDir);
                 // if they don't, failing their creation, stop cassandra.
-                if (!dir.mkdirs())
+                if (!dir.tryCreateDirectories())
                     throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
                                                "Has no permission to create directory "+ dataDir);
             }
@@ -377,7 +377,7 @@ public class StartupChecks
             {
                 public FileVisitResult visitFile(Path path, BasicFileAttributes attrs)
                 {
-                    File file = path.toFile();
+                    File file = new File(path);
                     if (!Descriptor.isValidFile(file))
                         return FileVisitResult.CONTINUE;
 
@@ -398,7 +398,7 @@ public class StartupChecks
                     String name = dir.getFileName().toString();
                     return (name.equals(Directories.SNAPSHOT_SUBDIR)
                             || name.equals(Directories.BACKUPS_SUBDIR)
-                            || nonSSTablePaths.contains(dir.toFile().getCanonicalPath()))
+                            || nonSSTablePaths.contains(PathUtils.toCanonicalPath(dir).toString()))
                            ? FileVisitResult.SKIP_SUBTREE
                            : FileVisitResult.CONTINUE;
                 }
@@ -408,7 +408,7 @@ public class StartupChecks
             {
                 try
                 {
-                    Files.walkFileTree(Paths.get(dataDir), sstableVisitor);
+                    Files.walkFileTree(new File(dataDir).toPath(), sstableVisitor);
                 }
                 catch (IOException e)
                 {

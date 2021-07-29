@@ -58,7 +58,7 @@ public class BulkLoader
         DatabaseDescriptor.toolInitialization();
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
-                options.directory.getAbsoluteFile(),
+                options.directory.toAbsolute(),
                 new ExternalClient(
                         options.hosts,
                         options.storagePort,

@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.service;
 
-import java.io.File;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,10 +78,10 @@ public class DefaultFSErrorHandler implements FSErrorHandler
                 }
 
                 // for both read and write errors mark the path as unwritable.
-                DisallowedDirectories.maybeMarkUnwritable(e.path);
+                DisallowedDirectories.maybeMarkUnwritable(new File(e.path));
                 if (e instanceof FSReadError)
                 {
-                    File directory = DisallowedDirectories.maybeMarkUnreadable(e.path);
+                    File directory = DisallowedDirectories.maybeMarkUnreadable(new File(e.path));
                     if (directory != null)
                         Keyspace.removeUnreadableSSTables(directory);
                 }

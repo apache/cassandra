@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.*;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;

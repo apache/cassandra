@@ -22,7 +22,7 @@ import org.junit.Test;
 
 import org.junit.Assert;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 import java.lang.ref.WeakReference;
 import java.util.HashMap;
 import java.util.HashSet;

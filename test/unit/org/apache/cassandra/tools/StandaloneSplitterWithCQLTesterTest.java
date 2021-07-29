@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,6 +26,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
+import com.google.common.io.Files;
+
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -64,10 +67,10 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     public void testSplittingSSTable() throws Throwable
     {
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", sstableFileName);
-        List<File> splitFiles = Arrays.asList(sstablesDir.listFiles());
+        List<File> splitFiles = Arrays.asList(sstablesDir.tryList());
         splitFiles.stream().forEach(f -> {
-            if (f.getName().endsWith("Data.db") && !origSstables.contains(f))
-                assertTrue(f.getName() + " is way bigger than 1MB: [" + f.length() + "] bytes",
+            if (f.name().endsWith("Data.db") && !origSstables.contains(f))
+                assertTrue(f.name() + " is way bigger than 1MB: [" + f.length() + "] bytes",
                            f.length() <= 1024 * 1024 * 1.2); //give a 20% margin on size check
         });
         assertTrue(origSstables.size() < splitFiles.size());
@@ -81,16 +84,16 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     {
         ArrayList<String> args = new ArrayList<>(Arrays.asList("-s", "1"));
 
-        args.addAll(Arrays.asList(sstablesDir.listFiles())
+        args.addAll(Arrays.asList(sstablesDir.tryList())
                           .stream()
-                          .map(f -> f.getAbsolutePath())
+                          .map(f -> f.absolutePath())
                           .collect(Collectors.toList()));
 
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, args.toArray(new String[args.size()]));
-        List<File> splitFiles = Arrays.asList(sstablesDir.listFiles());
+        List<File> splitFiles = Arrays.asList(sstablesDir.tryList());
         splitFiles.stream().forEach(f -> {
-            if (f.getName().endsWith("Data.db") && !origSstables.contains(f))
-                assertTrue(f.getName() + " is way bigger than 1MB: [" + f.length() + "] bytes",
+            if (f.name().endsWith("Data.db") && !origSstables.contains(f))
+                assertTrue(f.name() + " is way bigger than 1MB: [" + f.length() + "] bytes",
                            f.length() <= 1024 * 1024 * 1.2); //give a 20% margin on size check
         });
         assertTrue(origSstables.size() < splitFiles.size());
@@ -102,7 +105,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     public void testNoSnapshotOption() throws Throwable
     {
         ToolResult tool  = ToolRunner.invokeClass(StandaloneSplitter.class, "-s", "1", "--no-snapshot", sstableFileName);
-        assertTrue(origSstables.size() < Arrays.asList(sstablesDir.listFiles()).size());
+        assertTrue(origSstables.size() < Arrays.asList(sstablesDir.tryList()).size());
         assertTrue(tool.getStdout(), tool.getStdout().isEmpty());
         assertTrue(tool.getCleanedStderr(), tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());
@@ -121,8 +124,8 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
         Set<SSTableReader> sstables = cfs.getLiveSSTables();
         sstableFileName = sstables.iterator().next().getFilename();
         assertTrue("Generated sstable must be at least 1MB", (new File(sstableFileName)).length() > 1024*1024);
-        sstablesDir = new File(sstableFileName).getParentFile();
-        origSstables = Arrays.asList(sstablesDir.listFiles());
+        sstablesDir = new File(sstableFileName).parent();
+        origSstables = Arrays.asList(sstablesDir.tryList());
         System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
     }
 }

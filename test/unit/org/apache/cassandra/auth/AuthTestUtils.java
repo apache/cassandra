@@ -139,7 +139,7 @@ public class AuthTestUtils
         return rolesTable.metric.readLatency.latency.getCount();
     }
 
-    public static RoleOptions getLoginRoleOprions()
+    public static RoleOptions getLoginRoleOptions()
     {
         RoleOptions roleOptions = new RoleOptions();
         roleOptions.setOption(IRoleManager.Option.SUPERUSER, false);

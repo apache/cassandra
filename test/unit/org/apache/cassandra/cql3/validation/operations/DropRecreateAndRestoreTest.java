@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.io.File;
 import java.util.List;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;

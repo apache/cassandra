@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,6 +27,9 @@ import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -113,7 +114,7 @@ public class LegacySSTableTest
         String scp = System.getProperty(LEGACY_SSTABLE_PROP);
         Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
 
-        LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
+        LEGACY_SSTABLE_ROOT = new File(scp).toAbsolute();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
 
         SchemaLoader.prepareServer();
@@ -637,7 +638,7 @@ public class LegacySSTableTest
         StorageService.instance.forceKeyspaceFlush("legacy_tables");
 
         File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", BigFormat.latestVersion));
-        ksDir.mkdirs();
+        ksDir.tryCreateDirectories();
         copySstablesFromTestData(String.format("legacy_%s_simple", BigFormat.latestVersion), ksDir);
         copySstablesFromTestData(String.format("legacy_%s_simple_counter", BigFormat.latestVersion), ksDir);
         copySstablesFromTestData(String.format("legacy_%s_clust", BigFormat.latestVersion), ksDir);
@@ -647,11 +648,11 @@ public class LegacySSTableTest
     public static void copySstablesFromTestData(String table, File ksDir) throws IOException
     {
         File cfDir = new File(ksDir, table);
-        cfDir.mkdir();
+        cfDir.tryCreateDirectory();
 
         for (File srcDir : Keyspace.open("legacy_tables").getColumnFamilyStore(table).getDirectories().getCFDirectories())
         {
-            for (File file : srcDir.listFiles())
+            for (File file : srcDir.tryList())
             {
                 copyFile(cfDir, file);
             }
@@ -662,7 +663,7 @@ public class LegacySSTableTest
     {
         File tableDir = getTableDir(legacyVersion, table);
         Assert.assertTrue("The table directory " + tableDir + " was not found", tableDir.isDirectory());
-        for (File file : tableDir.listFiles())
+        for (File file : tableDir.tryList())
         {
             copyFile(cfDir, file);
         }
@@ -678,10 +679,10 @@ public class LegacySSTableTest
         byte[] buf = new byte[65536];
         if (file.isFile())
         {
-            File target = new File(cfDir, file.getName());
+            File target = new File(cfDir, file.name());
             int rd;
-            try (FileInputStream is = new FileInputStream(file);
-                 FileOutputStream os = new FileOutputStream(target);) {
+            try (FileInputStreamPlus is = new FileInputStreamPlus(file);
+                 FileOutputStreamPlus os = new FileOutputStreamPlus(target);) {
                 while ((rd = is.read(buf)) >= 0)
                     os.write(buf, 0, rd);
                 }

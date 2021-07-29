@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -31,6 +30,7 @@ import java.util.function.Predicate;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -506,16 +506,16 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         void list(File directory)
         {
-            Arrays.stream(directory.listFiles(LogFile::isLogFile)).forEach(this::add);
+            Arrays.stream(directory.tryList(LogFile::isLogFile)).forEach(this::add);
         }
 
         void add(File file)
         {
-            List<File> filesByName = files.get(file.getName());
+            List<File> filesByName = files.get(file.name());
             if (filesByName == null)
             {
                 filesByName = new ArrayList<>();
-                files.put(file.getName(), filesByName);
+                files.put(file.name(), filesByName);
             }
 
             filesByName.add(file);
