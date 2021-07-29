@@ -17,14 +17,14 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.File;
 import java.io.FileDescriptor;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -216,7 +216,7 @@ public final class NativeLibrary
         if (!f.exists())
             return;
 
-        try (FileInputStream fis = new FileInputStream(f))
+        try (FileInputStreamPlus fis = new FileInputStreamPlus(f))
         {
             trySkipCache(getfd(fis.getChannel()), offset, len, path);
         }

@@ -18,7 +18,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -36,6 +35,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 
 import org.junit.AfterClass;
@@ -329,7 +329,7 @@ public class ScrubTest
         assertOrderedAll(cfs, 10);
 
         for (SSTableReader sstable : cfs.getLiveSSTables())
-            assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete());
+            assertTrue(new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).tryDelete());
 
         CompactionManager.instance.performScrub(cfs, false, true, 2);
 
@@ -345,10 +345,10 @@ public class ScrubTest
         DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
 
         // Create out-of-order SSTable
-        File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").getParentFile();
+        File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").parent();
         // create ks/cf directory
-        File tempDataDir = new File(tempDir, String.join(File.separator, ksName, CF));
-        assertTrue(tempDataDir.mkdirs());
+        File tempDataDir = new File(tempDir, String.join(File.pathSeparator(), ksName, CF));
+        assertTrue(tempDataDir.tryCreateDirectories());
         try
         {
             CompactionManager.instance.disableAutoCompaction();

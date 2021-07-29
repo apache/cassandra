@@ -19,12 +19,12 @@
 package org.apache.cassandra.io.compress;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.Random;
 
+import org.apache.cassandra.io.util.File;
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -97,7 +97,7 @@ public class CompressedRandomAccessReaderTest
     public void test6791() throws IOException, ConfigurationException
     {
         File f = FileUtils.createTempFile("compressed6791_", "3");
-        String filename = f.getAbsolutePath();
+        String filename = f.absolutePath();
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
                                                                                null, SequentialWriterOption.DEFAULT,
@@ -132,10 +132,10 @@ public class CompressedRandomAccessReaderTest
         finally
         {
             if (f.exists())
-                assertTrue(f.delete());
+                assertTrue(f.tryDelete());
             File metadata = new File(filename+ ".metadata");
             if (metadata.exists())
-                metadata.delete();
+                metadata.tryDelete();
         }
     }
 
@@ -145,8 +145,8 @@ public class CompressedRandomAccessReaderTest
     @Test
     public void testChunkIndexOverflow() throws IOException
     {
-        File file = File.createTempFile("chunk_idx_overflow", "1");
-        String filename = file.getAbsolutePath();
+        File file = FileUtils.createTempFile("chunk_idx_overflow", "1");
+        String filename = file.absolutePath();
         int chunkLength = 4096; // 4k
 
         try
@@ -166,16 +166,16 @@ public class CompressedRandomAccessReaderTest
         finally
         {
             if (file.exists())
-                assertTrue(file.delete());
+                assertTrue(file.tryDelete());
             File metadata = new File(filename + ".metadata");
             if (metadata.exists())
-                metadata.delete();
+                metadata.tryDelete();
         }
     }
 
     private static void testResetAndTruncate(File f, boolean compressed, boolean usemmap, int junkSize, double minCompressRatio) throws IOException
     {
-        final String filename = f.getAbsolutePath();
+        final String filename = f.absolutePath();
         writeSSTable(f, compressed ? CompressionParams.snappy() : null, junkSize);
 
         CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length(), true) : null;
@@ -192,16 +192,16 @@ public class CompressedRandomAccessReaderTest
         finally
         {
             if (f.exists())
-                assertTrue(f.delete());
+                assertTrue(f.tryDelete());
             File metadata = new File(filename + ".metadata");
             if (compressed && metadata.exists())
-                metadata.delete();
+                metadata.tryDelete();
         }
     }
 
     private static void writeSSTable(File f, CompressionParams params, int junkSize) throws IOException
     {
-        final String filename = f.getAbsolutePath();
+        final String filename = f.absolutePath();
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try(SequentialWriter writer = params != null
                 ? new CompressedSequentialWriter(f, filename + ".metadata",
@@ -237,14 +237,14 @@ public class CompressedRandomAccessReaderTest
         File file = new File("testDataCorruptionDetection");
         file.deleteOnExit();
 
-        File metadata = new File(file.getPath() + ".meta");
+        File metadata = new File(file.path() + ".meta");
         metadata.deleteOnExit();
 
-        assertTrue(file.createNewFile());
-        assertTrue(metadata.createNewFile());
+        assertTrue(file.createFileIfNotExists());
+        assertTrue(metadata.createFileIfNotExists());
 
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-        try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(),
+        try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.path(),
                                                                       null, SequentialWriterOption.DEFAULT,
                                                                       CompressionParams.snappy(), sstableMetadataCollector))
         {
@@ -253,16 +253,16 @@ public class CompressedRandomAccessReaderTest
         }
 
         // open compression metadata and get chunk information
-        CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length(), true);
+        CompressionMetadata meta = new CompressionMetadata(metadata.path(), file.length(), true);
         CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
-        try (FileHandle.Builder builder = new FileHandle.Builder(file.getPath()).withCompressionMetadata(meta);
+        try (FileHandle.Builder builder = new FileHandle.Builder(file.path()).withCompressionMetadata(meta);
              FileHandle fh = builder.complete();
              RandomAccessReader reader = fh.createReader())
         {// read and verify compressed data
             assertEquals(CONTENT, reader.readLine());
             Random random = new Random();
-            try(RandomAccessFile checksumModifier = new RandomAccessFile(file, "rw"))
+            try(RandomAccessFile checksumModifier = new RandomAccessFile(file.toJavaIOFile(), "rw"))
             {
                 byte[] checksum = new byte[4];
 
@@ -311,6 +311,6 @@ public class CompressedRandomAccessReaderTest
     {
         file.seek(checksumOffset);
         file.write(checksum);
-        SyncUtil.sync(file);
+        SyncUtil.sync(file.getFD());
     }
 }

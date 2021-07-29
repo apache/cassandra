@@ -44,13 +44,14 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+
+import org.apache.cassandra.io.util.File;
 
 public class SerializationHeaderTest
 {
@@ -84,7 +85,7 @@ public class SerializationHeaderTest
         schemaWithRegular = schemaWithRegular.unbuild().recordColumnDrop(columnStatic, 0L).build();
 
         final AtomicInteger generation = new AtomicInteger();
-        File dir = Files.createTempDir();
+        File dir = new File(Files.createTempDir());
         try
         {
             BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {

@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -76,7 +76,7 @@ public class AuditLogViewer
         Pauser pauser = Pauser.millis(100);
         List<ExcerptTailer> tailers = pathList.stream()
                                               .distinct()
-                                              .map(path -> SingleChronicleQueueBuilder.single(new File(path)).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build())
+                                              .map(path -> SingleChronicleQueueBuilder.single(new File(path).toJavaIOFile()).readOnly(true).rollCycle(RollCycles.valueOf(rollCycle)).build())
                                               .map(SingleChronicleQueue::createTailer)
                                               .collect(Collectors.toList());
         boolean hadWork = true;

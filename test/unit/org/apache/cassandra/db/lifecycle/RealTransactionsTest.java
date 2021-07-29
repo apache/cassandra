@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -85,8 +85,8 @@ public class RealTransactionsTest extends SchemaLoader
         LogTransaction.waitForDeletions();
 
         // both sstables are in the same folder
-        assertFiles(oldSSTable.descriptor.directory.getPath(), new HashSet<>(newSSTable.getAllFilePaths()));
-        assertFiles(newSSTable.descriptor.directory.getPath(), new HashSet<>(newSSTable.getAllFilePaths()));
+        assertFiles(oldSSTable.descriptor.directory.path(), new HashSet<>(newSSTable.getAllFilePaths()));
+        assertFiles(newSSTable.descriptor.directory.path(), new HashSet<>(newSSTable.getAllFilePaths()));
     }
 
     @Test
@@ -101,7 +101,7 @@ public class RealTransactionsTest extends SchemaLoader
         replaceSSTable(cfs, txn, true);
         LogTransaction.waitForDeletions();
 
-        assertFiles(oldSSTable.descriptor.directory.getPath(), new HashSet<>(oldSSTable.getAllFilePaths()));
+        assertFiles(oldSSTable.descriptor.directory.path(), new HashSet<>(oldSSTable.getAllFilePaths()));
     }
 
     @Test
@@ -112,7 +112,7 @@ public class RealTransactionsTest extends SchemaLoader
 
         SSTableReader ssTableReader = getSSTable(cfs, 100);
 
-        String dataFolder = cfs.getLiveSSTables().iterator().next().descriptor.directory.getPath();
+        String dataFolder = cfs.getLiveSSTables().iterator().next().descriptor.directory.path();
         assertFiles(dataFolder, new HashSet<>(ssTableReader.getAllFilePaths()));
     }
 
@@ -202,12 +202,12 @@ public class RealTransactionsTest extends SchemaLoader
     private void assertFiles(String dirPath, Set<String> expectedFiles)
     {
         File dir = new File(dirPath);
-        for (File file : dir.listFiles())
+        for (File file : dir.tryList())
         {
             if (file.isDirectory())
                 continue;
 
-            String filePath = file.getPath();
+            String filePath = file.path();
             assertTrue(filePath, expectedFiles.contains(filePath));
             expectedFiles.remove(filePath);
         }

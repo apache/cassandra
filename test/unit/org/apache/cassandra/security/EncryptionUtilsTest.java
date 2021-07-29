@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.security;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -29,6 +28,7 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.ShortBufferException;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -82,7 +82,7 @@ public class EncryptionUtilsTest
 
         File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
-        FileChannel channel = new RandomAccessFile(f, "rw").getChannel();
+        FileChannel channel = new RandomAccessFile(f.toJavaIOFile(), "rw").getChannel();
         EncryptionUtils.encryptAndWrite(ByteBuffer.wrap(buf), channel, true, encryptor);
         channel.close();
 
@@ -111,7 +111,7 @@ public class EncryptionUtilsTest
         Cipher encryptor = cipherFactory.getEncryptor(tdeOptions.cipher, tdeOptions.key_alias);
         File f = FileUtils.createTempFile("commitlog-enc-utils-", ".tmp");
         f.deleteOnExit();
-        FileChannel channel = new RandomAccessFile(f, "rw").getChannel();
+        FileChannel channel = new RandomAccessFile(f.toJavaIOFile(), "rw").getChannel();
         EncryptionUtils.encryptAndWrite(compressedBuffer, channel, true, encryptor);
 
         // decrypt

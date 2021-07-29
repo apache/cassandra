@@ -18,18 +18,16 @@
 
 package org.apache.cassandra.test.microbench;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.BloomFilter;
 import org.apache.cassandra.utils.BloomFilterSerializer;
@@ -77,7 +75,7 @@ public class BloomFilterSerializerBench
         {
             BloomFilter filter = (BloomFilter) FilterFactory.getFilter(numElemsInK * 1024, 0.01d);
             filter.add(wrap(testVal));
-            DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(file));
+            DataOutputStreamPlus out = new FileOutputStreamPlus(file);
             if (oldBfFormat)
                 SerializationsTest.serializeOldBfFormat(filter, out);
             else
@@ -85,14 +83,14 @@ public class BloomFilterSerializerBench
             out.close();
             filter.close();
 
-            DataInputStream in = new DataInputStream(new FileInputStream(file));
+            FileInputStreamPlus in = new FileInputStreamPlus(file);
             BloomFilter filter2 = BloomFilterSerializer.deserialize(in, oldBfFormat);
             FileUtils.closeQuietly(in);
             filter2.close();
         }
         finally
         {
-            file.delete();
+            file.tryDelete();
         }
     }
 

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 
 import org.apache.cassandra.utils.ChecksumType;
@@ -32,7 +31,7 @@ public final class ChecksummedRandomAccessReader
         {
             DataIntegrityMetadata.ChecksumValidator validator = new DataIntegrityMetadata.ChecksumValidator(ChecksumType.CRC32,
                                                                                                             RandomAccessReader.open(crcFile),
-                                                                                                            file.getPath());
+                                                                                                            file.path());
             Rebufferer rebufferer = new ChecksummedRebufferer(channel, validator);
             return new RandomAccessReader.RandomAccessReaderWithOwnChannel(rebufferer);
         }

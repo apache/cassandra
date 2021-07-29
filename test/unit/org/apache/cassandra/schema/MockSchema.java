@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.schema;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.*;
@@ -117,13 +117,7 @@ public class MockSchema
         for (Component component : components)
         {
             File file = new File(descriptor.filenameFor(component));
-            try
-            {
-                file.createNewFile();
-            }
-            catch (IOException e)
-            {
-            }
+            file.createFileIfNotExists();
         }
         // .complete() with size to make sstable.onDiskLength work
         try (FileHandle.Builder builder = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size);
@@ -134,7 +128,7 @@ public class MockSchema
                 try
                 {
                     File file = new File(descriptor.filenameFor(Component.DATA));
-                    try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
+                    try (RandomAccessFile raf = new RandomAccessFile(file.toJavaIOFile(), "rw"))
                     {
                         raf.setLength(size);
                     }
@@ -231,7 +225,7 @@ public class MockSchema
             File dir = new File(dirName);
             if (!dir.exists())
                 continue;
-            String[] children = dir.list();
+            String[] children = dir.tryListNames();
             for (String child : children)
                 FileUtils.deleteRecursive(new File(dir, child));
         }

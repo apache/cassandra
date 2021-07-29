@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -37,6 +36,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
+import com.google.common.util.concurrent.ListenableFuture;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1505,7 +1506,7 @@ public final class SystemKeyspace
             // from there, but it informs us that this isn't a completely new node.
             for (File dataDirectory : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             {
-                if (dataDirectory.getName().equals("Versions") && dataDirectory.listFiles().length > 0)
+                if (dataDirectory.name().equals("Versions") && dataDirectory.tryList().length > 0)
                 {
                     logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
                     return UNREADABLE_VERSION.toString();

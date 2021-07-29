@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,11 +30,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.assertj.core.api.Assertions.assertThatIOException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.cassandra.config.Duration;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 
 public class SnapshotManifestTest
 {
@@ -43,13 +46,13 @@ public class SnapshotManifestTest
 
     @Test
     public void testDeserializeFromInvalidFile() throws IOException {
-        File manifestFile = tempFolder.newFile("invalid");
+        File manifestFile = new File(tempFolder.newFile("invalid"));
         assertThatIOException().isThrownBy(
             () -> {
                 SnapshotManifest.deserializeFromJsonFile(manifestFile);
             });
 
-        FileOutputStream out = new FileOutputStream(manifestFile);
+        FileOutputStreamPlus out = new FileOutputStreamPlus(manifestFile);
         out.write(1);
         out.write(2);
         out.write(3);
@@ -69,8 +72,8 @@ public class SnapshotManifestTest
         map.put("files", Arrays.asList("db1", "db2", "db3"));
 
         ObjectMapper mapper = new ObjectMapper();
-        File manifestFile = tempFolder.newFile("manifest.json");
-        mapper.writeValue(manifestFile, map);
+        File manifestFile = new File(tempFolder.newFile("manifest.json"));
+        mapper.writeValue((OutputStream) new FileOutputStreamPlus(manifestFile), map);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
 
         assertThat(manifest.getExpiresAt()).isEqualTo(Instant.parse(expiresAt));
@@ -83,8 +86,8 @@ public class SnapshotManifestTest
         Map<String, Object> map = new HashMap<>();
         map.put("files", Arrays.asList("db1", "db2", "db3"));
         ObjectMapper mapper = new ObjectMapper();
-        File manifestFile = tempFolder.newFile("manifest.json");
-        mapper.writeValue(manifestFile, map);
+        File manifestFile = new File(tempFolder.newFile("manifest.json"));
+        mapper.writeValue((OutputStream) new FileOutputStreamPlus(manifestFile), map);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
 
         assertThat(manifest.getExpiresAt()).isNull();
@@ -98,16 +101,17 @@ public class SnapshotManifestTest
         map.put("files", Arrays.asList("db1", "db2", "db3"));
         map.put("dummy", "dummy");
         ObjectMapper mapper = new ObjectMapper();
-        File manifestFile = tempFolder.newFile("manifest.json");
-        mapper.writeValue(manifestFile, map);
+        File manifestFile = new File(tempFolder.newFile("manifest.json"));
+        mapper.writeValue((OutputStream) new FileOutputStreamPlus(manifestFile), map);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
         assertThat(manifest.getFiles()).contains("db1").contains("db2").contains("db3").hasSize(3);
     }
 
     @Test
     public void testSerializeAndDeserialize() throws Exception {
-        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new Duration("2m"), Instant.now());
-        File manifestFile = tempFolder.newFile("manifest.json");
+        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new Duration("2m"), Instant.ofEpochMilli(currentTimeMillis()));
+        File manifestFile = new File(tempFolder.newFile("manifest.json"));
+
         manifest.serializeToJsonFile(manifestFile);
         manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
         assertThat(manifest.getExpiresAt()).isNotNull();

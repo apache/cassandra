@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -28,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 
@@ -85,7 +85,7 @@ public abstract class AlteredHints
         long ts = System.currentTimeMillis();
 
         HintsDescriptor descriptor = new HintsDescriptor(hostId, ts, params());
-        File dir = Files.createTempDir();
+        File dir = new File(Files.createTempDir());
         try (HintsWriter writer = HintsWriter.create(dir, descriptor))
         {
             Assert.assertTrue(looksLegit(writer));

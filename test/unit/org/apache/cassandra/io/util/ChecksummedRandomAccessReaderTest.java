@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
@@ -119,7 +118,7 @@ public class ChecksummedRandomAccessReaderTest
         assert data.exists();
 
         // simulate corruption of file
-        try (RandomAccessFile dataFile = new RandomAccessFile(data, "rw"))
+        try (RandomAccessFile dataFile = new RandomAccessFile(data.toJavaIOFile(), "rw"))
         {
             dataFile.seek(1024);
             dataFile.write((byte) 5);

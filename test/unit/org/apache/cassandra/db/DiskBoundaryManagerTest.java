@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.net.UnknownHostException;
 import java.util.List;
 
 import com.google.common.collect.Lists;
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
 import java.lang.annotation.Annotation;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -45,7 +44,6 @@ import java.util.stream.Stream;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Sets;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +76,10 @@ import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.FBUtilities;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
@@ -388,7 +389,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected AbstractCluster(AbstractBuilder<I, ? extends ICluster<I>, ?> builder)
     {
-        this.root = builder.getRoot();
+        this.root = new File(builder.getRoot());
         this.sharedClassLoader = builder.getSharedClassLoader();
         this.subnet = builder.getSubnet();
         this.tokenSupplier = builder.getTokenSupplier();
@@ -857,6 +858,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
         instances.clear();
         instanceMap.clear();
+        PathUtils.setDeletionListener(ignore -> {});
         // Make sure to only delete directory when threads are stopped
         if (root.exists())
             FileUtils.deleteRecursive(root);

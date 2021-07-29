@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.snapshot;
 
-import java.io.File;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
@@ -26,6 +25,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class TableSnapshot

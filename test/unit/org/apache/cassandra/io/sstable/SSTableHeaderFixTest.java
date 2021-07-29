@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -89,8 +89,8 @@ public class SSTableHeaderFixTest
     public void setup()
     {
         File f = FileUtils.createTempFile("SSTableUDTFixTest", "");
-        f.delete();
-        f.mkdirs();
+        f.tryDelete();
+        f.tryCreateDirectories();
         temporaryFolder = f;
     }
 
@@ -794,7 +794,7 @@ public class SSTableHeaderFixTest
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)
-                assertTrue(new File(desc.filenameFor(component)).createNewFile());
+                assertTrue(new File(desc.filenameFor(component)).createFileIfNotExists());
 
             AbstractType<?> partitionKey = headerMetadata.partitionKeyType;
             List<AbstractType<?>> clusteringKey = headerMetadata.clusteringColumns()

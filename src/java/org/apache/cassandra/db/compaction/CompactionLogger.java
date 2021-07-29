@@ -44,6 +44,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -308,13 +309,13 @@ public class CompactionLogger
         private static OutputStreamWriter createStream() throws IOException
         {
             int count = 0;
-            Path compactionLog = Paths.get(logDirectory, "compaction.log");
+            Path compactionLog = new File(logDirectory, "compaction.log").toPath();
             if (Files.exists(compactionLog))
             {
                 Path tryPath = compactionLog;
                 while (Files.exists(tryPath))
                 {
-                    tryPath = Paths.get(logDirectory, String.format("compaction-%d.log", count++));
+                    tryPath = new File(logDirectory, String.format("compaction-%d.log", count++)).toPath();
                 }
                 Files.move(compactionLog, tryPath);
             }

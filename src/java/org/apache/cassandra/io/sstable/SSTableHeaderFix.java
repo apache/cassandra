@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -36,6 +35,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -298,7 +298,7 @@ public abstract class SSTableHeaderFix
     {
         Stream.of(path)
               .flatMap(SSTableHeaderFix::maybeExpandDirectory)
-              .filter(p -> Descriptor.fromFilenameWithComponent(p.toFile()).right.type == Component.Type.DATA)
+              .filter(p -> Descriptor.fromFilenameWithComponent(new File(p)).right.type == Component.Type.DATA)
               .map(Path::toString)
               .map(Descriptor::fromFilename)
               .forEach(descriptors::add);
@@ -888,26 +888,26 @@ public abstract class SSTableHeaderFix
         private void scanDataDirectory(Directories.DataDirectory dataDirectory)
         {
             info.accept(String.format("Scanning data directory %s", dataDirectory.location));
-            File[] ksDirs = dataDirectory.location.listFiles();
+            File[] ksDirs = dataDirectory.location.tryList();
             if (ksDirs == null)
                 return;
             for (File ksDir : ksDirs)
             {
-                if (!ksDir.isDirectory() || !ksDir.canRead())
+                if (!ksDir.isDirectory() || !ksDir.isReadable())
                     continue;
 
-                String name = ksDir.getName();
+                String name = ksDir.name();
 
                 // silently ignore all system keyspaces
                 if (SchemaConstants.isLocalSystemKeyspace(name) || SchemaConstants.isReplicatedSystemKeyspace(name))
                     continue;
 
-                File[] tabDirs = ksDir.listFiles();
+                File[] tabDirs = ksDir.tryList();
                 if (tabDirs == null)
                     continue;
                 for (File tabDir : tabDirs)
                 {
-                    if (!tabDir.isDirectory() || !tabDir.canRead())
+                    if (!tabDir.isDirectory() || !tabDir.isReadable())
                         continue;
 
                     processFileOrDirectory(tabDir.toPath());

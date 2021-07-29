@@ -170,6 +170,8 @@ public enum CassandraRelevantProperties
      */
     LOG_DIR_AUDIT("cassandra.logdir.audit"),
 
+    CONSISTENT_DIRECTORY_LISTINGS("cassandra.consistent_directory_listings", "false"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteOrder;
 
@@ -26,6 +25,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 
 @NotThreadSafe

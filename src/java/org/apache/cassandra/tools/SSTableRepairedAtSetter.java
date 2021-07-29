@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.*;
+
+import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -39,6 +41,8 @@ import org.apache.cassandra.io.sstable.Descriptor;
  * sstablerepairset --is-repaired -f <(find /var/lib/cassandra/data/.../ -iname "*Data.db*" -mtime +14)
  * }
  */
+import org.apache.cassandra.io.util.File;
+
 public class SSTableRepairedAtSetter
 {
     /**

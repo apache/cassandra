@@ -19,7 +19,6 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -28,6 +27,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 

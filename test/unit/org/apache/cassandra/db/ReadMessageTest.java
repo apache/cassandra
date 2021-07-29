@@ -21,6 +21,7 @@ package org.apache.cassandra.db;
 import static org.junit.Assert.*;
 
 import java.io.*;
+import org.apache.cassandra.io.util.File;
 
 import com.google.common.base.Predicate;
 

@@ -44,10 +44,10 @@
     </module>
     <module name="IllegalImport">
       <property name="illegalPkgs" value=""/>
-      <property name="illegalClasses" value="java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.Executors,java.util.concurrent.LinkedBlockingQueue,java.util.concurrent.SynchronousQueue,java.util.concurrent.ArrayBlockingQueue,com.google.common.util.concurrent.Futures"/>
+      <property name="illegalClasses" value="java.io.File,java.io.FileInputStream,java.io.FileOutputStream,java.io.FileReader,java.io.FileWriter,java.io.RandomAccessFile,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.Executors,java.util.concurrent.LinkedBlockingQueue,java.util.concurrent.SynchronousQueue,java.util.concurrent.ArrayBlockingQueue,com.google.common.util.concurrent.Futures,java.util.concurrent.CompletableFuture"/>
     </module>
     <module name="IllegalInstantiation">
-      <property name="classes" value="java.lang.Thread,java.util.concurrent.FutureTask,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.ScheduledThreadPoolExecutor,java.util.concurrent.ThreadPoolExecutor,java.util.concurrent.ForkJoinPool))"/>
+      <property name="classes" value="java.io.File,java.lang.Thread,java.util.concurrent.FutureTask,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.ScheduledThreadPoolExecutor,java.util.concurrent.ThreadPoolExecutor,java.util.concurrent.ForkJoinPool))"/>
     </module>
   </module>
 

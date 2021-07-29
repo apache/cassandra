@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.lang.reflect.Field;
@@ -57,6 +56,7 @@ import com.beust.jcommander.ParameterDescription;
 import com.beust.jcommander.Parameterized;
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.Output;
 import org.gridkit.jvmtool.JmxConnectionInfo;
 import org.gridkit.jvmtool.cli.CommandLauncher;
@@ -464,15 +464,15 @@ public class Sjk extends NodeToolCmd
             {
                 // loop through files in classpath
                 File dir = new File(packageURL.getFile());
-                String cp = dir.getCanonicalPath();
+                String cp = dir.canonicalPath();
                 File root = dir;
                 while (true)
                 {
-                    if (cp.equals(new File(root, path).getCanonicalPath()))
+                    if (cp.equals(new File(root, path).canonicalPath()))
                     {
                         break;
                     }
-                    root = root.getParentFile();
+                    root = root.parent();
                 }
                 listFiles(results, root, dir);
             }
@@ -480,10 +480,10 @@ public class Sjk extends NodeToolCmd
 
         static void listFiles(List<String> names, File root, File dir)
         {
-            String rootPath = root.getAbsolutePath();
+            String rootPath = root.absolutePath();
             if (dir.exists() && dir.isDirectory())
             {
-                for (File file : dir.listFiles())
+                for (File file : dir.tryList())
                 {
                     if (file.isDirectory())
                     {
@@ -491,7 +491,7 @@ public class Sjk extends NodeToolCmd
                     }
                     else
                     {
-                        String name = file.getAbsolutePath().substring(rootPath.length() + 1);
+                        String name = file.absolutePath().substring(rootPath.length() + 1);
                         name = name.replace('\\', '/');
                         names.add(name);
                     }

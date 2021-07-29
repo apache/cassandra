@@ -19,7 +19,6 @@
 package org.apache.cassandra.hints;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -36,6 +35,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
@@ -56,7 +56,7 @@ public class HintsStoreTest
     @Before
     public void testSetup() throws IOException
     {
-        directory = Files.createTempDirectory(null).toFile();
+        directory = new File(Files.createTempDirectory(null));
         directory.deleteOnExit();
         hostId = UUID.randomUUID();
     }

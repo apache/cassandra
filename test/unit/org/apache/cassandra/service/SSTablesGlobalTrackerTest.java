@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.util.File;
 import org.assertj.core.util.Files;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.Generate;
@@ -99,7 +100,7 @@ public class SSTablesGlobalTrackerTest
                                         tables(),
                                         generations(),
                                         sstableVersionString(),
-                                        (f, k, t, g, v) -> new Descriptor(v, Files.currentFolder(), k, t, g, f));
+                                        (f, k, t, g, v) -> new Descriptor(v, new File(Files.currentFolder()), k, t, g, f));
     }
 
     private Gen<List<Descriptor>> descriptorLists(int minSize)

@@ -18,7 +18,6 @@
 package org.apache.cassandra.config;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -35,6 +34,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.SystemUtils;
 
 import org.slf4j.Logger;
@@ -79,14 +79,14 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             url = loader.getResource(configUrl);
             if (url == null)
             {
-                String required = "file:" + File.separator + File.separator;
+                String required = "file:" + File.pathSeparator() + File.pathSeparator();
                 if (!configUrl.startsWith(required))
                     throw new ConfigurationException(String.format(
                         "Expecting URI in variable: [cassandra.config]. Found[%s]. Please prefix the file with [%s%s] for local " +
                         "files and [%s<server>%s] for remote files. If you are executing this from an external tool, it needs " +
                         "to set Config.setClientMode(true) to avoid loading configuration.",
-                        configUrl, required, File.separator, required, File.separator));
-                throw new ConfigurationException("Cannot locate " + configUrl + ".  If this is a local file, please confirm you've provided " + required + File.separator + " as a URI prefix.");
+                        configUrl, required, File.pathSeparator(), required, File.pathSeparator()));
+                throw new ConfigurationException("Cannot locate " + configUrl + ".  If this is a local file, please confirm you've provided " + required + File.pathSeparator() + " as a URI prefix.");
             }
         }
 

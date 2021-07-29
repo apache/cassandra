@@ -28,13 +28,14 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
 /**
  * SSTable components and their sizes to be tranfered via entire-sstable-streaming
  */
+import org.apache.cassandra.io.util.File;
+
 public final class ComponentManifest implements Iterable<Component>
 {
     private static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,

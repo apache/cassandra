@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,6 +26,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -148,7 +148,7 @@ final class HintsCatalog
 
     void fsyncDirectory()
     {
-        int fd = NativeLibrary.tryOpenDirectory(hintsDirectory.getAbsolutePath());
+        int fd = NativeLibrary.tryOpenDirectory(hintsDirectory.absolutePath());
         if (fd != -1)
         {
             try
@@ -158,14 +158,14 @@ final class HintsCatalog
             }
             catch (FSError e) // trySync failed
             {
-                logger.error("Unable to sync directory {}", hintsDirectory.getAbsolutePath(), e);
+                logger.error("Unable to sync directory {}", hintsDirectory.absolutePath(), e);
                 FileUtils.handleFSErrorAndPropagate(e);
             }
         }
         else if (!FBUtilities.isWindows)
         {
-            logger.error("Unable to open directory {}", hintsDirectory.getAbsolutePath());
-            FileUtils.handleFSErrorAndPropagate(new FSWriteError(new IOException(String.format("Unable to open hint directory %s", hintsDirectory.getAbsolutePath())), hintsDirectory.getAbsolutePath()));
+            logger.error("Unable to open directory {}", hintsDirectory.absolutePath());
+            FileUtils.handleFSErrorAndPropagate(new FSWriteError(new IOException(String.format("Unable to open hint directory %s", hintsDirectory.absolutePath())), hintsDirectory.absolutePath()));
         }
     }
 

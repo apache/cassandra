@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 import com.google.common.io.Files;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
@@ -46,9 +46,9 @@ public class CQLSSTableWriterLongTest
         String TABLE = "table1";
         int size = 30000;
 
-        File tempdir = Files.createTempDir();
-        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
-        assert dataDir.mkdirs();
+        File tempdir = new File(Files.createTempDir());
+        File dataDir = new File(tempdir.absolutePath() + File.pathSeparator() + KS + File.pathSeparator() + TABLE);
+        assert dataDir.tryCreateDirectories();
 
         StringBuilder schemaColumns = new StringBuilder();
         StringBuilder queryColumns = new StringBuilder();

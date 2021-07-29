@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.config;
 
-import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 

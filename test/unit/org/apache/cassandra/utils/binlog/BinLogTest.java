@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -29,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -79,9 +79,9 @@ public class BinLogTest
         {
             binLog.stop();
         }
-        for (File f : path.toFile().listFiles())
+        for (File f : new File(path).tryList())
         {
-            f.delete();
+            f.tryDelete();
         }
     }
 

@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
@@ -34,6 +33,7 @@ import java.util.regex.Pattern;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -111,7 +111,7 @@ public class CommitLogArchiver
                         File directory = new File(dir);
                         if (!directory.exists())
                         {
-                            if (!directory.mkdir())
+                            if (!directory.tryCreateDirectory())
                             {
                                 throw new RuntimeException("Unable to create directory: " + dir);
                             }
@@ -225,7 +225,7 @@ public class CommitLogArchiver
 
         for (String dir : restoreDirectories.split(DELIMITER))
         {
-            File[] files = new File(dir).listFiles();
+            File[] files = new File(dir).tryList();
             if (files == null)
             {
                 throw new RuntimeException("Unable to list directory " + dir);
@@ -233,14 +233,14 @@ public class CommitLogArchiver
             for (File fromFile : files)
             {
                 CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile, DatabaseDescriptor.getEncryptionContext());
-                CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.getName()) ? CommitLogDescriptor.fromFileName(fromFile.getName()) : null;
+                CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.name()) ? CommitLogDescriptor.fromFileName(fromFile.name()) : null;
                 CommitLogDescriptor descriptor;
                 if (fromHeader == null && fromName == null)
-                    throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.getPath());
+                    throw new IllegalStateException("Cannot safely construct descriptor for segment, either from its name or its header: " + fromFile.path());
                 else if (fromHeader != null && fromName != null && !fromHeader.equalsIgnoringCompression(fromName))
-                    throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.getPath()));
+                    throw new IllegalStateException(String.format("Cannot safely construct descriptor for segment, as name and header descriptors do not match (%s vs %s): %s", fromHeader, fromName, fromFile.path()));
                 else if (fromName != null && fromHeader == null)
-                    throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.getPath());
+                    throw new IllegalStateException("Cannot safely construct descriptor for segment, as name descriptor implies a version that should contain a header descriptor, but that descriptor could not be read: " + fromFile.path());
                 else if (fromHeader != null)
                     descriptor = fromHeader;
                 else descriptor = fromName;
@@ -264,12 +264,12 @@ public class CommitLogArchiver
                 if (toFile.exists())
                 {
                     logger.trace("Skipping restore of archive {} as the segment already exists in the restore location {}",
-                                 fromFile.getPath(), toFile.getPath());
+                                 fromFile.path(), toFile.path());
                     continue;
                 }
 
-                String command = FROM.matcher(restoreCommand).replaceAll(Matcher.quoteReplacement(fromFile.getPath()));
-                command = TO.matcher(command).replaceAll(Matcher.quoteReplacement(toFile.getPath()));
+                String command = FROM.matcher(restoreCommand).replaceAll(Matcher.quoteReplacement(fromFile.path()));
+                command = TO.matcher(command).replaceAll(Matcher.quoteReplacement(toFile.path()));
                 try
                 {
                     exec(command);

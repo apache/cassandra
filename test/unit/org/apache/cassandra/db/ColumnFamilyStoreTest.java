@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -48,6 +47,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -457,7 +457,7 @@ public class ColumnFamilyStoreTest
         String baseTableFile = manifest.getFiles().get(0);
         String indexTableFile = manifest.getFiles().get(1);
         assertThat(baseTableFile).isNotEqualTo(indexTableFile);
-        assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile())).isTrue();
+        assertThat(Directories.isSecondaryIndexFolder(new File(indexTableFile).parent())).isTrue();
         assertThat(indexTableFile).endsWith(baseTableFile);
     }
 
@@ -546,7 +546,7 @@ public class ColumnFamilyStoreTest
 
         String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
         String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
-        new File(dataFileName).renameTo(new File(tmpDataFileName));
+        new File(dataFileName).tryMove(new File(tmpDataFileName));
 
         ssTable.selfRef().release();
 

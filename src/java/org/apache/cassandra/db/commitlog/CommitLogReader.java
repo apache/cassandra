@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,7 +100,7 @@ public class CommitLogReader
             {
                 if (shouldSkip(file))
                 {
-                    logger.info("Skipping playback of empty log: {}", file.getName());
+                    logger.info("Skipping playback of empty log: {}", file.name());
                 }
                 else
                 {
@@ -172,7 +173,7 @@ public class CommitLogReader
                                      boolean tolerateTruncation) throws IOException
     {
         // just transform from the file name (no reading of headers) to determine version
-        CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
+        CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.name());
 
         try(RandomAccessReader reader = RandomAccessReader.open(file))
         {
@@ -263,7 +264,7 @@ public class CommitLogReader
     private boolean shouldSkipSegmentId(File file, CommitLogDescriptor desc, CommitLogPosition minPosition)
     {
         logger.debug("Reading {} (CL version {}, messaging version {}, compression {})",
-            file.getPath(),
+            file.path(),
             desc.version,
             desc.getMessagingVersion(),
             desc.compression);

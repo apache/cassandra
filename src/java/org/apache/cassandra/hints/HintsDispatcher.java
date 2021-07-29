@@ -17,23 +17,23 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 
 import static org.apache.cassandra.hints.HintsDispatcher.Callback.Outcome.*;

@@ -19,7 +19,6 @@
 package org.apache.cassandra.test.microbench;
 
 
-import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.*;
@@ -29,6 +28,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.openjdk.jmh.annotations.*;
 
@@ -108,7 +108,7 @@ public class CompactionBench extends CQLTester
 
         for (File file : directories)
         {
-            for (File f : file.listFiles())
+            for (File f : file.tryList())
             {
                 if (f.isDirectory())
                     continue;
@@ -119,7 +119,7 @@ public class CompactionBench extends CQLTester
 
 
         for (File file : snapshotFiles)
-            FileUtils.createHardLink(file, new File(file.toPath().getParent().getParent().getParent().toFile(), file.getName()));
+            FileUtils.createHardLink(file, new File(new File(file.toPath().getParent().getParent().getParent()), file.name()));
 
         cfs.loadNewSSTables();
     }

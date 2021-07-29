@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,6 +38,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.primitives.Longs;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1144,13 +1144,13 @@ public class CompactionStrategyManager implements INotificationConsumer
                 {
                     int idx = holder.getStrategyIndex(strategy);
                     if (idx >= 0)
-                        return Collections.singletonList(locations[idx].location.getAbsolutePath());
+                        return Collections.singletonList(locations[idx].location.absolutePath());
                 }
             }
             List<String> folders = new ArrayList<>(locations.length);
             for (Directories.DataDirectory location : locations)
             {
-                folders.add(location.location.getAbsolutePath());
+                folders.add(location.location.absolutePath());
             }
             return folders;
         }

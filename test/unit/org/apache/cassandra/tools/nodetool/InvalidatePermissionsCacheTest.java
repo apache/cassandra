@@ -60,8 +60,8 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                 authorizer,
                 new AuthTestUtils.LocalCassandraNetworkAuthorizer());
 
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOprions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOprions());
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
 
         List<IResource> resources = Arrays.asList(
                 DataResource.root(),

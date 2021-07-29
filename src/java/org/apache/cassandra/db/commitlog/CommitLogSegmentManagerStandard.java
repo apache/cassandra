@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.commitlog;
 
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 
 public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentManager

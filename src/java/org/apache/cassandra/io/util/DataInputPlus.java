@@ -60,6 +60,8 @@ public interface DataInputPlus extends DataInput
 
     /**
      * Wrapper around an InputStream that provides no buffering but can decode varints
+     *
+     * TODO: probably shouldn't use DataInputStream as a parent
      */
     public class DataInputStreamPlus extends DataInputStream implements DataInputPlus
     {

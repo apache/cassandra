@@ -20,9 +20,7 @@ package org.apache.cassandra.locator;
 import java.io.DataInputStream;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.File;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URI;
@@ -31,6 +29,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.SystemKeyspace;

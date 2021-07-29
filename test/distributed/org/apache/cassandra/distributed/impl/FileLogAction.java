@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -28,6 +27,7 @@ import java.util.function.Predicate;
 
 import com.google.common.io.Closeables;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.LineIterator;
@@ -53,7 +53,7 @@ public class FileLogAction implements LogAction
         RandomAccessFile reader;
         try
         {
-            reader = new RandomAccessFile(file, "r");
+            reader = new RandomAccessFile(file.toJavaIOFile(), "r");
         }
         catch (FileNotFoundException e)
         {

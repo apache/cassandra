@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.io.RandomAccessFile;
 import java.lang.management.ManagementFactory;
 import java.nio.MappedByteBuffer;
@@ -26,6 +25,7 @@ import java.nio.file.StandardOpenOption;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -56,17 +56,17 @@ public class MmapFileTest
         {
             int size = 1024 * 1024;
 
-            try (RandomAccessFile raf = new RandomAccessFile(f1, "rw"))
+            try (RandomAccessFile raf = new RandomAccessFile(f1.toJavaIOFile(), "rw"))
             {
                 raf.setLength(size);
             }
 
-            try (RandomAccessFile raf = new RandomAccessFile(f2, "rw"))
+            try (RandomAccessFile raf = new RandomAccessFile(f2.toJavaIOFile(), "rw"))
             {
                 raf.setLength(size);
             }
 
-            try (RandomAccessFile raf = new RandomAccessFile(f3, "rw"))
+            try (RandomAccessFile raf = new RandomAccessFile(f3.toJavaIOFile(), "rw"))
             {
                 raf.setLength(size);
             }
@@ -148,16 +148,16 @@ public class MmapFileTest
             Assert.assertEquals("# of mapped buffers should be 0", Long.valueOf(0L), mmapCount);
             Assert.assertEquals("amount of mapped memory should be 0", Long.valueOf(0L), mmapMemoryUsed);
 
-            Assert.assertTrue(f1.delete());
-            Assert.assertTrue(f2.delete());
-            Assert.assertTrue(f3.delete());
+            Assert.assertTrue(f1.tryDelete());
+            Assert.assertTrue(f2.tryDelete());
+            Assert.assertTrue(f3.tryDelete());
         }
         finally
         {
             Runtime.getRuntime().gc();
-            f1.delete();
-            f2.delete();
-            f3.delete();
+            f1.tryDelete();
+            f2.tryDelete();
+            f3.tryDelete();
         }
     }
 }

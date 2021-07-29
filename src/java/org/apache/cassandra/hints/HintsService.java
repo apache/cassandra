@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.hints;
 
-import java.io.File;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +32,7 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;

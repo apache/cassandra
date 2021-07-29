@@ -18,7 +18,7 @@
 */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 
 import org.junit.BeforeClass;

@@ -18,11 +18,10 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -37,6 +36,8 @@ import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.rows.AbstractCell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -441,7 +442,7 @@ public class TTLTest extends CQLTester
     {
         File destDir = Keyspace.open(keyspace()).getColumnFamilyStore(table).getDirectories().getCFDirectories().iterator().next();
         File sourceDir = getTableDir(table, simple, clustering);
-        for (File file : sourceDir.listFiles())
+        for (File file : sourceDir.tryList())
         {
             copyFile(file, destDir);
         }
@@ -457,12 +458,13 @@ public class TTLTest extends CQLTester
         byte[] buf = new byte[65536];
         if (src.isFile())
         {
-            File target = new File(dest, src.getName());
+            File target = new File(dest, src.name());
             int rd;
-            FileInputStream is = new FileInputStream(src);
-            FileOutputStream os = new FileOutputStream(target);
+            FileInputStreamPlus is = new FileInputStreamPlus(src);
+            FileOutputStreamPlus os = new FileOutputStreamPlus(target);
             while ((rd = is.read(buf)) >= 0)
                 os.write(buf, 0, rd);
+            os.close();
         }
     }
 

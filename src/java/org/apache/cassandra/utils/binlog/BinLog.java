@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -363,11 +363,11 @@ public class BinLog implements Runnable
         public Builder path(Path path)
         {
             Preconditions.checkNotNull(path, "path was null");
-            File pathAsFile = path.toFile();
+            File pathAsFile = new File(path);
             //Exists and is a directory or can be created
             Preconditions.checkArgument(!pathAsFile.toString().isEmpty(), "you might have forgotten to specify a directory to save logs");
-            Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) || (!pathAsFile.exists() && pathAsFile.mkdirs()), "path exists and is not a directory or couldn't be created");
-            Preconditions.checkArgument(pathAsFile.canRead() && pathAsFile.canWrite() && pathAsFile.canExecute(), "path is not readable, writable, and executable");
+            Preconditions.checkArgument((pathAsFile.exists() && pathAsFile.isDirectory()) || (!pathAsFile.exists() && pathAsFile.tryCreateDirectories()), "path exists and is not a directory or couldn't be created");
+            Preconditions.checkArgument(pathAsFile.isReadable() && pathAsFile.isWritable() && pathAsFile.isExecutable(), "path is not readable, writable, and executable");
             this.path = path;
             return this;
         }
@@ -432,7 +432,7 @@ public class BinLog implements Runnable
                     logger.info("Cleaning directory: {} as requested", path);
                     if (path.toFile().exists())
                     {
-                        Throwable error = cleanDirectory(path.toFile(), null);
+                        Throwable error = cleanDirectory(new File(path), null);
                         if (error != null)
                         {
                             throw new RuntimeException(error);
@@ -471,7 +471,7 @@ public class BinLog implements Runnable
         {
             return Throwables.merge(accumulate, new RuntimeException(String.format("%s is not a directory", directory)));
         }
-        for (File f : directory.listFiles())
+        for (File f : directory.tryList())
         {
             accumulate = deleteRecursively(f, accumulate);
         }
@@ -486,7 +486,7 @@ public class BinLog implements Runnable
     {
         if (fileOrDirectory.isDirectory())
         {
-            for (File f : fileOrDirectory.listFiles())
+            for (File f : fileOrDirectory.tryList())
             {
                 accumulate = FileUtils.deleteWithConfirm(f, accumulate);
             }

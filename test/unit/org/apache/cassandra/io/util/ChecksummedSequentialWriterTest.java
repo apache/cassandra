@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.io.util;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +43,7 @@ public class ChecksummedSequentialWriterTest extends SequentialWriterTest
     public void cleanup()
     {
         for (TestableSW sw : writers)
-            sw.file.delete();
+            sw.file.tryDelete();
         writers.clear();
     }
 

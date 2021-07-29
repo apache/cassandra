@@ -17,10 +17,18 @@
  */
 package org.apache.cassandra.io;
 
-import java.io.File;
+
+import java.nio.file.Path;
+
+import org.apache.cassandra.io.util.File;
 
 public class FSReadError extends FSError
 {
+    public FSReadError(Throwable cause, Path path)
+    {
+        super(cause, path);
+    }
+
     public FSReadError(Throwable cause, File path)
     {
         super(cause, path);

@@ -20,10 +20,10 @@
  */
 package org.apache.cassandra.index.sasi;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;

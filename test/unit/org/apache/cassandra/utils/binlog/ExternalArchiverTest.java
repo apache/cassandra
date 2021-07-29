@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.utils.binlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +29,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
@@ -48,21 +48,21 @@ public class ExternalArchiverTest
         String script = s.left;
         String dir = s.right;
         Path logdirectory = Files.createTempDirectory("logdirectory");
-        File logfileToArchive = Files.createTempFile(logdirectory, "logfile", "xyz").toFile();
+        File logfileToArchive = new File(Files.createTempFile(logdirectory, "logfile", "xyz"));
         Files.write(logfileToArchive.toPath(), "content".getBytes());
 
         ExternalArchiver ea = new ExternalArchiver(script+" %path", null, 10);
-        ea.onReleased(1, logfileToArchive);
+        ea.onReleased(1, logfileToArchive.toJavaIOFile());
         while (logfileToArchive.exists())
         {
             Thread.sleep(100);
         }
 
-        File movedFile = new File(dir, logfileToArchive.getName());
+        File movedFile = new File(dir, logfileToArchive.name());
         assertTrue(movedFile.exists());
         movedFile.deleteOnExit();
         ea.stop();
-        assertEquals(0, logdirectory.toFile().listFiles().length);
+        assertEquals(0, new File(logdirectory).tryList().length);
     }
 
     @Test
@@ -75,7 +75,7 @@ public class ExternalArchiverTest
         Path dir = Files.createTempDirectory("archive");
         for (int i = 0; i < 10; i++)
         {
-            File logfileToArchive = Files.createTempFile(dir, "logfile", SingleChronicleQueue.SUFFIX).toFile();
+            File logfileToArchive = new File(Files.createTempFile(dir, "logfile", SingleChronicleQueue.SUFFIX));
             logfileToArchive.deleteOnExit();
             Files.write(logfileToArchive.toPath(), ("content"+i).getBytes());
             existingFiles.add(logfileToArchive);
@@ -94,13 +94,13 @@ public class ExternalArchiverTest
                     Thread.sleep(100);
                     break;
                 }
-                File movedFile = new File(moveDir, f.getName());
+                File movedFile = new File(moveDir, f.name());
                 assertTrue(movedFile.exists());
                 movedFile.deleteOnExit();
             }
         }
         ea.stop();
-        assertEquals(0, dir.toFile().listFiles().length);
+        assertEquals(0, new File(dir).tryList().length);
     }
 
     @Test
@@ -114,7 +114,7 @@ public class ExternalArchiverTest
         List<File> existingFiles = new ArrayList<>();
         for (int i = 0; i < 10; i++)
         {
-            File logfileToArchive = Files.createTempFile(dir, "logfile", SingleChronicleQueue.SUFFIX).toFile();
+            File logfileToArchive = new File(Files.createTempFile(dir, "logfile", SingleChronicleQueue.SUFFIX));
             logfileToArchive.deleteOnExit();
             Files.write(logfileToArchive.toPath(), ("content"+i).getBytes());
             existingFiles.add(logfileToArchive);
@@ -124,7 +124,7 @@ public class ExternalArchiverTest
         for (File f : existingFiles)
         {
             assertFalse(f.exists());
-            File movedFile = new File(moveDir, f.getName());
+            File movedFile = new File(moveDir, f.name());
             assertTrue(movedFile.exists());
             movedFile.deleteOnExit();
         }
@@ -144,7 +144,7 @@ public class ExternalArchiverTest
         String script = s.left;
         String moveDir = s.right;
         Path logdirectory = Files.createTempDirectory("logdirectory");
-        File logfileToArchive = Files.createTempFile(logdirectory, "logfile", "xyz").toFile();
+        File logfileToArchive = new File(Files.createTempFile(logdirectory, "logfile", "xyz"));
         Files.write(logfileToArchive.toPath(), "content".getBytes());
         AtomicInteger tryCounter = new AtomicInteger();
         AtomicBoolean success = new AtomicBoolean();
@@ -154,7 +154,7 @@ public class ExternalArchiverTest
             ExternalArchiver.exec(cmd);
             success.set(true);
         });
-        ea.onReleased(0, logfileToArchive);
+        ea.onReleased(0, logfileToArchive.toJavaIOFile());
         while (tryCounter.get() < 2) // while we have only executed this 0 or 1 times, the file should still be on disk
         {
             Thread.sleep(100);
@@ -167,7 +167,7 @@ public class ExternalArchiverTest
         // there will be 3 attempts in total, 2 failing ones, then the successful one:
         assertEquals(3, tryCounter.get());
         assertFalse(logfileToArchive.exists());
-        File movedFile = new File(moveDir, logfileToArchive.getName());
+        File movedFile = new File(moveDir, logfileToArchive.name());
         assertTrue(movedFile.exists());
         ea.stop();
     }
@@ -188,7 +188,7 @@ public class ExternalArchiverTest
         String script = s.left;
         String moveDir = s.right;
         Path logdirectory = Files.createTempDirectory("logdirectory");
-        File logfileToArchive = Files.createTempFile(logdirectory, "logfile", "xyz").toFile();
+        File logfileToArchive = new File(Files.createTempFile(logdirectory, "logfile", "xyz"));
         Files.write(logfileToArchive.toPath(), "content".getBytes());
 
         AtomicInteger tryCounter = new AtomicInteger();
@@ -206,7 +206,7 @@ public class ExternalArchiverTest
                 throw t;
             }
         });
-        ea.onReleased(0, logfileToArchive);
+        ea.onReleased(0, logfileToArchive.toJavaIOFile());
         while (tryCounter.get() < 3)
             Thread.sleep(500);
         assertTrue(logfileToArchive.exists());
@@ -214,9 +214,9 @@ public class ExternalArchiverTest
         Thread.sleep(5000);
         assertTrue(logfileToArchive.exists());
         assertFalse(success.get());
-        File [] fs = new File(moveDir).listFiles(f ->
+        File [] fs = new File(moveDir).tryList(f ->
                                                  {
-                                                     if (f.getName().startsWith("file."))
+                                                     if (f.name().startsWith("file."))
                                                      {
                                                          f.deleteOnExit();
                                                          return true;
@@ -230,24 +230,24 @@ public class ExternalArchiverTest
 
     private Pair<String, String> createScript() throws IOException
     {
-        File f = Files.createTempFile("script", "", PosixFilePermissions.asFileAttribute(Sets.newHashSet(PosixFilePermission.OWNER_WRITE,
+        File f = new File(Files.createTempFile("script", "", PosixFilePermissions.asFileAttribute(Sets.newHashSet(PosixFilePermission.OWNER_WRITE,
                                                                                                          PosixFilePermission.OWNER_READ,
-                                                                                                         PosixFilePermission.OWNER_EXECUTE))).toFile();
+                                                                                                         PosixFilePermission.OWNER_EXECUTE))));
         f.deleteOnExit();
-        File dir = Files.createTempDirectory("archive").toFile();
+        File dir = new File(Files.createTempDirectory("archive"));
         dir.deleteOnExit();
-        String script = "#!/bin/sh\nmv $1 "+dir.getAbsolutePath();
+        String script = "#!/bin/sh\nmv $1 "+dir.absolutePath();
         Files.write(f.toPath(), script.getBytes());
-        return Pair.create(f.getAbsolutePath(), dir.getAbsolutePath());
+        return Pair.create(f.absolutePath(), dir.absolutePath());
     }
 
     private Pair<String, String> createFailingScript(int failures) throws IOException
     {
-        File f = Files.createTempFile("script", "", PosixFilePermissions.asFileAttribute(Sets.newHashSet(PosixFilePermission.OWNER_WRITE,
+        File f = new File(Files.createTempFile("script", "", PosixFilePermissions.asFileAttribute(Sets.newHashSet(PosixFilePermission.OWNER_WRITE,
                                                                                                          PosixFilePermission.OWNER_READ,
-                                                                                                         PosixFilePermission.OWNER_EXECUTE))).toFile();
+                                                                                                         PosixFilePermission.OWNER_EXECUTE))));
         f.deleteOnExit();
-        File dir = Files.createTempDirectory("archive").toFile();
+        File dir = new File(Files.createTempDirectory("archive"));
         dir.deleteOnExit();
         // this script counts files in dir.getAbsolutePath, then if there are more than failures files in there, it moves the actual file
         String script = "#!/bin/bash%n" +
@@ -262,7 +262,7 @@ public class ExternalArchiverTest
                         "    mv $1 $DIR%n"+
                         "fi%n";
 
-        Files.write(f.toPath(), String.format(script, dir.getAbsolutePath(), failures).getBytes());
-        return Pair.create(f.getAbsolutePath(), dir.getAbsolutePath());
+        Files.write(f.toPath(), String.format(script, dir.absolutePath(), failures).getBytes());
+        return Pair.create(f.absolutePath(), dir.absolutePath());
     }
 }

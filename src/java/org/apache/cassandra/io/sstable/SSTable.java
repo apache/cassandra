@@ -17,9 +17,14 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
+
+import java.io.FileNotFoundException;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -27,7 +32,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Sets;
-import com.google.common.io.Files;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,6 +52,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 
+import static org.apache.cassandra.io.util.File.WriteMode.APPEND;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -233,7 +239,7 @@ public abstract class SSTable
             {
                 return readTOC(desc);
             }
-            catch (FileNotFoundException e)
+            catch (FileNotFoundException | NoSuchFileException e)
             {
                 Set<Component> components = discoverComponentsFor(desc);
                 if (components.isEmpty())
@@ -317,7 +323,7 @@ public abstract class SSTable
     protected static Set<Component> readTOC(Descriptor descriptor, boolean skipMissing) throws IOException
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        List<String> componentNames = Files.readLines(tocFile, Charset.defaultCharset());
+        List<String> componentNames = Files.readAllLines(tocFile.toPath());
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
         for (String componentName : componentNames)
         {
@@ -336,7 +342,7 @@ public abstract class SSTable
     protected static void appendTOC(Descriptor descriptor, Collection<Component> components)
     {
         File tocFile = new File(descriptor.filenameFor(Component.TOC));
-        try (PrintWriter w = new PrintWriter(new FileWriter(tocFile, true)))
+        try (PrintWriter w = new PrintWriter(tocFile.newWriter(APPEND)))
         {
             for (Component component : components)
                 w.println(component.name);

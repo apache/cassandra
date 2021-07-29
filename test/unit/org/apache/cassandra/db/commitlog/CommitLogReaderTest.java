@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -191,7 +191,7 @@ public class CommitLogReaderTest extends CQLTester
     static ArrayList<File> getCommitLogs()
     {
         File dir = new File(DatabaseDescriptor.getCommitLogLocation());
-        File[] files = dir.listFiles();
+        File[] files = dir.tryList();
         ArrayList<File> results = new ArrayList<>();
         for (File f : files)
         {

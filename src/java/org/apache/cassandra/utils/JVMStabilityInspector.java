@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.nio.file.FileSystemException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -141,7 +142,7 @@ public final class JVMStabilityInspector
         fn.accept(t);
 
         // Check for file handle exhaustion
-        if (t instanceof FileNotFoundException || t instanceof SocketException)
+        if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)
             if (t.getMessage() != null && t.getMessage().contains("Too many open files"))
                 isUnstable = true;
 

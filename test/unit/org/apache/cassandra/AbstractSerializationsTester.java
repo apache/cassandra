@@ -20,19 +20,14 @@
 package org.apache.cassandra;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.net.MessagingService;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.cassandra.io.util.File;
 
 public class AbstractSerializationsTester
 {
@@ -57,16 +52,16 @@ public class AbstractSerializationsTester
         assert out.getLength() == serializer.serializedSize(obj, getVersion());
     }
 
-    protected static DataInputStreamPlus getInput(String name) throws IOException
+    protected static FileInputStreamPlus getInput(String name) throws IOException
     {
         return getInput(CUR_VER, name);
     }
 
-    protected static DataInputStreamPlus getInput(String version, String name) throws IOException
+    protected static FileInputStreamPlus getInput(String version, String name) throws IOException
     {
         File f = new File("test/data/serialization/" + version + '/' + name);
-        assert f.exists() : f.getPath();
-        return new DataInputPlus.DataInputStreamPlus(new FileInputStream(f));
+        assert f.exists() : f.path();
+        return new FileInputStreamPlus(f);
     }
 
     @SuppressWarnings("resource")
@@ -79,7 +74,7 @@ public class AbstractSerializationsTester
     protected static DataOutputStreamPlus getOutput(String version, String name) throws IOException
     {
         File f = new File("test/data/serialization/" + version + '/' + name);
-        f.getParentFile().mkdirs();
-        return new BufferedDataOutputStreamPlus(new FileOutputStream(f).getChannel());
+        f.parent().tryCreateDirectories();
+        return new FileOutputStreamPlus(f);
     }
 }

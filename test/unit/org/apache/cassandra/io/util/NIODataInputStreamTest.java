@@ -25,7 +25,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -224,7 +223,7 @@ public class NIODataInputStreamTest
         assertEquals(8190 - 10 - 4096, is.available());
 
         File f = FileUtils.createTempFile("foo", "bar");
-        RandomAccessFile fos = new RandomAccessFile(f, "rw");
+        RandomAccessFile fos = new RandomAccessFile(f.toJavaIOFile(), "rw");
         fos.write(new byte[10]);
         fos.seek(0);
 

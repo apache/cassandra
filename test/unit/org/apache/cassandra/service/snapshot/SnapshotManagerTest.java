@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
@@ -33,9 +32,11 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 
+import static org.apache.cassandra.service.snapshot.TableSnapshotTest.createFolders;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SnapshotManagerTest
@@ -52,20 +53,6 @@ public class SnapshotManagerTest
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    public Set<File> createFolders() throws IOException {
-        File folder = temporaryFolder.newFolder();
-        Set<File> folders = new HashSet<>();
-        for (String folderName : Arrays.asList("foo", "bar", "buzz")) {
-            File subfolder = new File(folder, folderName);
-            subfolder.mkdir();
-            assertThat(subfolder).exists();
-            folders.add(subfolder);
-        };
-
-        return folders;
-    }
-
-
     private TableSnapshot generateSnapshotDetails(String tag, Instant expiration) throws Exception {
         return new TableSnapshot(
             "ks",
@@ -73,7 +60,7 @@ public class SnapshotManagerTest
             tag,
             Instant.EPOCH,
             expiration,
-            createFolders(),
+            createFolders(temporaryFolder),
             (file) -> 0L
         );
     }

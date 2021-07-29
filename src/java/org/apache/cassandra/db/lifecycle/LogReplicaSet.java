@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.io.File;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -29,6 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -61,7 +61,7 @@ public class LogReplicaSet implements AutoCloseable
 
     void addReplica(File file)
     {
-        File directory = file.getParentFile();
+        File directory = file.parent();
         assert !replicasByFile.containsKey(directory);
         try
         {
@@ -268,6 +268,6 @@ public class LogReplicaSet implements AutoCloseable
     @VisibleForTesting
     List<String> getFilePaths()
     {
-        return replicas().stream().map(LogReplica::file).map(File::getPath).collect(Collectors.toList());
+        return replicas().stream().map(LogReplica::file).map(File::path).collect(Collectors.toList());
     }
 }

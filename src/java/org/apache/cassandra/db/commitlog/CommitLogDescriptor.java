@@ -22,9 +22,7 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.DataInput;
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -40,6 +38,8 @@ import com.google.common.base.Objects;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
 import org.json.simple.JSONValue;
@@ -131,9 +131,8 @@ public class CommitLogDescriptor
 
     public static CommitLogDescriptor fromHeader(File file, EncryptionContext encryptionContext)
     {
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r"))
+        try (FileInputStreamPlus raf = new FileInputStreamPlus(file))
         {
-            assert raf.getFilePointer() == 0;
             return readHeader(raf, encryptionContext);
         }
         catch (EOFException e)
