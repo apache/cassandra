@@ -25,7 +25,7 @@
 %define _binaries_in_noarch_packages_terminate_build   0
 
 # for python 2/3 support we rely on /usr/bin/python
-%define __python /usr/bin/python
+%define __python /usr/bin/python2
 
 %global username cassandra
 
