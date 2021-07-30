@@ -411,6 +411,10 @@ public final class NativeLibrary
         {
             return wrappedLibrary.callGetpid();
         }
+        catch (UnsatisfiedLinkError e)
+        {
+            // if JNA is unavailable just skipping
+        }
         catch (Exception e)
         {
             logger.info("Failed to get PID from JNA", e);
