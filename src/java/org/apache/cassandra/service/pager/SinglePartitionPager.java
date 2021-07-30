@@ -18,7 +18,9 @@
 package org.apache.cassandra.service.pager;
 
 import java.nio.ByteBuffer;
+import java.util.StringJoiner;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
@@ -26,7 +28,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Common interface to single partition queries (by slice and by name).
- *
+ * <p>
  * For use by MultiPartitionPager.
  */
 public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionReadQuery>
@@ -78,19 +80,25 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     public PagingState state()
     {
         return lastReturned == null
-             ? null
-             : new PagingState(null, lastReturned, maxRemaining(), remainingInPartition());
+               ? null
+               : new PagingState(null, lastReturned, maxRemaining(), remainingInPartition());
     }
 
     @Override
-    protected SinglePartitionReadQuery nextPageReadQuery(int pageSize)
+    protected SinglePartitionReadQuery nextPageReadQuery(PageSize pageSize, DataLimits limits)
     {
         Clustering<?> clustering = lastReturned == null ? null : lastReturned.clustering(query.metadata());
-        DataLimits limits = lastReturned == null
-                          ? limits().forPaging(pageSize)
-                          : limits().forPaging(pageSize, key(), remainingInPartition());
+        limits = lastReturned == null
+                 ? limits.forPaging(pageSize)
+                 : limits.forPaging(pageSize, key(), remainingInPartition());
 
         return query.forPaging(clustering, limits);
+    }
+
+    @Override
+    public boolean isExhausted()
+    {
+        return super.isExhausted() || remainingInPartition() == 0;
     }
 
     protected void recordLast(DecoratedKey key, Row last)
@@ -102,5 +110,14 @@ public class SinglePartitionPager extends AbstractQueryPager<SinglePartitionRead
     protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
     {
         return lastReturned != null;
+    }
+
+    @Override
+    public String toString()
+    {
+        return new StringJoiner(", ", SinglePartitionPager.class.getSimpleName() + "[", "]")
+               .add("super=" + super.toString())
+               .add("lastReturned=" + (lastReturned != null ? lastReturned.clustering(query.metadata()).toString(query.metadata()) : null))
+               .toString();
     }
 }
