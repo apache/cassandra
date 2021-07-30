@@ -43,6 +43,7 @@ import static org.apache.cassandra.net.MessagingService.VERSION_SG_10;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_41;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
 
 public class Mutation implements IMutation
@@ -283,6 +284,7 @@ public class Mutation implements IMutation
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize41;
     private int serializedSizeSG10;
 
     public int serializedSize(int version)
@@ -301,6 +303,10 @@ public class Mutation implements IMutation
                 if (serializedSize40 == 0)
                     serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_41:
+                if (serializedSize41 == 0)
+                    serializedSize41 = (int) serializer.serializedSize(this, VERSION_41);
+                return serializedSize41;
             case VERSION_SG_10:
                 if (serializedSizeSG10 == 0)
                     serializedSizeSG10 = (int) serializer.serializedSize(this, VERSION_SG_10);

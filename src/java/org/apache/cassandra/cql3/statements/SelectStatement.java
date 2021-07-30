@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -69,6 +70,8 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -76,6 +79,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.db.filter.DataLimits.NO_LIMIT;
 import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
 
 /**
@@ -90,8 +94,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
 public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
-
-    public static final int DEFAULT_PAGE_SIZE = 10000;
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
@@ -234,6 +236,24 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         if (SchemaConstants.isUserKeyspace(table.keyspace))
             Guardrails.disallowedWriteConsistencies.ensureAllowed(options.getConsistency(), queryState);
+
+        PageSize pageSize = options.getPageSize();
+        if (pageSize != null && options.getPageSize().isDefined() && pageSize.getUnit() == PageSize.PageUnit.BYTES)
+        {
+            Guardrails.pageSize.guard(pageSize.bytes(), "in bytes", false, queryState);
+        }
+    }
+
+    /**
+     * Returns whether the paging can be skipped based on the user limits and the page size - that is, if the user limit
+     * is provided and is lower than the page size, it means that we will only return at most one page and thus paging
+     * is unnecessary in this case. That applies to the page size defined in rows - if the page size is defined in bytes
+     * we cannot say anything about the relation beteween the user rows limit and the page size.
+     */
+    private boolean canSkipPaging(DataLimits userLimits, PageSize pageSize)
+    {
+        return !pageSize.isDefined() ||
+               pageSize.getUnit() == PageSize.PageUnit.ROWS && !pageSize.isCompleted(userLimits.count(), PageSize.PageUnit.ROWS);
     }
 
     public ResultMessage.Rows execute(QueryState queryState, QueryOptions options, long queryStartNanoTime)
@@ -247,12 +267,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int nowInSec = options.getNowInSeconds(queryState);
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
-        int pageSize = options.getPageSize();
+        PageSize pageSize = options.getPageSize();
 
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(queryState, options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
-        if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
+        if (query.limits().isGroupByLimit() && pageSize != null && pageSize.isDefined() && pageSize.getUnit() == PageSize.PageUnit.BYTES)
+            throw new InvalidRequestException("Paging in bytes cannot be specified for aggregation queries");
+
+        if (aggregationSpec == null && canSkipPaging(query.limits(), pageSize))
             return execute(query, options, queryState, selectors, nowInSec, userLimit, queryStartNanoTime);
 
         QueryPager pager = getPager(query, options);
@@ -270,11 +293,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         Selectors selectors = selection.newSelectors(options);
         return getQuery(state,
-        options,
-        selectors.getColumnFilter(),
-        nowInSec,
-        getLimit(options),
-        getPerPartitionLimit(options), options.getPageSize());
+                        options,
+                        selectors.getColumnFilter(),
+                        nowInSec,
+                        getLimit(options),
+                        getPerPartitionLimit(options),
+                        options.getPageSize());
     }
 
     public ReadQuery getQuery(QueryState queryState,
@@ -283,11 +307,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               int nowInSec,
                               int userLimit,
                               int perPartitionLimit,
-                              int pageSize)
+                              PageSize pageSize)
     {
         boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing() || restrictions.isDisjunction();
 
-        DataLimits limit = getDataLimits(userLimit, perPartitionLimit, pageSize);
+        DataLimits limit = getDataLimits(queryState, userLimit, perPartitionLimit);
 
         if (isPartitionRangeQuery)
             return getRangeCommand(options, columnFilter, limit, nowInSec, queryState);
@@ -344,7 +368,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             return pager.state();
         }
 
-        public abstract PartitionIterator fetchPage(int pageSize, long queryStartNanoTime);
+        public abstract PartitionIterator fetchPage(PageSize pageSize, long queryStartNanoTime);
 
         public static class NormalPager extends Pager
         {
@@ -358,7 +382,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 this.queryState = queryState;
             }
 
-            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
+            public PartitionIterator fetchPage(PageSize pageSize, long queryStartNanoTime)
             {
                 return pager.fetchPage(pageSize, consistency, queryState, queryStartNanoTime);
             }
@@ -374,7 +398,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 this.executionController = executionController;
             }
 
-            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
+            public PartitionIterator fetchPage(PageSize pageSize, long queryStartNanoTime)
             {
                 return pager.fetchPageInternal(pageSize, executionController);
             }
@@ -384,7 +408,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private ResultMessage.Rows execute(Pager pager,
                                        QueryOptions options,
                                        Selectors selectors,
-                                       int pageSize,
+                                       PageSize pageSize,
                                        int nowInSec,
                                        int userLimit,
                                        long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
@@ -403,7 +427,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         // We can't properly do post-query ordering if we page (see #6722)
         // For GROUP BY or aggregation queries we always page internally even if the user has turned paging off
-        checkFalse(pageSize > 0 && needsPostQueryOrdering(),
+        checkFalse(pageSize.isDefined() && needsPostQueryOrdering(),
                   "Cannot page queries with both ORDER BY and a IN restriction on the partition key;"
                   + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
 
@@ -446,14 +470,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
-        int pageSize = options.getPageSize();
+        PageSize pageSize = options.getPageSize();
 
         Selectors selectors = selection.newSelectors(options);
         ReadQuery query = getQuery(state, options, selectors.getColumnFilter(), nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
         try (ReadExecutionController executionController = query.executionController())
         {
-            if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
+            if (aggregationSpec == null && canSkipPaging(query.limits(), pageSize))
             {
                 try (PartitionIterator data = query.executeInternal(executionController))
                 {
@@ -473,14 +497,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    private QueryPager getPager(ReadQuery query, QueryOptions options)
+    @VisibleForTesting
+    public QueryPager getPager(ReadQuery query, QueryOptions options)
     {
         QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
 
         if (aggregationSpec == null || query.isEmpty())
             return pager;
 
-        return new AggregationQueryPager(pager, query.limits());
+        return new AggregationQueryPager(pager, DatabaseDescriptor.getAggregationSubPageSize(), query.limits());
     }
 
     public ResultSet process(PartitionIterator partitions, int nowInSec) throws InvalidRequestException
@@ -683,10 +708,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return builder.build();
     }
 
-    private DataLimits getDataLimits(int userLimit, int perPartitionLimit, int pageSize)
+    private DataLimits getDataLimits(QueryState queryState, int userLimit, int perPartitionLimit)
     {
-        int cqlRowLimit = DataLimits.NO_LIMIT;
-        int cqlPerPartitionLimit = DataLimits.NO_LIMIT;
+        int cqlRowLimit = NO_LIMIT;
+        int cqlPerPartitionLimit = NO_LIMIT;
 
         // If we do post ordering we need to get all the results sorted before we can trim them.
         if (aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
@@ -696,28 +721,39 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             cqlPerPartitionLimit = perPartitionLimit;
         }
 
-        // Group by and aggregation queries will always be paged internally to avoid OOM.
-        // If the user provided a pageSize we'll use that to page internally (because why not), otherwise we use our default
-        if (pageSize <= 0)
-            pageSize = DEFAULT_PAGE_SIZE;
+        DataLimits limits = null;
 
         // Aggregation queries work fine on top of the group by paging but to maintain
         // backward compatibility we need to use the old way.
         if (aggregationSpec != null && aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
         {
             if (parameters.isDistinct)
-                return DataLimits.distinctLimits(cqlRowLimit);
-
-            return DataLimits.groupByLimits(cqlRowLimit,
-                                            cqlPerPartitionLimit,
-                                            pageSize,
-                                            aggregationSpec);
+                limits = DataLimits.distinctLimits(cqlRowLimit);
+            else
+                limits = DataLimits.groupByLimits(cqlRowLimit,
+                                                  cqlPerPartitionLimit,
+                                                  NO_LIMIT,
+                                                  NO_LIMIT,
+                                                  aggregationSpec);
+        }
+        else
+        {
+            if (parameters.isDistinct)
+                limits = cqlRowLimit == NO_LIMIT ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(cqlRowLimit);
+            else
+                limits = DataLimits.cqlLimits(cqlRowLimit, cqlPerPartitionLimit);
         }
 
-        if (parameters.isDistinct)
-            return cqlRowLimit == DataLimits.NO_LIMIT ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(cqlRowLimit);
+        if (!limits.isGroupByLimit() && Guardrails.pageSize.enabled(queryState))
+        {
+            int bytesLimit = DatabaseDescriptor.getGuardrailsConfig().page_size_failure_threshold_in_kb * 1024;
+            String limitStr = "Applied page size limit of " + FBUtilities.prettyPrintMemory(bytesLimit);
+            ClientWarn.instance.warn(limitStr);
+            logger.trace(limitStr);
+            limits = limits.forPaging(PageSize.inBytes(bytesLimit));
+        }
 
-        return DataLimits.cqlLimits(cqlRowLimit, cqlPerPartitionLimit);
+        return limits;
     }
 
     /**
@@ -746,7 +782,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
     private int getLimit(Term limit, QueryOptions options)
     {
-        int userLimit = DataLimits.NO_LIMIT;
+        int userLimit = NO_LIMIT;
 
         if (limit != null)
         {

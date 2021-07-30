@@ -30,9 +30,9 @@ import java.util.concurrent.Future;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
@@ -43,11 +43,8 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.pager.QueryPager;
-import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -105,7 +102,7 @@ public class Coordinator implements ICoordinator
                                              QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                  boundBBValues,
                                                                  false,
-                                                                 Integer.MAX_VALUE,
+                                                                 PageSize.NONE,
                                                                  null,
                                                                  null,
                                                                  ProtocolVersion.CURRENT,
@@ -152,7 +149,7 @@ public class Coordinator implements ICoordinator
             QueryOptions initialOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
                                                               boundBBValues,
                                                               false,
-                                                              pageSize,
+                                                              PageSize.inRows(pageSize),
                                                               null,
                                                               null,
                                                               ProtocolVersion.CURRENT,
@@ -175,7 +172,7 @@ public class Coordinator implements ICoordinator
                     QueryOptions nextOptions = QueryOptions.create(toCassandraCL(consistencyLevel),
                                                                    boundBBValues,
                                                                    true,
-                                                                   pageSize,
+                                                                   PageSize.inRows(pageSize),
                                                                    rows.result.metadata.getPagingState(),
                                                                    null,
                                                                    ProtocolVersion.CURRENT,
