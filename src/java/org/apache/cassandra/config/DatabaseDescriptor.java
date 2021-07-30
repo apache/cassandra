@@ -43,6 +43,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
@@ -895,6 +896,11 @@ public class DatabaseDescriptor
         }
 
         validateMaxConcurrentAutoUpgradeTasksConf(conf.max_concurrent_automatic_sstable_upgrades);
+
+        if (conf.aggregation_subpage_size_in_kb < 1)
+            throw new ConfigurationException("aggregation_subpage_size_in_kb must be greater than 0");
+
+        setAggregationSubPageSize(getAggregationSubPageSize());
     }
 
     @VisibleForTesting
@@ -3469,5 +3475,17 @@ public class DatabaseDescriptor
     public static boolean isEmulateDbaasDefaults()
     {
         return conf.emulate_dbaas_defaults;
+    }
+
+    public static PageSize getAggregationSubPageSize()
+    {
+        return PageSize.inBytes(conf.aggregation_subpage_size_in_kb * 1024);
+    }
+
+    public static void setAggregationSubPageSize(PageSize pageSize)
+    {
+        Preconditions.checkArgument(!pageSize.isDefined() || pageSize.getUnit() == PageSize.PageUnit.BYTES);
+        Preconditions.checkArgument(pageSize.bytes() >= 1024);
+        conf.aggregation_subpage_size_in_kb = pageSize.bytes() / 1024;
     }
 }

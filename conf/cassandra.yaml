@@ -1394,6 +1394,10 @@ report_unconfirmed_repaired_data_mismatches: false
 # table_count_warn_threshold: 150
 # keyspace_count_warn_threshold: 40
 
+# This is the page size used internally by aggregation queries. It aims to limit the memory used by aggregation
+# queries when there is a lot of data to aggregate.
+# aggregation_subpage_size_in_kb: 2048
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################

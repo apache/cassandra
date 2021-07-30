@@ -93,6 +93,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.TransparentDataEncryptionOptions",
     "org.apache.cassandra.config.StorageAttachedIndexOptions",
+    "org.apache.cassandra.cql3.PageSize",
     "org.apache.cassandra.db.ConsistencyLevel",
     "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerFactory",
     "org.apache.cassandra.db.commitlog.DefaultCommitLogSegmentMgrFactory",

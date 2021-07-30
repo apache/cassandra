@@ -202,6 +202,7 @@ public final class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_30 = 10;
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
+    public static final int VERSION_41 = 13;
     // Current Stargazer version while we have serialization differences
     // If differences get merged upstream then we can revert to OS versioning
     public static final int VERSION_SG_10 = 100;
@@ -212,10 +213,11 @@ public final class MessagingService extends MessagingServiceMBeanImpl
 
     public enum Version
     {
-        VERSION_30(10),
-        VERSION_3014(11),
-        VERSION_40(12),
-        STARGAZER_10(100);
+        VERSION_30(MessagingService.VERSION_30),
+        VERSION_3014(MessagingService.VERSION_3014),
+        VERSION_40(MessagingService.VERSION_40),
+        VERSION_41(MessagingService.VERSION_41),
+        STARGAZER_10(MessagingService.VERSION_SG_10);
 
         public final int value;
 

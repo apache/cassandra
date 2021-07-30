@@ -23,8 +23,10 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -48,6 +50,12 @@ public class ReadResponseTest
 
     private final Random random = new Random();
     private TableMetadata metadata;
+
+    @BeforeClass
+    public static void setupClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Before
     public void setup()

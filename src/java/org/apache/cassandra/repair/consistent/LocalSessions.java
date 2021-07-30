@@ -54,6 +54,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.db.compaction.CleanupTask;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.RepairFinishedCompactionTask;
@@ -398,7 +399,7 @@ public class LocalSessions
     {
         Preconditions.checkArgument(!started, "LocalSessions.start can only be called once");
         Preconditions.checkArgument(sessions.isEmpty(), "No sessions should be added before start");
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), 1000);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(String.format("SELECT * FROM %s.%s", keyspace, table), PageSize.inRows(1000));
         Map<UUID, LocalSession> loadedSessions = new HashMap<>();
         for (UntypedResultSet.Row row : rows)
         {

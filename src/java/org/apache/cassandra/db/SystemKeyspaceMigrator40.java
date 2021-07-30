@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -55,6 +56,7 @@ public class SystemKeyspaceMigrator40
 
 
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspaceMigrator40.class);
+    private static final PageSize DEFAULT_PAGE_SIZE = PageSize.inRows(1000);
 
     private SystemKeyspaceMigrator40() {}
 
@@ -95,7 +97,7 @@ public class SystemKeyspaceMigrator40
                                       + " values ( ?, ?, ? , ? , ?, ?, ?, ?, ?, ?, ?, ?)",
                                       peersName);
 
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, DEFAULT_PAGE_SIZE);
         int transferred = 0;
         logger.info("Migrating rows from legacy {} to {}", legacyPeersName, peersName);
         for (UntypedResultSet.Row row : rows)
@@ -138,7 +140,7 @@ public class SystemKeyspaceMigrator40
                                       + " values ( ?, ?, ? )",
                                       peerEventsName);
 
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, DEFAULT_PAGE_SIZE);
         int transferred = 0;
         for (UntypedResultSet.Row row : rows)
         {
@@ -173,7 +175,7 @@ public class SystemKeyspaceMigrator40
                                       + " values ( ?, ?, ? , ?, ?)",
                                       transferredRangesName);
 
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, DEFAULT_PAGE_SIZE);
         int transferred = 0;
         for (UntypedResultSet.Row row : rows)
         {
@@ -209,7 +211,7 @@ public class SystemKeyspaceMigrator40
                                       + " values ( ?, ?, ? )",
                                       availableRangesName);
 
-        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
+        UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, DEFAULT_PAGE_SIZE);
         int transferred = 0;
         for (UntypedResultSet.Row row : rows)
         {

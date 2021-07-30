@@ -53,6 +53,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.PageSize;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -940,7 +941,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * When building an index against existing data in sstables, add the given partition to the index
      */
-    public void indexPartition(DecoratedKey key, Set<Index> indexes, int pageSize)
+    public void indexPartition(DecoratedKey key, Set<Index> indexes, PageSize pageSize)
     {
         if (logger.isTraceEnabled())
             logger.trace("Indexing partition {}", baseCfs.metadata().partitionKeyType.getString(key.getKey()));
@@ -1030,39 +1031,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Return the page size used when indexing an entire partition
      */
-    public int calculateIndexingPageSize()
+    public PageSize calculateIndexingPageSize()
     {
         if (Boolean.getBoolean("cassandra.force_default_indexing_page_size"))
-            return DEFAULT_PAGE_SIZE;
+            return PageSize.inRows(DEFAULT_PAGE_SIZE);
 
-        double targetPageSizeInBytes = 32 * 1024 * 1024;
-        double meanPartitionSize = baseCfs.getMeanPartitionSize();
-        if (meanPartitionSize <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        int meanCellsPerPartition = baseCfs.getMeanEstimatedCellPerPartitionCount();
-        if (meanCellsPerPartition <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        int columnsPerRow = baseCfs.metadata().regularColumns().size();
-        if (columnsPerRow <= 0)
-            return DEFAULT_PAGE_SIZE;
-
-        int meanRowsPerPartition = meanCellsPerPartition / columnsPerRow;
-        double meanRowSize = meanPartitionSize / meanRowsPerPartition;
-
-        int pageSize = (int) Math.max(1, Math.min(DEFAULT_PAGE_SIZE, targetPageSizeInBytes / meanRowSize));
-
-        logger.trace("Calculated page size {} for indexing {}.{} ({}/{}/{}/{})",
-                     pageSize,
-                     baseCfs.metadata.keyspace,
-                     baseCfs.metadata.name,
-                     meanPartitionSize,
-                     meanCellsPerPartition,
-                     meanRowsPerPartition,
-                     meanRowSize);
-
-        return pageSize;
+        return PageSize.inBytes(32 * 1024 * 1024);
     }
 
     /**
