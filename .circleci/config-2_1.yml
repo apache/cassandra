@@ -42,18 +42,18 @@ default_env_vars: &default_env_vars
     # REPEATED_UTEST_TARGET: test-cdc
     # REPEATED_UTEST_TARGET: test-compression
     # REPEATED_UTEST_TARGET: test-system-keyspace-directory
-    REPEATED_UTEST_TARGET: testsome
+    REPEATED_UTEST_TARGET: test-jvm-dtest-some
     # The name of JUnit class to be run multiple times, for example:
     # REPEATED_UTEST_CLASS: org.apache.cassandra.cql3.ViewTest
     # REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.PagingTest
-    REPEATED_UTEST_CLASS:
+    REPEATED_UTEST_CLASS: org.apache.cassandra.distributed.test.metrics.HintsServiceMetricsTest
     # The optional specific methods within REPEATED_UTEST_CLASS to be run, for example:
     # REPEATED_UTEST_METHODS: testCompoundPartitionKey
     # REPEATED_UTEST_METHODS: testCompoundPartitionKey,testStaticTable
     # Please note that some Ant targets will ignore the -Dtest.methods argument produced by this.
     REPEATED_UTEST_METHODS:
     # The number of times that the repeated JUnit test should be run
-    REPEATED_UTEST_COUNT: 100
+    REPEATED_UTEST_COUNT: 200
     # Whether the test iteration should stop on the first failure
     REPEATED_UTEST_STOP_ON_FAILURE: false
 
