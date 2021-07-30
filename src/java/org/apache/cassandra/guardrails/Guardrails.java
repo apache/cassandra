@@ -166,7 +166,6 @@ public abstract class Guardrails
                   (x, what, v, t) -> format("Tables cannot have more than %s materialized views, failed to create materialized view %s",
                                             t, what));
 
-    // TODO Unused until STAR-762 implements paging by bytes and can port pagesize related DB-3208 guardrails
     public static final Threshold pageSize =
     new SizeThreshold("page_size",
                       () -> -1L,

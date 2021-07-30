@@ -41,6 +41,7 @@ public class StartupMessage extends Message.Request
     public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
     public static final String EMULATE_DBAAS_DEFAULTS = "EMULATE_DBAAS_DEFAULTS";
+    public static final String PAGE_UNIT = "PAGE_UNIT";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
     {

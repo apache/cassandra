@@ -1,0 +1,16 @@
+--- a/src/java/org/apache/cassandra/cql3/statements/SelectStatement.java
++++ b/src/java/org/apache/cassandra/cql3/statements/SelectStatement.java
+@@ -71,12 +71,9 @@
+ import org.apache.cassandra.transport.ProtocolVersion;
+ import org.apache.cassandra.transport.messages.ResultMessage;
+ import org.apache.cassandra.utils.ByteBufferUtil;
+-<<<<<<<
++import org.apache.cassandra.utils.NoSpamLogger;
+ import org.apache.cassandra.utils.FBUtilities;
+ 
+-=======
+-import org.apache.cassandra.utils.NoSpamLogger;
+->>>>>>>
+ import org.apache.commons.lang3.builder.ToStringBuilder;
+ import org.apache.commons.lang3.builder.ToStringStyle;
+ 
