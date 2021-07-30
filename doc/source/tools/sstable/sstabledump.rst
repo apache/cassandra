@@ -30,7 +30,7 @@ sstabledump <options> <sstable file path>
 ===================================     ================================================================================
 -d                                      CQL row per line internal representation
 -e                                      Enumerate partition keys only
--k <arg>                                Partition key
+-k <arg>                                Included partition key(s)
 -x <arg>                                Excluded partition key(s)
 -t                                      Print raw timestamps instead of iso8601 date strings
 -l                                      Output each row as a separate JSON object
@@ -174,7 +174,7 @@ Example::
 Dump only keys
 ^^^^^^^^^^^^^^
 
-Dump only the keys by using the -e option.
+Dump only the partition keys by using the -e option.
 
 Example::
 
@@ -183,14 +183,16 @@ Example::
     cat eventlog_dump_2018Jul26b
     [ [ "3578d7de-c60d-4599-aefb-3f22a07b2bc6" ], [ "d18250c0-84fc-4d40-b957-4248dc9d790e" ], [ "cf188983-d85b-48d6-9365-25005289beb2" ]
 
-Dump row for a single key
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Dump rows with some partition key or keys
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dump a single key using the -k option.
+Dump a set of rows identified by their partition keys using the -k option. Multiple keys can be used.
+
+Please note that the -k option should be after the sstable path.
 
 Example::
 
-    sstabledump /var/lib/cassandra/data/keyspace/eventlog-65c429e08c5a11e8939edf4f403979ef/mc-1-big-Data.db -k 3578d7de-c60d-4599-aefb-3f22a07b2bc6 > eventlog_dump_2018Jul26_singlekey
+    sstabledump /var/lib/cassandra/data/keyspace/eventlog-65c429e08c5a11e8939edf4f403979ef/mc-1-big-Data.db -k 3578d7de-c60d-4599-aefb-3f22a07b2bc6 d18250c0-84fc-4d40-b957-4248dc9d790e > eventlog_dump_2018Jul26_singlekey
 
     cat eventlog_dump_2018Jul26_singlekey
     [
@@ -211,12 +213,32 @@ Example::
             ]
           }
         ]
+      },
+      {
+        "partition" : {
+          "key" : [ "d18250c0-84fc-4d40-b957-4248dc9d790e" ],
+          "position" : 62
+        },
+        "rows" : [
+          {
+            "type" : "row",
+            "position" : 123,
+            "liveness_info" : { "tstamp" : "2018-07-20T20:23:07.783522Z" },
+            "cells" : [
+              { "name" : "event", "value" : "party" },
+              { "name" : "insertedtimestamp", "value" : "2018-07-20 20:23:07.789Z" },
+              { "name" : "source", "value" : "asdf" }
+            ]
+          }
+        ]
       }
 
-Exclude a key or keys in dump of rows
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Exclude a partition key or keys in dump of rows
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Dump a table except for the rows excluded with the -x option. Multiple keys can be used.
+Dump a table except for the rows excluded with the -x option. Multiple partition keys can be used.
+
+Please note that the -x option should be after the sstable path.
 
 Example::
 

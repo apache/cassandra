@@ -1,4 +1,5 @@
 4.0.1
+ * Improve help, doc and error messages about sstabledump -k and -x arguments (CASSANDRA-16818)
  * Add repaired/unrepaired bytes back to nodetool (CASSANDRA-15282)
  * Upgrade lz4-java to 1.8.0 to add RH6 support back (CASSANDRA-16753)
  * Improve DiagnosticEventService.publish(event) logging message of events (CASSANDRA-16749)
