@@ -196,10 +196,18 @@ Also update the CQL doc if appropriate.
 Release version in JIRA
 -----------------------
 
-Release the JIRA version.
+Fix incorrect fixVersions in tickets since the last release.
+* (Bulk) edit unresolved issues with a fixVersion of the released version, to the corresponding placeholder fixVersion.
+* (Bulk) edit resolved issues with a fixVersion still of the placeholder version to the released version (filter on "resolutiondate" since date of last release to ensure tickets were not resolved in previous releases).
 
-* In JIRA go to the version that you want to release and release it.
+Release the JIRA version.
+* In `JIRA go to the version <https://issues.apache.org/jira/projects/CASSANDRA?selectedItem=com.atlassian.jira.jira-projects-plugin:release-page&status=unreleased>`_ that you want to release and release it.
+* Go to the `Released Versions <https://issues.apache.org/jira/projects/CASSANDRA?selectedItem=com.atlassian.jira.jira-projects-plugin:release-page&status=released>`_ page, and correctly order the newly released version (reverse chronological, by series)
+
+Create the new JIRA version.
 * Create a new version, if it has not been done before.
+* Go to the `Unreleased Versions <https://issues.apache.org/jira/projects/CASSANDRA?selectedItem=com.atlassian.jira.jira-projects-plugin:release-page&status=ureleased>`_ page, and correctly order the new unreleased version (below placeholder versions, above non in-tree versions)
+
 
 Update to Next Development Version
 ----------------------------------
