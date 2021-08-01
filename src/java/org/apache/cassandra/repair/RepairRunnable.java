@@ -412,7 +412,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         if (options.isPreview())
         {
             previewRepair(parentSession,
-                          creationTimeMillis,
                           neighborsAndRanges.filterCommonRanges(keyspace, cfnames),
                           neighborsAndRanges.participants,
                           cfnames);
@@ -420,7 +419,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         else if (options.isIncremental())
         {
             incrementalRepair(parentSession,
-                              creationTimeMillis,
                               traceState,
                               neighborsAndRanges,
                               neighborsAndRanges.participants,
@@ -429,7 +427,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         else
         {
             normalRepair(parentSession,
-                         creationTimeMillis,
                          traceState,
                          neighborsAndRanges.filterCommonRanges(keyspace, cfnames),
                          neighborsAndRanges.participants,
@@ -439,7 +436,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
 
     @SuppressWarnings("UnstableApiUsage")
     private void normalRepair(UUID parentSession,
-                              long startTime,
                               TraceState traceState,
                               List<CommonRange> commonRanges,
                               Set<InetAddressAndPort> preparedEndpoints,
@@ -485,7 +481,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                             new RepairCompleteCallback(parentSession,
                                                        successfulRanges,
                                                        preparedEndpoints,
-                                                       startTime,
                                                        traceState,
                                                        hasFailure,
                                                        executor),
@@ -493,7 +488,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
     }
 
     private void incrementalRepair(UUID parentSession,
-                                   long startTime,
                                    TraceState traceState,
                                    NeighborsAndRanges neighborsAndRanges,
                                    Set<InetAddressAndPort> preparedEndpoints,
@@ -528,12 +522,11 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             ranges.addAll(range);
         }
         Futures.addCallback(repairResult,
-                            new RepairCompleteCallback(parentSession, ranges, preparedEndpoints, startTime, traceState, hasFailure, executor),
+                            new RepairCompleteCallback(parentSession, ranges, preparedEndpoints, traceState, hasFailure, executor),
                             MoreExecutors.directExecutor());
     }
 
     private void previewRepair(UUID parentSession,
-                               long startTime,
                                List<CommonRange> commonRanges,
                                Set<InetAddressAndPort> preparedEndpoints,
                                String... cfnames)
@@ -569,7 +562,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
                     }
                     else
                     {
-                        message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary.toString();
+                        message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
                         RepairMetrics.previewFailures.inc();
                         if (previewKind == PreviewKind.REPAIRED)
                             maybeSnapshotReplicas(parentSession, keyspace, results);
@@ -727,7 +720,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         final UUID parentSession;
         final Collection<Range<Token>> successfulRanges;
         final Set<InetAddressAndPort> preparedEndpoints;
-        final long startTime;
         final TraceState traceState;
         final AtomicBoolean hasFailure;
         final ExecutorService executor;
@@ -735,7 +727,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
         public RepairCompleteCallback(UUID parentSession,
                                       Collection<Range<Token>> successfulRanges,
                                       Set<InetAddressAndPort> preparedEndpoints,
-                                      long startTime,
                                       TraceState traceState,
                                       AtomicBoolean hasFailure,
                                       ExecutorService executor)
@@ -743,7 +734,6 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier
             this.parentSession = parentSession;
             this.successfulRanges = successfulRanges;
             this.preparedEndpoints = preparedEndpoints;
-            this.startTime = startTime;
             this.traceState = traceState;
             this.hasFailure = hasFailure;
             this.executor = executor;
