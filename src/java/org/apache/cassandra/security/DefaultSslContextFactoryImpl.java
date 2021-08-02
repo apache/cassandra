@@ -27,6 +27,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.net.ssl.KeyManagerFactory;
@@ -91,6 +92,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
 
     /* For test only */
     DefaultSslContextFactoryImpl(){
+        parameters = new HashMap<>();
         keystore = "conf/.keystore";
         keystore_password = "cassandra";
         truststore = "conf/.truststore";
@@ -166,32 +168,30 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(boolean buildTruststore, SocketType socketType
-    , boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws SSLException
+    public SslContext createNettySslContext(boolean buildTruststore, SocketType socketType, boolean useOpenSsl,
+                                            CipherSuiteFilter cipherFilter) throws SSLException
     {
         /*
-            There is a case where the netty/openssl combo might not support using KeyManagerFactory. specifically,
-            I've seen this with the netty-tcnative dynamic openssl implementation. using the netty-tcnative static-boringssl
-            works fine with KeyManagerFactory. If we want to support all of the netty-tcnative options, we would need
-            to fall back to passing in a file reference for both a x509 and PKCS#8 private key file in PEM format (see
-            {@link SslContextBuilder#forServer(File, File, String)}). However, we are not supporting that now to keep
-            the config/yaml API simple.
+            There is a case where the netty/openssl combo might not support using KeyManagerFactory. Specifically,
+            I've seen this with the netty-tcnative dynamic openssl implementation. Using the netty-tcnative
+            static-boringssl works fine with KeyManagerFactory. If we want to support all of the netty-tcnative
+            options, we would need to fall back to passing in a file reference for both a x509 and PKCS#8 private
+            key file in PEM format (see {@link SslContextBuilder#forServer(File, File, String)}). However, we are
+            not supporting that now to keep the config/yaml API simple.
          */
         KeyManagerFactory kmf = buildKeyManagerFactory();
         SslContextBuilder builder;
         if (socketType == SocketType.SERVER)
         {
-            builder = SslContextBuilder.forServer(kmf);
-            builder.clientAuth(this.require_client_auth ? ClientAuth.REQUIRE : ClientAuth.NONE);
+            builder = SslContextBuilder.forServer(kmf).clientAuth(this.require_client_auth ? ClientAuth.REQUIRE :
+                                                                  ClientAuth.NONE);
         }
         else
         {
             builder = SslContextBuilder.forClient().keyManager(kmf);
         }
 
-        builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK);
-
-        builder.protocols(getAcceptedProtocols());
+        builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK).protocols(getAcceptedProtocols());
 
         // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
@@ -201,16 +201,14 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory());
 
-        SslContext sslContext;
         try
         {
-            sslContext = builder.build();
+            return builder.build();
         }
         catch (SSLException e)
         {
             throw new SSLException("failed to build the final SslContext object for secure connections", e);
         }
-        return sslContext;
     }
 
     @Override

@@ -55,7 +55,7 @@ public interface ISslContextFactory
      * Creates JSSE SSLContext.
      *
      * @param buildTruststore {@code true} if the caller requires Truststore; {@code false} otherwise
-     * @return
+     * @return JSSE's {@link SSLContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
     SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException;
@@ -68,11 +68,11 @@ public interface ISslContextFactory
      * @param useOpenSsl {@code true} if openSsl is enabled;{@code false} otherwise
      * @param cipherFilter to allow Netty's cipher suite filtering, e.g.
      * {@link io.netty.handler.ssl.SslContextBuilder#ciphers(Iterable, CipherSuiteFilter)}
-     * @return
+     * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    SslContext createNettySslContext(boolean buildTruststore, SocketType socketType,
-                                     boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws SSLException;
+    SslContext createNettySslContext(boolean buildTruststore, SocketType socketType, boolean useOpenSsl,
+                                     CipherSuiteFilter cipherFilter) throws SSLException;
 
     /**
      * Initializes hot reloading of the security keys/certs. The implementation must guarantee this to be thread safe.
@@ -82,9 +82,9 @@ public interface ISslContextFactory
 
     /**
      * Returns if any changes require the reloading of the SSL context returned by this factory.
-     * This will be called by Cassandra's periodic polling for any potential changes that will reload the SSL context
-     * . However only newer connections established after the reload will use the reloaded SSL context.
-     * @return
+     * This will be called by Cassandra's periodic polling for any potential changes that will reload the SSL context.
+     * However only newer connections established after the reload will use the reloaded SSL context.
+     * @return {@code true} if SSL Context needs to be reload; {@code false} otherwise
      */
     boolean shouldReload();
 
@@ -105,13 +105,12 @@ public interface ISslContextFactory
 
     /**
      * Returns the list of cipher suites supported by the implementation.
-     * @return
+     * @return List of supported cipher suites
      */
     List<String> getCipherSuites();
 
     /**
-     * Indicates if the process holds the inbound/listening end of the socket ({@link SSLFactory.SocketType#SERVER})), or the
-     * outbound side ({@link SSLFactory.SocketType#CLIENT}).
+     * Indicates if the process holds the inbound/listening (Server) end of the socket or the outbound side (Client).
      */
     enum SocketType {
         SERVER, CLIENT;

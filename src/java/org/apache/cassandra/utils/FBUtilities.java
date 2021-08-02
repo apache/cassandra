@@ -700,7 +700,7 @@ public class FBUtilities
         }
         catch (Exception ex)
         {
-            throw new ConfigurationException("Unable to create instance of ISslContextFactory for "+className, ex);
+            throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
         }
     }
 
