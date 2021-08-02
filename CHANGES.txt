@@ -1,4 +1,5 @@
 2.2.20
+ * Add python2 location to RPMs (CASSANDRA-16822)
  * CQL shell should prefer newer TLS version by default (CASSANDRA-16695)
  * Fix Debian init start/stop (CASSANDRA-15770)
  * Remove ant targets list-jvm-dtests and ant list-jvm-upgrade-dtests (CASSANDRA-16519)
