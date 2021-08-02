@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -666,8 +667,8 @@ public class EncryptionOptions
         public ServerEncryptionOptions withCipherSuites(String ... cipher_suites)
         {
             return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
-                                               truststore_password, cipher_suites, protocol, accepted_protocols,
-                                               algorithm, store_type, require_client_auth,
+                                               truststore_password, Arrays.asList(cipher_suites), protocol,
+                                               accepted_protocols, algorithm, store_type, require_client_auth,
                                                require_endpoint_verification, optional, internode_encryption,
                                                enable_legacy_ssl_storage_port).applyConfigInternal();
         }
