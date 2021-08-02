@@ -68,8 +68,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
      */
     static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
 
-    private Map<String,Object> parameters;
-
+    private final Map<String,Object> parameters;
     private final String keystore;
     private final String keystore_password;
     private final String truststore;
@@ -110,7 +109,6 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
 
     public DefaultSslContextFactoryImpl(Map<String,Object> parameters) {
         this.parameters = parameters;
-
         keystore = getString("keystore");
         keystore_password = getString("keystore_password");
         truststore = getString("truststore");

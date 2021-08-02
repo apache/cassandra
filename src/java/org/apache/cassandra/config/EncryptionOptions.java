@@ -633,7 +633,7 @@ public class EncryptionOptions
                                                truststore_password, cipher_suites, protocol, accepted_protocols,
                                                algorithm, store_type, require_client_auth,
                                                require_endpoint_verification, optional, internode_encryption,
-                                               enable_legacy_ssl_storage_port)).applyConfigInternal();
+                                               enable_legacy_ssl_storage_port).applyConfigInternal();
         }
 
         public ServerEncryptionOptions withTrustStore(String truststore)
