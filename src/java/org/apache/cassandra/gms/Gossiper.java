@@ -24,17 +24,22 @@ import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -55,6 +60,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.RecomputingSupplier;
+
 import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
 import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
 
@@ -244,6 +251,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
+    private final RecomputingSupplier<CassandraVersion> minVersionSupplier = new RecomputingSupplier<>(this::computeMinVersion, executor);
+
     private Gossiper()
     {
         // half of QUARATINE_DELAY, to ensure justRemovedEndpoints has enough leeway to prevent re-gossip
@@ -253,6 +262,32 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
         // Register this instance with JMX
         MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
+
+
+        subscribers.add(new IEndpointStateChangeSubscriber()
+        {
+            public void onJoin(InetAddress endpoint, EndpointState state)
+	    {
+                maybeRecompute(state);
+            }
+
+            public void onAlive(InetAddress endpoint, EndpointState state)
+	    {
+                maybeRecompute(state);
+            }
+
+            private void maybeRecompute(EndpointState state)
+	    {
+                if (state.getApplicationState(ApplicationState.RELEASE_VERSION) != null)
+                    minVersionSupplier.recompute();
+            }
+
+            public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
+            {
+                if (state == ApplicationState.RELEASE_VERSION)
+                    minVersionSupplier.recompute();
+            }
+        });
     }
 
     public void setLastProcessedMessageAt(long timeInMillis)
@@ -1435,6 +1470,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         maybeInitializeLocalState(generationNbr);
         EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
         localState.addApplicationStates(preloadLocalStates);
+        minVersionSupplier.recompute();
 
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
@@ -1694,5 +1730,71 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         stop();
         ExecutorUtils.shutdownAndWait(timeout, unit, executor);
+    }
+
+    @Nullable
+    public CassandraVersion getMinVersion(int delay, TimeUnit timeUnit)
+    {
+        try
+        {
+            return minVersionSupplier.get(delay, timeUnit);
+        }
+        catch (TimeoutException e)
+        {
+            // Timeouts here are harmless: they won't cause reprepares and may only
+            // cause the old version of the hash to be kept for longer
+            return null;
+        }
+        catch (Throwable e)
+        {
+            logger.error("Caught an exception while waiting for min version", e);
+            return null;
+        }
+    }
+
+    @Nullable
+    private String getReleaseVersionString(InetAddress ep)
+    {
+        EndpointState state = getEndpointStateForEndpoint(ep);
+        if (state == null)
+            return null;
+
+        VersionedValue value = state.getApplicationState(ApplicationState.RELEASE_VERSION);
+        return value == null ? null : value.value;
+    }
+
+    private CassandraVersion computeMinVersion()
+    {
+        CassandraVersion minVersion = null;
+
+        for (InetAddress addr : Iterables.concat(Gossiper.instance.getLiveMembers(),
+                                                 Gossiper.instance.getUnreachableMembers()))
+        {
+            String versionString = getReleaseVersionString(addr);
+            // Raced with changes to gossip state, wait until next iteration
+            if (versionString == null)
+                return null;
+
+            CassandraVersion version;
+
+            try
+            {
+                version = new CassandraVersion(versionString);
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                String message = String.format("Can't parse version string %s", versionString);
+                logger.warn(message);
+                if (logger.isDebugEnabled())
+                    logger.debug(message, t);
+                return null;
+            }
+
+            if (minVersion == null || version.compareTo(minVersion) < 0)
+                minVersion = version;
+        }
+
+        return minVersion;
     }
 }
