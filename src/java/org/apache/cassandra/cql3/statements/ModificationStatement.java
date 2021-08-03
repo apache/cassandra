@@ -797,7 +797,7 @@ public abstract class ModificationStatement implements CQLStatement
         {
             VariableSpecifications boundNames = getBoundVariables();
             ModificationStatement statement = prepare(boundNames, clientState);
-            return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(statement.cfm));
+            return new ParsedStatement.Prepared(statement, boundNames, boundNames.getPartitionKeyBindIndexes(statement.cfm), statement.cfm.ksName);
         }
 
         public ModificationStatement prepare(VariableSpecifications boundNames, ClientState clientState)

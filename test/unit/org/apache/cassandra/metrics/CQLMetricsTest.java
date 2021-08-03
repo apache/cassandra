@@ -63,9 +63,10 @@ public class CQLMetricsTest extends SchemaLoader
     @Test
     public void testPreparedStatementsCount()
     {
-        int n = (int) QueryProcessor.metrics.preparedStatementsCount.getValue();
+        int n = QueryProcessor.metrics.preparedStatementsCount.getValue();
+        session.execute("use junit");
         session.prepare("SELECT * FROM junit.metricstest WHERE id = ?");
-        assertEquals(n+1, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
+        assertEquals(n+2, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
     }
 
     @Test

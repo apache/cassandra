@@ -936,7 +936,12 @@ public class SelectStatement implements CQLStatement
                                                         orderingComparator,
                                                         prepareLimit(boundNames));
 
-            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
+            return prepare(stmt, boundNames, cfm);
+        }
+
+        protected ParsedStatement.Prepared prepare(SelectStatement stmt, VariableSpecifications boundNames, CFMetaData cfm)
+        {
+            return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm), cfm.ksName);
         }
 
         /**
