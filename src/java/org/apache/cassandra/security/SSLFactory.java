@@ -45,6 +45,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.security.ISslContextFactory.SocketType;
 
 /**
  * A Factory for providing and setting up client {@link SSLSocket}s. Also provides
@@ -57,15 +58,6 @@ import org.apache.cassandra.config.EncryptionOptions;
 public final class SSLFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(SSLFactory.class);
-
-    /**
-     * Indicates if the process holds the inbound/listening end of the socket ({@link SocketType#SERVER})), or the
-     * outbound side ({@link SocketType#CLIENT}).
-     */
-    public enum SocketType
-    {
-        SERVER, CLIENT
-    }
 
     // Isolate calls to OpenSsl.isAvailable to allow in-jvm dtests to disable tcnative openssl
     // support.  It creates a circular reference that prevents the instance class loader from being
@@ -186,10 +178,7 @@ public final class SSLFactory
     static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore,
                                             SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws IOException
     {
-        ISslContextFactory.SocketType adaptedSocketType = socketType == SocketType.SERVER ?
-                                                          ISslContextFactory.SocketType.SERVER :
-                                                          ISslContextFactory.SocketType.CLIENT;
-        return options.sslContextFactoryInstance.createNettySslContext(buildTruststore, adaptedSocketType, useOpenSsl,
+        return options.sslContextFactoryInstance.createNettySslContext(buildTruststore, socketType, useOpenSsl,
                                                                        cipherFilter);
     }
 
