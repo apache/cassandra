@@ -330,14 +330,19 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames);
     }
 
-    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public int upgradeSSTables(String keyspaceName, boolean excludeCurrentVersion, long maxSSTableTimestamp, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        return ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames);
+        return ssProxy.upgradeSSTables(keyspaceName, excludeCurrentVersion, maxSSTableTimestamp, jobs, tableNames);
     }
 
     public int garbageCollect(String tombstoneOption, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         return ssProxy.garbageCollect(tombstoneOption, jobs, keyspaceName, tableNames);
+    }
+
+    public int recompressSSTables(String keyspaceName, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return ssProxy.recompressSSTables(keyspaceName, jobs, tableNames);
     }
 
     private void checkJobs(PrintStream out, int jobs)
@@ -350,64 +355,59 @@ public class NodeProbe implements AutoCloseable
     public void forceKeyspaceCleanup(PrintStream out, int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        switch (forceKeyspaceCleanup(jobs, keyspaceName, tableNames))
-        {
-            case 1:
-                failed = true;
-                out.println("Aborted cleaning up at least one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
-            case 2:
-                failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
-        }
+        perform(out, keyspaceName,
+                () -> forceKeyspaceCleanup(jobs, keyspaceName, tableNames),
+                "cleaning up");
     }
 
     public void scrub(PrintStream out, boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        switch (ssProxy.scrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, keyspaceName, tables))
-        {
-            case 1:
-                failed = true;
-                out.println("Aborted scrubbing at least one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
-            case 2:
-                failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
-        }
+        perform(out, keyspaceName,
+                () -> scrub(disableSnapshot, skipCorrupted, checkData, reinsertOverflowedTTL, jobs, keyspaceName, tables),
+                "scrubbing");
     }
 
     public void verify(PrintStream out, boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        switch (verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames))
-        {
-            case 1:
-                failed = true;
-                out.println("Aborted verifying at least one table in keyspace "+keyspaceName+", check server logs for more information.");
-                break;
-            case 2:
-                failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
-        }
+        perform(out, keyspaceName,
+                () -> verify(extendedVerify, checkVersion, diskFailurePolicy, mutateRepairStatus, checkOwnsTokens, quick, keyspaceName, tableNames),
+                "verifying");
     }
 
-
-    public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    public void recompressSSTables(PrintStream out, String keyspaceName, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         checkJobs(out, jobs);
-        switch (upgradeSSTables(keyspaceName, excludeCurrentVersion, jobs, tableNames))
+        perform(out, keyspaceName,
+                () -> recompressSSTables(keyspaceName, jobs, tableNames),
+                "recompressing sstables");
+    }
+
+    public void upgradeSSTables(PrintStream out, String keyspaceName, boolean excludeCurrentVersion, long maxSSTableTimestamp, int jobs, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        checkJobs(out, jobs);
+        perform(out, keyspaceName,
+                () -> upgradeSSTables(keyspaceName, excludeCurrentVersion, maxSSTableTimestamp, jobs, tableNames),
+                "upgrading sstables");
+    }
+
+    private static interface Job
+    {
+        int perform() throws IOException, ExecutionException, InterruptedException;
+    }
+
+    private void perform(PrintStream out, String ks, Job job, String jobName) throws IOException, ExecutionException, InterruptedException
+    {
+        switch (job.perform())
         {
             case 1:
-                failed = true;
-                out.println("Aborted upgrading sstables for at least one table in keyspace " + keyspaceName + ", check server logs for more information.");
+                out.printf("Aborted %s for at least one table in keyspace %s, check server logs for more information.\n",
+                           jobName, ks);
                 break;
             case 2:
                 failed = true;
-                out.println("Failed marking some sstables compacting in keyspace "+keyspaceName+", check server logs for more information");
-                break;
+                out.printf("Failed marking some sstables compacting in keyspace %s, check server logs for more information.\n",
+                           ks);
         }
     }
 

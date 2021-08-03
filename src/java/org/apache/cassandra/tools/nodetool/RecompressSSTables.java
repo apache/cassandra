@@ -27,21 +27,11 @@ import java.util.List;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-@Command(name = "upgradesstables", description = "Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)")
-public class UpgradeSSTable extends NodeToolCmd
+@Command(name = "recompress_sstables", description = "Rewrite sstables (for the requested tables) that have compression configuration different from the current")
+public class RecompressSSTables extends NodeToolCmd
 {
     @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
-
-    @Option(title = "include_all",
-            name = {"-a", "--include-all-sstables"},
-            description = "Use -a to include all sstables, even those already on the current version")
-    private boolean includeAll = false;
-
-    @Option(title = "max_timestamp",
-            name = {"-t", "--max-timestamp"},
-            description = "Use -t to compact only SSTables that have local creation time _older_ than the given timestamp")
-    private long maxSSTableTimestamp = Long.MAX_VALUE;
 
     @Option(title = "jobs",
             name = {"-j", "--jobs"},
@@ -58,7 +48,7 @@ public class UpgradeSSTable extends NodeToolCmd
         {
             try
             {
-                probe.upgradeSSTables(probe.output().out, keyspace, !includeAll, maxSSTableTimestamp, jobs, tableNames);
+                probe.recompressSSTables(probe.output().out, keyspace, jobs, tableNames);
             }
             catch (Exception e)
             {
