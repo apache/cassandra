@@ -56,12 +56,12 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     private static final Logger logger = LoggerFactory.getLogger(DefaultSslContextFactoryImpl.class);
 
     @VisibleForTesting
-    static volatile boolean checkedExpiry = false;
+    volatile boolean checkedExpiry = false;
 
     /**
      * List of files that trigger hot reloading of SSL certificates
      */
-    private static volatile List<HotReloadableFile> hotReloadableFiles = ImmutableList.of();
+    private volatile List<HotReloadableFile> hotReloadableFiles = new ArrayList<>();
 
     /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
      * by extracting it from the default "TLS" SSL Context instance
