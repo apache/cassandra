@@ -73,7 +73,7 @@ public final class HintsService implements HintsServiceMBean
 
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
-    private final HintsCleanupExecutor cleanupExecutor;
+    private HintsCleanupExecutor cleanupExecutor;
     private final HintsBufferPool bufferPool;
     final HintsDispatchExecutor dispatchExecutor;
     final AtomicBoolean isDispatchPaused;
@@ -82,7 +82,7 @@ public final class HintsService implements HintsServiceMBean
 
     private final ScheduledFuture triggerFlushingFuture;
     private volatile ScheduledFuture triggerDispatchFuture;
-    private final ScheduledFuture triggerCleanupFuture;
+    private ScheduledFuture triggerCleanupFuture;
 
     public final HintedHandoffMetrics metrics;
 
@@ -113,10 +113,13 @@ public final class HintsService implements HintsServiceMBean
                                                                                         flushPeriod,
                                                                                         TimeUnit.MILLISECONDS);
 
-        // periodically cleanup the expired hints
-        cleanupExecutor = new HintsCleanupExecutor();
-        HintsCleanupTrigger cleanupTrigger = new HintsCleanupTrigger(catalog, cleanupExecutor, dispatchExecutor);
-        triggerCleanupFuture = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(cleanupTrigger, 1, 1, TimeUnit.HOURS);
+        if (DatabaseDescriptor.isAutoHintsCleanupEnabled())
+        {
+            // periodically cleanup the expired hints
+            cleanupExecutor = new HintsCleanupExecutor();
+            HintsCleanupTrigger cleanupTrigger = new HintsCleanupTrigger(catalog, cleanupExecutor, dispatchExecutor);
+            triggerCleanupFuture = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(cleanupTrigger, 1, 1, TimeUnit.HOURS);
+        }
 
         metrics = new HintedHandoffMetrics();
     }
@@ -256,14 +259,18 @@ public final class HintsService implements HintsServiceMBean
         pauseDispatch();
 
         triggerFlushingFuture.cancel(false);
-        triggerCleanupFuture.cancel(false);
+
+        if (triggerCleanupFuture != null)
+            triggerCleanupFuture.cancel(false);
 
         writeExecutor.flushBufferPool(bufferPool).get();
         writeExecutor.closeAllWriters().get();
 
         dispatchExecutor.shutdownBlocking();
         writeExecutor.shutdownBlocking();
-        cleanupExecutor.shutdownBlocking();
+
+        if (cleanupExecutor != null)
+            cleanupExecutor.shutdownBlocking();
 
         HintsServiceDiagnostics.dispatchingShutdown(this);
         bufferPool.close();

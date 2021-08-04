@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -35,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -154,10 +154,10 @@ final class HintsStore
             return false;
 
         // 'lastModified' can be considered as the upper bound of the hint creation time.
-        // So the TTL upper bound of all hints in the file can be estimated by lastModified + maxHintTTL
-        long latest = hintFile.lastModified() + TimeUnit.SECONDS.toMillis(Hint.maxHintTTL) + 1;
-        hintsExpirations.put(descriptor, latest);
-        return latest <= now;
+        // So the TTL upper bound of all hints in the file can be estimated by lastModified + maxGcgs of all tables
+        long ttl = hintFile.lastModified() + Schema.instance.largestGcgs();
+        hintsExpirations.put(descriptor, ttl);
+        return ttl <= now;
     }
 
     private void deleteHints(Predicate<HintsDescriptor> predicate)

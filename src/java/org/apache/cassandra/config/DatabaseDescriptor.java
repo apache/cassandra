@@ -2581,6 +2581,11 @@ public class DatabaseDescriptor
         conf.hints_compression = parameterizedClass;
     }
 
+    public static boolean isAutoHintsCleanupEnabled()
+    {
+        return conf.auto_hints_cleanup_enabled;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;

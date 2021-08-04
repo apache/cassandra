@@ -23,7 +23,7 @@ import org.apache.cassandra.service.StorageService;
 /**
  * Delete the expired orphaned hints files.
  * An orphaned file is considered as no associating endpoint with its host ID.
- * An expired file is one that has lived longer than {@link Hint#maxHintTTL}.
+ * An expired file is one that has lived longer than the largest gcgs of all tables.
  */
 final class HintsCleanupTrigger implements Runnable
 {
