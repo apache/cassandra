@@ -223,7 +223,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
             if ( hasTruststore ) {
                 fileList.add(new HotReloadableFile(truststore));
             }
-            hotReloadableFiles = ImmutableList.copyOf(fileList);
+            hotReloadableFiles = fileList;
         }
     }
 
