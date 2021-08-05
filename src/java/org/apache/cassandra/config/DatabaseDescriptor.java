@@ -2586,6 +2586,11 @@ public class DatabaseDescriptor
         return conf.auto_hints_cleanup_enabled;
     }
 
+    public static void setAutoHintsCleanupEnabled(boolean value)
+    {
+        conf.auto_hints_cleanup_enabled = value;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;
