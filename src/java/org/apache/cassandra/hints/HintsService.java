@@ -21,6 +21,7 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
@@ -270,6 +271,31 @@ public final class HintsService implements HintsServiceMBean
 
         HintsServiceDiagnostics.dispatchingShutdown(this);
         bufferPool.close();
+    }
+
+    /**
+     * Returns all pending hints that this node has.
+     *
+     * @return a list of {@link PendingHintsInfo}
+     */
+    public List<PendingHintsInfo> getPendingHintsInfo()
+    {
+        return catalog.stores()
+                      .filter(HintsStore::hasFiles)
+                      .map(HintsStore::getPendingHintsInfo)
+                      .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns all pending hints that this node has.
+     *
+     * @return a list of maps with endpoints' ids, total number of hint files, their oldest and newest timestamps.
+     */
+    public List<Map<String, String>> getPendingHints()
+    {
+        return getPendingHintsInfo().stream()
+                                    .map(PendingHintsInfo::asMap)
+                                    .collect(Collectors.toList());
     }
 
     /**

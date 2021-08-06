@@ -1,4 +1,5 @@
 4.1
+ * Expose information about stored hints via a nodetool command and a virtual table (CASSANDRA-14795)
  * Add broadcast_rpc_address to system.local (CASSANDRA-11181)
  * Add support for type casting in WHERE clause components and in the values of INSERT/UPDATE statements (CASSANDRA-14337)
  * add credentials file support to CQLSH (CASSANDRA-16983)
