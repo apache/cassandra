@@ -518,6 +518,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setInterDCStreamThroughputMbPerSec(int value);
     public int getInterDCStreamThroughputMbPerSec();
 
+    public int getConcurrentCompactors();
+
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
