@@ -159,6 +159,7 @@ public class NodeTool
                 InvalidateRolesCache.class,
                 InvalidateRowCache.class,
                 Join.class,
+                ListPendingHints.class,
                 ListSnapshots.class,
                 Move.class,
                 NetStats.class,

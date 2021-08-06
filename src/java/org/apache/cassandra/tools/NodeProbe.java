@@ -686,6 +686,11 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public Map<String, String> getHostIdToEndpointWithPort()
+    {
+        return ssProxy.getHostIdToEndpointWithPort();
+    }
+
     public String getLocalHostId()
     {
         return ssProxy.getLocalHostId();
@@ -1140,6 +1145,11 @@ public class NodeProbe implements AutoCloseable
         hsProxy.deleteAllHints();
     }
 
+    public List<Map<String, String>> listPendingHints()
+    {
+        return hsProxy.getPendingHints();
+    }
+
     public void refreshSizeEstimates()
     {
         try
@@ -1310,6 +1320,11 @@ public class NodeProbe implements AutoCloseable
     public void rebuildIndex(String ksName, String cfName, String... idxNames)
     {
         ssProxy.rebuildSecondaryIndex(ksName, cfName, idxNames);
+    }
+
+    public Map<String, String> getSimpleStatesWithPort()
+    {
+        return fdProxy.getSimpleStatesWithPort();
     }
 
     public String getGossipInfo(boolean withPort)

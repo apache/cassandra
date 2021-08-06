@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.hints;
 
+import java.util.List;
+import java.util.Map;
+
 public interface HintsServiceMBean
 {
     /**
@@ -40,4 +43,11 @@ public interface HintsServiceMBean
      * being dispatched right now, or being written to).
      */
     void deleteAllHintsForEndpoint(String address);
+
+    /**
+     * Returns all pending hints that this node has.
+     *
+     * @return a list of endpoints with relevant hint information - total number of files, newest and oldest timestamps.
+     */
+    List<Map<String, String>> getPendingHints();
 }

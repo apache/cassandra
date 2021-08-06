@@ -36,6 +36,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new ThreadPoolsTable(VIRTUAL_VIEWS))
                     .add(new InternodeOutboundTable(VIRTUAL_VIEWS))
                     .add(new InternodeInboundTable(VIRTUAL_VIEWS))
+                    .add(new PendingHintsTable(VIRTUAL_VIEWS))
                     .addAll(TableMetricTables.getAll(VIRTUAL_VIEWS))
                     .build());
     }
