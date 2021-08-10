@@ -16,6 +16,9 @@
 
 package org.apache.cassandra.cql3;
 
+import java.io.IOError;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,6 +34,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
@@ -72,7 +77,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     public void testUcsBackgroundCompactionNoDiskSpaceIgnore() throws Throwable
     {
         String ucsCqlCompactionParams = "{'class':'UnifiedCompactionStrategy', 'num_shards':'1'}";
-        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.ignore, ucsCqlCompactionParams);
+        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.ignore, ucsCqlCompactionParams, "No space left on device");
     }
 
     @Test
@@ -84,7 +89,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     public void testUcsBackgroundCompactionNoDiskSpaceStop() throws Throwable
     {
         String ucsCqlCompactionParams = "{'class':'UnifiedCompactionStrategy', 'num_shards':'1'}";
-        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.stop, ucsCqlCompactionParams);
+        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.stop, ucsCqlCompactionParams, "No space left on device");
     }
 
     @Test
@@ -96,7 +101,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     public void testUcsBackgroundCompactionNoDiskSpaceDie() throws Throwable
     {
         String ucsCqlCompactionParams = "{'class':'UnifiedCompactionStrategy', 'num_shards':'1'}";
-        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.die, ucsCqlCompactionParams);
+        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.die, ucsCqlCompactionParams, "No space left on device");
     }
 
     @Test
@@ -108,7 +113,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     public void testStcsBackgroundCompactionNoDiskSpaceIgnore() throws Throwable
     {
         String stcsCqlCompactionParams = "{'class':'SizeTieredCompactionStrategy', 'max_threshold':'4'}";
-        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.ignore, stcsCqlCompactionParams);
+        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.ignore, stcsCqlCompactionParams, "No space left on device");
     }
 
     @Test
@@ -120,7 +125,7 @@ public class CompactionOutOfSpaceTest extends CQLTester
     public void testStcsBackgroundCompactionNoDiskSpaceStop() throws Throwable
     {
         String stcsCqlCompactionParams = "{'class':'SizeTieredCompactionStrategy', 'max_threshold':'4'}";
-        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.stop, stcsCqlCompactionParams);
+        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.stop, stcsCqlCompactionParams, "No space left on device");
     }
 
     @Test
@@ -132,10 +137,10 @@ public class CompactionOutOfSpaceTest extends CQLTester
     public void testStcsBackgroundCompactionNoDiskSpaceDie() throws Throwable
     {
         String stcsCqlCompactionParams = "{'class':'SizeTieredCompactionStrategy', 'max_threshold':'4'}";
-        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.die, stcsCqlCompactionParams);
+        flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy.die, stcsCqlCompactionParams, "No space left on device");
     }
 
-    private void flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy policy, String cqlCompactionParams) throws Throwable
+    private void flush4SstablesAndEnableAutoCompaction(Config.DiskFailurePolicy policy, String cqlCompactionParams, String msg) throws Throwable
     {
         createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c)) WITH compaction = " + cqlCompactionParams);
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -155,7 +160,8 @@ public class CompactionOutOfSpaceTest extends CQLTester
         try
         {
             DatabaseDescriptor.setDiskFailurePolicy(policy);
-            cfs.enableAutoCompaction(true);
+            Assertions.assertThatExceptionOfType(Exception.class).isThrownBy(() -> cfs.enableAutoCompaction(true))
+                      .withStackTraceContaining(msg);
             verifyDiskFailurePolicy(policy);
         }
         finally
