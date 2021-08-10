@@ -86,6 +86,10 @@ hints_flush_period_in_ms: 10000
 # Maximum size for a single hints file, in megabytes.
 max_hints_file_size_in_mb: 128
 
+# Enable / disable automatic cleanup for the expired and orphaned hints file.
+# Disable the option in order to preserve those hints on the disk.
+auto_hints_cleanup_enabled: false
+
 # Compression to apply to the hint files. If omitted, hints files
 # will be written uncompressed. LZ4, Snappy, and Deflate compressors
 # are supported.

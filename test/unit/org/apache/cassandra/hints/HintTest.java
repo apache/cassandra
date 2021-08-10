@@ -18,8 +18,8 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
 
@@ -304,6 +304,26 @@ public class HintTest
         {
             DatabaseDescriptor.setHintedHandoffEnabled(true);
         }
+    }
+
+    @Test
+    public void testCalculateHintExpiration()
+    {
+        // create a hint with gcgs
+        long now = FBUtilities.timestampMicros();
+        long nowInMillis = TimeUnit.MICROSECONDS.toMillis(now);
+        int gcgs = 10; // It is less than the default mutation gcgs
+        String key = "testExpiration";
+        Mutation mutation = createMutation(key, now);
+        // create a hint with explicit small gcgs
+        Hint hint = Hint.create(mutation, nowInMillis, gcgs);
+        assertEquals(nowInMillis + TimeUnit.SECONDS.toMillis(gcgs),
+                     hint.expirationInMillis());
+
+        // create a hint with mutation's gcgs.
+        hint = Hint.create(mutation, nowInMillis);
+        assertEquals(nowInMillis + TimeUnit.SECONDS.toMillis(mutation.smallestGCGS()),
+                     hint.expirationInMillis());
     }
 
     private static Mutation createMutation(String key, long now)

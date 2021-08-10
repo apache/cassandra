@@ -244,6 +244,20 @@ public final class Schema implements SchemaProvider
     }
 
     /**
+     * Compute the largest gc grace seconds amongst all the tables
+     * @return the largest gcgs.
+     */
+    public int largestGcgs()
+    {
+        int gcgs = Integer.MIN_VALUE;
+        for (TableMetadataRef tableMetadataRef : metadataRefs.values())
+        {
+            gcgs = Math.max(gcgs, tableMetadataRef.get().params.gcGraceSeconds);
+        }
+        return gcgs;
+    }
+
+    /**
      * Remove keyspace definition from system
      *
      * @param ksm The keyspace definition to remove

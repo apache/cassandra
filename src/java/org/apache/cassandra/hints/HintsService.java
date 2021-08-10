@@ -57,6 +57,7 @@ import static com.google.common.collect.Iterables.transform;
  * - a single-threaded write executor
  * - a multi-threaded dispatch executor
  * - the buffer pool for writing hints into
+ * - an optional scheduled task to clean up the applicable hints files
  *
  * The front-end for everything hints related.
  */
@@ -81,6 +82,7 @@ public final class HintsService implements HintsServiceMBean
 
     private final ScheduledFuture triggerFlushingFuture;
     private volatile ScheduledFuture triggerDispatchFuture;
+    private final ScheduledFuture triggerCleanupFuture;
 
     public final HintedHandoffMetrics metrics;
 
@@ -110,6 +112,11 @@ public final class HintsService implements HintsServiceMBean
                                                                                         flushPeriod,
                                                                                         flushPeriod,
                                                                                         TimeUnit.MILLISECONDS);
+
+        // periodically cleanup the expired hints
+        HintsCleanupTrigger cleanupTrigger = new HintsCleanupTrigger(catalog, dispatchExecutor);
+        triggerCleanupFuture = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(cleanupTrigger, 1, 1, TimeUnit.HOURS);
+
         metrics = new HintedHandoffMetrics();
     }
 
@@ -248,6 +255,8 @@ public final class HintsService implements HintsServiceMBean
         pauseDispatch();
 
         triggerFlushingFuture.cancel(false);
+
+        triggerCleanupFuture.cancel(false);
 
         writeExecutor.flushBufferPool(bufferPool).get();
         writeExecutor.closeAllWriters().get();

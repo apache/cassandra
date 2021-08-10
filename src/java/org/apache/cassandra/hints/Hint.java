@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.vint.VIntCoding;
+import org.assertj.core.util.VisibleForTesting;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -139,8 +140,19 @@ public final class Hint
 
     static boolean isLive(long creationTime, long now, int hintTTL)
     {
-        long expirationTime = creationTime + TimeUnit.SECONDS.toMillis(Math.min(hintTTL, maxHintTTL));
-        return expirationTime > now;
+        return expirationInMillis(creationTime, hintTTL) > now;
+    }
+
+    @VisibleForTesting
+    long expirationInMillis()
+    {
+        int smallestGCGS = Math.min(gcgs, mutation.smallestGCGS());
+        return expirationInMillis(creationTime, smallestGCGS);
+    }
+
+    private static long expirationInMillis(long creationTime, int hintTTL)
+    {
+        return creationTime + TimeUnit.SECONDS.toMillis(Math.min(hintTTL, maxHintTTL));
     }
 
     static final class Serializer implements IVersionedSerializer<Hint>
