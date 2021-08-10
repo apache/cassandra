@@ -43,7 +43,7 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
+@RunWith(OrderedJUnit4ClassRunner.class) // tests calling assertSchemaNotLoaded should be the first ones
 public class SSTableExportTest extends OfflineToolUtils
 {
     private static final ObjectMapper mapper = new ObjectMapper();
@@ -96,6 +96,28 @@ public class SSTableExportTest extends OfflineToolUtils
     }
 
     @Test
+    public void testPKArgOutOfOrder()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, "-k", "0", sstable);
+        assertThat(tool.getStdout(), containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("You must supply exactly one sstable"));
+        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("before the -k/-x options"));
+        assertEquals(1, tool.getExitCode());
+        assertPostTestEnv(false);
+    }
+
+    @Test
+    public void testExcludePKArgOutOfOrder()
+    {
+        ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, "-x", "0", sstable);
+        assertThat(tool.getStdout(), containsStringIgnoringCase("usage:"));
+        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("You must supply exactly one sstable"));
+        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("before the -k/-x options"));
+        assertEquals(1, tool.getExitCode());
+        assertPostTestEnv(false);
+    }
+
+    @Test
     public void testDefaultCall() throws IOException
     {
         ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, sstable);
@@ -136,17 +158,6 @@ public class SSTableExportTest extends OfflineToolUtils
     }
 
     @Test
-    public void testPKArgOutOfOrder()
-    {
-        ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, "-k", "0", sstable);
-        assertThat(tool.getStdout(), containsStringIgnoringCase("usage:"));
-        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("You must supply exactly one sstable"));
-        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("before the -k/-x options"));
-        assertEquals(1, tool.getExitCode());
-        assertPostTestEnv(false);
-    }
-
-    @Test
     public void testMultiplePKArg() throws IOException
     {
         ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, sstable, "-k", "0", "2");
@@ -160,17 +171,6 @@ public class SSTableExportTest extends OfflineToolUtils
         ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, sstable, "-x", "0");
         assertKeys(tool, "1", "2", "3", "4");
         assertPostTestEnv(true);
-    }
-
-    @Test
-    public void testExcludePKArgOutOfOrder()
-    {
-        ToolResult tool = ToolRunner.invokeClass(SSTableExport.class, "-x", "0", sstable);
-        assertThat(tool.getStdout(), containsStringIgnoringCase("usage:"));
-        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("You must supply exactly one sstable"));
-        assertThat(tool.getCleanedStderr(), containsStringIgnoringCase("before the -k/-x options"));
-        assertEquals(1, tool.getExitCode());
-        assertPostTestEnv(false);
     }
 
     @Test
@@ -239,12 +239,21 @@ public class SSTableExportTest extends OfflineToolUtils
         assertPostTestEnv(true);
     }
 
-    private void assertPostTestEnv(boolean loadsSchema)
+    /**
+     * Runs post-test assertions about loaded classed and started threads.
+     *
+     * @param maybeLoadsSchema {@code true} if the test may or may not have loaded the schema depending on the JVM,
+     * {@code false} if the test shoudln't load the schema in any case. Note that a test not loading the schema can
+     * still end with the schema loaded if a previous test already loaded it, so we should always run first the tests
+     * that don't load the schema, and then the ones that may or may not load it. We also need to use the
+     * {@link OrderedJUnit4ClassRunner} runner to guarantee the desired run order.
+     */
+    private void assertPostTestEnv(boolean maybeLoadsSchema)
     {
         assertNoUnexpectedThreadsStarted(null, OPTIONAL_THREADS_WITH_SCHEMA);
-        // schema loading seems to depend of the JVM version,
+        // schema loading seems to depend on the JVM version,
         // so we only verify the cases where we are sure it's not loaded
-        if (!loadsSchema)
+        if (!maybeLoadsSchema)
             assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();
