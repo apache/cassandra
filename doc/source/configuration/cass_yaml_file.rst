@@ -946,16 +946,6 @@ For security reasons, you should not expose this port to the internet.  Firewall
 
 *Default Value:* 7000
 
-``ssl_storage_port``
---------------------
-
-SSL port, for legacy encrypted communication. This property is unused unless enabled in
-server_encryption_options (see below). As of cassandra 4.0, this property is deprecated
-as a single port can be used for either/both secure and insecure connections.
-For security reasons, you should not expose this port to the internet. Firewall it if needed.
-
-*Default Value:* 7001
-
 ``listen_address``
 ------------------
 
@@ -1603,8 +1593,8 @@ Ec2Snitch:
 Ec2MultiRegionSnitch:
    Uses public IPs as broadcast_address to allow cross-region
    connectivity.  (Thus, you should set seed addresses to the public
-   IP as well.) You will need to open the storage_port or
-   ssl_storage_port on the public IP firewall.  (For intra-Region
+   IP as well.) You will need to open the storage_port
+   on the public IP firewall.  (For intra-Region
    traffic, Cassandra will switch to the private IP after
    establishing a connection.)
 
@@ -1676,9 +1666,6 @@ http://download.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefG
         enabled: false
         # If enabled and optional are both set to true, encrypted and unencrypted connections are handled on the storage_port
         optional: false
-        # if enabled, will open up an encrypted listening socket on ssl_storage_port. Should be used
-        # during upgrade to 4.0; otherwise, set to false.
-        enable_legacy_ssl_storage_port: false
         # on outbound connections, determine which type of peers to securely connect to. 'enabled' must be set to true.
         internode_encryption: none
         keystore: conf/.keystore

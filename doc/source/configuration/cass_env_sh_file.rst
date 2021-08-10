@@ -95,12 +95,6 @@ Set the port for inter-node communication.
 
 **Default:** 7000
 
-``cassandra.ssl_storage_port=<port>``
--------------------------------------
-Set the SSL port for encrypted communication. 
-
-**Default:** 7001
-
 ``cassandra.start_native_transport=true|false``
 -----------------------------------------------
 Enable or disable the native transport server. See ``start_native_transport`` in ``cassandra.yaml``. 

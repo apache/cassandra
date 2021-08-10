@@ -224,7 +224,6 @@ The ``settings`` table  is rather useful and lists all the current configuration
                             ...
                             ...
    rpc_address                        | localhost
-   ssl_storage_port                   | 7001
    start_native_transport             | true
    storage_port                       | 7000
    stream_entire_sstables             | true

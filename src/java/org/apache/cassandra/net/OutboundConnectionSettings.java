@@ -443,9 +443,9 @@ public class OutboundConnectionSettings
                                         : MessagingService.accept_messaging;
     }
 
-    public OutboundConnectionSettings withLegacyPortIfNecessary(int messagingVersion)
+    public OutboundConnectionSettings configureConnectionAddress(int messagingVersion)
     {
-        return withConnectTo(maybeWithSecurePort(connectTo(), messagingVersion, withEncryption()));
+        return withConnectTo(getConnectionAddress(connectTo(), messagingVersion, withEncryption()));
     }
 
     public InetAddressAndPort connectTo()
@@ -512,9 +512,9 @@ public class OutboundConnectionSettings
                || ((DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc) && !isInLocalDC(snitch, localHost, remoteHost));
     }
 
-    private static InetAddressAndPort maybeWithSecurePort(InetAddressAndPort address, int messagingVersion, boolean isEncrypted)
+    private static InetAddressAndPort getConnectionAddress(InetAddressAndPort address, int messagingVersion, boolean isEncrypted)
     {
-        if (!isEncrypted || messagingVersion >= VERSION_40)
+        if (!isEncrypted)
             return address;
 
         // if we don't know the version of the peer, assume it is 4.0 (or higher) as the only time is would be lower
@@ -525,7 +525,7 @@ public class OutboundConnectionSettings
         // Also as of 4.0 we will propagate the "regular" port (which will support both SSL and non-SSL) via gossip so
         // for SSL and version 4.0 always connect to the gossiped port because if SSL is enabled it should ALWAYS
         // listen for SSL on the "regular" port.
-        return address.withPort(DatabaseDescriptor.getSSLStoragePort());
+        return address.withPort(DatabaseDescriptor.getStoragePort());
     }
 
 }

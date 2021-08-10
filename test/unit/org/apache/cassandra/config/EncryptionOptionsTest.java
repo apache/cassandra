@@ -106,7 +106,7 @@ public class EncryptionOptionsTest
                                                          EncryptionOptions.TlsEncryptionPolicy expected)
         {
             return new ServerEncryptionOptionsTestCase(new EncryptionOptions.ServerEncryptionOptions(keystorePath, "dummypass", "dummytruststore", "dummypass",
-                                                                                               Collections.emptyList(), null, null, null, "JKS", false, false, optional, internodeEncryption, false)
+                                                                                               Collections.emptyList(), null, null, null, "JKS", false, false, optional, internodeEncryption)
                                                        .applyConfig(),
                                                  expected,
                                                  String.format("optional=%s keystore=%s internode=%s", optional, keystorePath, internodeEncryption));

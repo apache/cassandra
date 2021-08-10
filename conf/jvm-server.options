@@ -59,9 +59,6 @@
 # before joining the ring.
 #-Dcassandra.ring_delay_ms=ms
 
-# Set the SSL port for encrypted communication. (Default: 7001)
-#-Dcassandra.ssl_storage_port=port
-
 # Set the port for inter-node communication. (Default: 7000)
 #-Dcassandra.storage_port=port
 

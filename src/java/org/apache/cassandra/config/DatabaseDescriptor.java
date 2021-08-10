@@ -808,12 +808,6 @@ public class DatabaseDescriptor
         if (conf.server_encryption_options != null)
         {
             conf.server_encryption_options.applyConfig();
-
-            if (conf.server_encryption_options.enable_legacy_ssl_storage_port &&
-                conf.server_encryption_options.tlsEncryptionPolicy() == EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
-            {
-                throw new ConfigurationException("enable_legacy_ssl_storage_port is true (enabled) with internode encryption disabled (none). Enable encryption or disable the legacy ssl storage port.");
-            }
         }
         Integer maxMessageSize = conf.internode_max_message_size_in_bytes;
         if (maxMessageSize != null)
@@ -1588,11 +1582,6 @@ public class DatabaseDescriptor
     public static int getStoragePort()
     {
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "storage_port", Integer.toString(conf.storage_port)));
-    }
-
-    public static int getSSLStoragePort()
-    {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "ssl_storage_port", Integer.toString(conf.ssl_storage_port)));
     }
 
     public static long nativeTransportIdleTimeout()
