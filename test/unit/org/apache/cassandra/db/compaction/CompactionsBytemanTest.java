@@ -141,11 +141,11 @@ public class CompactionsBytemanTest extends CQLTester
         cfs.enableAutoCompaction();
 
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 1, 1);
-        assertEquals(0, CompactionManager.instance.compactingCF.count(cfs));
+        assertEquals(0, CompactionManager.instance.getOngoingBackgroundCompactionsCount());
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         FBUtilities.waitOnFuture(CompactionManager.instance.submitBackground(cfs));
-        assertEquals(0, CompactionManager.instance.compactingCF.count(cfs));
+        assertEquals(0, CompactionManager.instance.getOngoingBackgroundCompactionsCount());
     }
 
     private void createPossiblyExpiredSSTable(final ColumnFamilyStore cfs, final boolean expired) throws Throwable
