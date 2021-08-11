@@ -20,9 +20,13 @@ package org.apache.cassandra.cql3.functions;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 
 public final class FunctionName
 {
+    // We special case the token function because that's the only function which name is a reserved keyword
+    private static final FunctionName TOKEN_FUNCTION_NAME = FunctionName.nativeFunction("token");
+
     public final String keyspace;
     public final String name;
 
@@ -78,5 +82,19 @@ public final class FunctionName
     public String toString()
     {
         return keyspace == null ? name : keyspace + "." + name;
+    }
+
+    /**
+     * Returns a string representation of the function name that is safe to use directly in CQL queries.
+     * If necessary, the name components will be double-quoted, and any quotes inside the names will be escaped.
+     */
+    public String toCQLString()
+    {
+        String maybeQuotedName = equalsNativeFunction(TOKEN_FUNCTION_NAME)
+               ? name
+               : ColumnIdentifier.maybeQuote(name);
+        return keyspace == null
+               ? maybeQuotedName
+               : ColumnIdentifier.maybeQuote(keyspace) + '.' + maybeQuotedName;
     }
 }
