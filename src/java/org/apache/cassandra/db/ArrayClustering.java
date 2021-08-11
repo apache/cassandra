@@ -31,7 +31,11 @@ public class ArrayClustering extends AbstractArrayClusteringPrefix implements Cl
 
     public long unsharedHeapSize()
     {
-        return EMPTY_SIZE + ObjectSizes.sizeOfArray(values) + values.length;
+        long arrayRefSize = ObjectSizes.sizeOfArray(values);
+        long elementsSize = 0;
+        for (int i = 0; i < values.length; i++)
+            elementsSize += ObjectSizes.sizeOfArray(values[i]);
+        return EMPTY_SIZE + arrayRefSize + elementsSize;
     }
 
     public long unsharedHeapSizeExcludingData()
