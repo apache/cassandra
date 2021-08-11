@@ -227,7 +227,9 @@ public class FunctionCall extends Term.NonTerminal
 
         public String getText()
         {
-            return name + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
+            CqlBuilder cqlNameBuilder = new CqlBuilder();
+            name.appendCqlTo(cqlNameBuilder);
+            return cqlNameBuilder + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
         }
     }
 }
