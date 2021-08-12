@@ -857,6 +857,9 @@ public class DatabaseDescriptor
             throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
                                              "set the system property cassandra.allow_unlimited_concurrent_validations=true");
         }
+
+        conf.client_large_read_warn_threshold_kb = Math.max(conf.client_large_read_warn_threshold_kb, 0);
+        conf.client_large_read_block_threshold_kb = Math.max(conf.client_large_read_block_threshold_kb, 0);
     }
 
     @VisibleForTesting
@@ -3442,5 +3445,23 @@ public class DatabaseDescriptor
     public static SubnetGroups getInternodeErrorReportingExclusions()
     {
         return conf.internode_error_reporting_exclusions;
+    public static long getClientLargeReadWarnThresholdKB()
+    {
+        return conf.client_large_read_warn_threshold_kb;
+    }
+
+    public static void setClientLargeReadWarnThresholdKB(long threshold)
+    {
+        conf.client_large_read_warn_threshold_kb = Math.max(threshold, 0);
+    }
+
+    public static long getClientLargeReadBlockThresholdKB()
+    {
+        return conf.client_large_read_block_threshold_kb;
+    }
+
+    public static void setClientLargeReadBlockThresholdKB(long threshold)
+    {
+        conf.client_large_read_block_threshold_kb = Math.max(threshold, 0);
     }
 }

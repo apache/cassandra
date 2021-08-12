@@ -153,6 +153,12 @@ public class KeyspaceMetrics
     public final Histogram repairedDataTrackingOverreadRows;
     public final Timer repairedDataTrackingOverreadTime;
 
+    public final Meter clientTombstoneWarnings;
+    public final Meter clientTombstoneAborts;
+
+    public final Meter clientReadSizeWarnings;
+    public final Meter clientReadSizeAborts;
+
     public final MetricNameFactory factory;
     private Keyspace keyspace;
 
@@ -235,6 +241,12 @@ public class KeyspaceMetrics
 
         repairedDataTrackingOverreadRows = createKeyspaceHistogram("RepairedDataTrackingOverreadRows", false);
         repairedDataTrackingOverreadTime = createKeyspaceTimer("RepairedDataTrackingOverreadTime");
+
+        clientTombstoneWarnings = createKeyspaceMeter("ClientTombstoneWarnings");
+        clientTombstoneAborts = createKeyspaceMeter("ClientTombstoneAborts");
+
+        clientReadSizeWarnings = createKeyspaceMeter("ClientReadSizeWarnings");
+        clientReadSizeAborts = createKeyspaceMeter("ClientReadSizeAborts");
     }
 
     /**

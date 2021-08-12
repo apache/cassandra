@@ -22,6 +22,8 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -67,6 +70,8 @@ import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
@@ -783,6 +788,7 @@ public class SelectStatement implements CQLStatement
         }
 
         ResultSet cqlRows = result.build();
+        maybeWarn(result, options);
 
         orderResults(cqlRows);
 
@@ -804,10 +810,46 @@ public class SelectStatement implements CQLStatement
         }
     }
 
+    private void maybeWarn(ResultSetBuilder result, QueryOptions options)
+    {
+        long threshold = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
+        if (result.shouldWarn(threshold))
+        {
+            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, threshold);
+            ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
+            logger.warn("{} with query {}", msg, asCQL(options));
+            cfs().metric.clientReadSizeWarnings.mark();
+        }
+    }
+
+    private void maybeFail(ResultSetBuilder result, QueryOptions options)
+    {
+        long threshold = DatabaseDescriptor.getClientLargeReadBlockThresholdKB();
+        if (result.shouldReject(threshold))
+        {
+            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, threshold);
+            String clientMsg = msg + " with " + loggableTokens(options);
+            ClientWarn.instance.warn(clientMsg);
+            logger.warn("{} with query {}", msg, asCQL(options));
+            cfs().metric.clientReadSizeAborts.mark();
+            // read errors require blockFor and recieved (its in the protocol message), but this isn't known;
+            // to work around this, treat the coordinator as the only response we care about and mark it failed
+            throw new ReadSizeAbortException(clientMsg, options.getConsistency(), 0, 1, true, ImmutableMap.of(
+                FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_TOO_LARGE
+            ));
+        }
+    }
+
+    private ColumnFamilyStore cfs()
+    {
+        return Schema.instance.getColumnFamilyStoreInstance(table.id);
+    }
+
     // Used by ModificationStatement for CAS operations
     void processPartition(RowIterator partition, QueryOptions options, ResultSetBuilder result, int nowInSec)
     throws InvalidRequestException
     {
+        maybeFail(result, options);
         ProtocolVersion protocolVersion = options.getProtocolVersion();
 
         ByteBuffer[] keyComponents = getComponents(table, partition.partitionKey());
@@ -819,6 +861,7 @@ public class SelectStatement implements CQLStatement
             if (!staticRow.isEmpty() && restrictions.returnStaticContentOnPartitionWithNoRows())
             {
                 result.newRow(partition.partitionKey(), staticRow.clustering());
+                maybeFail(result, options);
                 for (ColumnMetadata def : selection.getColumns())
                 {
                     switch (def.kind)
@@ -841,6 +884,13 @@ public class SelectStatement implements CQLStatement
         {
             Row row = partition.next();
             result.newRow( partition.partitionKey(), row.clustering());
+
+            // reads aren't failed as soon the size exceeds the failure threshold, they're failed once the failure
+            // threshold has been exceeded and we start adding more data. We're slightly more permissive to avoid
+            // cases where a row can never be read. Since we only warn/fail after entire rows are read, this will
+            // still allow the entire dataset to be read with LIMIT 1 queries, even if every row is oversized
+            maybeFail(result, options);
+
             // Respect selection order
             for (ColumnMetadata def : selection.getColumns())
             {
@@ -1357,5 +1407,132 @@ public class SelectStatement implements CQLStatement
     public String toString()
     {
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    private String loggableTokens(QueryOptions options)
+    {
+        if (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing())
+        {
+            AbstractBounds<PartitionPosition> bounds = restrictions.getPartitionKeyBounds(options);
+            return "token range: " + (bounds.inclusiveLeft() ? '[' : '(') +
+                   bounds.left.getToken().toString() + ", " +
+                   bounds.right.getToken().toString() +
+                   (bounds.inclusiveRight() ? ']' : ')');
+        }
+        else
+        {
+            Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options);
+            if (keys.size() == 1)
+            {
+                return "token: " + table.partitioner.getToken(Iterables.getOnlyElement(keys)).toString();
+            }
+            else
+            {
+                StringBuilder sb = new StringBuilder("tokens: [");
+                boolean isFirst = true;
+                for (ByteBuffer key : keys)
+                {
+                    if (!isFirst) sb.append(", ");
+                    sb.append(table.partitioner.getToken(key).toString());
+                    isFirst = false;
+                }
+                return sb.append(']').toString();
+            }
+        }
+    }
+
+    private String asCQL(QueryOptions options)
+    {
+        ColumnFilter columnFilter = selection.newSelectors(options).getColumnFilter();
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("SELECT ").append(queriedColumns().toCQLString());
+        sb.append(" FROM ").append(table.keyspace).append('.').append(table.name);
+        if (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing())
+        {
+            // partition range
+            ClusteringIndexFilter clusteringIndexFilter = makeClusteringIndexFilter(options, columnFilter);
+            if (clusteringIndexFilter == null)
+                return "EMPTY";
+
+            RowFilter rowFilter = getRowFilter(options);
+
+            // The LIMIT provided by the user is the number of CQL row he wants returned.
+            // We want to have getRangeSlice to count the number of columns, not the number of keys.
+            AbstractBounds<PartitionPosition> keyBounds = restrictions.getPartitionKeyBounds(options);
+            if (keyBounds == null)
+                return "EMPTY";
+
+            DataRange dataRange = new DataRange(keyBounds, clusteringIndexFilter);
+
+            if (!dataRange.isUnrestricted(table) || !rowFilter.isEmpty())
+            {
+                sb.append(" WHERE ");
+                // We put the row filter first because the data range can end by "ORDER BY"
+                if (!rowFilter.isEmpty())
+                {
+                    sb.append(rowFilter);
+                    if (!dataRange.isUnrestricted(table))
+                        sb.append(" AND ");
+                }
+                if (!dataRange.isUnrestricted(table))
+                    sb.append(dataRange.toCQLString(table, rowFilter));
+            }
+        }
+        else
+        {
+            // single partition
+            Collection<ByteBuffer> keys = restrictions.getPartitionKeys(options);
+            if (keys.isEmpty())
+                return "EMPTY";
+            ClusteringIndexFilter filter = makeClusteringIndexFilter(options, columnFilter);
+            if (filter == null)
+                return "EMPTY";
+
+            sb.append(" WHERE ");
+
+
+            boolean compoundPk = table.partitionKeyColumns().size() > 1;
+            if (compoundPk) sb.append('(');
+            sb.append(ColumnMetadata.toCQLString(table.partitionKeyColumns()));
+            if (compoundPk) sb.append(')');
+            if (keys.size() == 1)
+            {
+                sb.append(" = ");
+                if (compoundPk) sb.append('(');
+                DataRange.appendKeyString(sb, table.partitionKeyType, Iterables.getOnlyElement(keys));
+                if (compoundPk) sb.append(')');
+            }
+            else
+            {
+                sb.append(" IN (");
+                boolean first = true;
+                for (ByteBuffer key : keys)
+                {
+                    if (!first)
+                        sb.append(", ");
+
+                    if (compoundPk) sb.append('(');
+                    DataRange.appendKeyString(sb, table.partitionKeyType, key);
+                    if (compoundPk) sb.append(')');
+                    first = false;
+                }
+
+                sb.append(')');
+            }
+
+            RowFilter rowFilter = getRowFilter(options);
+            if (!rowFilter.isEmpty())
+                sb.append(" AND ").append(rowFilter);
+
+            String filterString = filter.toCQLString(table, rowFilter);
+            if (!filterString.isEmpty())
+                sb.append(" AND ").append(filterString);
+        }
+
+        DataLimits limits = getDataLimits(getLimit(options), getPerPartitionLimit(options), options.getPageSize());
+        if (limits != DataLimits.NONE)
+            sb.append(' ').append(limits);
+        return sb.toString();
     }
 }

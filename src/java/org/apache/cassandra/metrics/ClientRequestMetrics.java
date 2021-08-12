@@ -31,6 +31,7 @@ public class ClientRequestMetrics extends LatencyMetrics
     public final Meter timeouts;
     public final Meter unavailables;
     public final Meter failures;
+    public final Meter aborts;
 
     public ClientRequestMetrics(String scope)
     {
@@ -39,6 +40,7 @@ public class ClientRequestMetrics extends LatencyMetrics
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
         unavailables = Metrics.meter(factory.createMetricName("Unavailables"));
         failures = Metrics.meter(factory.createMetricName("Failures"));
+        aborts = Metrics.meter(factory.createMetricName("Aborts"));
     }
 
     public void release()
@@ -47,5 +49,6 @@ public class ClientRequestMetrics extends LatencyMetrics
         Metrics.remove(factory.createMetricName("Timeouts"));
         Metrics.remove(factory.createMetricName("Unavailables"));
         Metrics.remove(factory.createMetricName("Failures"));
+        Metrics.remove(factory.createMetricName("Aborts"));
     }
 }

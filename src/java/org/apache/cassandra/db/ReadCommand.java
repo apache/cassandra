@@ -38,6 +38,8 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.net.MessageFlag;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -98,6 +100,8 @@ public abstract class ReadCommand extends AbstractReadQuery
     private RepairedDataInfo repairedDataInfo = RepairedDataInfo.NULL_REPAIRED_DATA_INFO;
 
     int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+
+    private boolean trackWarnings;
 
     @Nullable
     private final IndexMetadata index;
@@ -279,6 +283,16 @@ public abstract class ReadCommand extends AbstractReadQuery
     public boolean isRepairedDataDigestConclusive()
     {
         return repairedDataInfo.isConclusive();
+    }
+
+    public void trackWarnings()
+    {
+        trackWarnings = true;
+    }
+
+    public boolean isTrackingWarnings()
+    {
+        return trackWarnings;
     }
 
     /**
@@ -588,6 +602,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                     String query = ReadCommand.this.toCQLString();
                     Tracing.trace("Scanned over {} tombstones for query {}; query aborted (see tombstone_failure_threshold)", failureThreshold, query);
                     metric.tombstoneFailures.inc();
+                    MessageParams.remove(ParamType.TOMBSTONE_WARNING);
+                    MessageParams.add(ParamType.TOMBSTONE_ABORT, tombstones);
                     throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
             }
@@ -606,7 +622,10 @@ public abstract class ReadCommand extends AbstractReadQuery
                     String msg = String.format(
                             "Read %d live rows and %d tombstone cells for query %1.512s; token %s (see tombstone_warn_threshold)",
                             liveRows, tombstones, ReadCommand.this.toCQLString(), currentKey.getToken());
-                    ClientWarn.instance.warn(msg);
+                    if (trackWarnings)
+                        MessageParams.add(ParamType.TOMBSTONE_WARNING, tombstones);
+                    else
+                        ClientWarn.instance.warn(msg);
                     if (tombstones < failureThreshold)
                     {
                         metric.tombstoneWarnings.inc();
@@ -686,9 +705,10 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public Message<ReadCommand> createMessage(boolean trackRepairedData)
     {
-        return trackRepairedData
-             ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
-             : Message.outWithFlag (verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
+        Message<ReadCommand> msg = trackRepairedData
+                                   ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
+                                   : Message.outWithFlag(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
+        return msg.withParam(ParamType.TRACK_WARNINGS, NoPayload.noPayload);
     }
 
     public abstract Verb verb();
@@ -745,6 +765,11 @@ public abstract class ReadCommand extends AbstractReadQuery
 
         return sb.toString();
     }
+
+    /**
+     * Return the queried token(s) for logging
+     */
+    public abstract String loggableTokens();
 
     // Monitorable interface
     public String name()

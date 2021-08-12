@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.UUID;
@@ -134,6 +135,11 @@ public class Message<T>
     boolean callBackOnFailure()
     {
         return header.callBackOnFailure();
+    }
+
+    public boolean trackWarnings()
+    {
+        return header.trackWarnings();
     }
 
     /** See CASSANDRA-14145 */
@@ -267,6 +273,18 @@ public class Message<T>
         return new Message<>(header.withParam(ParamType.FORWARD_TO, peers), payload);
     }
 
+    public Message<T> withParam(ParamType type, Object value)
+    {
+        return new Message<>(header.withParam(type, value), payload);
+    }
+
+    public Message<T> withParams(Map<ParamType, Object> values)
+    {
+        if (values == null || values.isEmpty())
+            return this;
+        return new Message<>(header.withParams(values), payload);
+    }
+
     private static final EnumMap<ParamType, Object> NO_PARAMS = new EnumMap<>(ParamType.class);
 
     private static Map<ParamType, Object> buildParams(ParamType type, Object value)
@@ -292,6 +310,16 @@ public class Message<T>
 
         params = new EnumMap<>(params);
         params.put(type, value);
+        return params;
+    }
+
+    private static Map<ParamType, Object> addParams(Map<ParamType, Object> params, Map<ParamType, Object> values)
+    {
+        if (values == null || values.isEmpty())
+            return params;
+
+        params = new EnumMap<>(params);
+        params.putAll(values);
         return params;
     }
 
@@ -383,6 +411,11 @@ public class Message<T>
             return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParam(params, type, value));
         }
 
+        Header withParams(Map<ParamType, Object> values)
+        {
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParams(params, values));
+        }
+
         boolean callBackOnFailure()
         {
             return MessageFlag.CALL_BACK_ON_FAILURE.isIn(flags);
@@ -391,6 +424,11 @@ public class Message<T>
         boolean trackRepairedData()
         {
             return MessageFlag.TRACK_REPAIRED_DATA.isIn(flags);
+        }
+
+        boolean trackWarnings()
+        {
+            return params.containsKey(ParamType.TRACK_WARNINGS);
         }
 
         @Nullable
@@ -415,6 +453,11 @@ public class Message<T>
         public TraceType traceType()
         {
             return (TraceType) params.getOrDefault(ParamType.TRACE_TYPE, TraceType.QUERY);
+        }
+
+        public Map<ParamType, Object> params()
+        {
+            return Collections.unmodifiableMap(params);
         }
     }
 

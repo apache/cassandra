@@ -34,6 +34,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -127,6 +128,11 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
         catch (ReadTimeoutException e)
         {
             rangeMetrics.timeouts.mark();
+            throw e;
+        }
+        catch (ReadAbortException e)
+        {
+            rangeMetrics.aborts.mark();
             throw e;
         }
         catch (ReadFailureException e)

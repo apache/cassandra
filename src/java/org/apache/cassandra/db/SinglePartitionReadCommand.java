@@ -1068,6 +1068,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
     }
 
+    @Override
+    public String loggableTokens()
+    {
+        return "token=" + partitionKey.getToken().toString();
+    }
+
     protected void serializeSelection(DataOutputPlus out, int version) throws IOException
     {
         metadata().partitionKeyType.writeValue(partitionKey().getKey(), out);

@@ -19,12 +19,12 @@ package org.apache.cassandra.net;
 
 import java.util.HashMap;
 import java.util.Map;
-
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.Int32Serializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
@@ -54,7 +54,15 @@ public enum ParamType
     TRACE_TYPE          (6, "TraceType",     Tracing.traceTypeSerializer),
 
     @Deprecated
-    TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer);
+    TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
+
+    /**
+     * Tells execution to track any and all warnings to send back to users.
+     */
+    TRACK_WARNINGS(8, "TrackWarnings", NoPayload.serializer), //TODO should this move to MessageFlag? This is a boolean
+
+    TOMBSTONE_ABORT(9, "TSA", Int32Serializer.serializer),
+    TOMBSTONE_WARNING(10, "TSW", Int32Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string
