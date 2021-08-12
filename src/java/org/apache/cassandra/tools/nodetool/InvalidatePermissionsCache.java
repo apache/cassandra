@@ -168,7 +168,7 @@ public class InvalidatePermissionsCache extends NodeToolCmd
             return FunctionResource.fromName("functions/" + functionsInKeyspace + '/' + function).getName();
         } catch (ConfigurationException e)
         {
-            throw new IllegalArgumentException("Unknown function argument type is passed");
+            throw new IllegalArgumentException("An error was encountered when looking up function definition; " + e.getMessage());
         }
     }
 }

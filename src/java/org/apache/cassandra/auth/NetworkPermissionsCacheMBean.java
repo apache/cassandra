@@ -20,7 +20,9 @@ package org.apache.cassandra.auth;
 
 public interface NetworkPermissionsCacheMBean extends AuthCacheMBean
 {
-    public static final String CACHE_NAME = "NetworkPermissionsCache";
+    // Ideally it should be called 'NetworkPermissionsCache', hovewer, the original name is preserved for backward
+    // compatibility
+    public static final String CACHE_NAME = "NetworkAuthCache";
 
     public void invalidateNetworkPermissions(String roleName);
 }

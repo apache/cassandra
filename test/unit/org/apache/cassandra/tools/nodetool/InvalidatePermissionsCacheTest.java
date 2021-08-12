@@ -207,7 +207,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
                 KEYSPACE, "--function", "f[x]");
         assertThat(tool.getExitCode()).isEqualTo(1);
         assertThat(tool.getStdout())
-                .isEqualTo(wrapByDefaultNodetoolMessage("Unknown function argument type is passed"));
+                .isEqualTo(wrapByDefaultNodetoolMessage("An error was encountered when looking up function definition; Unable to find abstract-type class 'org.apache.cassandra.db.marshal.x'"));
         assertThat(tool.getStderr()).isEmpty();
     }
 

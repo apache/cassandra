@@ -500,6 +500,8 @@ public class AuthorizationProxy implements InvocationHandler
 
     public static interface JmxPermissionsCacheMBean extends AuthCacheMBean
     {
+        // Ideally it should be called 'JmxPermissionsCache', hovewer, the original name is preserved for backward
+        // compatibility
         public static final String CACHE_NAME = "JMXPermissionsCache";
 
         public void invalidatePermissions(String roleName);
