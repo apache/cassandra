@@ -35,10 +35,14 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.gms.GossipDigestSyn;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 
 public class OutboundConnectionsTest
 {
@@ -48,6 +52,24 @@ public class OutboundConnectionsTest
     private static final List<ConnectionType> INTERNODE_MESSAGING_CONN_TYPES = ImmutableList.of(ConnectionType.URGENT_MESSAGES, ConnectionType.LARGE_MESSAGES, ConnectionType.SMALL_MESSAGES);
 
     private OutboundConnections connections;
+    // for testing messages larger than the size threshold, we just need a serializer to report a size, as fake as it may be
+    public static final IVersionedSerializer<Object> SERIALIZER = new IVersionedSerializer<Object>()
+    {
+        public void serialize(Object o, DataOutputPlus out, int version)
+        {
+
+        }
+
+        public Object deserialize(DataInputPlus in, int version)
+        {
+            return null;
+        }
+
+        public long serializedSize(Object o, int version)
+        {
+            return LARGE_MESSAGE_THRESHOLD + 1;
+        }
+    };
 
     @BeforeClass
     public static void before()
@@ -78,6 +100,24 @@ public class OutboundConnectionsTest
     }
 
     @Test
+    public void getConnection_Gossip_Oversized() throws NoSuchFieldException, IllegalAccessException
+    {
+        IVersionedAsymmetricSerializer<?,?> restore = Verb.GOSSIP_DIGEST_ACK.serializer();
+        try
+        {
+            Verb.GOSSIP_DIGEST_ACK.unsafeSetSerializer(() -> SERIALIZER);
+            Message message = Message.out(Verb.GOSSIP_DIGEST_ACK, "payload");
+            Assert.assertTrue(message.serializedSize(current_version) > LARGE_MESSAGE_THRESHOLD);
+            Assert.assertEquals(ConnectionType.LARGE_MESSAGES, connections.connectionFor(message).type());
+        }
+        finally
+        {
+            Verb.GOSSIP_DIGEST_ACK.unsafeSetSerializer(() -> restore);
+        }
+    }
+
+
+    @Test
     public void getConnection_SmallMessage()
     {
         Message message = Message.out(Verb.PING_REQ, PingRequest.forSmall);
@@ -87,25 +127,7 @@ public class OutboundConnectionsTest
     @Test
     public void getConnection_LargeMessage() throws NoSuchFieldException, IllegalAccessException
     {
-        // just need a serializer to report a size, as fake as it may be
-        IVersionedSerializer<Object> serializer = new IVersionedSerializer<Object>()
-        {
-            public void serialize(Object o, DataOutputPlus out, int version)
-            {
-
-            }
-
-            public Object deserialize(DataInputPlus in, int version)
-            {
-                return null;
-            }
-
-            public long serializedSize(Object o, int version)
-            {
-                return OutboundConnections.LARGE_MESSAGE_THRESHOLD + 1;
-            }
-        };
-        Verb._TEST_2.unsafeSetSerializer(() -> serializer);
+        Verb._TEST_2.unsafeSetSerializer(() -> SERIALIZER);
         Message message = Message.out(Verb._TEST_2, "payload");
         Assert.assertEquals(ConnectionType.LARGE_MESSAGES, connections.connectionFor(message).type());
     }
