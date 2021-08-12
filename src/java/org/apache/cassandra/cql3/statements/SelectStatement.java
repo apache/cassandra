@@ -96,6 +96,9 @@ public class SelectStatement implements CQLStatement
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
 
+    private final long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
+    private final long clientLargeReadBlockThresholdKB = DatabaseDescriptor.getClientLargeReadBlockThresholdKB();
+
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
     public final Parameters parameters;
@@ -812,10 +815,9 @@ public class SelectStatement implements CQLStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
-        long threshold = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
-        if (result.shouldWarn(threshold))
+        if (result.shouldWarn(clientLargeReadWarnThresholdKb))
         {
-            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, threshold);
+            String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, clientLargeReadWarnThresholdKb);
             ClientWarn.instance.warn(msg + " with " + loggableTokens(options));
             logger.warn("{} with query {}", msg, asCQL(options));
             cfs().metric.clientReadSizeWarnings.mark();
@@ -824,10 +826,9 @@ public class SelectStatement implements CQLStatement
 
     private void maybeFail(ResultSetBuilder result, QueryOptions options)
     {
-        long threshold = DatabaseDescriptor.getClientLargeReadBlockThresholdKB();
-        if (result.shouldReject(threshold))
+        if (result.shouldReject(clientLargeReadBlockThresholdKB))
         {
-            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, threshold);
+            String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, clientLargeReadBlockThresholdKB);
             String clientMsg = msg + " with " + loggableTokens(options);
             ClientWarn.instance.warn(clientMsg);
             logger.warn("{} with query {}", msg, asCQL(options));
