@@ -23,16 +23,18 @@ import java.util.concurrent.Callable;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 
-public class RoleTestUtils
+public class AuthTestUtils
 {
 
     public static final RoleResource ROLE_A = RoleResource.role("role_a");
@@ -71,15 +73,78 @@ public class RoleTestUtils
         }
     }
 
+    public static class LocalCassandraAuthorizer extends CassandraAuthorizer
+    {
+        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        UntypedResultSet process(String query) throws RequestExecutionException
+        {
+            return QueryProcessor.executeInternal(query);
+        }
+
+        @Override
+        void processBatch(BatchStatement statement)
+        {
+            statement.executeLocally(QueryState.forInternalCalls(), QueryOptions.DEFAULT);
+        }
+    }
+
+    public static class LocalCassandraNetworkAuthorizer extends CassandraNetworkAuthorizer
+    {
+        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+
+        void process(String query)
+        {
+            QueryProcessor.executeInternal(query);
+        }
+    }
+
+    public static class LocalPasswordAuthenticator extends PasswordAuthenticator
+    {
+        ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+        {
+            return statement.executeLocally(QueryState.forInternalCalls(), options);
+        }
+    }
+
     public static void grantRolesTo(IRoleManager roleManager, RoleResource grantee, RoleResource...granted)
     {
         for(RoleResource toGrant : granted)
             roleManager.grantRole(AuthenticatedUser.ANONYMOUS_USER, toGrant, grantee);
     }
 
-    public static long getReadCount()
+    public static long getNetworkPermissionsReadCount()
+    {
+        ColumnFamilyStore networkPemissionsTable =
+                Keyspace.open(SchemaConstants.AUTH_KEYSPACE_NAME).getColumnFamilyStore(AuthKeyspace.NETWORK_PERMISSIONS);
+        return networkPemissionsTable.metric.readLatency.latency.getCount();
+    }
+
+    public static long getRolePermissionsReadCount()
+    {
+        ColumnFamilyStore rolesPemissionsTable =
+                Keyspace.open(SchemaConstants.AUTH_KEYSPACE_NAME).getColumnFamilyStore(AuthKeyspace.ROLE_PERMISSIONS);
+        return rolesPemissionsTable.metric.readLatency.latency.getCount();
+    }
+
+    public static long getRolesReadCount()
     {
         ColumnFamilyStore rolesTable = Keyspace.open(SchemaConstants.AUTH_KEYSPACE_NAME).getColumnFamilyStore(AuthKeyspace.ROLES);
         return rolesTable.metric.readLatency.latency.getCount();
+    }
+
+    public static RoleOptions getLoginRoleOprions()
+    {
+        RoleOptions roleOptions = new RoleOptions();
+        roleOptions.setOption(IRoleManager.Option.SUPERUSER, false);
+        roleOptions.setOption(IRoleManager.Option.LOGIN, true);
+        roleOptions.setOption(IRoleManager.Option.PASSWORD, "ignored");
+        return roleOptions;
     }
 }

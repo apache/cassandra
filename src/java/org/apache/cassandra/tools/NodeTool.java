@@ -33,7 +33,6 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOError;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -140,9 +139,14 @@ public class NodeTool
                 GetMaxHintWindow.class,
                 GossipInfo.class,
                 Import.class,
-                InvalidateKeyCache.class,
-                InvalidateRowCache.class,
                 InvalidateCounterCache.class,
+                InvalidateCredentialsCache.class,
+                InvalidateJmxPermissionsCache.class,
+                InvalidateKeyCache.class,
+                InvalidateNetworkPermissionsCache.class,
+                InvalidatePermissionsCache.class,
+                InvalidateRolesCache.class,
+                InvalidateRowCache.class,
                 Join.class,
                 Move.class,
                 PauseHandoff.class,
@@ -471,29 +475,6 @@ public class NodeTool
         {
             return cmdArgs.size() <= 1 ? EMPTY_STRING_ARRAY : toArray(cmdArgs.subList(1, cmdArgs.size()), String.class);
         }
-    }
-
-    public static SortedMap<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp,
-                                                                  Map<String, String> tokenToEndpoint,
-                                                                  Map<InetAddress, Float> ownerships)
-    {
-        SortedMap<String, SetHostStat> ownershipByDc = Maps.newTreeMap();
-        EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
-        try
-        {
-            for (Entry<String, String> tokenAndEndPoint : tokenToEndpoint.entrySet())
-            {
-                String dc = epSnitchInfo.getDatacenter(tokenAndEndPoint.getValue());
-                if (!ownershipByDc.containsKey(dc))
-                    ownershipByDc.put(dc, new SetHostStat(resolveIp));
-                ownershipByDc.get(dc).add(tokenAndEndPoint.getKey(), tokenAndEndPoint.getValue(), ownerships);
-            }
-        }
-        catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
-        }
-        return ownershipByDc;
     }
 
     public static SortedMap<String, SetHostStatWithPort> getOwnershipByDcWithPort(NodeProbe probe, boolean resolveIp,

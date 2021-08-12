@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
  * Provides a proxy interface to the platform's MBeanServer instance to perform
@@ -103,7 +104,7 @@ public class AuthorizationProxy implements InvocationHandler
                                                                       "registerMBean",
                                                                       "unregisterMBean");
 
-    private static final JMXPermissionsCache permissionsCache = new JMXPermissionsCache();
+    private static final JmxPermissionsCache permissionsCache = new JmxPermissionsCache();
     private MBeanServer mbs;
 
     /*
@@ -182,7 +183,7 @@ public class AuthorizationProxy implements InvocationHandler
      *             as an invocation of a method on the MBeanServer.
      */
     @VisibleForTesting
-    boolean authorize(Subject subject, String methodName, Object[] args)
+    public boolean authorize(Subject subject, String methodName, Object[] args)
     {
         logger.trace("Authorizing JMX method invocation {} for {}",
                      methodName,
@@ -476,11 +477,12 @@ public class AuthorizationProxy implements InvocationHandler
                                                  .collect(Collectors.toSet());
     }
 
-    private static final class JMXPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+    private static final class JmxPermissionsCache extends AuthCache<RoleResource, Set<PermissionDetails>>
+        implements JmxPermissionsCacheMBean
     {
-        protected JMXPermissionsCache()
+        protected JmxPermissionsCache()
         {
-            super("JMXPermissionsCache",
+            super(CACHE_NAME,
                   DatabaseDescriptor::setPermissionsValidity,
                   DatabaseDescriptor::getPermissionsValidity,
                   DatabaseDescriptor::setPermissionsUpdateInterval,
@@ -489,6 +491,29 @@ public class AuthorizationProxy implements InvocationHandler
                   DatabaseDescriptor::getPermissionsCacheMaxEntries,
                   AuthorizationProxy::loadPermissions,
                   () -> true);
+
+            MBeanWrapper.instance.registerMBean(this, MBEAN_NAME_BASE + DEPRECATED_CACHE_NAME);
         }
+
+        public void invalidatePermissions(String roleName)
+        {
+            invalidate(RoleResource.role(roleName));
+        }
+
+        @Override
+        protected void unregisterMBean()
+        {
+            super.unregisterMBean();
+            MBeanWrapper.instance.unregisterMBean(MBEAN_NAME_BASE + DEPRECATED_CACHE_NAME, MBeanWrapper.OnException.LOG);
+        }
+    }
+
+    public static interface JmxPermissionsCacheMBean extends AuthCacheMBean
+    {
+        public static final String CACHE_NAME = "JmxPermissionsCache";
+        @Deprecated
+        public static final String DEPRECATED_CACHE_NAME = "JMXPermissionsCache";
+
+        public void invalidatePermissions(String roleName);
     }
 }
