@@ -597,10 +597,10 @@ public class DatabaseDescriptorTest
     @Test
     public void testDefaultSslContextFactoryConfiguration() {
         Config config = DatabaseDescriptor.loadConfig();
-        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
                             config.client_encryption_options.ssl_context_factory.class_name);
         Assert.assertTrue(config.client_encryption_options.ssl_context_factory.parameters.isEmpty());
-        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
+        Assert.assertEquals("org.apache.cassandra.security.DefaultSslContextFactory",
                             config.server_encryption_options.ssl_context_factory.class_name);
         Assert.assertTrue(config.server_encryption_options.ssl_context_factory.parameters.isEmpty());
     }

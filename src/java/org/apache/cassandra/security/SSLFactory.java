@@ -194,18 +194,18 @@ public final class SSLFactory
         if (!isHotReloadingInitialized)
             throw new IllegalStateException("Hot reloading functionality has not been initialized.");
 
-        logger.debug("Checking whether certificates have been updated {} and {}",
+        logger.debug("Checking whether certificates have been updated for server {} and client {}",
                      serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
 
-        boolean serverSslContextShouldReload = serverOpts == null ? false :
-                                               serverOpts.sslContextFactoryInstance.shouldReload();
+        boolean serverSslContextShouldReload =
+        serverOpts != null && serverOpts.sslContextFactoryInstance.shouldReload();
 
-        boolean clientSslContextShouldReload = clientOpts == null ? false :
-                                               clientOpts.sslContextFactoryInstance.shouldReload();
+        boolean clientSslContextShouldReload =
+        clientOpts != null && clientOpts.sslContextFactoryInstance.shouldReload();
 
         if (serverSslContextShouldReload || clientSslContextShouldReload)
         {
-            logger.info("SSL certificates have been updated. Reseting the ssl contexts for new connections.");
+            logger.info("SSL certificates have been updated. Resetting the ssl contexts for new connections.");
             try
             {
                 validateSslCerts(serverOpts, clientOpts);

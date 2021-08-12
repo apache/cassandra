@@ -97,7 +97,7 @@ public class EncryptionOptions
 
     public EncryptionOptions()
     {
-        ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactoryImpl",
+        ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
                                                      new HashMap<>());
         keystore = "conf/.keystore";
         keystore_password = "cassandra";
@@ -502,8 +502,7 @@ public class EncryptionOptions
         result += 31 * (cipher_suites == null ? 0 : cipher_suites.hashCode());
         result += 31 * Boolean.hashCode(require_client_auth);
         result += 31 * Boolean.hashCode(require_endpoint_verification);
-        result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.class_name.hashCode());
-        result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.parameters.hashCode());
+        result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.hashCode());
         return result;
     }
 

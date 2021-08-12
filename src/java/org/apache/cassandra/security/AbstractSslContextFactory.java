@@ -18,15 +18,6 @@
 
 package org.apache.cassandra.security;
 
-import java.io.File;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.KeyStore;
-import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,10 +27,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.ClientAuth;
@@ -48,38 +36,30 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
 
 /**
- * Cassandra's default implementation class for the configuration key {@code ssl_context_factory}. It uses
- * file based keystores.
+ * Abstract class implementing {@code ISslContextFacotry} to provide most of the functionality that any
+ * implementation might need. This doesn't assume any file based credentials for keys/certs hence provide a good base
+ * for any implementation that only need to customize the loading of keys/certs in a custom way.
+ *
+ * {@code CAUTION:} While this is extremely useful abstraction, please be careful if you need to modify this class
+ * given possible custom implementations out there!
+ *
+ * @see DefaultSslContextFactory
  */
-public final class DefaultSslContextFactoryImpl implements ISslContextFactory
+abstract public class AbstractSslContextFactory implements ISslContextFactory
 {
-    private static final Logger logger = LoggerFactory.getLogger(DefaultSslContextFactoryImpl.class);
-
-    @VisibleForTesting
-    volatile boolean checkedExpiry = false;
-
-    /**
-     * List of files that trigger hot reloading of SSL certificates
-     */
-    private volatile List<HotReloadableFile> hotReloadableFiles = new ArrayList<>();
-
     /* This list is substituted in configurations that have explicitly specified the original "TLS" default,
      * by extracting it from the default "TLS" SSL Context instance
      */
-    static private final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
+    static protected final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
 
-    private final Map<String,Object> parameters;
-    private final String keystore;
-    private final String keystore_password;
-    private final String truststore;
-    private final String truststore_password;
-    private final List<String> cipher_suites;
-    private String protocol;
-    private List<String> accepted_protocols;
-    private final String algorithm;
-    private final String store_type;
-    private final boolean require_client_auth;
-    private final boolean require_endpoint_verification;
+    protected final Map<String,Object> parameters;
+    protected final List<String> cipher_suites;
+    protected final String protocol;
+    protected final List<String> accepted_protocols;
+    protected final String algorithm;
+    protected final String store_type;
+    protected final boolean require_client_auth;
+    protected final boolean require_endpoint_verification;
     // ServerEncryptionOptions does not use the enabled flag at all instead using the existing
     // internode_encryption option. So we force this private and expose through isEnabled
     // so users of ServerEncryptionOptions can't accidentally use this when they should use isEnabled
@@ -90,12 +70,8 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
     protected Boolean optional;
 
     /* For test only */
-    DefaultSslContextFactoryImpl(){
+    protected AbstractSslContextFactory(){
         parameters = new HashMap<>();
-        keystore = "conf/.keystore";
-        keystore_password = "cassandra";
-        truststore = "conf/.truststore";
-        truststore_password = "cassandra";
         cipher_suites = null;
         protocol = null;
         accepted_protocols = null;
@@ -107,12 +83,8 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         optional = null;
     }
 
-    public DefaultSslContextFactoryImpl(Map<String,Object> parameters) {
+    protected AbstractSslContextFactory(Map<String,Object> parameters) {
         this.parameters = parameters;
-        keystore = getString("keystore");
-        keystore_password = getString("keystore_password");
-        truststore = getString("truststore");
-        truststore_password = getString("truststore_password");
         cipher_suites = getStringList("cipher_suites");
         protocol = getString("protocol");
         accepted_protocols = getStringList("accepted_protocols");
@@ -124,23 +96,23 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         this.optional = getBoolean("optional");
     }
 
-    private String getString(String key, String defaultValue) {
+    protected String getString(String key, String defaultValue) {
         return this.parameters.get(key) == null ? defaultValue : (String)this.parameters.get(key);
     }
 
-    private String getString(String key) {
+    protected String getString(String key) {
         return (String)this.parameters.get(key);
     }
 
-    private List<String> getStringList(String key) {
+    protected List<String> getStringList(String key) {
         return (List<String>)this.parameters.get(key);
     }
 
-    private Boolean getBoolean(String key, boolean defaultValue) {
+    protected Boolean getBoolean(String key, boolean defaultValue) {
         return this.parameters.get(key) == null ? defaultValue : (Boolean)this.parameters.get(key);
     }
 
-    private Boolean getBoolean(String key) {
+    protected Boolean getBoolean(String key) {
         return (Boolean)this.parameters.get(key);
     }
 
@@ -191,7 +163,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
 
         builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK).protocols(getAcceptedProtocols());
 
-        // only set the cipher suites if the opertor has explicity configured values for it; else, use the default
+        // only set the cipher suites if the operator has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
         if (cipher_suites != null && !cipher_suites.isEmpty())
             builder.ciphers(cipher_suites, cipherFilter);
@@ -199,47 +171,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         if (buildTruststore)
             builder.trustManager(buildTrustManagerFactory());
 
-        try
-        {
-            return builder.build();
-        }
-        catch (SSLException e)
-        {
-            throw new SSLException("failed to build the final SslContext object for secure connections", e);
-        }
-    }
-
-    @Override
-    public synchronized void initHotReloading() throws SSLException {
-        boolean hasKeystore = hasKeystore();
-        boolean hasTruststore = hasTruststore();
-
-        if ( hasKeystore || hasTruststore ) {
-            List<HotReloadableFile> fileList = new ArrayList<>();
-            if ( hasKeystore )
-            {
-                fileList.add(new HotReloadableFile(keystore));
-            }
-            if ( hasTruststore ) {
-                fileList.add(new HotReloadableFile(truststore));
-            }
-            hotReloadableFiles = fileList;
-        }
-    }
-
-    @Override
-    public boolean shouldReload()
-    {
-        return hotReloadableFiles.stream().anyMatch(HotReloadableFile::shouldReload);
-    }
-
-    @Override
-    public boolean hasKeystore() {
-        return keystore == null ? false : new File(keystore).exists();
-    }
-
-    private boolean hasTruststore() {
-        return truststore == null ? false : new File(truststore).exists();
+        return builder.build();
     }
 
     /**
@@ -287,83 +219,7 @@ public final class DefaultSslContextFactoryImpl implements ISslContextFactory
         return cipher_suites;
     }
 
-    /**
-     * Helper class for hot reloading SSL Contexts
-     */
-    private static class HotReloadableFile
-    {
-        private final File file;
-        private volatile long lastModTime;
+    abstract protected KeyManagerFactory buildKeyManagerFactory() throws SSLException;
 
-        HotReloadableFile(String path)
-        {
-            file = new File(path);
-            lastModTime = file.lastModified();
-        }
-
-        boolean shouldReload()
-        {
-            long curModTime = file.lastModified();
-            boolean result = curModTime != lastModTime;
-            lastModTime = curModTime;
-            return result;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "HotReloadableFile{" +
-                   "file=" + file +
-                   ", lastModTime=" + lastModTime +
-                   '}';
-        }
-    }
-
-    KeyManagerFactory buildKeyManagerFactory() throws SSLException
-    {
-        try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
-        {
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(
-            algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : algorithm);
-            KeyStore ks = KeyStore.getInstance(store_type);
-            ks.load(ksf, keystore_password.toCharArray());
-            if (!checkedExpiry)
-            {
-                for (Enumeration<String> aliases = ks.aliases(); aliases.hasMoreElements(); )
-                {
-                    String alias = aliases.nextElement();
-                    if (ks.getCertificate(alias).getType().equals("X.509"))
-                    {
-                        Date expires = ((X509Certificate) ks.getCertificate(alias)).getNotAfter();
-                        if (expires.before(new Date()))
-                            logger.warn("Certificate for {} expired on {}", alias, expires);
-                    }
-                }
-                checkedExpiry = true;
-            }
-            kmf.init(ks, keystore_password.toCharArray());
-            return kmf;
-        }
-        catch (Exception e)
-        {
-            throw new SSLException("failed to build key manager store for secure connections", e);
-        }
-    }
-
-    TrustManagerFactory buildTrustManagerFactory() throws SSLException
-    {
-        try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
-        {
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(
-            algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : algorithm);
-            KeyStore ts = KeyStore.getInstance(store_type);
-            ts.load(tsf, truststore_password.toCharArray());
-            tmf.init(ts);
-            return tmf;
-        }
-        catch (Exception e)
-        {
-            throw new SSLException("failed to build trust manager store for secure connections", e);
-        }
-    }
+    abstract protected TrustManagerFactory buildTrustManagerFactory() throws SSLException;
 }

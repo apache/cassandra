@@ -17,8 +17,8 @@
 #
 
 #
-# Warning!
-# Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
+# Testing for pluggable ssl_context_factory option for client and server encryption options with a valid and a missing
+# implementation classes.
 #
 cluster_name: Test Cluster
 # memtable_allocation_type: heap_buffers

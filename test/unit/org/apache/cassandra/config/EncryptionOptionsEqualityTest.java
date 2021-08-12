@@ -23,7 +23,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import org.apache.cassandra.security.DefaultSslContextFactoryImpl;
+import org.apache.cassandra.security.DefaultSslContextFactory;
 import org.apache.cassandra.security.DummySslContextFactoryImpl;
 
 import static org.junit.Assert.assertEquals;
@@ -108,7 +108,7 @@ public class EncryptionOptionsEqualityTest
         parameters2.put("key2", "value2");
         EncryptionOptions encryptionOptions2 =
         new EncryptionOptions()
-        .withSslContextFactory(new ParameterizedClass(DefaultSslContextFactoryImpl.class.getName(), parameters2))
+        .withSslContextFactory(new ParameterizedClass(DefaultSslContextFactory.class.getName(), parameters2))
         .withProtocol("TLSv1.1")
         .withRequireClientAuth(false)
         .withRequireEndpointVerification(true);
