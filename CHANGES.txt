@@ -1,4 +1,5 @@
 3.11.12
+ * Make assassinate more resilient to missing tokens (CASSANDRA-16847)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
  * Validate SASI tokenizer options before adding index to schema (CASSANDRA-15135)
  * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
