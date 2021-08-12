@@ -1,4 +1,5 @@
 4.1
+ * Provide a nodetool command to invalidate auth caches (CASSANDRA-16404)
  * Catch read repair timeout exceptions and add metric (CASSANDRA-16880)
  * Exclude Jackson 1.x transitive dependency of hadoop* provided dependencies (CASSANDRA-16854)
  * Add client warnings and abort to tombstone and coordinator reads which go past a low/high watermark (CASSANDRA-16850)

@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -103,11 +104,10 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         try
         {
-            ResultMessage.Rows rows =
-            authenticateStatement.execute(QueryState.forInternalCalls(),
-                                            QueryOptions.forInternalCalls(consistencyForRole(username),
-                                                                          Lists.newArrayList(ByteBufferUtil.bytes(username))),
-                                            System.nanoTime());
+            QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(username),
+                    Lists.newArrayList(ByteBufferUtil.bytes(username)));
+
+            ResultMessage.Rows rows = select(authenticateStatement, options);
 
             // If either a non-existent role name was supplied, or no credentials
             // were found for that role we don't want to cache the result so we throw
@@ -125,6 +125,12 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             throw new AuthenticationException("Unable to perform authentication: " + e.getMessage(), e);
         }
+    }
+
+    @VisibleForTesting
+    ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
+    {
+        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
     }
 
     public Set<DataResource> protectedResources()
@@ -243,7 +249,7 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         private CredentialsCache(PasswordAuthenticator authenticator)
         {
-            super("CredentialsCache",
+            super(CACHE_NAME,
                   DatabaseDescriptor::setCredentialsValidity,
                   DatabaseDescriptor::getCredentialsValidity,
                   DatabaseDescriptor::setCredentialsUpdateInterval,
@@ -262,6 +268,8 @@ public class PasswordAuthenticator implements IAuthenticator
 
     public static interface CredentialsCacheMBean extends AuthCacheMBean
     {
+        public static final String CACHE_NAME = "CredentialsCache";
+
         public void invalidateCredentials(String roleName);
     }
 }
