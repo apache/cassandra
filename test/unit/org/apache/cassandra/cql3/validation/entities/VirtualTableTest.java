@@ -18,30 +18,44 @@
 package org.apache.cassandra.cql3.validation.entities;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Range;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.Partition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.virtual.AbstractVirtualTable;
+import org.apache.cassandra.db.virtual.AbstractWritableVirtualTable;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.triggers.ITrigger;
+import org.apache.cassandra.utils.Pair;
+import org.assertj.core.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -52,69 +66,128 @@ public class VirtualTableTest extends CQLTester
     private static final String VT1_NAME = "vt1";
     private static final String VT2_NAME = "vt2";
     private static final String VT3_NAME = "vt3";
-    private static final String VT4_NAME = "vt4";
 
-    private static class WritableVirtualTable extends AbstractVirtualTable
+    private static class WritableVirtualTable extends AbstractWritableVirtualTable
     {
-        private final ColumnMetadata valueColumn;
-        private final Map<String, Integer> backingMap = new HashMap<>();
+        private final Map<String, SortedMap<String,Pair<Integer, Long>>> backingMap = new ConcurrentHashMap<>();
 
         WritableVirtualTable(String keyspaceName, String tableName)
         {
             super(TableMetadata.builder(keyspaceName, tableName)
                                .kind(TableMetadata.Kind.VIRTUAL)
-                               .addPartitionKeyColumn("key", UTF8Type.instance)
-                               .addRegularColumn("value", Int32Type.instance)
+                               .addPartitionKeyColumn("pk", UTF8Type.instance)
+                               .addClusteringColumn("c", UTF8Type.instance)
+                               .addRegularColumn("v1", Int32Type.instance)
+                               .addRegularColumn("v2", LongType.instance)
                                .build());
-            valueColumn = metadata().regularColumns().getSimple(0);
         }
 
         @Override
         public DataSet data()
         {
             SimpleDataSet data = new SimpleDataSet(metadata());
-            backingMap.forEach((key, value) -> data.row(key).column("value", value));
+            backingMap.forEach((pk, clusteringMap) ->
+                    clusteringMap.forEach((c, p) -> data.row(pk, c)
+                            .column("v1", p.left)
+                            .column("v2", p.right)));
             return data;
         }
 
         @Override
-        public void apply(PartitionUpdate update)
-        {
-            String key = (String) metadata().partitionKeyType.compose(update.partitionKey().getKey());
-            update.forEach(row ->
-                           {
-                               Integer value = Int32Type.instance.compose(row.getCell(valueColumn).buffer());
-                               backingMap.put(key, value);
-                           });
-        }
-    }
-
-    private abstract static class TruncatableVirtualTable extends AbstractVirtualTable
-    {
-        private boolean isTruncated = false;
-
-        TruncatableVirtualTable(TableMetadata metadata)
-        {
-            super(metadata);
+        protected void applyPartitionDeletion(DecoratedKey partitionKey, DeletionTime partitionDeletion) {
+            String key = (String) metadata.partitionKeyType.compose(partitionKey.getKey());
+            backingMap.remove(key);
         }
 
         @Override
-        public DataSet data()
-        {
-            if (isTruncated)
-            {
-                return new SimpleDataSet(metadata());
+        protected void applyRangeTombstone(DecoratedKey partitionKey, RangeTombstone rt) {
+            String key = (String) metadata.partitionKeyType.compose(partitionKey.getKey());
+
+            ClusteringBound<?> start = rt.deletedSlice().start();
+            String startClusteringColumn;
+            if (Arrays.isNullOrEmpty(start.getBufferArray()))
+                startClusteringColumn = null;
+            else
+                startClusteringColumn = (String) metadata.clusteringColumns().get(0).type.compose(start.getBufferArray()[0]);
+
+            ClusteringBound<?> end = rt.deletedSlice().end();
+            String endClusteringColumn;
+            if (Arrays.isNullOrEmpty(end.getBufferArray()))
+                endClusteringColumn = null;
+            else
+                endClusteringColumn = (String) metadata.clusteringColumns().get(0).type.compose(end.getBufferArray()[0]);
+
+            SortedMap<String, Pair<Integer, Long>> clusteringColumnsMap = backingMap.computeIfAbsent(key, k -> new TreeMap<>());
+            if (startClusteringColumn != null && endClusteringColumn != null)
+                if (start.isInclusive() && end.isInclusive())
+                    Maps.filterKeys(clusteringColumnsMap, Range.closed(startClusteringColumn, endClusteringColumn)).clear();
+                else if (start.isExclusive() && end.isInclusive())
+                    Maps.filterKeys(clusteringColumnsMap, Range.openClosed(startClusteringColumn, endClusteringColumn)).clear();
+                else if (start.isInclusive() && end.isExclusive())
+                    Maps.filterKeys(clusteringColumnsMap, Range.closedOpen(startClusteringColumn, endClusteringColumn)).clear();
+                else
+                    Maps.filterKeys(clusteringColumnsMap, Range.open(startClusteringColumn, endClusteringColumn)).clear();
+            else if (startClusteringColumn == null && endClusteringColumn != null)
+                if (end.isInclusive())
+                    Maps.filterKeys(clusteringColumnsMap, Range.atMost(endClusteringColumn)).clear();
+                else
+                    Maps.filterKeys(clusteringColumnsMap, Range.lessThan(endClusteringColumn)).clear();
+            else if (startClusteringColumn != null && endClusteringColumn == null)
+                if (start.isInclusive())
+                    Maps.filterKeys(clusteringColumnsMap, Range.atLeast(startClusteringColumn)).clear();
+                else
+                    Maps.filterKeys(clusteringColumnsMap, Range.greaterThan(startClusteringColumn)).clear();
+            else if (startClusteringColumn == null && endClusteringColumn == null)
+                throw new IllegalStateException("Both start and end range tombstone values cannot be empty");
+        }
+
+        @Override
+        protected void applyRowDeletion(DecoratedKey partitionKey, Clustering<?> clustering, Row.Deletion rowDeletion) {
+            String key = (String) metadata.partitionKeyType.compose(partitionKey.getKey());
+            String clusteringKey = (String) metadata.clusteringColumns().get(0).type.compose(clustering.bufferAt(0));
+
+            SortedMap<String, Pair<Integer, Long>> clusteringColumnsMap = backingMap.computeIfAbsent(key, k -> new TreeMap<>());
+            clusteringColumnsMap.remove(clusteringKey);
+        }
+
+        @Override
+        protected void applyColumnDeletion(DecoratedKey partitionKey, Clustering<?> clustering, Cell<?> cell) {
+            String key = (String) metadata.partitionKeyType.compose(partitionKey.getKey());
+            String clusteringKey = (String) metadata.clusteringColumns().get(0).type.compose(clustering.bufferAt(0));
+            String columnName = cell.column().name.toCQLString();
+            Pair<Integer, Long> p = backingMap.getOrDefault(key, Collections.emptySortedMap()).get(clusteringKey);
+
+            if (p != null) {
+                if (columnName.equals("v1"))
+                    backingMap.get(key).put(clusteringKey, Pair.create(null, p.right));
+                else
+                    backingMap.get(key).put(clusteringKey, Pair.create(p.left, null));
             }
-
-            return truncatableData();
         }
 
-        abstract protected DataSet truncatableData();
+        @Override
+        protected void applyUpdate(DecoratedKey partitionKey, Clustering<?> clustering, Cell<?> cell) {
+            String key = (String) metadata.partitionKeyType.compose(partitionKey.getKey());
+            String clusteringKey = (String) metadata.clusteringColumns().get(0).type.compose(clustering.bufferAt(0));
+            String columnName = cell.column().name.toCQLString();
+            SortedMap<String, Pair<Integer, Long>> clusteringColumnsMap = backingMap.computeIfAbsent(key, k -> new TreeMap<>());
+            clusteringColumnsMap.compute(clusteringKey, (k, p) -> {
+                if ("v1".equals(columnName))
+                {
+                    Integer cellValue = (Integer) metadata.getColumn(cell.column().name).cellValueType().compose(cell.buffer());
+                    return Pair.create(cellValue, p != null ? p.right : null);
+                }
+                else
+                {
+                    Long cellValue = (Long) metadata.getColumn(cell.column().name).cellValueType().compose(cell.buffer());
+                    return Pair.create(p != null ? p.left : null, cellValue);
+                }
+            });
+        }
 
         @Override
-        public void truncate()
-        {
-            isTruncated = true;
+        public void truncate() {
+            backingMap.clear();
         }
     }
 
@@ -170,26 +243,7 @@ public class VirtualTableTest extends CQLTester
             }
         };
 
-        TableMetadata vt4Metadata = TableMetadata.builder(KS_NAME, VT4_NAME)
-                .kind(TableMetadata.Kind.VIRTUAL)
-                .addPartitionKeyColumn("key", UTF8Type.instance)
-                .addRegularColumn("value", Int32Type.instance)
-                .build();
-
-        SimpleDataSet vt4data = new SimpleDataSet(vt4Metadata);
-
-        vt4data.row("pk1").column("value", 1)
-                .row("pk2").column("value", 2);
-
-        VirtualTable vt4 = new TruncatableVirtualTable(vt4Metadata)
-        {
-            public DataSet truncatableData()
-            {
-                return vt4data;
-            }
-        };
-
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4)));
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3)));
 
         CQLTester.setUpClass();
     }
@@ -304,95 +358,134 @@ public class VirtualTableTest extends CQLTester
 
         // fill the table, test UNLOGGED batch
         execute("BEGIN UNLOGGED BATCH " +
-                "UPDATE test_virtual_ks.vt2 SET value = 1 WHERE key ='pk1';" +
-                "UPDATE test_virtual_ks.vt2 SET value = 2 WHERE key ='pk2';" +
-                "UPDATE test_virtual_ks.vt2 SET value = 3 WHERE key ='pk3';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 1, v2 = 1 WHERE pk ='pk1' AND c = 'c1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 2, v2 = 2 WHERE pk ='pk1' AND c = 'c2';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 3, v2 = 3 WHERE pk ='pk2' AND c = 'c1';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 4, v2 = 4 WHERE pk ='pk2' AND c = 'c3';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 5, v2 = 5 WHERE pk ='pk2' AND c = 'c5';" +
+                "UPDATE test_virtual_ks.vt2 SET v1 = 6, v2 = 6 WHERE pk ='pk2' AND c = 'c6';" +
                 "APPLY BATCH");
         assertRows(execute("SELECT * FROM test_virtual_ks.vt2"),
-                   row("pk1", 1),
-                   row("pk2", 2),
-                   row("pk3", 3));
-
-        // test that LOGGED batches don't allow virtual table updates
-        assertInvalidMessage("Cannot include a virtual table statement in a logged batch",
-                             "BEGIN BATCH " +
-                             "UPDATE test_virtual_ks.vt2 SET value = 1 WHERE key ='pk1';" +
-                             "UPDATE test_virtual_ks.vt2 SET value = 2 WHERE key ='pk2';" +
-                             "UPDATE test_virtual_ks.vt2 SET value = 3 WHERE key ='pk3';" +
-                             "APPLY BATCH");
-
-        // test that UNLOGGED batch doesn't allow mixing updates for regular and virtual tables
-        createTable("CREATE TABLE %s (key text PRIMARY KEY, value int)");
-        assertInvalidMessage("Mutations for virtual and regular tables cannot exist in the same batch",
-                             "BEGIN UNLOGGED BATCH " +
-                             "UPDATE test_virtual_ks.vt2 SET value = 1 WHERE key ='pk1'" +
-                             "UPDATE %s                  SET value = 2 WHERE key ='pk2'" +
-                             "UPDATE test_virtual_ks.vt2 SET value = 3 WHERE key ='pk3'" +
-                             "APPLY BATCH");
+                   row("pk1", "c1", 1, 1L),
+                   row("pk1", "c2", 2, 2L),
+                   row("pk2", "c1", 3, 3L),
+                   row("pk2", "c3", 4, 4L),
+                   row("pk2", "c5", 5, 5L),
+                   row("pk2", "c6", 6, 6L));
 
         // update a single value with UPDATE
-        execute("UPDATE test_virtual_ks.vt2 SET value = 11 WHERE key ='pk1'");
-        assertRows(execute("SELECT * FROM test_virtual_ks.vt2 WHERE key = 'pk1'"),
-                   row("pk1", 11));
+        execute("UPDATE test_virtual_ks.vt2 SET v1 = 11 WHERE pk ='pk1' AND c = 'c1'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk = 'pk1' AND c = 'c1'"),
+                   row("pk1", "c1", 11, 1L));
+
+        // update multiple values with UPDATE
+        execute("UPDATE test_virtual_ks.vt2 SET v1 = 111, v2 = 111 WHERE pk ='pk1' AND c = 'c1'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk = 'pk1' AND c = 'c1'"),
+                row("pk1", "c1", 111, 111L));
 
         // update a single value with INSERT
-        executeNet("INSERT INTO test_virtual_ks.vt2 (key, value) VALUES ('pk2', 22)");
-        assertRows(execute("SELECT * FROM test_virtual_ks.vt2 WHERE key = 'pk2'"),
-                   row("pk2", 22));
+        execute("INSERT INTO test_virtual_ks.vt2 (pk, c, v2) VALUES ('pk1', 'c2', 22)");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk = 'pk1' AND c = 'c2'"),
+                   row("pk1", "c2", 2, 22L));
 
-        // test that deletions are (currently) rejected
-        assertInvalidMessage("Virtual tables don't support DELETE statements",
-                             "DELETE FROM test_virtual_ks.vt2 WHERE key ='pk1'");
+        // update multiple values with INSERT
+        execute("INSERT INTO test_virtual_ks.vt2 (pk, c, v1, v2) VALUES ('pk1', 'c2', 222, 222)");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2 WHERE pk = 'pk1' AND c = 'c2'"),
+                row("pk1", "c2", 222, 222L));
+
+        // delete a single partition
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk ='pk1'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2"),
+                row("pk2", "c1", 3, 3L),
+                row("pk2", "c3", 4, 4L),
+                row("pk2", "c5", 5, 5L),
+                row("pk2", "c6", 6, 6L));
+
+        // delete a range (two-sided limit)
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk ='pk2' AND c > 'c1' AND c < 'c5'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2"),
+                row("pk2", "c1", 3, 3L),
+                row("pk2", "c5", 5, 5L),
+                row("pk2", "c6", 6, 6L));
+
+        // delete a range (one-sided limit)
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk ='pk2' AND c < 'c5'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2"),
+                row("pk2", "c5", 5, 5L),
+                row("pk2", "c6", 6, 6L));
+
+        // delete a single row
+        execute("DELETE FROM test_virtual_ks.vt2 WHERE pk ='pk2' AND c = 'c5'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2"),
+                row("pk2", "c6", 6, 6L));
+
+        // delete a single column
+        execute("DELETE v1 FROM test_virtual_ks.vt2 WHERE pk ='pk2' AND c = 'c6'");
+        assertRows(execute("SELECT * FROM test_virtual_ks.vt2"),
+                row("pk2", "c6", null, 6L));
+
+        // truncate
+        execute("TRUNCATE test_virtual_ks.vt2");
+        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt2"));
+    }
+
+    @Test
+    public void testInvalidDMLOperationsOnWritableTable() throws Throwable
+    {
+        // test that LOGGED batch doesn't allow virtual table updates
+        assertInvalidMessage("Cannot include a virtual table statement in a logged batch",
+                "BEGIN BATCH " +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 1 WHERE pk ='pk1' AND c = 'c1';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 2 WHERE pk ='pk2' AND c = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk ='pk3' AND c = 'c1';" +
+                        "APPLY BATCH");
+
+        // test that UNLOGGED batch doesn't allow mixing updates for regular and virtual tables
+        createTable("CREATE TABLE %s (pk text, c text, v1 int, v2 bigint, PRIMARY KEY ((pk), c))");
+        assertInvalidMessage("Mutations for virtual and regular tables cannot exist in the same batch",
+                "BEGIN UNLOGGED BATCH " +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 1 WHERE pk ='pk1' AND c = 'c1';" +
+                        "UPDATE %s                  SET v1 = 2 WHERE pk ='pk2' AND c = 'c2';" +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk ='pk3' AND c = 'c1';" +
+                        "APPLY BATCH");
 
         // test that TTL is (currently) rejected with INSERT and UPDATE
         assertInvalidMessage("Expiring columns are not supported by virtual tables",
-                             "INSERT INTO test_virtual_ks.vt2 (key, value) VALUES ('pk1', 11) USING TTL 86400");
+                "INSERT INTO test_virtual_ks.vt2 (pk, c, v1, v2) VALUES ('pk1', 'c1', 1, 11) USING TTL 86400");
         assertInvalidMessage("Expiring columns are not supported by virtual tables",
-                             "UPDATE test_virtual_ks.vt2 USING TTL 86400 SET value = 11 WHERE key ='pk1'");
+                "UPDATE test_virtual_ks.vt2 USING TTL 86400 SET v1 = 1, v2 = 11 WHERE pk ='pk1' AND c = 'c1'");
 
         // test that LWT is (currently) rejected with virtual tables in batches
         assertInvalidMessage("Conditional BATCH statements cannot include mutations for virtual tables",
-                             "BEGIN UNLOGGED BATCH " +
-                             "UPDATE test_virtual_ks.vt2 SET value = 3 WHERE key ='pk3' IF value = 2;" +
-                             "APPLY BATCH");
+                "BEGIN UNLOGGED BATCH " +
+                        "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk = 'pk1' AND c = 'c1' IF v1 = 2;" +
+                        "APPLY BATCH");
 
         // test that LWT is (currently) rejected with virtual tables in UPDATEs
         assertInvalidMessage("Conditional updates are not supported by virtual tables",
-                             "UPDATE test_virtual_ks.vt2 SET value = 3 WHERE key ='pk3' IF value = 2");
+                "UPDATE test_virtual_ks.vt2 SET v1 = 3 WHERE pk = 'pk1' AND c = 'c1' IF v1 = 2");
 
         // test that LWT is (currently) rejected with virtual tables in INSERTs
         assertInvalidMessage("Conditional updates are not supported by virtual tables",
-                             "INSERT INTO test_virtual_ks.vt2 (key, value) VALUES ('pk2', 22) IF NOT EXISTS");
+                "INSERT INTO test_virtual_ks.vt2 (pk, c, v1) VALUES ('pk1', 'c1', 2) IF NOT EXISTS");
     }
 
     @Test
-    public void testTruncationOnTruncatableTable() throws Throwable
-    {
-        // check for existing records
-        assertRows(execute("SELECT * FROM test_virtual_ks.vt4"),
-                row("pk1", 1),
-                row("pk2", 2));
-
-        // truncate
-        execute("TRUNCATE test_virtual_ks.vt4");
-
-        // check that truncation is applied
-        assertEmpty(execute("SELECT * FROM test_virtual_ks.vt4"));
-    }
-
-    @Test
-    public void testInvalidDMLOperations() throws Throwable
+    public void testInvalidDMLOperationsOnReadOnlyTable() throws Throwable
     {
         assertInvalidMessage("Modification is not supported by table test_virtual_ks.vt1",
                 "INSERT INTO test_virtual_ks.vt1 (pk, c, v1, v2) " +
                         "VALUES ('pk11', 'ck11', 11, 11)");
+
+        assertInvalidMessage("Modification is not supported by table test_virtual_ks.vt1",
+                "DELETE FROM test_virtual_ks.vt1 WHERE pk ='pk11' AND c = 'ck11'");
 
         assertInvalidMessage("Error during truncate: Truncation is not supported by table test_virtual_ks.vt1",
                 "TRUNCATE TABLE test_virtual_ks.vt1");
     }
 
     @Test
-    public void testInvalidDDLOperations() throws Throwable
+    public void testInvalidDDLOperationsOnVirtualKeyspaceAndReadOnlyTable() throws Throwable
     {
         assertInvalidMessage("Virtual keyspace 'test_virtual_ks' is not user-modifiable",
                              "DROP KEYSPACE test_virtual_ks");

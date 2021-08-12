@@ -145,8 +145,6 @@ public class DeleteStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            checkFalse(metadata.isVirtual(), "Virtual tables don't support DELETE statements");
-
             Operations operations = new Operations(type);
 
             for (Operation.RawDeletion deletion : deletions)
