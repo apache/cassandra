@@ -38,7 +38,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.net.MessageFlag;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -714,7 +713,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         // can't rely on trackWarnings as this won't be called yet; that happens at the start of execution
         // if track warnings is enabled, then add to the message
         if (DatabaseDescriptor.getClientTrackWarningsEnabled())
-            msg = msg.withParam(ParamType.TRACK_WARNINGS, NoPayload.noPayload);
+            msg = msg.withFlag(MessageFlag.TRACK_WARNINGS);
         return msg;
     }
 

@@ -273,6 +273,11 @@ public class Message<T>
         return new Message<>(header.withParam(ParamType.FORWARD_TO, peers), payload);
     }
 
+    public Message<T> withFlag(MessageFlag flag)
+    {
+        return new Message<>(header.withFlag(flag), payload);
+    }
+
     public Message<T> withParam(ParamType type, Object value)
     {
         return new Message<>(header.withParam(type, value), payload);
@@ -428,7 +433,7 @@ public class Message<T>
 
         boolean trackWarnings()
         {
-            return params.containsKey(ParamType.TRACK_WARNINGS);
+            return MessageFlag.TRACK_WARNINGS.isIn(flags);
         }
 
         @Nullable

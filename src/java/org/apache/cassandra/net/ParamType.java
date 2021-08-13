@@ -56,13 +56,8 @@ public enum ParamType
     @Deprecated
     TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
 
-    /**
-     * Tells execution to track any and all warnings to send back to users.
-     */
-    TRACK_WARNINGS(8, "TrackWarnings", NoPayload.serializer), //TODO should this move to MessageFlag? This is a boolean
-
-    TOMBSTONE_ABORT(9, "TSA", Int32Serializer.serializer),
-    TOMBSTONE_WARNING(10, "TSW", Int32Serializer.serializer);
+    TOMBSTONE_ABORT(8, "TSA", Int32Serializer.serializer),
+    TOMBSTONE_WARNING(9, "TSW", Int32Serializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string
