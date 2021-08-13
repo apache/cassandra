@@ -132,15 +132,15 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     }
 
     @VisibleForTesting
-    public static String tombstoneAbortMessage(int nodes, int tombstones)
+    public static String tombstoneAbortMessage(int nodes, int tombstones, String cql)
     {
-        return String.format("%s nodes scanned over %s tombstones and aborted the query", nodes, tombstones);
+        return String.format("%s nodes scanned over %s tombstones and aborted the query %s (see tombstone_failure_threshold)", nodes, tombstones, cql);
     }
 
     @VisibleForTesting
-    public static String tombstoneWarnMessage(int nodes, int tombstones)
+    public static String tombstoneWarnMessage(int nodes, int tombstones, String cql)
     {
-        return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings", nodes, tombstones);
+        return String.format("%s nodes scanned up to %s tombstones and issued tombstone warnings for query %s  (see tombstone_warn_threshold)", nodes, tombstones, cql);
     }
 
     private ColumnFamilyStore cfs()
@@ -165,7 +165,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         {
             if (warnings.tombstoneAborts.get() > 0)
             {
-                String msg = tombstoneAbortMessage(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get());
+                String msg = tombstoneAbortMessage(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get(), command.toCQLString());
                 ClientWarn.instance.warn(msg + " with " + command.loggableTokens());
                 logger.warn("{} with query {}", msg, command.toCQLString());
                 cfs().metric.clientTombstoneAborts.mark();
@@ -173,7 +173,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
             if (warnings.tombstoneWarnings.get() > 0)
             {
-                String msg = tombstoneWarnMessage(warnings.tombstoneWarnings.get(), warnings.maxTombstoneWarningCount.get());
+                String msg = tombstoneWarnMessage(warnings.tombstoneWarnings.get(), warnings.maxTombstoneWarningCount.get(), command.toCQLString());
                 ClientWarn.instance.warn(msg + " with " + command.loggableTokens());
                 logger.warn("{} with query {}", msg, command.toCQLString());
                 cfs().metric.clientTombstoneWarnings.mark();
@@ -194,7 +194,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
 
         if (warnings != null && warnings.tombstoneAborts.get() > 0)
-            throw new TombstoneAbortException(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get(), resolver.isDataPresent(),
+            throw new TombstoneAbortException(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get(), command.toCQLString(), resolver.isDataPresent(),
                                               replicaPlan.get().consistencyLevel(), received, blockFor, failureReasonByEndpoint);
 
         // Same as for writes, see AbstractWriteResponseHandler

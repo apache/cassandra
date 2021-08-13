@@ -3464,4 +3464,17 @@ public class DatabaseDescriptor
     {
         conf.client_large_read_block_threshold_kb = Math.max(threshold, 0);
     }
+
+    public static boolean getClientTrackWarningsEnabled()
+    {
+        return conf.client_track_warnings_enabled;
+    }
+
+    public static void setClientTrackWarningsEnabled(boolean value)
+    {
+        boolean current = conf.client_track_warnings_enabled;
+        if (current != value)
+            logger.info("Changing client_track_warnings_enabled from {} to {}", current, value);
+        conf.client_track_warnings_enabled = value;
+    }
 }

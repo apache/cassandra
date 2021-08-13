@@ -30,9 +30,9 @@ public class TombstoneAbortException extends ReadAbortException
     public final int nodes;
     public final int tombstones;
 
-    public TombstoneAbortException(int nodes, int tombstones, boolean dataPresent, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
+    public TombstoneAbortException(int nodes, int tombstones, String cql, boolean dataPresent, ConsistencyLevel consistency, int received, int blockFor, Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
-        super(tombstoneAbortMessage(nodes, tombstones), consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
+        super(tombstoneAbortMessage(nodes, tombstones, cql), consistency, received, blockFor, dataPresent, failureReasonByEndpoint);
         this.nodes = nodes;
         this.tombstones = tombstones;
     }

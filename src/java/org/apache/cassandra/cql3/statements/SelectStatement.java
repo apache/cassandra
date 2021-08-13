@@ -96,6 +96,7 @@ public class SelectStatement implements CQLStatement
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
 
+    private final boolean trackWarnings = DatabaseDescriptor.getClientTrackWarningsEnabled();
     private final long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
     private final long clientLargeReadBlockThresholdKB = DatabaseDescriptor.getClientLargeReadBlockThresholdKB();
 
@@ -815,6 +816,8 @@ public class SelectStatement implements CQLStatement
 
     private void maybeWarn(ResultSetBuilder result, QueryOptions options)
     {
+        if (!trackWarnings)
+            return;
         if (result.shouldWarn(clientLargeReadWarnThresholdKb))
         {
             String msg = String.format("Read on table %s has exceeded the size warning threshold of %,d kb", table, clientLargeReadWarnThresholdKb);
@@ -826,6 +829,8 @@ public class SelectStatement implements CQLStatement
 
     private void maybeFail(ResultSetBuilder result, QueryOptions options)
     {
+        if (!trackWarnings)
+            return;
         if (result.shouldReject(clientLargeReadBlockThresholdKB))
         {
             String msg = String.format("Read on table %s has exceeded the size failure threshold of %,d kb", table, clientLargeReadBlockThresholdKB);

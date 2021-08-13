@@ -287,7 +287,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public void trackWarnings()
     {
-        trackWarnings = true;
+        trackWarnings = DatabaseDescriptor.getClientTrackWarningsEnabled();
     }
 
     public boolean isTrackingWarnings()
@@ -602,8 +602,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                     String query = ReadCommand.this.toCQLString();
                     Tracing.trace("Scanned over {} tombstones for query {}; query aborted (see tombstone_failure_threshold)", failureThreshold, query);
                     metric.tombstoneFailures.inc();
-                    MessageParams.remove(ParamType.TOMBSTONE_WARNING);
-                    MessageParams.add(ParamType.TOMBSTONE_ABORT, tombstones);
+                    if (trackWarnings)
+                    {
+                        MessageParams.remove(ParamType.TOMBSTONE_WARNING);
+                        MessageParams.add(ParamType.TOMBSTONE_ABORT, tombstones);
+                    }
                     throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
             }
@@ -708,7 +711,11 @@ public abstract class ReadCommand extends AbstractReadQuery
         Message<ReadCommand> msg = trackRepairedData
                                    ? Message.outWithFlags(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE, MessageFlag.TRACK_REPAIRED_DATA)
                                    : Message.outWithFlag(verb(), this, MessageFlag.CALL_BACK_ON_FAILURE);
-        return msg.withParam(ParamType.TRACK_WARNINGS, NoPayload.noPayload);
+        // can't rely on trackWarnings as this won't be called yet; that happens at the start of execution
+        // if track warnings is enabled, then add to the message
+        if (DatabaseDescriptor.getClientTrackWarningsEnabled())
+            msg = msg.withParam(ParamType.TRACK_WARNINGS, NoPayload.noPayload);
+        return msg;
     }
 
     public abstract Verb verb();

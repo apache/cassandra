@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -76,6 +77,11 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v blob, PRIMARY KEY (pk, ck))");
     }
 
+    private static void enable(boolean value)
+    {
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setClientTrackWarningsEnabled(value)));
+    }
+
     private static void assertPrefix(String expectedPrefix, String actual)
     {
         if (!actual.startsWith(expectedPrefix))
@@ -96,14 +102,17 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(128));
 
         String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
-        SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-
         Consumer<List<String>> test = warnings ->
                                       Assert.assertEquals(Collections.emptyList(), warnings);
 
-        test.accept(result.warnings());
-        test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
-        assertWarnAborts(0, 0);
+        for (boolean b : Arrays.asList(true, false))
+        {
+            enable(b);
+            SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
+            test.accept(result.warnings());
+            test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+            assertWarnAborts(0, 0);
+        }
     }
 
     @Test
@@ -112,15 +121,22 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)", ConsistencyLevel.ALL, bytes(512));
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, bytes(512));
 
+
         String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
+        Consumer<List<String>> testEnabled = warnings ->
+                                             assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size warning threshold", Iterables.getOnlyElement(warnings));
+
+        enable(true);
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-
-        Consumer<List<String>> test = warnings ->
-                                      assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size warning threshold", Iterables.getOnlyElement(warnings));
-
-        test.accept(result.warnings());
+        testEnabled.accept(result.warnings());
         assertWarnAborts(1, 0);
-        test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        testEnabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        assertWarnAborts(2, 0);
+
+        enable(false);
+        result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
+        Assertions.assertThat(result.warnings()).isEmpty();
+        Assertions.assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
         assertWarnAborts(2, 0);
     }
 
@@ -133,6 +149,7 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 4, ?)", ConsistencyLevel.ALL, bytes(512));
         CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 5, ?)", ConsistencyLevel.ALL, bytes(512));
 
+        enable(true);
         String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
@@ -174,6 +191,13 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
                           }
                       });
         }
+        assertWarnAborts(0, 2);
+
+        // query should no longer fail
+        enable(false);
+        SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
+        Assertions.assertThat(result.warnings()).isEmpty();
+        Assertions.assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
         assertWarnAborts(0, 2);
     }
 

@@ -21,13 +21,12 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -39,6 +38,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -46,12 +46,11 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.service.reads.ReadCallback.tombstoneAbortMessage;
@@ -94,6 +93,11 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         CLUSTER.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
     }
 
+    private static void enable(boolean value)
+    {
+        CLUSTER.stream().forEach(i -> i.runOnInstance(() -> DatabaseDescriptor.setClientTrackWarningsEnabled(value)));
+    }
+
     @Test
     public void noWarnings()
     {
@@ -103,29 +107,45 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         for (int i=0; i<TOMBSTONE_WARN; i++)
             CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, null)", ConsistencyLevel.ALL, i);
 
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
-        SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-        test.accept(result.warnings());
-        test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        for (boolean b : Arrays.asList(true, false))
+        {
+            enable(b);
 
-        assertWarnAborts(0, 0);
+            String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
+            SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
+            test.accept(result.warnings());
+            test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+
+            assertWarnAborts(0, 0);
+        }
     }
 
     @Test
     public void warnThreshold()
     {
-        Consumer<List<String>> test = warnings ->
-                                      Assertions.assertThat(Iterables.getOnlyElement(warnings))
-                                                .startsWith(tombstoneWarnMessage(3, TOMBSTONE_WARN + 1));
-
         for (int i=0; i<TOMBSTONE_WARN + 1; i++)
             CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, null)", ConsistencyLevel.ALL, i);
 
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
+        enable(true);
+        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1";
+        Consumer<List<String>> testEnabled = warnings ->
+                                             Assertions.assertThat(Iterables.getOnlyElement(warnings))
+                                                       .contains("nodes scanned up to " + (TOMBSTONE_WARN + 1) + " tombstones and issued tombstone warnings for query " + cql);
+
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
-        test.accept(result.warnings());
+        testEnabled.accept(result.warnings());
         assertWarnAborts(1, 0);
-        test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        testEnabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
+        assertWarnAborts(2, 0);
+
+        enable(false);
+        Consumer<List<String>> testDisabled = warnings ->
+                                              Assertions.assertThat(Iterables.getOnlyElement(warnings))
+                                                        .startsWith("Read " + (TOMBSTONE_WARN + 1) + " live rows and " + (TOMBSTONE_WARN + 1) + " tombstone cells for query " + cql);
+        result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
+        testDisabled.accept(result.warnings());
+        assertWarnAborts(2, 0);
+        testDisabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
         assertWarnAborts(2, 0);
     }
 
@@ -135,7 +155,8 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         for (int i=0; i<TOMBSTONE_FAIL + 1; i++)
             CLUSTER.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, null)", ConsistencyLevel.ALL, i);
 
-        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=1";
+        enable(true);
+        String cql = "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1";
         List<String> warnings = CLUSTER.get(1).callsOnInstance(() -> {
             ClientWarn.instance.captureWarnings();
             try
@@ -151,8 +172,8 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
             }
             return ClientWarn.instance.getWarnings();
         }).call();
-        List<String> expected = IntStream.of(1, 2, 3).mapToObj(i -> tombstoneAbortMessage(i, TOMBSTONE_FAIL + 1)).collect(Collectors.toList());
-        Assert.assertTrue(warnings + " not contained in " + expected, Iterables.any(expected, Iterables.getOnlyElement(warnings)::startsWith));
+        Assertions.assertThat(Iterables.getOnlyElement(warnings))
+                  .contains("nodes scanned over " + (TOMBSTONE_FAIL + 1) + " tombstones and aborted the query " + cql);
 
         assertWarnAborts(0, 1);
 
@@ -172,6 +193,43 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
                       InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code,
                       InetAddress.getByAddress(new byte[] {127, 0, 0, 2}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code,
                       InetAddress.getByAddress(new byte[] {127, 0, 0, 3}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
+        }
+
+        assertWarnAborts(0, 2);
+
+        enable(false);
+        warnings = CLUSTER.get(1).callsOnInstance(() -> {
+            ClientWarn.instance.captureWarnings();
+            try
+            {
+                QueryProcessor.execute(cql, org.apache.cassandra.db.ConsistencyLevel.ALL, QueryState.forInternalCalls());
+                Assert.fail("Expected query failure");
+            }
+            catch (ReadFailureException e)
+            {
+                Assertions.assertThat(e).isNotInstanceOf(TombstoneAbortException.class);
+            }
+            return ClientWarn.instance.getWarnings();
+        }).call();
+        Assertions.assertThat(Iterables.getOnlyElement(warnings))
+                  .startsWith("Read " + TOMBSTONE_FAIL + " live rows and " + (TOMBSTONE_FAIL + 1) + " tombstone cells for query " + cql);
+
+        assertWarnAborts(0, 2);
+
+        try
+        {
+            driverQueryAll(cql);
+            Assert.fail("Query should have thrown ReadFailureException");
+        }
+        catch (com.datastax.driver.core.exceptions.ReadFailureException e)
+        {
+            // not checking the message as different cases exist for the failure, so the fact that this failed is enough
+
+            Assertions.assertThat(e.getFailuresMap())
+                      .isNotEmpty();
+            Assertions.assertThat(e.getFailuresMap().values())
+                      .as("Non READ_TOO_MANY_TOMBSTONES exists")
+                      .allMatch(i -> i.equals(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
         }
 
         assertWarnAborts(0, 2);
