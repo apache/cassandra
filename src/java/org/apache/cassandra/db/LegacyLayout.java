@@ -1217,7 +1217,7 @@ public abstract class LegacyLayout
                 throw new IllegalStateException(String.format("Got cell for unknown column %s in sstable of %s.%s: " +
                                                               "This suggest a problem with the schema which doesn't list " +
                                                               "this column. Even if that column was dropped, it should have " +
-                                                              "been listed as such", metadata.ksName, metadata.cfName, UTF8Type.instance.compose(e.columnName)), e);
+                                                              "been listed as such", UTF8Type.instance.compose(e.columnName), metadata.ksName, metadata.cfName), e);
 
             throw e;
         }
