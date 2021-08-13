@@ -99,7 +99,7 @@ public class SelectStatement implements CQLStatement
 
     private final boolean trackWarnings = DatabaseDescriptor.getClientTrackWarningsEnabled();
     private final long clientLargeReadWarnThresholdKb = DatabaseDescriptor.getClientLargeReadWarnThresholdKB();
-    private final long clientLargeReadBlockThresholdKB = DatabaseDescriptor.getClientLargeReadBlockThresholdKB();
+    private final long clientLargeReadBlockThresholdKB = DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;

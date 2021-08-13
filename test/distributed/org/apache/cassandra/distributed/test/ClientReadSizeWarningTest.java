@@ -65,7 +65,7 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         // the test uses a rather small limit, which causes driver to fail while loading metadata
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
             DatabaseDescriptor.setClientLargeReadWarnThresholdKB(1);
-            DatabaseDescriptor.setClientLargeReadBlockThresholdKB(2);
+            DatabaseDescriptor.setClientLargeReadAbortThresholdKB(2);
         }));
     }
 

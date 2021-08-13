@@ -887,6 +887,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
      public long getClientLargeReadWarnThresholdKB();
      public void setClientLargeReadWarnThresholdKB(long threshold);
-     public long getClientLargeReadBlockThresholdKB();
-     public void setClientLargeReadBlockThresholdKB(long threshold);
+     public long getClientLargeReadAbortThresholdKB();
+     public void setClientLargeReadAbortThresholdKB(long threshold);
+     public boolean getClientTrackWarningsEnabled();
+     public void setClientTrackWarningsEnabled(boolean value);
 }

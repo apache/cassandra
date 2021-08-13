@@ -6074,15 +6074,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public long getClientLargeReadBlockThresholdKB()
+    public long getClientLargeReadAbortThresholdKB()
     {
-        return DatabaseDescriptor.getClientLargeReadBlockThresholdKB();
+        return DatabaseDescriptor.getClientLargeReadAbortThresholdKB();
     }
 
     @Override
-    public void setClientLargeReadBlockThresholdKB(long threshold)
+    public void setClientLargeReadAbortThresholdKB(long threshold)
     {
-        DatabaseDescriptor.setClientLargeReadBlockThresholdKB(threshold);
-        logger.info("updated client_large_read_block_threshold_kb to {}", threshold);
+        DatabaseDescriptor.setClientLargeReadAbortThresholdKB(threshold);
+        logger.info("updated client_large_read_abort_threshold_kb to {}", threshold);
+    }
+
+    @Override
+    public boolean getClientTrackWarningsEnabled()
+    {
+        return DatabaseDescriptor.getClientTrackWarningsEnabled();
+    }
+
+    @Override
+    public void setClientTrackWarningsEnabled(boolean value)
+    {
+        DatabaseDescriptor.setClientTrackWarningsEnabled(value);
+        logger.info("updated client_track_warnings_enabled to {}", value);
     }
 }
