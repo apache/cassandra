@@ -476,8 +476,8 @@ public class InboundConnectionInitiator
 
     private static SslHandler getSslHandler(String description, Channel channel, EncryptionOptions.ServerEncryptionOptions encryptionOptions) throws IOException
     {
-        final boolean buildTrustStore = true;
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, buildTrustStore,
+        final boolean verifyPeerCertificate = true;
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, verifyPeerCertificate,
                                                                  ISslContextFactory.SocketType.SERVER);
         InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
         SslHandler sslHandler = newSslHandler(channel, sslContext, peer);

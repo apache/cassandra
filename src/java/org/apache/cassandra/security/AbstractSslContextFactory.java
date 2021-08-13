@@ -117,10 +117,10 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     }
 
     @Override
-    public SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException
+    public SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException
     {
         TrustManager[] trustManagers = null;
-        if (buildTruststore)
+        if (verifyPeerCertificate)
             trustManagers = buildTrustManagerFactory().getTrustManagers();
 
         KeyManagerFactory kmf = buildKeyManagerFactory();
@@ -138,7 +138,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(boolean buildTruststore, SocketType socketType, boolean useOpenSsl,
+    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, boolean useOpenSsl,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         /*
@@ -168,7 +168,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         if (cipher_suites != null && !cipher_suites.isEmpty())
             builder.ciphers(cipher_suites, cipherFilter);
 
-        if (buildTruststore)
+        if (verifyPeerCertificate)
             builder.trustManager(buildTrustManagerFactory());
 
         return builder.build();

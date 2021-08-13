@@ -34,13 +34,13 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     public DummySslContextFactoryImpl(Map<String,Object> parameters) {}
 
     @Override
-    public SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException
+    public SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException
     {
         return null;
     }
 
     @Override
-    public SslContext createNettySslContext(boolean buildTruststore, SocketType socketType, boolean useOpenSsl,
+    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, boolean useOpenSsl,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         return null;

@@ -54,16 +54,16 @@ public interface ISslContextFactory
     /**
      * Creates JSSE SSLContext.
      *
-     * @param buildTruststore {@code true} if the caller requires Truststore; {@code false} otherwise
+     * @param verifyPeerCertificate {@code true} if SSL peer's certificate needs to be verified; {@code false} otherwise
      * @return JSSE's {@link SSLContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    SSLContext createJSSESslContext(boolean buildTruststore) throws SSLException;
+    SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException;
 
     /**
      * Creates Netty's SslContext object.
      *
-     * @param buildTruststore {@code true} if the caller requires Truststore; {@code false} otherwise
+     * @param verifyPeerCertificate {@code true} if SSL peer's certificate needs to be verified; {@code false} otherwise
      * @param socketType {@link SocketType} for Netty's Inbound or Outbound channels
      * @param useOpenSsl {@code true} if openSsl is enabled;{@code false} otherwise
      * @param cipherFilter to allow Netty's cipher suite filtering, e.g.
@@ -71,7 +71,7 @@ public interface ISslContextFactory
      * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    SslContext createNettySslContext(boolean buildTruststore, SocketType socketType, boolean useOpenSsl,
+    SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, boolean useOpenSsl,
                                      CipherSuiteFilter cipherFilter) throws SSLException;
 
     /**

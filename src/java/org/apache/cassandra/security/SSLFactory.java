@@ -122,18 +122,18 @@ public final class SSLFactory
     /**
      * Create a JSSE {@link SSLContext}.
      */
-    public static SSLContext createSSLContext(EncryptionOptions options, boolean buildTruststore) throws IOException
+    public static SSLContext createSSLContext(EncryptionOptions options, boolean verifyPeerCertificate) throws IOException
     {
-        return options.sslContextFactoryInstance.createJSSESslContext(buildTruststore);
+        return options.sslContextFactoryInstance.createJSSESslContext(verifyPeerCertificate);
     }
 
     /**
      * get a netty {@link SslContext} instance
      */
-    public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean buildTruststore,
+    public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean verifyPeerCertificate,
                                                    SocketType socketType) throws IOException
     {
-        return getOrCreateSslContext(options, buildTruststore, socketType, openSslIsAvailable());
+        return getOrCreateSslContext(options, verifyPeerCertificate, socketType, openSslIsAvailable());
     }
 
     /**
@@ -141,7 +141,7 @@ public final class SSLFactory
      */
     @VisibleForTesting
     static SslContext getOrCreateSslContext(EncryptionOptions options,
-                                            boolean buildTruststore,
+                                            boolean verifyPeerCertificate,
                                             SocketType socketType,
                                             boolean useOpenSsl) throws IOException
     {
@@ -152,7 +152,7 @@ public final class SSLFactory
         if (sslContext != null)
             return sslContext;
 
-        sslContext = createNettySslContext(options, buildTruststore, socketType, useOpenSsl);
+        sslContext = createNettySslContext(options, verifyPeerCertificate, socketType, useOpenSsl);
 
         SslContext previous = cachedSslContexts.putIfAbsent(key, sslContext);
         if (previous == null)
@@ -165,20 +165,20 @@ public final class SSLFactory
     /**
      * Create a Netty {@link SslContext}
      */
-    static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore,
+    static SslContext createNettySslContext(EncryptionOptions options, boolean verifyPeerCertificate,
                                             SocketType socketType, boolean useOpenSsl) throws IOException
     {
-        return createNettySslContext(options, buildTruststore, socketType, useOpenSsl,
+        return createNettySslContext(options, verifyPeerCertificate, socketType, useOpenSsl,
                                      LoggingCipherSuiteFilter.QUIET_FILTER);
     }
 
     /**
      * Create a Netty {@link SslContext} with a supplied cipherFilter
      */
-    static SslContext createNettySslContext(EncryptionOptions options, boolean buildTruststore,
+    static SslContext createNettySslContext(EncryptionOptions options, boolean verifyPeerCertificate,
                                             SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws IOException
     {
-        return options.sslContextFactoryInstance.createNettySslContext(buildTruststore, socketType, useOpenSsl,
+        return options.sslContextFactoryInstance.createNettySslContext(verifyPeerCertificate, socketType, useOpenSsl,
                                                                        cipherFilter);
     }
 
@@ -327,7 +327,7 @@ public final class SSLFactory
         return !string.equals("SSLv2Hello");
     }
 
-    public static void validateSslContext(String contextDescription, EncryptionOptions options, boolean buildTrustStore, boolean logProtocolAndCiphers) throws IOException
+    public static void validateSslContext(String contextDescription, EncryptionOptions options, boolean verifyPeerCertificate, boolean logProtocolAndCiphers) throws IOException
     {
         if (options != null && options.tlsEncryptionPolicy() != EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED)
         {
@@ -335,7 +335,7 @@ public final class SSLFactory
             {
                 CipherSuiteFilter loggingCipherSuiteFilter = logProtocolAndCiphers ? new LoggingCipherSuiteFilter(contextDescription)
                                                                                    : LoggingCipherSuiteFilter.QUIET_FILTER;
-                SslContext serverSslContext = createNettySslContext(options, buildTrustStore, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
+                SslContext serverSslContext = createNettySslContext(options, verifyPeerCertificate, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
                 try
                 {
                     SSLEngine engine = serverSslContext.newEngine(ByteBufAllocator.DEFAULT);
@@ -380,7 +380,7 @@ public final class SSLFactory
                 }
 
                 // Make sure it is possible to build the client context too
-                SslContext clientSslContext = createNettySslContext(options, buildTrustStore, SocketType.CLIENT, openSslIsAvailable());
+                SslContext clientSslContext = createNettySslContext(options, verifyPeerCertificate, SocketType.CLIENT, openSslIsAvailable());
                 ReferenceCountUtil.release(clientSslContext);
             }
             catch (Exception e)
