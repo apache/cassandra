@@ -111,7 +111,7 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
             SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
             test.accept(result.warnings());
             test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
-            assertWarnAborts(0, 0);
+            assertWarnAborts(0, 0, 0);
         }
     }
 
@@ -129,15 +129,15 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         enable(true);
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         testEnabled.accept(result.warnings());
-        assertWarnAborts(1, 0);
+        assertWarnAborts(1, 0, 0);
         testEnabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
-        assertWarnAborts(2, 0);
+        assertWarnAborts(2, 0, 0);
 
         enable(false);
         result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         Assertions.assertThat(result.warnings()).isEmpty();
         Assertions.assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
-        assertWarnAborts(2, 0);
+        assertWarnAborts(2, 0, 0);
     }
 
     @Test
@@ -166,7 +166,7 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
         }).call();
         Assertions.assertThat(warnings).hasSize(1);
         assertPrefix("Read on table " + KEYSPACE + ".tbl has exceeded the size failure threshold", warnings.get(0));
-        assertWarnAborts(0, 1);
+        assertWarnAborts(0, 1, 1);
 
         try
         {
@@ -191,22 +191,24 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
                           }
                       });
         }
-        assertWarnAborts(0, 2);
+        assertWarnAborts(0, 2, 1);
 
         // query should no longer fail
         enable(false);
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         Assertions.assertThat(result.warnings()).isEmpty();
         Assertions.assertThat(driverQueryAll(cql).getExecutionInfo().getWarnings()).isEmpty();
-        assertWarnAborts(0, 2);
+        assertWarnAborts(0, 2, 0);
     }
 
-    private static void assertWarnAborts(long warns, long aborts)
+    private static long GLOBAL_READ_ABORTS = 0;
+    private static void assertWarnAborts(int warns, int aborts, int globalAborts)
     {
-        long totalWarnings = totalWarnings();
-        long totalAborts = totalAborts();
-        Assertions.assertThat(totalWarnings).as("warnings").isEqualTo(warns);
-        Assertions.assertThat(totalAborts).as("aborts").isEqualTo(aborts);
+        Assertions.assertThat(totalWarnings()).as("warnings").isEqualTo(warns);
+        Assertions.assertThat(totalAborts()).as("aborts").isEqualTo(aborts);
+        long expectedGlobalAborts = GLOBAL_READ_ABORTS + globalAborts;
+        Assertions.assertThat(totalReadAborts()).as("global aborts").isEqualTo(expectedGlobalAborts);
+        GLOBAL_READ_ABORTS = expectedGlobalAborts;
     }
 
     private static long totalWarnings()
@@ -217,6 +219,11 @@ public class ClientReadSizeWarningTest extends TestBaseImpl
     private static long totalAborts()
     {
         return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientReadSizeAborts." + KEYSPACE)).sum();
+    }
+
+    private static long totalReadAborts()
+    {
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.Read-ALL")).sum();
     }
 
     private static ResultSet driverQueryAll(String cql)

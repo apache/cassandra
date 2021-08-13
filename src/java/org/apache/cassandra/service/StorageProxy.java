@@ -1864,8 +1864,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (ReadAbortException e)
         {
-            readMetrics.aborts.mark();
-            readMetricsMap.get(consistencyLevel).aborts.mark();
+            recordReadRegularAbort(consistencyLevel);
             throw e;
         }
         catch (ReadFailureException e)
@@ -1883,6 +1882,12 @@ public class StorageProxy implements StorageProxyMBean
             for (ReadCommand command : group.queries)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
+    }
+
+    public static void recordReadRegularAbort(ConsistencyLevel consistencyLevel)
+    {
+        readMetrics.aborts.mark();
+        readMetricsMap.get(consistencyLevel).aborts.mark();
     }
 
     public static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair<?, ?>> repairs)

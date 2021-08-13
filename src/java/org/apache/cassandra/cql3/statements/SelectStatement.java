@@ -64,6 +64,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.AggregationQueryPager;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -838,6 +839,7 @@ public class SelectStatement implements CQLStatement
             ClientWarn.instance.warn(clientMsg);
             logger.warn("{} with query {}", msg, asCQL(options));
             cfs().metric.clientReadSizeAborts.mark();
+            StorageProxy.recordReadRegularAbort(options.getConsistency());
             // read errors require blockFor and recieved (its in the protocol message), but this isn't known;
             // to work around this, treat the coordinator as the only response we care about and mark it failed
             throw new ReadSizeAbortException(clientMsg, options.getConsistency(), 0, 1, true, ImmutableMap.of(

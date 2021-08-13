@@ -25,8 +25,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -52,9 +50,6 @@ import org.apache.cassandra.exceptions.TombstoneAbortException;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.assertj.core.api.Assertions;
-
-import static org.apache.cassandra.service.reads.ReadCallback.tombstoneAbortMessage;
-import static org.apache.cassandra.service.reads.ReadCallback.tombstoneWarnMessage;
 
 public class ClientTombstoneWarningTest extends TestBaseImpl
 {
@@ -116,7 +111,7 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
             test.accept(result.warnings());
             test.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
 
-            assertWarnAborts(0, 0);
+            assertWarnAborts(0, 0, 0);
         }
     }
 
@@ -134,9 +129,9 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
 
         SimpleQueryResult result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         testEnabled.accept(result.warnings());
-        assertWarnAborts(1, 0);
+        assertWarnAborts(1, 0, 0);
         testEnabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
-        assertWarnAborts(2, 0);
+        assertWarnAborts(2, 0, 0);
 
         enable(false);
         Consumer<List<String>> testDisabled = warnings ->
@@ -144,9 +139,9 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
                                                         .startsWith("Read " + (TOMBSTONE_WARN + 1) + " live rows and " + (TOMBSTONE_WARN + 1) + " tombstone cells for query " + cql);
         result = CLUSTER.coordinator(1).executeWithResult(cql, ConsistencyLevel.ALL);
         testDisabled.accept(result.warnings());
-        assertWarnAborts(2, 0);
+        assertWarnAborts(2, 0, 0);
         testDisabled.accept(driverQueryAll(cql).getExecutionInfo().getWarnings());
-        assertWarnAborts(2, 0);
+        assertWarnAborts(2, 0, 0);
     }
 
     @Test
@@ -175,7 +170,7 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         Assertions.assertThat(Iterables.getOnlyElement(warnings))
                   .contains("nodes scanned over " + (TOMBSTONE_FAIL + 1) + " tombstones and aborted the query " + cql);
 
-        assertWarnAborts(0, 1);
+        assertWarnAborts(0, 1, 1);
 
         try
         {
@@ -195,7 +190,7 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
                       InetAddress.getByAddress(new byte[] {127, 0, 0, 3}), RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
         }
 
-        assertWarnAborts(0, 2);
+        assertWarnAborts(0, 2, 1);
 
         enable(false);
         warnings = CLUSTER.get(1).callsOnInstance(() -> {
@@ -214,7 +209,7 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
         Assertions.assertThat(Iterables.getOnlyElement(warnings))
                   .startsWith("Read " + TOMBSTONE_FAIL + " live rows and " + (TOMBSTONE_FAIL + 1) + " tombstone cells for query " + cql);
 
-        assertWarnAborts(0, 2);
+        assertWarnAborts(0, 2, 0);
 
         try
         {
@@ -232,15 +227,17 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
                       .allMatch(i -> i.equals(RequestFailureReason.READ_TOO_MANY_TOMBSTONES.code));
         }
 
-        assertWarnAborts(0, 2);
+        assertWarnAborts(0, 2, 0);
     }
 
-    private static void assertWarnAborts(int warns, int aborts)
+    private static long GLOBAL_READ_ABORTS = 0;
+    private static void assertWarnAborts(int warns, int aborts, int globalAborts)
     {
-        long totalWarnings = totalWarnings();
-        long totalAborts = totalAborts();
-        Assertions.assertThat(totalWarnings).as("warnings").isEqualTo(warns);
-        Assertions.assertThat(totalAborts).as("aborts").isEqualTo(aborts);
+        Assertions.assertThat(totalWarnings()).as("warnings").isEqualTo(warns);
+        Assertions.assertThat(totalAborts()).as("aborts").isEqualTo(aborts);
+        long expectedGlobalAborts = GLOBAL_READ_ABORTS + globalAborts;
+        Assertions.assertThat(totalReadAborts()).as("global aborts").isEqualTo(expectedGlobalAborts);
+        GLOBAL_READ_ABORTS = expectedGlobalAborts;
     }
 
     private static long totalWarnings()
@@ -251,6 +248,11 @@ public class ClientTombstoneWarningTest extends TestBaseImpl
     private static long totalAborts()
     {
         return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.keyspace.ClientTombstoneAborts." + KEYSPACE)).sum();
+    }
+
+    private static long totalReadAborts()
+    {
+        return CLUSTER.stream().mapToLong(i -> i.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Aborts.Read-ALL")).sum();
     }
 
     private static ResultSet driverQueryAll(String cql)
