@@ -166,6 +166,7 @@ import org.apache.cassandra.utils.DefaultValue;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
@@ -408,7 +409,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public String getCompactionParametersJson()
     {
-        return FBUtilities.json(getCompactionParameters());
+        return JsonUtils.writeAsJsonString(getCompactionParameters());
     }
 
     public void setCompactionParameters(Map<String, String> options)
@@ -429,7 +430,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void setCompactionParametersJson(String options)
     {
-        setCompactionParameters(FBUtilities.fromJsonMap(options));
+        setCompactionParameters(JsonUtils.fromJsonMap(options));
     }
 
     public Map<String,String> getCompressionParameters()
@@ -439,7 +440,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public String getCompressionParametersJson()
     {
-        return FBUtilities.json(getCompressionParameters());
+        return JsonUtils.writeAsJsonString(getCompressionParameters());
     }
 
     public void setCompressionParameters(Map<String,String> opts)
@@ -458,7 +459,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void setCompressionParametersJson(String options)
     {
-        setCompressionParameters(FBUtilities.fromJsonMap(options));
+        setCompressionParameters(JsonUtils.fromJsonMap(options));
     }
 
     @VisibleForTesting
@@ -2073,7 +2074,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
                     ssTable.createLinks(snapshotDirectory.path(), rateLimiter); // hard links
-
                     if (logger.isTraceEnabled())
                         logger.trace("Snapshot for {} keyspace data file {} created in {}", keyspace, ssTable.getFilename(), snapshotDirectory);
                     snapshottedSSTables.add(ssTable);

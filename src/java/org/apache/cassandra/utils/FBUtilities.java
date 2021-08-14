@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -63,10 +62,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -88,8 +83,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.ISslContextFactory;
@@ -99,20 +92,14 @@ import org.objectweb.asm.Opcodes;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
-import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-
 public class FBUtilities
 {
-    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
-
     static
     {
         preventIllegalAccessWarnings();
-        jsonMapper.registerModule(new JavaTimeModule());
-        jsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
@@ -833,58 +820,6 @@ public class FBUtilities
     public static <T> CloseableIterator<T> closeableIterator(Iterator<T> iterator)
     {
         return new WrappedCloseableIterator<T>(iterator);
-    }
-
-    public static Map<String, String> fromJsonMap(String json)
-    {
-        try
-        {
-            return jsonMapper.readValue(json, Map.class);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static List<String> fromJsonList(String json)
-    {
-        try
-        {
-            return jsonMapper.readValue(json, List.class);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static String json(Object object)
-    {
-        try
-        {
-            return jsonMapper.writeValueAsString(object);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static void serializeToJsonFile(Object object, File outputFile) throws IOException
-    {
-        try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
-        {
-            jsonMapper.writeValue((OutputStream) out, object);
-        }
-    }
-
-    public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
-    {
-        try (FileInputStreamPlus in = file.newInputStream())
-        {
-            return jsonMapper.readValue((InputStream) in, tClass);
-        }
     }
 
     public static String prettyPrintMemory(long size)
