@@ -200,14 +200,14 @@ public class ConfigCompatabilityTest
 
     private static ClassTree load(String path) throws IOException
     {
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory()); // checkstyle: permit this instantiation
         return mapper.readValue(new File(path), ClassTree.class);
     }
 
     public static void dump(ClassTree classTree, String path) throws IOException
     {
         logger.info("Dumping class to {}", path);
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory()); // checkstyle: permit this instantiation
         mapper.writeValue(new File(path), classTree);
 
         // validate that load works as expected

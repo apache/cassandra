@@ -29,13 +29,13 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
@@ -163,8 +163,7 @@ public class TpStatsTest extends CQLTester
     {
         try
         {
-            ObjectMapper mapper = new ObjectMapper();
-            mapper.readTree(str);
+            JsonUtils.JSON_OBJECT_MAPPER.readTree(str);
             return true;
         }
         catch(IOException e)

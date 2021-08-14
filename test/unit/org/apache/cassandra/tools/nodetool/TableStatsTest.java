@@ -28,9 +28,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -235,7 +235,7 @@ public class TableStatsTest extends CQLTester
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg, "json");
             tool.assertOnCleanExit();
             String json = tool.getStdout();
-            assertThatCode(() -> new ObjectMapper().readTree(json)).doesNotThrowAnyException();
+            assertThatCode(() -> JsonUtils.JSON_OBJECT_MAPPER.readTree(json)).doesNotThrowAnyException();
             assertThat(json).containsPattern("\"sstable_count\"\\s*:\\s*[0-9]+")
                             .containsPattern("\"old_sstable_count\"\\s*:\\s*[0-9]+");
         });

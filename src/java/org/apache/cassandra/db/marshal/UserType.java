@@ -36,6 +36,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.any;
@@ -211,7 +212,7 @@ public class UserType extends TupleType implements SchemaElement
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
@@ -219,7 +220,7 @@ public class UserType extends TupleType implements SchemaElement
 
         Map<String, Object> map = (Map<String, Object>) parsed;
 
-        Json.handleCaseSensitivity(map);
+        JsonUtils.handleCaseSensitivity(map);
 
         List<Term> terms = new ArrayList<>(types.size());
 
@@ -270,7 +271,7 @@ public class UserType extends TupleType implements SchemaElement
                 name = "\"" + name + "\"";
 
             sb.append('"');
-            sb.append(Json.quoteAsJsonString(name));
+            sb.append(JsonUtils.quoteAsJsonString(name));
             sb.append("\": ");
 
             ByteBuffer valueBuffer = (i >= buffers.length) ? null : buffers[i];
