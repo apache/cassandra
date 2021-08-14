@@ -22,11 +22,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.junit.Test;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class TableStatsPrinterTest extends TableStatsTestBase
 {
@@ -375,6 +379,56 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         }
     }
 
+    @Test
+    public void testJsonPrinter() throws Exception
+    {
+        final StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("json", false);
+        StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "reads", 0);
+        try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream())
+        {
+            printer.print(holder, new PrintStream(byteStream));
+            byte[] json = byteStream.toByteArray();
+            Map<String, Object> result = new ObjectMapper().readValue(json, Map.class);
+            assertEquals(0, result.remove("total_number_of_tables"));
+            assertEquals(6, result.size());
+
+            // One relatively easy way to verify serialization is to check converted-to-Map
+            // intermediate form and round-trip (serialize-deserialize) for equivalence.
+            // But there are couple of minor gotchas to consider
+
+            Map<String, Object> expectedData = holder.convert2Map();
+            expectedData.remove("total_number_of_tables");
+            assertEquals(6, expectedData.size());
+
+            for (Map.Entry<String, Object> entry : result.entrySet()) {
+                Map<String, Object> expTable = (Map<String, Object>) expectedData.get(entry.getKey());
+                Map<String, Object> actualTable = (Map<String, Object>) entry.getValue();
+
+                assertEquals(expTable.size(), actualTable.size());
+
+                for (Map.Entry<String, Object> tableEntry : actualTable.entrySet()) {
+                    Object expValue = expTable.get(tableEntry.getKey());
+                    Object actualValue = tableEntry.getValue();
+
+                    // Some differences to expect: Long that fits in Integer may get deserialized as latter:
+                    if (expValue instanceof Long && actualValue instanceof Integer) {
+                        actualValue = ((Number) actualValue).longValue();
+                    }
+
+                    // And then a bit more exotic case: Not-a-Numbers should be coerced into nulls
+                    // (existing behavior as of 4.0.0)
+                    if (expValue instanceof Double && !Double.isFinite((Double) expValue)) {
+                        assertNull("Entry '"+tableEntry.getKey()+"' of table '"+entry.getKey()+"' should be coerced from NaN to null:",
+                                     actualValue);
+                        continue;
+                    }
+                    assertEquals("Entry '"+tableEntry.getKey()+"' of table '"+entry.getKey()+"' does not match",
+                                 expValue, actualValue);
+                }
+            }
+        }
+    }
+
     /**
      * A test version of TableStatsHolder to hold a test vector instead of gathering stats from a live cluster.
      */
@@ -394,5 +448,4 @@ public class TableStatsPrinterTest extends TableStatsTestBase
             return true;
         }
     }
-
 }
