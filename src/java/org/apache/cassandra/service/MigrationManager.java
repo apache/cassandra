@@ -431,6 +431,7 @@ public class MigrationManager
 
     private static void pushSchemaMutation(InetAddress endpoint, Collection<Mutation> schema)
     {
+        logger.debug("Pushing schema to endpoint {}", endpoint);
         MessageOut<Collection<Mutation>> msg = new MessageOut<>(MessagingService.Verb.DEFINITIONS_UPDATE,
                                                                 schema,
                                                                 MigrationsSerializer.instance);

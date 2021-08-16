@@ -380,7 +380,7 @@ public final class SchemaKeyspace
         return PartitionRangeReadCommand.allDataRead(cfs.metadata, FBUtilities.nowInSeconds());
     }
 
-    public static Collection<Mutation> convertSchemaToMutations()
+    public static synchronized Collection<Mutation> convertSchemaToMutations()
     {
         Map<DecoratedKey, Mutation> mutationMap = new HashMap<>();
 
