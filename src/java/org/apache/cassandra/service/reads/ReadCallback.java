@@ -167,7 +167,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             {
                 String msg = tombstoneAbortMessage(warnings.tombstoneAborts.get(), warnings.maxTombstoneAbortsCount.get(), command.toCQLString());
                 ClientWarn.instance.warn(msg + " with " + command.loggableTokens());
-                logger.warn("{} with query {}", msg, command.toCQLString());
+                logger.warn(msg);
                 cfs().metric.clientTombstoneAborts.mark();
             }
 
@@ -175,7 +175,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             {
                 String msg = tombstoneWarnMessage(warnings.tombstoneWarnings.get(), warnings.maxTombstoneWarningCount.get(), command.toCQLString());
                 ClientWarn.instance.warn(msg + " with " + command.loggableTokens());
-                logger.warn("{} with query {}", msg, command.toCQLString());
+                logger.warn(msg);
                 cfs().metric.clientTombstoneWarnings.mark();
             }
         }
