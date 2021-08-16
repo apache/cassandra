@@ -69,6 +69,7 @@ import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
@@ -2021,6 +2022,8 @@ public class StorageProxy implements StorageProxyMBean
                 }
                 catch (RejectException e)
                 {
+                    if (!command.isTrackingWarnings())
+                        throw e;
                     response = command.createResponse(EmptyIterators.unfilteredPartition(command.metadata()));
                     readRejected = true;
                 }
@@ -2040,8 +2043,16 @@ public class StorageProxy implements StorageProxyMBean
             }
             catch (Throwable t)
             {
-                handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
-                throw t;
+                if (t instanceof TombstoneOverwhelmingException)
+                {
+                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
+                    logger.error(t.getMessage());
+                }
+                else
+                {
+                    handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.UNKNOWN);
+                    throw t;
+                }
             }
         }
     }
