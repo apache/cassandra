@@ -20,7 +20,6 @@ package org.apache.cassandra.hints;
 import java.io.DataInput;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -35,11 +34,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.CountingOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.databind.ObjectReader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -47,8 +50,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Hex;
-import org.json.simple.JSONValue;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -71,6 +74,11 @@ final class HintsDescriptor
 
     static final Pattern pattern =
         Pattern.compile("^[a-fA-F0-9]{8}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{12}\\-(\\d+)\\-(\\d+)\\.hints$");
+
+    private static final ObjectReader jsonMapReader;
+    static {
+        jsonMapReader = Json.JSON_OBJECT_MAPPER.readerFor(Map.class);
+    }
 
     final UUID hostId;
     final int version;
@@ -356,7 +364,7 @@ final class HintsDescriptor
         out.writeLong(hostId.getLeastSignificantBits());
         updateChecksumLong(crc, hostId.getLeastSignificantBits());
 
-        byte[] paramsBytes = JSONValue.toJSONString(parameters).getBytes(StandardCharsets.UTF_8);
+        byte[] paramsBytes = Json.writeAsJsonBytes(parameters);
         out.writeInt(paramsBytes.length);
         updateChecksumInt(crc, paramsBytes.length);
         out.writeInt((int) crc.getValue());
@@ -375,10 +383,20 @@ final class HintsDescriptor
         size += TypeSizes.sizeof(hostId.getMostSignificantBits());
         size += TypeSizes.sizeof(hostId.getLeastSignificantBits());
 
-        byte[] paramsBytes = JSONValue.toJSONString(parameters).getBytes(StandardCharsets.UTF_8);
-        size += TypeSizes.sizeof(paramsBytes.length);
+        // Let's avoid allocation of serialized output, use counting output stream
+        int serializedParamsLength;
+        try (CountingOutputStream out = new CountingOutputStream(ByteStreams.nullOutputStream()))
+        {
+            Json.JSON_OBJECT_MAPPER.writeValue(out, parameters);
+            serializedParamsLength = (int) out.getCount();
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e); // should never happen
+        }
+        size += TypeSizes.sizeof(serializedParamsLength);
         size += 4; // size checksum
-        size += paramsBytes.length;
+        size += serializedParamsLength;
         size += 4; // total checksum
 
         return size;
@@ -416,7 +434,18 @@ final class HintsDescriptor
     @SuppressWarnings("unchecked")
     private static ImmutableMap<String, Object> decodeJSONBytes(byte[] bytes)
     {
-        return ImmutableMap.copyOf((Map<String, Object>) JSONValue.parse(new String(bytes, StandardCharsets.UTF_8)));
+        // note: There is a Jackson module (datatype-guava) for directly reading into ImmutableMap,
+        // but would require adding dependency to that
+        try
+        {
+            return ImmutableMap.copyOf((Map<String, Object>) jsonMapReader.readValue(bytes));
+        }
+        catch (IOException e)
+        {
+            // Couple of options here: up to 4.0 simply returned null and caller failed with NPE.
+            // Seems cleaner to throw an exception
+            throw new MarshalException("Corrupt HintsDescriptor serialization, problem: " + e.getMessage(), e);
+        }
     }
 
     private static void updateChecksumLong(CRC32 crc, long value)

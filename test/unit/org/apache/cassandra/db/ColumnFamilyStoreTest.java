@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -33,9 +32,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -445,17 +443,16 @@ public class ColumnFamilyStoreTest
         String snapshotName = "newSnapshot";
         cfs.snapshotWithoutFlush(snapshotName);
 
-        File snapshotManifestFile = cfs.getDirectories().getSnapshotManifestFile(snapshotName);
-        JSONParser parser = new JSONParser();
-        JSONObject manifest = (JSONObject) parser.parse(new FileReader(snapshotManifestFile));
-        JSONArray files = (JSONArray) manifest.get("files");
+        JsonNode manifest = new ObjectMapper().readTree(cfs.getDirectories().getSnapshotManifestFile(snapshotName));
+        JsonNode files = manifest.get("files");
 
         // Keyspace1-Indexed1 and the corresponding index
-        assert files.size() == 2;
+        Assert.assertTrue(files.isArray());
+        Assert.assertEquals(2, files.size());
 
         // Snapshot of the secondary index is stored in the subfolder with the same file name
-        String baseTableFile = (String) files.get(0);
-        String indexTableFile = (String) files.get(1);
+        String baseTableFile = files.get(0).asText();
+        String indexTableFile = files.get(1).asText();
         assert !baseTableFile.equals(indexTableFile);
         assert Directories.isSecondaryIndexFolder(new File(indexTableFile).getParentFile());
         assert indexTableFile.endsWith(baseTableFile);

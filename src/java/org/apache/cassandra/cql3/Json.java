@@ -45,6 +45,18 @@ public class Json
         return new String(BufferRecyclers.getJsonStringEncoder().quoteAsString(s));
     }
 
+    public static Object decodeJson(byte[] json)
+    {
+        try
+        {
+            return JSON_OBJECT_MAPPER.readValue(json, Object.class);
+        }
+        catch (IOException exc)
+        {
+            throw new MarshalException("Error decoding JSON bytes: " + exc.getMessage());
+        }
+    }
+
     public static Object decodeJson(String json)
     {
         try
@@ -54,6 +66,30 @@ public class Json
         catch (IOException exc)
         {
             throw new MarshalException("Error decoding JSON string: " + exc.getMessage());
+        }
+    }
+
+    public static byte[] writeAsJsonBytes(Object value) throws MarshalException
+    {
+        try
+        {
+            return JSON_OBJECT_MAPPER.writeValueAsBytes(value);
+        }
+        catch (IOException exc)
+        {
+            throw new MarshalException("Error writing as JSON: " + exc.getMessage());
+        }
+    }
+
+    public static String writeAsJsonString(Object value) throws MarshalException
+    {
+        try
+        {
+            return JSON_OBJECT_MAPPER.writeValueAsString(value);
+        }
+        catch (IOException exc)
+        {
+            throw new MarshalException("Error writing as JSON: " + exc.getMessage());
         }
     }
 

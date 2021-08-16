@@ -26,6 +26,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -36,9 +38,6 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 
 import java.io.FileReader;
 import java.nio.ByteBuffer;
@@ -445,9 +444,10 @@ public class SchemaCQLHelperTest extends CQLTester
 
         assertThat(schema, containsString("CREATE INDEX IF NOT EXISTS " + tableName + "_reg2_idx ON " + keyspace() + '.' + tableName + " (reg2);"));
 
-        JSONObject manifest = (JSONObject) new JSONParser().parse(new FileReader(cfs.getDirectories().getSnapshotManifestFile(SNAPSHOT)));
-        JSONArray files = (JSONArray) manifest.get("files");
+        JsonNode manifest = new ObjectMapper().readTree(cfs.getDirectories().getSnapshotManifestFile(SNAPSHOT));
+        JsonNode files = manifest.get("files");
         // two files, the second is index
+        Assert.assertTrue(files.isArray());
         Assert.assertEquals(2, files.size());
     }
 
