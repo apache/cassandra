@@ -1,4 +1,5 @@
 4.1
+ * Add feature to verify correct ownership of attached locations on disk at startup (CASSANDRA-16879)
  * Make SSLContext creation pluggable/extensible (CASSANDRA-16666)
  * Add soft/hard limits to local reads to protect against reading too much data in a single query (CASSANDRA-16896)
  * Avoid token cache invalidation for removing a non-member node (CASSANDRA-15290)
