@@ -36,7 +36,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -88,16 +87,8 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
         // write gibberish to the native protocol
         IInvokableInstance node = cluster.get(1);
         // make sure everything is fine at the start
-        node.runOnInstance(() -> {
-            Assertions.assertThat(CassandraMetricsRegistry.Metrics.getMeters()
-                                                                  .get("org.apache.cassandra.metrics.Client.ProtocolException")
-                                                                  .getCount())
-                      .isEqualTo(0);
-            Assertions.assertThat(CassandraMetricsRegistry.Metrics.getMeters()
-                                                                  .get("org.apache.cassandra.metrics.Client.UnknownException")
-                                                                  .getCount())
-                      .isEqualTo(0);
-        });
+        Assertions.assertThat(node.metrics().getCounter("org.apache.cassandra.metrics.Client.ProtocolException")).isEqualTo(0);
+        Assertions.assertThat(node.metrics().getCounter("org.apache.cassandra.metrics.Client.UnknownException")).isEqualTo(0);
 
         try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).protocolVersion(version).useBeta().build())
         {
@@ -112,6 +103,8 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
             Assertions.assertThat(response).isInstanceOf(ErrorMessage.class);
 
             node.logs().watchFor("Not updating networking metrics as");
+            Assertions.assertThat(node.metrics().getCounter("org.apache.cassandra.metrics.Client.ProtocolException")).isEqualTo(0);
+            Assertions.assertThat(node.metrics().getCounter("org.apache.cassandra.metrics.Client.UnknownException")).isEqualTo(0);
         }
     }
 
