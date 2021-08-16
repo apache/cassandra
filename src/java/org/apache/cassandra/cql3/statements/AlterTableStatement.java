@@ -149,7 +149,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 }
             case ADD:
                 assert columnName != null;
-                if (meta.isDense())
+                if (meta.isCompactTable())
                     throw new InvalidRequestException("Cannot add new column to a COMPACT STORAGE table");
 
                 cfm = meta.copy();
