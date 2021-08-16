@@ -20,11 +20,15 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -169,7 +173,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
                                                                          .getCount());
     }
 
-    private static class CustomHeaderMessage extends OptionsMessage
+    public static class CustomHeaderMessage extends OptionsMessage
     {
         private final ByteBuf headerEncoded;
 

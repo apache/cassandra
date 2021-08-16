@@ -570,6 +570,8 @@ public class Config
 
     public volatile int consecutive_message_errors_threshold = 1;
 
+    public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

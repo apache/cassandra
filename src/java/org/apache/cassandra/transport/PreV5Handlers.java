@@ -35,6 +35,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.ResourceLimits;
@@ -296,6 +297,8 @@ public class PreV5Handlers
     @ChannelHandler.Sharable
     public static final class ExceptionHandler extends ChannelInboundHandlerAdapter
     {
+        private static final Logger logger = LoggerFactory.getLogger(ExceptionHandler.class);
+
         public static final ExceptionHandler instance = new ExceptionHandler();
         private ExceptionHandler(){}
 
@@ -315,6 +318,14 @@ public class PreV5Handlers
                     future.addListener((ChannelFutureListener) f -> ctx.close());
             }
             
+            if (DatabaseDescriptor.getExcludeClientErrorsFrom().contains(ctx.channel().remoteAddress()))
+            {
+                // some times it is desirable to ignore exceptions from specific IPs; such as when security scans are
+                // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
+                // list
+                logger.debug("Not updating networking metrics as {} is excluded in configs", ctx.channel().remoteAddress());
+                return;
+            }
             ExceptionHandlers.logClientNetworkingExceptions(cause);
             JVMStabilityInspector.inspectThrowable(cause);
         }

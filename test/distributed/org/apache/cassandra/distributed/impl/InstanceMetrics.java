@@ -45,16 +45,32 @@ class InstanceMetrics implements Metrics
         this.metricsRegistry = metricsRegistry;
     }
 
+    @Override
     public List<String> getNames()
     {
         return new ArrayList<>(metricsRegistry.getNames());
     }
 
+    @Override
     public long getCounter(String name)
     {
-        return metricsRegistry.getCounters().get(name).getCount();
+        Counter counter = metricsRegistry.getCounters().get(name);
+        if (counter != null)
+            return counter.getCount();
+        Meter meter = metricsRegistry.getMeters().get(name);
+        if (meter != null)
+            return meter.getCount();
+        Histogram histogram = metricsRegistry.getHistograms().get(name);
+        if (histogram != null)
+            return histogram.getCount();
+        Timer timer = metricsRegistry.getTimers().get(name);
+        if (timer != null)
+            return timer.getCount();
+        //TODO no way to handle not found other than NPE?
+        return 0;
     }
 
+    @Override
     public Map<String, Long> getCounters(Predicate<String> filter)
     {
         Map<String, Long> values = new HashMap<>();
@@ -63,15 +79,32 @@ class InstanceMetrics implements Metrics
             if (filter.test(e.getKey()))
                 values.put(e.getKey(), e.getValue().getCount());
         }
+        for (Map.Entry<String, Meter> e : metricsRegistry.getMeters().entrySet())
+        {
+            if (filter.test(e.getKey()))
+                values.put(e.getKey(), e.getValue().getCount());
+        }
+        for (Map.Entry<String, Histogram> e : metricsRegistry.getHistograms().entrySet())
+        {
+            if (filter.test(e.getKey()))
+                values.put(e.getKey(), e.getValue().getCount());
+        }
+        for (Map.Entry<String, Timer> e : metricsRegistry.getTimers().entrySet())
+        {
+            if (filter.test(e.getKey()))
+                values.put(e.getKey(), e.getValue().getCount());
+        }
         return values;
     }
 
+    @Override
     public double getHistogram(String name, MetricValue value)
     {
         Histogram histogram = metricsRegistry.getHistograms().get(name);
         return getValue(histogram, value);
     }
 
+    @Override
     public Map<String, Double> getHistograms(Predicate<String> filter, MetricValue value)
     {
         Map<String, Double> values = new HashMap<>();
@@ -83,11 +116,13 @@ class InstanceMetrics implements Metrics
         return values;
     }
 
+    @Override
     public Object getGauge(String name)
     {
         return metricsRegistry.getGauges().get(name).getValue();
     }
 
+    @Override
     public Map<String, Object> getGauges(Predicate<String> filter)
     {
         Map<String, Object> values = new HashMap<>();
@@ -99,11 +134,13 @@ class InstanceMetrics implements Metrics
         return values;
     }
 
+    @Override
     public double getMeter(String name, Rate value)
     {
         return getRate(metricsRegistry.getMeters().get(name), value);
     }
 
+    @Override
     public Map<String, Double> getMeters(Predicate<String> filter, Rate rate)
     {
         Map<String, Double> values = new HashMap<>();
@@ -115,11 +152,13 @@ class InstanceMetrics implements Metrics
         return values;
     }
 
+    @Override
     public double getTimer(String name, MetricValue value)
     {
         return getValue(metricsRegistry.getTimers().get(name).getSnapshot(), value);
     }
 
+    @Override
     public Map<String, Double> getTimers(Predicate<String> filter, MetricValue value)
     {
         Map<String, Double> values = new HashMap<>();
