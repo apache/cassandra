@@ -51,9 +51,6 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
-import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
-
 /**
  * Manages the fixed-size memory pool for index summaries, periodically resizing them
  * in order to give more memory to hot sstables and less memory to cold sstables.
@@ -241,9 +238,15 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         }
         catch (Exception e)
         {
-            if (!(e instanceof CompactionInterruptedException))
+            if (e instanceof CompactionInterruptedException)
+            {
+                logger.info("Index summary interrupted: {}", e.getMessage());
+            }
+            else
+            {
                 logger.error("Got exception during index summary redistribution", e);
-            throw e;
+                throw e;
+            }
         }
         finally
         {
