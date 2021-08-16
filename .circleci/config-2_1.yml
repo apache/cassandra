@@ -455,7 +455,7 @@ commands:
           cd ~/cassandra
           # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
           for x in $(seq 1 3); do
-              ${ANT_HOME}/bin/ant clean jar
+              ${ANT_HOME}/bin/ant clean jar build-test
               RETURN="$?"
               if [ "${RETURN}" -eq "0" ]; then
                   break
