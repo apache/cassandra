@@ -18,6 +18,15 @@
 
 version: 2
 jobs:
+  start_j8_dtests:
+    docker: [ {image: "alpine:latest" } ]
+    steps: [ { run: "echo skipping" } ]
+  start_jvm_upgrade_dtest:
+    docker: [ {image: "alpine:latest" } ]
+    steps: [ { run: "echo skipping" } ]
+  start_j8_dtest_jars_build:
+    docker: [ {image: "alpine:latest" } ]
+    steps: [ { run: "echo skipping" } ]
   j8_jvm_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
@@ -3910,20 +3919,17 @@ workflows:
         requires:
         - start_utests_system_keyspace_directory
         - j8_build
-    - start_j8_dtest_jars_build:
-        type: approval
+    - start_j8_dtest_jars_build
     - j8_dtest_jars_build:
         requires:
         - j8_build
         - start_j8_dtest_jars_build
-    - start_jvm_upgrade_dtest:
-        type: approval
+    - start_jvm_upgrade_dtest
     - j8_jvm_upgrade_dtests:
         requires:
         - start_jvm_upgrade_dtest
         - j8_dtest_jars_build
-    - start_j8_dtests:
-        type: approval
+    - start_j8_dtests: { requires: [ "j8_build" ]}
     - j8_dtests-with-vnodes:
         requires:
         - start_j8_dtests
