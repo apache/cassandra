@@ -18,14 +18,8 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.Set;
 import java.time.Instant;
-import javax.management.openmbean.TabularData;
-import javax.management.openmbean.CompositeData;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -36,10 +30,8 @@ import io.airlift.command.Arguments;
 import io.airlift.command.Command;
 import io.airlift.command.Option;
 
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 @Command(name = "expiresnapshots", description = "Removes snapshots that are older than a TTL in days")
 public class ExpireSnapshots extends NodeToolCmd
@@ -47,7 +39,7 @@ public class ExpireSnapshots extends NodeToolCmd
     @Option(title = "ttl", name = {"-t", "--ttl"}, description = "TTL (in days) to expire snapshots", required = true)
     private int ttl = -1;
 
-    @Option(title = "dry-run", name = { "--dry-run" }, description = "Run tool without actually deleting snapshots")
+    @Option(title = "dry-run", name = { "--dry-run" }, description = "Run without actually clearing snapshots")
     boolean dryRun = false;
 
     private final static String timestampRegex ="^\\S*(?<timestamp>\\d{13})\\S*$";
@@ -65,24 +57,21 @@ public class ExpireSnapshots extends NodeToolCmd
                 throw new RuntimeException("ttl must be greater than 0");
             }
 
-            int snapshotsCleaned = 0;
+            int snapshotsCleared = 0;
 
-            final Instant ttlInstant = getTtlInstant(ttl);
+            final Instant ttlInstant = LocalDateTime.now().minusDays(ttl).toInstant(ZoneOffset.UTC);
 
-            final Map<String,TabularData> snapshotDetails = probe.getSnapshotDetails();
-            if (snapshotDetails.isEmpty())
+            final Set<String> snapshotNames = probe.getSnapshotDetails().keySet();
+            if (snapshotNames.isEmpty())
             {
                 out.println("There are no snapshots");
                 return;
             }
 
-            List<Map<String, String>> snapshots = tabularDataToList(snapshotDetails);
-
-            for (Map<String, String> snapshot: snapshots) {
+            for (final String snapshotName : snapshotNames)
+            {
 
                 Instant snapDate;
-
-                String snapshotName = snapshot.get("Snapshot name");
                 snapDate = getInstantFromSnapshotName(snapshotName);
 
                 if (snapDate == Instant.MIN) {
@@ -91,24 +80,22 @@ public class ExpireSnapshots extends NodeToolCmd
                 }
 
                 if (snapDate.isBefore(ttlInstant)) {
-                    out.println(String.format("Snapshot %s older than %s days", snapshotName, ttl));
+                    out.println(String.format("%s: %s", dryRun ? "Clearing (dry run)" : "Clearing", snapshotName));
 
-                if (!dryRun) {
-                    probe.clearSnapshot(snapshotName);
-                }
+                    if (!dryRun) {
+                        probe.clearSnapshot(snapshotName);
+                    }
 
-                snapshotsCleaned++;
+                    snapshotsCleared++;
                 }
             }
+
+            out.println(String.format("%s: %s snapshots", dryRun ? "Cleared (dry run)" : "Cleared", snapshotsCleared));
         }
         catch (Exception e)
         {
             throw new RuntimeException("Error during expiresnapshots", e);
         }
-    }
-
-    private static Instant getTtlInstant(int ttl) {
-        return LocalDateTime.now().minusDays(ttl).toInstant(ZoneOffset.UTC);
     }
 
     public static Instant getInstantFromSnapshotName(String snapshotName) {
@@ -118,25 +105,5 @@ public class ExpireSnapshots extends NodeToolCmd
         } else {
             return Instant.MIN;
         }
-    }
-
-    public static List<Map<String, String>> tabularDataToList(Map<String, TabularData> input) {
-
-        List<Map<String, String>> output = new ArrayList<Map<String, String>>();
-
-        if (input.isEmpty()) {
-            return output;
-        }
-
-        List<String> indexNames = input.entrySet().iterator().next().getValue().getTabularType().getIndexNames();
-
-        input.forEach((key, value) -> value.values().forEach((detail) -> {
-            final CompositeData compositeDetail = (CompositeData) detail;
-            final HashMap<String, String> newMap = new HashMap<>();
-            indexNames.forEach((index) -> newMap.put(index, (String) compositeDetail.get(index)));
-            output.add(newMap);
-        }));
-
-        return output;
     }
 }
