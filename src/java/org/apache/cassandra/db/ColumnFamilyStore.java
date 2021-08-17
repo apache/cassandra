@@ -334,7 +334,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public String getCompressionParametersJson()
     {
-        return FBUtilities.json(getCompressionParameters());
+        return Json.writeAsJsonString(getCompressionParameters());
     }
 
     public void setCompressionParameters(Map<String,String> opts)

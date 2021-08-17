@@ -854,6 +854,10 @@ public class FBUtilities
         }
     }
 
+    /**
+     * @deprecated Use org.apache.cassandra.cql3.Json#writeAsJsonString() instead
+     */
+    @Deprecated
     public static String json(Object object)
     {
         try

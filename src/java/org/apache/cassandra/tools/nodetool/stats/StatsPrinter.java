@@ -39,8 +39,6 @@ public interface StatsPrinter<T extends StatsHolder>
 
     static class JsonPrinter<T extends StatsHolder> implements StatsPrinter<T>
     {
-        private final static ObjectWriter JSON_WRITER = Json.JSON_OBJECT_MAPPER.writer();
-
         @Override
         public void print(T data, PrintStream out)
         {
@@ -59,14 +57,7 @@ public interface StatsPrinter<T extends StatsHolder>
             }
 
             // and then we can serialize
-            try
-            {
-                out.println(JSON_WRITER.writeValueAsString(stats));
-            }
-            catch (IOException exc)
-            {
-                throw new RuntimeException("Error printing JSON string: " + exc.getMessage());
-            }
+            out.println(Json.writeAsJsonString(stats));
         }
     }
 
