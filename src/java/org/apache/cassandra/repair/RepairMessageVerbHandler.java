@@ -20,6 +20,7 @@ package org.apache.cassandra.repair;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -45,8 +46,24 @@ import org.apache.cassandra.service.ActiveRepairService;
 public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairMessageVerbHandler.class);
+
+    @VisibleForTesting
+    public static boolean shouldIgnoreRepairRequest(final MessageIn<RepairMessage> message)
+    {
+        return message.version < MessagingService.VERSION_30 || message.version > MessagingService.VERSION_3014;
+    }
+
     public void doVerb(final MessageIn<RepairMessage> message, final int id)
     {
+        if (shouldIgnoreRepairRequest(message))
+        {
+            logger.warn("Ignoring repair-message {} from endpoint {} because messaging-version mismatch ({})",
+                        message.payload,
+                        message.from,
+                        message.version);
+            return;
+        }
+
         // TODO add cancel/interrupt message
         RepairJobDesc desc = message.payload.desc;
         try

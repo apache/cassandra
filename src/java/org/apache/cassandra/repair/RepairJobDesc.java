@@ -120,7 +120,7 @@ public class RepairJobDesc
             String keyspace = in.readUTF();
             String columnFamily = in.readUTF();
 
-            int nRanges = in.readInt();
+            int nRanges = version >= MessagingService.VERSION_30 ? in.readInt() : 1;
             Collection<Range<Token>> ranges = new ArrayList<>();
             Range<Token> range;
 

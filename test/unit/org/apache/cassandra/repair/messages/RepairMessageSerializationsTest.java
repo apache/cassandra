@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,11 +42,17 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.NodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.RepairMessageVerbHandler;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class RepairMessageSerializationsTest
 {
@@ -66,6 +73,34 @@ public class RepairMessageSerializationsTest
     public static void after()
     {
         DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
+    }
+
+    @Test
+    public void ignoreRepairMessage()
+    {
+        MessageIn<RepairMessage> message = MessageIn.create(FBUtilities.getLocalAddress(), null,
+                                   Collections.emptyMap(),
+                                   MessagingService.Verb.REPAIR_MESSAGE,
+                                   MessagingService.VERSION_22);
+        assertTrue(RepairMessageVerbHandler.shouldIgnoreRepairRequest(message));
+
+        message = MessageIn.create(FBUtilities.getLocalAddress(), null,
+                                   Collections.emptyMap(),
+                                   MessagingService.Verb.REPAIR_MESSAGE,
+                                   MessagingService.VERSION_30);
+        assertFalse(RepairMessageVerbHandler.shouldIgnoreRepairRequest(message));
+
+        message = MessageIn.create(FBUtilities.getLocalAddress(), null,
+                                   Collections.emptyMap(),
+                                   MessagingService.Verb.REPAIR_MESSAGE,
+                                   MessagingService.VERSION_3014);
+        assertFalse(RepairMessageVerbHandler.shouldIgnoreRepairRequest(message));
+
+        message = MessageIn.create(FBUtilities.getLocalAddress(), null,
+                                   Collections.emptyMap(),
+                                   MessagingService.Verb.REPAIR_MESSAGE,
+                                   MessagingService.current_version);
+        assertFalse(RepairMessageVerbHandler.shouldIgnoreRepairRequest(message));
     }
 
     @Test

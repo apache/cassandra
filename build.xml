@@ -1183,6 +1183,12 @@
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
 	<optjvmargs/>
+
+        <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
+        <!--
+        <jvmarg line="-agentlib:jdwp=transport=dt_socket,address=localhost:1416,server=y,suspend=y" />
+        -->
+
         <classpath>
           <pathelement path="${java.class.path}"/>
           <pathelement location="${stress.build.classes}"/>
