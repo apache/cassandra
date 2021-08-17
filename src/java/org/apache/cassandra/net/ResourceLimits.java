@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.net;
 
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
+
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 public abstract class ResourceLimits
@@ -34,6 +36,20 @@ public abstract class ResourceLimits
          * @return total amount of permits represented by this {@link Limit} - the capacity
          */
         long limit();
+
+        /**
+         * Sets the total amount of permits represented by this {@link Limit} - the capacity
+         *
+         * If the old limit has been reached and the new limit is large enough to allow for more
+         * permits to be aqcuired, subsequent calls to {@link #allocate(long)} or {@link #tryAllocate(long)}
+         * will succeed.
+         *
+         * If the new limit is lower than the current amount of allocated permits then subsequent calls
+         * to {@link #allocate(long)} or {@link #tryAllocate(long)} will block or fail respectively.
+         *
+         * @return the old limit
+         */
+        long setLimit(long newLimit);
 
         /**
          * @return remaining, unallocated permit amount
@@ -73,7 +89,9 @@ public abstract class ResourceLimits
      */
     public static class Concurrent implements Limit
     {
-        private final long limit;
+        private volatile long limit;
+        private static final AtomicLongFieldUpdater<Concurrent> limitUpdater =
+            AtomicLongFieldUpdater.newUpdater(Concurrent.class, "limit");
 
         private volatile long using;
         private static final AtomicLongFieldUpdater<Concurrent> usingUpdater =
@@ -87,6 +105,16 @@ public abstract class ResourceLimits
         public long limit()
         {
             return limit;
+        }
+
+        public long setLimit(long newLimit)
+        {
+            long oldLimit;
+            do {
+                oldLimit = limit;
+            } while (!limitUpdater.compareAndSet(this, oldLimit, newLimit));
+
+            return oldLimit;
         }
 
         public long remaining()
@@ -129,7 +157,17 @@ public abstract class ResourceLimits
         {
             assert amount >= 0;
             long using = usingUpdater.addAndGet(this, -amount);
-            assert using >= 0;
+            if (using < 0L)
+            {
+                // Should never be able to release more than was allocated.  While recovery is
+                // possible it would require synchronizing the closing of all outbound connections
+                // and reinitializing the Concurrent limit before reopening.  For such an unlikely path
+                // (previously this was an assert), it is safer to terminate the JVM and have something external
+                // restart and get back to a known good state rather than intermittendly crashing on any of
+                // the connections sharing this limit.
+                throw new UnrecoverableIllegalStateException(
+                    "Internode messaging byte limits that are shared between connections is invalid (using="+using+")");
+            }
             return using >= limit ? Outcome.ABOVE_LIMIT : Outcome.BELOW_LIMIT;
         }
     }
@@ -137,12 +175,12 @@ public abstract class ResourceLimits
     /**
      * A cheaper, thread-unsafe permit container to be used for unshared limits.
      */
-    static class Basic implements Limit
+    public static class Basic implements Limit
     {
-        private final long limit;
+        private long limit;
         private long using;
 
-        Basic(long limit)
+        public Basic(long limit)
         {
             this.limit = limit;
         }
@@ -150,6 +188,14 @@ public abstract class ResourceLimits
         public long limit()
         {
             return limit;
+        }
+
+        public long setLimit(long newLimit)
+        {
+            long oldLimit = limit;
+            limit = newLimit;
+
+            return oldLimit;
         }
 
         public long remaining()

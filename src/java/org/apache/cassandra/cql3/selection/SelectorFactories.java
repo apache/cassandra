@@ -21,12 +21,13 @@ import java.util.*;
 
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
+import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -63,7 +64,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      * is any such expectations, or {@code null} otherwise. This will be {@code null} when called on
      * the top-level selectables, but may not be for selectable nested within a function for instance
      * (as the argument selectable will be expected to be of the type expected by the function).
-     * @param cfm the Column Family Definition
+     * @param table the table Definition
      * @param defs the collector parameter for the column definitions
      * @param boundNames the collector for the specification of bound markers in the selection
      * @return a new <code>SelectorFactories</code> instance
@@ -71,18 +72,18 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      */
     public static SelectorFactories createFactoriesAndCollectColumnDefinitions(List<Selectable> selectables,
                                                                                List<AbstractType<?>> expectedTypes,
-                                                                               CFMetaData cfm,
-                                                                               List<ColumnDefinition> defs,
+                                                                               TableMetadata table,
+                                                                               List<ColumnMetadata> defs,
                                                                                VariableSpecifications boundNames)
                                                                                throws InvalidRequestException
     {
-        return new SelectorFactories(selectables, expectedTypes, cfm, defs, boundNames);
+        return new SelectorFactories(selectables, expectedTypes, table, defs, boundNames);
     }
 
     private SelectorFactories(List<Selectable> selectables,
                               List<AbstractType<?>> expectedTypes,
-                              CFMetaData cfm,
-                              List<ColumnDefinition> defs,
+                              TableMetadata table,
+                              List<ColumnMetadata> defs,
                               VariableSpecifications boundNames)
                               throws InvalidRequestException
     {
@@ -92,7 +93,7 @@ final class SelectorFactories implements Iterable<Selector.Factory>
         {
             Selectable selectable = selectables.get(i);
             AbstractType<?> expectedType = expectedTypes == null ? null : expectedTypes.get(i);
-            Factory factory = selectable.newSelectorFactory(cfm, expectedType, defs, boundNames);
+            Factory factory = selectable.newSelectorFactory(table, expectedType, defs, boundNames);
             containsWritetimeFactory |= factory.isWritetimeSelectorFactory();
             containsTTLFactory |= factory.isTTLSelectorFactory();
             if (factory.isAggregateSelectorFactory())
@@ -118,11 +119,27 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     }
 
     /**
+     * Returns the index of the {@code SimpleSelector.Factory} for the specified column.
+     *
+     * @param columnIndex the index of the column
+     * @return the index of the {@code SimpleSelector.Factory} for the specified column or -1 if it does not exist.
+     */
+    public int indexOfSimpleSelectorFactory(int columnIndex)
+    {
+        for (int i = 0, m = factories.size(); i < m; i++)
+        {
+            if (factories.get(i).isSimpleSelectorFactoryFor(columnIndex))
+                return i;
+        }
+        return -1;
+    }
+
+    /**
      * Adds a new <code>Selector.Factory</code> for a column that is needed only for ORDER BY purposes.
      * @param def the column that is needed for ordering
      * @param index the index of the column definition in the Selection's list of columns
      */
-    public void addSelectorForOrdering(ColumnDefinition def, int index)
+    public void addSelectorForOrdering(ColumnMetadata def, int index)
     {
         factories.add(SimpleSelector.newFactory(def, index));
     }
@@ -209,6 +226,22 @@ final class SelectorFactories implements Iterable<Selector.Factory>
                 return factory.getReturnType();
             }
         });
+    }
+
+    boolean areAllFetchedColumnsKnown()
+    {
+        for (Factory factory : factories)
+        {
+            if (!factory.areAllFetchedColumnsKnown())
+                return false;
+        }
+        return true;
+    }
+
+    void addFetchedColumns(Builder builder)
+    {
+        for (Factory factory : factories)
+            factory.addFetchedColumns(builder);
     }
 
     /**

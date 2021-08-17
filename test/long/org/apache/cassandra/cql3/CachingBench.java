@@ -33,7 +33,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.DiskAccessMode;
 import org.apache.cassandra.cache.ChunkCache;
@@ -47,6 +47,8 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class CachingBench extends CQLTester
 {
@@ -240,9 +242,14 @@ public class CachingBench extends CQLTester
                 ChunkCache.instance.metrics.hitRate.getValue());
         else
         {
-            Assert.assertTrue("Chunk cache had requests: " + ChunkCache.instance.metrics.requests.getCount(), ChunkCache.instance.metrics.requests.getCount() < COUNT);
+            assertThat(ChunkCache.instance.metrics.requests.getCount()).as("Chunk cache had requests: %s",
+                                                                           ChunkCache.instance.metrics.requests.getCount())
+                                                                       .isLessThan(COUNT);
             System.out.println("Cache disabled");
         }
+
+        assertThat(ChunkCache.instance.metrics.missLatency.getCount()).isGreaterThan(0);
+
         System.out.println(String.format("Operations completed in %.3fs", (onEndTime - onStartTime) * 1e-3));
         if (!CONCURRENT_COMPACTIONS)
             System.out.println(String.format(", out of which %.3f for non-concurrent compaction", compactionTimeNanos * 1e-9));
@@ -340,7 +347,7 @@ public class CachingBench extends CQLTester
 
     int countRows(ColumnFamilyStore cfs)
     {
-        boolean enforceStrictLiveness = cfs.metadata.enforceStrictLiveness();
+        boolean enforceStrictLiveness = cfs.metadata().enforceStrictLiveness();
         int nowInSec = FBUtilities.nowInSeconds();
         return count(cfs, x -> x.isRow() && ((Row) x).hasLiveData(nowInSec, enforceStrictLiveness));
     }

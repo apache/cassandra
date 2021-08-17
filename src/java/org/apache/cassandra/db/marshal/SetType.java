@@ -19,6 +19,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Sets;
@@ -33,8 +34,8 @@ import org.apache.cassandra.transport.ProtocolVersion;
 public class SetType<T> extends CollectionType<Set<T>>
 {
     // interning instances
-    private static final Map<AbstractType<?>, SetType> instances = new HashMap<>();
-    private static final Map<AbstractType<?>, SetType> frozenInstances = new HashMap<>();
+    private static final ConcurrentHashMap<AbstractType<?>, SetType> instances = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<AbstractType<?>, SetType> frozenInstances = new ConcurrentHashMap<>();
 
     private final AbstractType<T> elements;
     private final SetSerializer<T> serializer;
@@ -49,30 +50,44 @@ public class SetType<T> extends CollectionType<Set<T>>
         return getInstance(l.get(0), true);
     }
 
-    public static synchronized <T> SetType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
+    public static <T> SetType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
     {
-        Map<AbstractType<?>, SetType> internMap = isMultiCell ? instances : frozenInstances;
+        ConcurrentHashMap<AbstractType<?>, SetType> internMap = isMultiCell ? instances : frozenInstances;
         SetType<T> t = internMap.get(elements);
-        if (t == null)
-        {
-            t = new SetType<T>(elements, isMultiCell);
-            internMap.put(elements, t);
-        }
-        return t;
+        return null == t
+             ? internMap.computeIfAbsent(elements, k -> new SetType<>(k, isMultiCell))
+             : t;
     }
 
     public SetType(AbstractType<T> elements, boolean isMultiCell)
     {
         super(ComparisonType.CUSTOM, Kind.SET);
         this.elements = elements;
-        this.serializer = SetSerializer.getInstance(elements.getSerializer(), elements);
+        this.serializer = SetSerializer.getInstance(elements.getSerializer(), elements.comparatorSet);
         this.isMultiCell = isMultiCell;
     }
 
     @Override
-    public boolean referencesUserType(String userTypeName)
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {
-        return getElementsType().referencesUserType(userTypeName);
+        return elements.referencesUserType(name, accessor);
+    }
+
+    @Override
+    public SetType<?> withUpdatedUserType(UserType udt)
+    {
+        if (!referencesUserType(udt.name))
+            return this;
+
+        (isMultiCell ? instances : frozenInstances).remove(elements);
+
+        return getInstance(elements.withUpdatedUserType(udt), isMultiCell);
+    }
+
+    @Override
+    public AbstractType<?> expandUserTypes()
+    {
+        return getInstance(elements.expandUserTypes(), isMultiCell);
     }
 
     public AbstractType<T> getElementsType()
@@ -106,6 +121,12 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return Collections.singletonList(elements);
+    }
+
+    @Override
     public AbstractType<?> freezeNestedMulticellTypes()
     {
         if (!isMultiCell())
@@ -131,10 +152,9 @@ public class SetType<T> extends CollectionType<Set<T>>
         return isCompatibleWithFrozen(previous);
     }
 
-    @Override
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        return ListType.compareListOrSet(elements, o1, o2);
+        return ListType.compareListOrSet(elements, left, accessorL, right, accessorR);
     }
 
     public SetSerializer<T> getSerializer()
@@ -157,7 +177,7 @@ public class SetType<T> extends CollectionType<Set<T>>
         return sb.toString();
     }
 
-    public List<ByteBuffer> serializedValues(Iterator<Cell> cells)
+    public List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells)
     {
         List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
         while (cells.hasNext())

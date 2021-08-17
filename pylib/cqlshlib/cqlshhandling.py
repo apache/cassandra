@@ -15,7 +15,8 @@
 # limitations under the License.
 
 import os
-import cqlhandling
+
+from cqlshlib import cqlhandling
 
 # we want the cql parser to understand our cqlsh-specific commands too
 my_commands_ending_with_newline = (
@@ -77,12 +78,12 @@ cqlsh_special_cmd_command_syntax_rules = r'''
 
 cqlsh_describe_cmd_syntax_rules = r'''
 <describeCommand> ::= ( "DESCRIBE" | "DESC" )
-                                  ( "FUNCTIONS"
+                                ( ( "FUNCTIONS"
                                   | "FUNCTION" udf=<anyFunctionName>
                                   | "AGGREGATES"
                                   | "AGGREGATE" uda=<userAggregateName>
                                   | "KEYSPACES"
-                                  | "KEYSPACE" ksname=<keyspaceName>?
+                                  | "ONLY"? "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                   | "INDEX" idx=<indexName>
                                   | "MATERIALIZED" "VIEW" mv=<materializedViewName>
@@ -91,7 +92,9 @@ cqlsh_describe_cmd_syntax_rules = r'''
                                   | "CLUSTER"
                                   | "TYPES"
                                   | "TYPE" ut=<userTypeName>
-                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName> | mv=<materializedViewName>))
+                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName> | mv=<materializedViewName>)
+                                  ) ("WITH" "INTERNALS")?
+                                )
                     ;
 '''
 
@@ -112,6 +115,7 @@ cqlsh_consistency_level_syntax_rules = r'''
                      | "SERIAL"
                      | "LOCAL_SERIAL"
                      | "LOCAL_ONE"
+                     | "NODE_LOCAL"
                      ;
 '''
 
@@ -239,7 +243,7 @@ def complete_source_quoted_filename(ctxt, cqlsh):
         contents = os.listdir(exhead or '.')
     except OSError:
         return ()
-    matches = filter(lambda f: f.startswith(tail), contents)
+    matches = [f for f in contents if f.startswith(tail)]
     annotated = []
     for f in matches:
         match = os.path.join(head, f)
@@ -266,7 +270,7 @@ def copy_fname_completer(ctxt, cqlsh):
 
 @cqlsh_syntax_completer('copyCommand', 'colnames')
 def complete_copy_column_names(ctxt, cqlsh):
-    existcols = map(cqlsh.cql_unprotect_name, ctxt.get_binding('colnames', ()))
+    existcols = list(map(cqlsh.cql_unprotect_name, ctxt.get_binding('colnames', ())))
     ks = cqlsh.cql_unprotect_name(ctxt.get_binding('ksname', None))
     cf = cqlsh.cql_unprotect_name(ctxt.get_binding('cfname'))
     colnames = cqlsh.get_column_names(ks, cf)
@@ -287,7 +291,7 @@ COPY_TO_OPTIONS = ['ENCODING', 'PAGESIZE', 'PAGETIMEOUT', 'BEGINTOKEN', 'ENDTOKE
 
 @cqlsh_syntax_completer('copyOption', 'optnames')
 def complete_copy_options(ctxt, cqlsh):
-    optnames = map(str.upper, ctxt.get_binding('optnames', ()))
+    optnames = list(map(str.upper, ctxt.get_binding('optnames', ())))
     direction = ctxt.get_binding('dir').upper()
     if direction == 'FROM':
         opts = set(COPY_COMMON_OPTIONS + COPY_FROM_OPTIONS) - set(optnames)

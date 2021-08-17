@@ -26,7 +26,6 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -50,18 +49,6 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                         long maxSSTableSize)
     {
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, false);
-    }
-
-    @Deprecated
-    public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
-                                        Directories directories,
-                                        LifecycleTransaction txn,
-                                        Set<SSTableReader> nonExpiredSSTables,
-                                        long maxSSTableSize,
-                                        boolean offline,
-                                        boolean keepOriginals)
-    {
-        this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, keepOriginals);
     }
 
     @SuppressWarnings("resource")
@@ -105,16 +92,17 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     {
         this.sstableDirectory = location;
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
-        sstableWriter.switchWriter(SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(getDirectories().getLocationForDisk(sstableDirectory))),
+        sstableWriter.switchWriter(SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
                 keysPerSSTable,
                 minRepairedAt,
+                pendingRepair,
+                isTransient,
                 cfs.metadata,
-                new MetadataCollector(txn.originals(), cfs.metadata.comparator, currentLevel),
-                SerializationHeader.make(cfs.metadata, txn.originals()),
+                new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
+                SerializationHeader.make(cfs.metadata(), txn.originals()),
                 cfs.indexManager.listIndexes(),
                 txn));
         partitionsWritten = 0;
         sstablesWritten = 0;
-
     }
 }

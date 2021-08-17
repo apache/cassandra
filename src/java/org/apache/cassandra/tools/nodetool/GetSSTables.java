@@ -18,13 +18,13 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.command.Option;
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 

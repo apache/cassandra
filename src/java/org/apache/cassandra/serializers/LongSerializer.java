@@ -18,17 +18,18 @@
 
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.nio.ByteBuffer;
 
-public class LongSerializer implements TypeSerializer<Long>
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+public class LongSerializer extends TypeSerializer<Long>
 {
     public static final LongSerializer instance = new LongSerializer();
 
-    public Long deserialize(ByteBuffer bytes)
+    public <V> Long deserialize(V value, ValueAccessor<V> accessor)
     {
-        return bytes.remaining() == 0 ? null : ByteBufferUtil.toLong(bytes);
+        return accessor.isEmpty(value) ? null : accessor.toLong(value);
     }
 
     public ByteBuffer serialize(Long value)
@@ -36,10 +37,10 @@ public class LongSerializer implements TypeSerializer<Long>
         return value == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : ByteBufferUtil.bytes(value);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
+        if (accessor.size(value) != 8 && !accessor.isEmpty(value))
+            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", accessor.size(value)));
     }
 
     public String toString(Long value)

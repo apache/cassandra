@@ -24,6 +24,7 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 
@@ -104,7 +105,7 @@ public class DiskBoundaries
     {
         if (positions == null)
         {
-            return getBoundariesFromSSTableDirectory(sstable);
+            return getBoundariesFromSSTableDirectory(sstable.descriptor);
         }
 
         int pos = Collections.binarySearch(positions, sstable.first);
@@ -115,9 +116,9 @@ public class DiskBoundaries
     /**
      * Try to figure out location based on sstable directory
      */
-    private int getBoundariesFromSSTableDirectory(SSTableReader sstable)
+    public int getBoundariesFromSSTableDirectory(Descriptor descriptor)
     {
-        Directories.DataDirectory actualDirectory = cfs.getDirectories().getDataDirectoryForFile(sstable.descriptor);
+        Directories.DataDirectory actualDirectory = cfs.getDirectories().getDataDirectoryForFile(descriptor);
         for (int i = 0; i < directories.size(); i++)
         {
             Directories.DataDirectory directory = directories.get(i);
@@ -130,5 +131,27 @@ public class DiskBoundaries
     public Directories.DataDirectory getCorrectDiskForSSTable(SSTableReader sstable)
     {
         return directories.get(getDiskIndex(sstable));
+    }
+
+    public Directories.DataDirectory getCorrectDiskForKey(DecoratedKey key)
+    {
+        if (positions == null)
+            return null;
+
+        return directories.get(getDiskIndex(key));
+    }
+
+    public boolean isInCorrectLocation(SSTableReader sstable, Directories.DataDirectory currentLocation)
+    {
+        int diskIndex = getDiskIndex(sstable);
+        PartitionPosition diskLast = positions.get(diskIndex);
+        return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
+    }
+
+    private int getDiskIndex(DecoratedKey key)
+    {
+        int pos = Collections.binarySearch(positions, key);
+        assert pos < 0;
+        return -pos - 1;
     }
 }

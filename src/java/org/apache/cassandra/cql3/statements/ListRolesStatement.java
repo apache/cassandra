@@ -24,9 +24,11 @@ import java.util.Set;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.audit.AuditLogContext;
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -34,6 +36,8 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class ListRolesStatement extends AuthorizationStatement
 {
@@ -46,7 +50,8 @@ public class ListRolesStatement extends AuthorizationStatement
         ImmutableList.of(new ColumnSpecification(KS, CF, new ColumnIdentifier("role", true), UTF8Type.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("super", true), BooleanType.instance),
                          new ColumnSpecification(KS, CF, new ColumnIdentifier("login", true), BooleanType.instance),
-                         new ColumnSpecification(KS, CF, new ColumnIdentifier("options", true), optionsType));
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("options", true), optionsType),
+                         new ColumnSpecification(KS, CF, new ColumnIdentifier("datacenters", true), UTF8Type.instance));
 
     private final RoleResource grantee;
     private final boolean recursive;
@@ -70,7 +75,7 @@ public class ListRolesStatement extends AuthorizationStatement
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
     }
 
-    public void checkAccess(ClientState state) throws InvalidRequestException
+    public void authorize(ClientState state) throws InvalidRequestException
     {
     }
 
@@ -112,16 +117,31 @@ public class ListRolesStatement extends AuthorizationStatement
     // overridden in ListUsersStatement to include legacy metadata
     protected ResultMessage formatResults(List<RoleResource> sortedRoles)
     {
-        ResultSet result = new ResultSet(metadata);
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata);
+        ResultSet result = new ResultSet(resultMetadata);
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        INetworkAuthorizer networkAuthorizer = DatabaseDescriptor.getNetworkAuthorizer();
         for (RoleResource role : sortedRoles)
         {
             result.addColumnValue(UTF8Type.instance.decompose(role.getRoleName()));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.isSuper(role)));
             result.addColumnValue(BooleanType.instance.decompose(roleManager.canLogin(role)));
             result.addColumnValue(optionsType.decompose(roleManager.getCustomOptions(role)));
+            result.addColumnValue(UTF8Type.instance.decompose(networkAuthorizer.authorize(role).toString()));
         }
         return new ResultMessage.Rows(result);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.LIST_ROLES);
     }
 }

@@ -17,21 +17,37 @@
  */
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.config.CFMetaData;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+
+import static org.apache.cassandra.utils.MonotonicClock.preciseTime;
 
 public class ReadExecutionController implements AutoCloseable
 {
+    private static final long NO_SAMPLING = Long.MIN_VALUE;
+
     // For every reads
     private final OpOrder.Group baseOp;
-    private final CFMetaData baseMetadata; // kept to sanity check that we have take the op order on the right table
+    private final TableMetadata baseMetadata; // kept to sanity check that we have take the op order on the right table
 
     // For index reads
     private final ReadExecutionController indexController;
-    private final OpOrder.Group writeOp;
+    private final WriteContext writeContext;
+    private final ReadCommand command;
+    static MonotonicClock clock = preciseTime;
 
-    private ReadExecutionController(OpOrder.Group baseOp, CFMetaData baseMetadata, ReadExecutionController indexController, OpOrder.Group writeOp)
+    private final long createdAtNanos; // Only used while sampling
+
+    private ReadExecutionController(ReadCommand command,
+                                    OpOrder.Group baseOp,
+                                    TableMetadata baseMetadata,
+                                    ReadExecutionController indexController,
+                                    WriteContext writeContext,
+                                    long createdAtNanos)
     {
         // We can have baseOp == null, but only when empty() is called, in which case the controller will never really be used
         // (which validForReadOn should ensure). But if it's not null, we should have the proper metadata too.
@@ -39,7 +55,9 @@ public class ReadExecutionController implements AutoCloseable
         this.baseOp = baseOp;
         this.baseMetadata = baseMetadata;
         this.indexController = indexController;
-        this.writeOp = writeOp;
+        this.writeContext = writeContext;
+        this.command = command;
+        this.createdAtNanos = createdAtNanos;
     }
 
     public ReadExecutionController indexReadController()
@@ -47,19 +65,19 @@ public class ReadExecutionController implements AutoCloseable
         return indexController;
     }
 
-    public OpOrder.Group writeOpOrderGroup()
+    public WriteContext getWriteContext()
     {
-        return writeOp;
+        return writeContext;
     }
 
-    public boolean validForReadOn(ColumnFamilyStore cfs)
+    boolean validForReadOn(ColumnFamilyStore cfs)
     {
-        return baseOp != null && cfs.metadata.cfId.equals(baseMetadata.cfId);
+        return baseOp != null && cfs.metadata.id.equals(baseMetadata.id);
     }
 
     public static ReadExecutionController empty()
     {
-        return new ReadExecutionController(null, null, null, null);
+        return new ReadExecutionController(null, null, null, null, null, NO_SAMPLING);
     }
 
     /**
@@ -77,40 +95,42 @@ public class ReadExecutionController implements AutoCloseable
         ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(command.metadata());
         ColumnFamilyStore indexCfs = maybeGetIndexCfs(baseCfs, command);
 
+        long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.now() : NO_SAMPLING;
+
         if (indexCfs == null)
+            return new ReadExecutionController(command, baseCfs.readOrdering.start(), baseCfs.metadata(), null, null, createdAtNanos);
+
+        OpOrder.Group baseOp = null;
+        WriteContext writeContext = null;
+        ReadExecutionController indexController = null;
+        // OpOrder.start() shouldn't fail, but better safe than sorry.
+        try
         {
-            return new ReadExecutionController(baseCfs.readOrdering.start(), baseCfs.metadata, null, null);
+            baseOp = baseCfs.readOrdering.start();
+            indexController = new ReadExecutionController(command, indexCfs.readOrdering.start(), indexCfs.metadata(), null, null, NO_SAMPLING);
+            /*
+             * TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try*
+             * to delete stale entries, without blocking if there's no room
+             * as it stands, we open a writeOp and keep it open for the duration to ensure that should this CF get flushed to make room we don't block the reclamation of any room being made
+             */
+            writeContext = baseCfs.keyspace.getWriteHandler().createContextForRead();
+            return new ReadExecutionController(command, baseOp, baseCfs.metadata(), indexController, writeContext, createdAtNanos);
         }
-        else
+        catch (RuntimeException e)
         {
-            OpOrder.Group baseOp = null, writeOp = null;
-            ReadExecutionController indexController = null;
-            // OpOrder.start() shouldn't fail, but better safe than sorry.
+            // Note that must have writeContext == null since ReadOrderGroup ctor can't fail
+            assert writeContext == null;
             try
             {
-                baseOp = baseCfs.readOrdering.start();
-                indexController = new ReadExecutionController(indexCfs.readOrdering.start(), indexCfs.metadata, null, null);
-                // TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try* to delete stale entries, without blocking if there's no room
-                // as it stands, we open a writeOp and keep it open for the duration to ensure that should this CF get flushed to make room we don't block the reclamation of any room being made
-                writeOp = Keyspace.writeOrder.start();
-                return new ReadExecutionController(baseOp, baseCfs.metadata, indexController, writeOp);
+                if (baseOp != null)
+                    baseOp.close();
             }
-            catch (RuntimeException e)
+            finally
             {
-                // Note that must have writeOp == null since ReadOrderGroup ctor can't fail
-                assert writeOp == null;
-                try
-                {
-                    if (baseOp != null)
-                        baseOp.close();
-                }
-                finally
-                {
-                    if (indexController != null)
-                        indexController.close();
-                }
-                throw e;
+                if (indexController != null)
+                    indexController.close();
             }
+            throw e;
         }
     }
 
@@ -120,7 +140,7 @@ public class ReadExecutionController implements AutoCloseable
         return index == null ? null : index.getBackingTable().orElse(null);
     }
 
-    public CFMetaData metaData()
+    public TableMetadata metadata()
     {
         return baseMetadata;
     }
@@ -142,9 +162,21 @@ public class ReadExecutionController implements AutoCloseable
                 }
                 finally
                 {
-                    writeOp.close();
+                    writeContext.close();
                 }
             }
         }
+
+        if (createdAtNanos != NO_SAMPLING)
+            addSample();
+    }
+
+    private void addSample()
+    {
+        String cql = command.toCQLString();
+        int timeMicros = (int) Math.min(TimeUnit.NANOSECONDS.toMicros(clock.now() - createdAtNanos), Integer.MAX_VALUE);
+        ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(baseMetadata.id);
+        if (cfs != null)
+            cfs.metric.topLocalReadQueryTime.addSample(cql, timeMicros);
     }
 }

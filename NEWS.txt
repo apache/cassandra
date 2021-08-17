@@ -18,15 +18,6 @@ CASSANDRA-14092.txt file.
 If you use or plan to use very large TTLS (10 to 20 years), read CASSANDRA-14092.txt
 for more information.
 
-PLEASE READ: CVE-2017-5929 LOGBACK BEFORE 1.2.0 SERIALIZATION VULNERABILITY
-------------------------------------------------------------------
-QOS.ch Logback before 1.2.0 has a serialization vulnerability affecting the
-SocketServer and ServerSocketReceiver components.
-
-Logback has not been upgraded to avoid breaking deployments and customizations
-based on older versions. If you are using vulnerable components you will need
-to upgrade to a newer version of Logback or stop using the vulnerable components.
-
 GENERAL UPGRADING ADVICE FOR ANY VERSION
 ========================================
 
@@ -42,15 +33,306 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
-3.11.11
-=======
+4.1
+===
+
+New features
+------------
+
+Upgrading
+---------
+
+Deprecation
+-----------
+
+4.0
+===
+
+New features
+------------
+    - The data of the system keyspaces using a local strategy (at the exception of the system.batches,
+      system.paxos, system.compaction_history, system.prepared_statements and system.repair tables)
+      is now stored by default in the first data directory, instead of being distributed among all
+      the data directories. This approach will allow the server to tolerate the failure of the other disks.
+      To ensure that a disk failure will not bring a node down, it is possible to use the system_data_file_directory
+      yaml property to store the local system keyspaces data on a directory that provides redundancy.
+      On node startup the local system keyspaces data will be automatically migrated if needed to the
+      correct location.
+    - Nodes will now bootstrap all intra-cluster connections at startup by default and wait
+      10 seconds for the all but one node in the local data center to be connected and marked
+      UP in gossip. This prevents nodes from coordinating requests and failing because they
+      aren't able to connect to the cluster fast enough. block_for_peers_timeout_in_secs in
+      cassandra.yaml can be used to configure how long to wait (or whether to wait at all)
+      and block_for_peers_in_remote_dcs can be used to also block on all but one node in
+      each remote DC as well. See CASSANDRA-14297 and CASSANDRA-13993 for more information.
+    - *Experimental* support for Transient Replication and Cheap Quorums introduced by CASSANDRA-14404
+      The intended audience for this functionality is expert users of Cassandra who are prepared
+      to validate every aspect of the database for their application and deployment practices. Future
+      releases of Cassandra will make this feature suitable for a wider audience.
+    - *Experimental* support for Java 11 has been added. JVM options that differ between or are
+      specific for Java 8 and 11 have been moved from jvm.options into jvm8.options and jvm11.options.
+      IMPORTANT: Running C* on Java 11 is *experimental* and do it at your own risk.
+    - LCS now respects the max_threshold parameter when compacting - this was hard coded to 32
+      before, but now it is possible to do bigger compactions when compacting from L0 to L1.
+      This also applies to STCS-compactions in L0 - if there are more than 32 sstables in L0
+      we will compact at most max_threshold sstables in an L0 STCS compaction. See CASSANDRA-14388
+      for more information.
+    - There is now an option to automatically upgrade sstables after Cassandra upgrade, enable
+      either in `cassandra.yaml:automatic_sstable_upgrade` or via JMX during runtime. See
+      CASSANDRA-14197.
+    - `nodetool refresh` has been deprecated in favour of `nodetool import` - see CASSANDRA-6719
+      for details
+    - An experimental option to compare all merkle trees together has been added - for example, in
+      a 3 node cluster with 2 replicas identical and 1 out-of-date, with this option enabled, the
+      out-of-date replica will only stream a single copy from up-to-date replica. Enable it by adding
+      "-os" to nodetool repair. See CASSANDRA-3200.
+    - The currentTimestamp, currentDate, currentTime and currentTimeUUID functions have been added.
+      See CASSANDRA-13132
+    - Support for arithmetic operations between `timestamp`/`date` and `duration` has been added.
+      See CASSANDRA-11936
+    - Support for arithmetic operations on number has been added. See CASSANDRA-11935
+    - Preview expected streaming required for a repair (nodetool repair --preview), and validate the
+      consistency of repaired data between nodes (nodetool repair --validate). See CASSANDRA-13257
+    - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396
+    - Change-Data-Capture has been modified to make CommitLogSegments available
+      immediately upon creation via hard-linking the files. This means that incomplete
+      segments will be available in cdc_raw rather than fully flushed. See documentation
+      and CASSANDRA-12148 for more detail.
+    - The initial build of materialized views can be parallelized. The number of concurrent builder
+      threads is specified by the property `cassandra.yaml:concurrent_materialized_view_builders`.
+      This property can be modified at runtime through both JMX and the new `setconcurrentviewbuilders`
+      and `getconcurrentviewbuilders` nodetool commands. See CASSANDRA-12245 for more details.
+    - There is now a binary full query log based on Chronicle Queue that can be controlled using
+      nodetool enablefullquerylog, disablefullquerylog, and resetfullquerylog. The log
+      contains all queries invoked, approximate time they were invoked, any parameters necessary
+      to bind wildcard values, and all query options. A human readable version of the log can be
+      dumped or tailed using the new bin/fqltool utility. The full query log is designed to be safe
+      to use in production and limits utilization of heap memory and disk space with limits
+      you can specify when enabling the log.
+      See nodetool and fqltool help text for more information.
+    - SSTableDump now supports the -l option to output each partition as it's own json object
+      See CASSANDRA-13848 for more detail
+    - Metric for coordinator writes per table has been added. See CASSANDRA-14232
+    - Nodetool cfstats now has options to sort by various metrics as well as limit results.
+    - Operators can restrict login user activity to one or more datacenters. See `network_authorizer`
+      in cassandra.yaml, and the docs for create and alter role statements. CASSANDRA-13985
+    - Roles altered from login=true to login=false will prevent existing connections from executing any
+      statements after the cache has been refreshed. CASSANDRA-13985
+    - Support for audit logging of database activity. If enabled, logs every incoming
+      CQL command request, Authentication (successful as well as unsuccessful login) to a node.
+    - Faster streaming of entire SSTables using ZeroCopy APIs. If enabled, Cassandra will use stream
+      entire SSTables, significantly speeding up transfers. Any streaming related operations will see
+      corresponding improvement. See CASSANDRA-14556.
+    - NetworkTopologyStrategy now supports auto-expanding the replication_factor
+      option into all available datacenters at CREATE or ALTER time. For example,
+      specifying replication_factor: 3 translates to three replicas in every
+      datacenter. This auto-expansion will _only add_ datacenters for safety.
+      See CASSANDRA-14303 for more details.
+    - Added Python 3 support so cqlsh and cqlshlib is now compatible with Python 2.7 and Python 3.6.
+      Added --python option to cqlsh so users can specify the path to their chosen Python interpreter.
+      See CASSANDRA-10190 for details.
+    - Support for server side DESCRIBE statements has been added. See CASSANDRA-14825
+    - It is now possible to rate limit snapshot creation/clearing. See CASSANDRA-13019
+
+Upgrading
+---------
+    - DESCRIBE|DESC was moved to server side in Cassandra 4.0. As a consequence DESRIBE|DESC will not work in cqlsh 6.0.0
+      being connected to earlier major Cassandra versions where DESCRIBE does not exist server side.
+    - cqlsh shell startup script now prefers 'python3' before 'python' when identifying a runtime.
+    - As part of the Internode Messaging improvement work in CASSANDRA-15066, matching response verbs for every request
+      verb were introduced and verbs were renamed. DroppedMessageMetrics pre-4.0 are now available with _REQ suffix. As
+      part of CASSANDRA-16083, we added DroppedMessageMetrics backward compatibility layer which exposes the metrics with
+      their old names too. Only the value for verbs READ and RANGE_SLICE will differ from the same metrics in 3.11 as it
+      does not include anymore the responses dropped, only the requests. After being deprecated in 3.11 PAGED_RANGE was
+      fully removed in 4.0. ConditionNotMet metric has been moved under scope CASClientWriteRequestMetrtic but as part of
+      CASSANDRA-16083, backward compatibility layer was added so it can be still exposed under the old 3.11 scope.
+    - Native protocol v5 is promoted from beta in this release. The wire format has changed
+      significantly and users should take care to ensure client drivers are upgraded to a version
+      with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299, CASSANDRA-14973)
+    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
+      replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
+    - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
+
+      Background: The serialization-header in the -Statistics.db sstable component contains the type information
+      of the table columns. C* 3.0 write incorrect type information for frozen UDTs by omitting the
+      "frozen" information. Non-frozen UDTs were introduced by CASSANDRA-7423 in C* 3.6. Since then, the missing
+      "frozen" information leads to deserialization issues that result in CorruptSSTableExceptions, potentially other
+      exceptions as well.
+
+      As a mitigation, the sstable serialization-headers are rewritten to contain the missing "frozen" information for
+      UDTs once, when an upgrade from C* 3.0 is detected. This migration does not touch snapshots or backups.
+
+      The sstablescrub tool now performs a check of the sstable serialization-header against the schema. A mismatch of
+      the types in the serialization-header and the schema will cause sstablescrub to error out and stop by default.
+      See the new `-e` option. `-e off` disables the new validation code. `-e fix` or `-e fix-only`, e.g.
+      `sstablescrub -e fix keyspace table`, will validate the serialization-header, rewrite the non-frozen UDTs
+      in the serialzation-header to frozen UDTs, if that matches the schema, and continue with scrub.
+      See `sstablescrub -h`.
+      (CASSANDRA-15035)
+    - CASSANDRA-13241 lowered the default chunk_lengh_in_kb for compresesd tables from
+      64kb to 16kb. For highly compressible data this can have a noticeable impact
+      on space utilization. You may want to consider manually specifying this value.
+    - Additional columns have been added to system_distributed.repair_history,
+      system_traces.sessions and system_traces.events. As a result select queries
+      against these tables - including queries against tracing tables performed
+      automatically by the drivers and cqlsh - will fail and generate an error in the log
+      during upgrade when the cluster is mixed version. On 3.x side this will also lead
+      to broken internode connections and lost messages.
+      Cassandra versions 3.0.20 and 3.11.6 pre-add these columns (see CASSANDRA-15385),
+      so please make sure to upgrade to those versions or higher before upgrading to
+      4.0 for query tracing to not cause any issues during the upgrade to 4.0.
+    - Timestamp ties between values resolve differently: if either value has a TTL,
+      this value always wins. This is to provide consistent reconciliation before
+      and after the value expires into a tombstone.
+    - Support for legacy auth tables in the system_auth keyspace (users,
+      permissions, credentials) and the migration code has been removed. Migration
+      of these legacy auth tables must have been completed before the upgrade to
+      4.0 and the legacy tables must have been removed. See the 'Upgrading' section
+      for version 2.2 for migration instructions.
+    - Cassandra 4.0 removed support for the deprecated Thrift interface. Amongst
+      other things, this implies the removal of all yaml options related to thrift
+      ('start_rpc', rpc_port, ...).
+    - Cassandra 4.0 removed support for any pre-3.0 format. This means you
+      cannot upgrade from a 2.x version to 4.0 directly, you have to upgrade to
+      a 3.0.x/3.x version first (and run upgradesstable). In particular, this
+      mean Cassandra 4.0 cannot load or read pre-3.0 sstables in any way: you
+      will need to upgrade those sstable in 3.0.x/3.x first.
+    - Upgrades from 3.0.x or 3.x are supported since 3.0.13 or 3.11.0, previous
+      versions will causes issues during rolling upgrades (CASSANDRA-13274).
+    - Cassandra will no longer allow invalid keyspace replication options, such
+      as invalid datacenter names for NetworkTopologyStrategy. Operators MUST
+      add new nodes to a datacenter before they can set set ALTER or CREATE
+      keyspace replication policies using that datacenter. Existing keyspaces
+      will continue to operate, but CREATE and ALTER will validate that all
+      datacenters specified exist in the cluster.
+    - Cassandra 4.0 fixes a problem with incremental repair which caused repaired
+      data to be inconsistent between nodes. The fix changes the behavior of both
+      full and incremental repairs. For full repairs, data is no longer marked
+      repaired. For incremental repairs, anticompaction is run at the beginning
+      of the repair, instead of at the end. If incremental repair was being used
+      prior to upgrading, a full repair should be run after upgrading to resolve
+      any inconsistencies.
+    - Config option index_interval has been removed (it was deprecated since 2.0)
+    - Deprecated repair JMX APIs are removed.
+    - The version of snappy-java has been upgraded to 1.1.2.6
+    - the miniumum value for internode message timeouts is 10ms. Previously, any
+      positive value was allowed. See cassandra.yaml entries like
+      read_request_timeout_in_ms for more details.
+    - Cassandra 4.0 allows a single port to be used for both secure and insecure
+      connections between cassandra nodes (CASSANDRA-10404). See the yaml for
+      specific property changes, and see the security doc for full details.
+    - Due to the parallelization of the initial build of materialized views,
+      the per token range view building status is stored in the new table
+      `system.view_builds_in_progress`. The old table `system.views_builds_in_progress`
+      is no longer used and can be removed. See CASSANDRA-12245 for more details.
+    - Config option commitlog_sync_batch_window_in_ms has been deprecated as it's
+      documentation has been incorrect and the setting itself near useless.
+      Batch mode remains a valid commit log mode, however.
+    - There is a new commit log mode, group, which is similar to batch mode
+      but blocks for up to a configurable number of milliseconds between disk flushes.
+    - nodetool clearsnapshot now required the --all flag to remove all snapshots.
+      Previous behavior would delete all snapshots by default.
+    - Nodes are now identified by a combination of IP, and storage port.
+      Existing JMX APIs, nodetool, and system tables continue to work
+      and accept/return just an IP, but there is a new
+      version of each that works with the full unambiguous identifier.
+      You should prefer these over the deprecated ambiguous versions that only
+      work with an IP. This was done to support multiple instances per IP.
+      Additionally we are moving to only using a single port for encrypted and
+      unencrypted traffic and if you want multiple instances per IP you must
+      first switch encrypted traffic to the storage port and not a separate
+      encrypted port. If you want to use multiple instances per IP
+      with SSL you will need to use StartTLS on storage_port and set
+      outgoing_encrypted_port_source to gossip outbound connections
+      know what port to connect to for each instance. Before changing
+      storage port or native port at nodes you must first upgrade the entire cluster
+      and clients to 4.0 so they can handle the port not being consistent across
+      the cluster.
+    - Names of AWS regions/availability zones have been cleaned up to more correctly
+      match the Amazon names. There is now a new option in conf/cassandra-rackdc.properties
+      that lets users enable the correct names for new clusters, or use the legacy
+      names for existing clusters. See conf/cassandra-rackdc.properties for details.
+    - Background repair has been removed. dclocal_read_repair_chance and
+      read_repair_chance table options have been removed and are now rejected.
+      See CASSANDRA-13910 for details.
+    - Internode TCP connections that do not ack segments for 30s will now
+      be automatically detected and closed via the Linux TCP_USER_TIMEOUT
+      socket option. This should be exceedingly rare, but AWS networks (and
+      other stateful firewalls) apparently suffer from this issue. You can
+      tune the timeouts on TCP connection and segment ack via the
+      `cassandra.yaml:internode_tcp_connect_timeout_in_ms` and
+      `cassandra.yaml:internode_tcp_user_timeout_in_ms` options respectively.
+      See CASSANDRA-14358 for details.
+    - repair_session_space_in_mb setting has been added to cassandra.yaml to allow operators to reduce
+      merkle tree size if repair is creating too much heap pressure. The repair_session_max_tree_depth
+      setting added in 3.0.19 and 3.11.5 is deprecated in favor of this setting. See CASSANDRA-14096
+    - The flags 'enable_materialized_views' and 'enable_sasi_indexes' in cassandra.yaml
+      have been set as false by default. Operators should modify them to allow the
+      creation of new views and SASI indexes, the existing ones will continue working.
+      See CASSANDRA-14866 for details.
+    - CASSANDRA-15216 - The flag 'cross_node_timeout' has been set as true by default.
+      This change is done under the assumption that users have setup NTP on
+      their clusters or otherwise synchronize their clocks, and that clocks are
+      mostly in sync, since this is a requirement for general correctness of
+      last write wins.
+    - CASSANDRA-15257 removed the joda time dependency.  Any time formats
+      passed will now need to conform to java.time.format.DateTimeFormatter.
+      Most notably, days and months must be two digits, and years exceeding
+      four digits need to be prefixed with a plus or minus sign.
+    - cqlsh now returns a non-zero code in case of errors. This is a backward incompatible change so it may
+      break existing scripts that rely on the current behavior. See CASSANDRA-15623 for more details.
+    - Updated the default compaction_throughput_mb_per_sec to to 64. The original
+      default (16) was meant for spinning disk volumes.  See CASSANDRA-14902 for details.
+    - Custom compaction strategies must now handle getting sstables added/removed notifications for
+      sstables already added/removed - see CASSANDRA-14103 for details.
+    - Support for JNA with glibc 2.6 and earlier has been removed. Centos 5, Debian 4, and Ubuntu 7.10 operating systems
+      must be first upgraded. See CASSANDRA-16212 for more.
+    - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
+      If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
+      the node will not start. See CASSANDRA-14477 for details.
+    - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
+      value has been changed from 256 to 16 for reasons described in
+      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+      'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
+      Please note when upgrading that if the 'num_tokens' value is different than what you have
+      configured, the upgraded node will refuse to start. Also note that if a new node joining
+      the cluster has a different value for 'num_tokens' than the rest of the datacenter,
+      the new node will be responsible for a different amount of data than the rest of the datacenter.
+
+Deprecation
+-----------
+
+    - The JMX MBean org.apache.cassandra.metrics:type=Streaming,name=ActiveOutboundStreams has been
+      deprecated and will be removed in a subsequent major version. This metric was not updated since several version
+      already.
+    - The JMX MBean org.apache.cassandra.db:type=BlacklistedDirectories has been
+      deprecated in favor of org.apache.cassandra.db:type=DisallowedDirectories
+      and will be removed in a subsequent major version.
+    - cqlsh support of 2.7 is deprecated and will warn when running with Python 2.7.
 
 ALTER ... DROP COMPACT STORAGE
 ------------------------------
-   - Following a discussion regarding concerns about the safety of the 'ALTER ... DROP COMPACT STORAGE' statement, 
+   - Following a discussion regarding concerns about the safety of the 'ALTER ... DROP COMPACT STORAGE' statement,
      the C* development community does not recommend its use in production and considers it experimental
      (see https://www.mail-archive.com/dev@cassandra.apache.org/msg16789.html).
    - An 'enable_drop_compact_storage' flag has been added to cassandra.yaml to allow operators to prevent its use.
+
+Materialized Views
+-------------------
+    - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
+      community no longer recommends them for production use, and considers them experimental. Warnings messages will
+      now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
+    - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
+      views
+    - CREATE MATERIALIZED VIEW syntax has become stricter. Partition key columns are no longer implicitly considered
+      to be NOT NULL, and no base primary key columns get automatically included in view definition. You have to
+      specify them explicitly now.
+
+Windows Support Removed
+-----------------------
+    - Due to the lack of maintenance and testing, Windows support is removed from this version onward. The developers
+      who use Windows 10 still can run Apache Cassandra locally using WSL2 (Windows Subsystem for Linux version 2),
+      Docker for Windows, or virtualization platform like Hyper-V and VirtualBox.
 
 3.11.10
 ======
@@ -64,31 +346,12 @@ Upgrading
       reason, a opt-in system property has been added to disable the fix:
         -Dcassandra.unsafe.disable-serial-reads-linearizability=true
       Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
-      previous versions. See CASSANDRA-12126 for details.
-    - In cassandra.yaml, when using vnodes num_tokens must be defined if initial_token is defined.
-      If it is not defined, or not equal to the numbers of tokens defined in initial_tokens,
-      the node will not start. See CASSANDRA-14477 for details.
+      previous versions. See CASSANDRA-12126 for details. 
     - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
       it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
       lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
       logged, and the setting reverted to the default value of 1GB. It is up to the user to correct the setting
       after an upgrade, via dropping and recreating the index. See CASSANDRA-16071 for details.
-
-3.11.9
-======
-Upgrading
----------
-   - Custom compaction strategies must handle getting sstables added/removed notifications for
-     sstables already added/removed - see CASSANDRA-14103 for details. This has been a requirement
-     for correct operation since 3.11.0 due to an issue in CompactionStrategyManager.
-
-3.11.7
-======
-
-Upgrading
----------
-    - Nothing specific to this release, but please see previous upgrading sections,
-      especially if you are upgrading from 3.0.
 
 
 3.11.6
@@ -114,20 +377,11 @@ Upgrading
       in the serialzation-header to frozen UDTs, if that matches the schema, and continue with scrub.
       See `sstablescrub -h`.
       (CASSANDRA-15035)
-    - repair_session_max_tree_depth setting has been added to cassandra.yaml to allow operators to reduce
-      merkle tree size if repair is creating too much heap pressure. See CASSANDRA-14096 for details.
+	- repair_session_max_tree_depth setting has been added to cassandra.yaml to allow operators to reduce
+	  merkle tree size if repair is creating too much heap pressure. See CASSANDRA-14096 for details.
 
 3.11.5
 ======
-
-Upgrading
----------
-    - repair_session_max_tree_depth setting has been added to cassandra.yaml to allow operators to reduce
-      merkle tree size if repair is creating too much heap pressure. See CASSANDRA-14096 for details.
-    - native_transport_max_negotiable_protocol_version has been added to cassandra.yaml to allow operators to
-      enforce an upper limit on the version of the native protocol that servers will negotiate with clients. 
-      This can be used during upgrades from 2.1 to 3.0 to prevent errors due to incompatible paging state formats
-      between the two versions. See CASSANDRA-15193 for details.
 
 Experimental features
 ---------------------
@@ -152,26 +406,17 @@ Upgrading
 
 Upgrading
 ---------
-    - Materialized view users upgrading from 3.0.15 (3.0.X series) or 3.11.1 (3.11.X series) and
-      later that have performed range movements (join, decommission, move, etc), should run repair
-      on the base tables, and subsequently on the views to ensure data affected by CASSANDRA-14251
-      is correctly propagated to all replicas.
-    - Changes to bloom_filter_fp_chance will no longer take effect on existing sstables when the
-      node is restarted. Only compactions/upgradesstables regenerates bloom filters and Summaries
-      sstable components. See CASSANDRA-11163
-
-Deprecation
------------
-    - Background read repair has been deprecated. dclocal_read_repair_chance and read_repair_chance
-      table options have been deprecated, and will be removed entirely in 4.0. See CASSANDRA-13910
-      for details.
+    - Materialized view users upgrading from 3.0.15 (3.0.X series) or 3.11.1 (3.11.X series) and  later that have performed range movements (join, decommission, move, etc),
+      should run repair on the base tables, and subsequently on the views to ensure data affected by CASSANDRA-14251 is correctly propagated to all replicas.
+    - Changes to bloom_filter_fp_chance will no longer take effect on existing sstables when the node is restarted. Only
+      compactions/upgradesstables regenerates bloom filters and Summaries sstable components. See CASSANDRA-11163
 
 3.11.2
 ======
 
 Upgrading
 ---------
-   - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
+    - See MAXIMUM TTL EXPIRATION DATE NOTICE above.
     - Cassandra is now relying on the JVM options to properly shutdown on OutOfMemoryError. By default it will
       rely on the OnOutOfMemoryError option as the ExitOnOutOfMemoryError and CrashOnOutOfMemoryError options
       are not supported by the older 1.7 and 1.8 JVMs. A warning will be logged at startup if none of those JVM
@@ -179,23 +424,6 @@ Upgrading
     - Cassandra is not logging anymore by default an Heap histogram on OutOfMemoryError. To enable that behavior
       set the 'cassandra.printHeapHistogramOnOutOfMemoryError' System property to 'true'. See CASSANDRA-13006
       for more details.
-    - Upgrades from 3.0 might have produced unnecessary schema migrations while
-      there was at least one 3.0 node in the cluster. It is therefore highly
-      recommended to upgrade from 3.0 to at least 3.11.2. The root cause of
-      this schema mismatch was a difference in the way how schema digests were computed
-      in 3.0 and 3.11.2. To mitigate this issue, 3.11.2 and newer announce
-      3.0 compatible digests as long as there is at least one 3.0 node in the
-      cluster. Once all nodes have been upgraded, the "real" schema version will be
-      announced. Note: this fix is only necessary in 3.11.2 and therefore only applies
-      to 3.11. (CASSANDRA-14109)
-
-Materialized Views
--------------------
-   - Following a discussion regarding concerns about the design and safety of Materialized Views, the C* development
-     community no longer recommends them for production use, and considers them experimental. Warnings messages will
-     now be logged when they are created. (See https://www.mail-archive.com/dev@cassandra.apache.org/msg11511.html)
-   - An 'enable_materialized_views' flag has been added to cassandra.yaml to allow operators to prevent creation of
-     views
 
 3.11.1
 ======
@@ -231,7 +459,7 @@ Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
 Materialized Views
 -------------------
 
-Materialized Views (only when upgrading from 3.X or any version lower than 3.0.15)
+Materialized Views (only when upgrading from any version lower than 3.0.15 (3.0 series) or 3.11.1 (3.X series))
 ---------------------------------------------------------------------------------------
     - Cassandra will no longer allow dropping columns on tables with Materialized Views.
     - A change was made in the way the Materialized View timestamp is computed, which
@@ -254,31 +482,12 @@ Materialized Views (only when upgrading from 3.X or any version lower than 3.0.1
 
 Upgrading
 ---------
-   - ALTER TABLE (ADD/DROP COLUMN) operations concurrent with a read might
-     result into data corruption (see CASSANDRA-13004 for more details).
-     Fixing this bug required a messaging protocol version bump. By default,
-     Cassandra 3.11 will use 3014 version for messaging.
-
-     Since Schema Migrations rely the on exact messaging protocol version
-     match between nodes, if you need schema changes during the upgrade
-     process, you have to start your nodes with `-Dcassandra.force_3_0_protocol_version=true`
-     first, in order to temporarily force a backwards compatible protocol.
-     After the whole cluster is upgraded to 3.11, do a rolling
-     restart of the cluster without setting that flag.
-
-     3.11 nodes with and withouot the flag set will be able to do schema
-     migrations with other 3.x and 3.0.x releases.
-
-     While running the cluster with the flag set to true on 3.11 (in
-     compatibility mode), avoid adding or removing any columns to/from
-     existing tables.
-
-     If your cluster can do without schema migrations during the upgrade
-     time, just start the cluster normally without setting aforementioned
-     flag.
-
-     If you are upgrading from 3.0.14+ (of 3.0.x branch), you do not have
-     to set an flag while upgrading to ensure schema migrations.
+   - Creating Materialized View with filtering on non-primary-key base column
+     (added in CASSANDRA-10368) is disabled, because the liveness of view row
+     is depending on multiple filtered base non-key columns and base non-key
+     column used in view primary-key. This semantic cannot be supported without
+     storage format change, see CASSANDRA-13826. For append-only use case, you
+     may still use this feature with a startup flag: "-Dcassandra.mv.allow_filtering_nonkey_columns_unsafe=true"
    - The NativeAccessMBean isAvailable method will only return true if the
      native library has been successfully linked. Previously it was returning
      true if JNA could be found but was not taking into account link failures.

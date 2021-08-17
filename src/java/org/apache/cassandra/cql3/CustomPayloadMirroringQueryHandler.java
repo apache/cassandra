@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 
 import org.apache.cassandra.cql3.statements.BatchStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
@@ -35,32 +35,32 @@ public class CustomPayloadMirroringQueryHandler implements QueryHandler
 {
     static QueryProcessor queryProcessor = QueryProcessor.instance;
 
-    public ResultMessage process(String query,
+    public CQLStatement parse(String query, QueryState state, QueryOptions options)
+    {
+        return queryProcessor.parse(query, state, options);
+    }
+
+    public ResultMessage process(CQLStatement statement,
                                  QueryState state,
                                  QueryOptions options,
                                  Map<String, ByteBuffer> customPayload,
                                  long queryStartNanoTime)
     {
-        ResultMessage result = queryProcessor.process(query, state, options, customPayload, queryStartNanoTime);
+        ResultMessage result = queryProcessor.process(statement, state, options, customPayload, queryStartNanoTime);
         result.setCustomPayload(customPayload);
         return result;
     }
 
-    public ResultMessage.Prepared prepare(String query, QueryState state, Map<String, ByteBuffer> customPayload)
+    public ResultMessage.Prepared prepare(String query, ClientState clientState, Map<String, ByteBuffer> customPayload)
     {
-        ResultMessage.Prepared prepared = queryProcessor.prepare(query, state, customPayload);
+        ResultMessage.Prepared prepared = queryProcessor.prepare(query, clientState, customPayload);
         prepared.setCustomPayload(customPayload);
         return prepared;
     }
 
-    public ParsedStatement.Prepared getPrepared(MD5Digest id)
+    public QueryProcessor.Prepared getPrepared(MD5Digest id)
     {
         return queryProcessor.getPrepared(id);
-    }
-
-    public ParsedStatement.Prepared getPreparedForThrift(Integer id)
-    {
-        return queryProcessor.getPreparedForThrift(id);
     }
 
     public ResultMessage processPrepared(CQLStatement statement,

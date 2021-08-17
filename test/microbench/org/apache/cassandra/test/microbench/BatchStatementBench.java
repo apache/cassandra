@@ -26,19 +26,21 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
+import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -67,14 +69,15 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 10, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1,jvmArgsAppend = "-Xmx512M")
+@Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
 public class BatchStatementBench
 {
     static
     {
-        DatabaseDescriptor.clientInitialization();
+
+        DatabaseDescriptor.toolInitialization();
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
@@ -98,16 +101,15 @@ public class BatchStatementBench
     public void setup() throws Throwable
     {
         Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
-        CFMetaData metadata = CFMetaData.compile(String.format("CREATE TABLE %s (id int, ck int, v int, primary key (id, ck))", table), keyspace);
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
+        TableMetadata metadata = CreateTableStatement.parse(String.format("CREATE TABLE %s (id int, ck int, v int, primary key (id, ck))", table), keyspace).build();
 
-        Schema.instance.load(metadata);
-        Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(metadata)));
+        Schema.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
 
         List<ModificationStatement> modifications = new ArrayList<>(batchSize);
         List<List<ByteBuffer>> parameters = new ArrayList<>(batchSize);
         List<Object> queryOrIdList = new ArrayList<>(batchSize);
-        ParsedStatement.Prepared prepared = QueryProcessor.parseStatement(String.format("INSERT INTO %s.%s (id, ck, v) VALUES (?,?,?)", keyspace, table), QueryState.forInternalCalls());
+        QueryHandler.Prepared prepared = QueryProcessor.prepareInternal(String.format("INSERT INTO %s.%s (id, ck, v) VALUES (?,?,?)", keyspace, table));
 
         for (int i = 0; i < batchSize; i++)
         {
@@ -115,14 +117,14 @@ public class BatchStatementBench
             parameters.add(Lists.newArrayList(bytes(uniquePartition ? i : 1), bytes(i), bytes(i)));
             queryOrIdList.add(prepared.rawCQLStatement);
         }
-        bs = new BatchStatement(3, BatchStatement.Type.UNLOGGED, modifications, Attributes.none());
+        bs = new BatchStatement(BatchStatement.Type.UNLOGGED, VariableSpecifications.empty(), modifications, Attributes.none());
         bqo = BatchQueryOptions.withPerStatementVariables(QueryOptions.DEFAULT, parameters, queryOrIdList);
     }
 
     @Benchmark
     public void bench()
     {
-        bs.getMutations(bqo, false, nowInSec, queryStartTime);
+        bs.getMutations(bqo, false, nowInSec, nowInSec, queryStartTime);
     }
 
 

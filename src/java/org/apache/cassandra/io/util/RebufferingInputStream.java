@@ -25,11 +25,13 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
+import com.google.common.base.Preconditions;
+
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import com.google.common.base.Preconditions;
+import static java.lang.Math.min;
 
 /**
  * Rough equivalent of BufferedInputStream and DataInputStream wrapping a ByteBuffer that can be refilled
@@ -91,13 +93,45 @@ public abstract class RebufferingInputStream extends InputStream implements Data
                 if (remaining == 0)
                     return copied == 0 ? -1 : copied;
             }
-            int toCopy = Math.min(len - copied, remaining);
+            int toCopy = min(len - copied, remaining);
             FastByteOperations.copy(buffer, position, b, off + copied, toCopy);
             buffer.position(position + toCopy);
             copied += toCopy;
         }
 
         return copied;
+    }
+
+    /**
+     * Equivalent to {@link #read(byte[], int, int)}, where offset is {@code dst.position()} and length is {@code dst.remaining()}
+     */
+    public void readFully(ByteBuffer dst) throws IOException
+    {
+        int offset = dst.position();
+        int len = dst.limit() - offset;
+
+        int copied = 0;
+        while (copied < len)
+        {
+            int position = buffer.position();
+            int remaining = buffer.limit() - position;
+
+            if (remaining == 0)
+            {
+                reBuffer();
+
+                position = buffer.position();
+                remaining = buffer.limit() - position;
+
+                if (remaining == 0)
+                    throw new EOFException("EOF after " + copied + " bytes out of " + len);
+            }
+
+            int toCopy = min(len - copied, remaining);
+            FastByteOperations.copy(buffer, position, dst, offset + copied, toCopy);
+            buffer.position(position + toCopy);
+            copied += toCopy;
+        }
     }
 
     @DontInline
@@ -112,7 +146,7 @@ public abstract class RebufferingInputStream extends InputStream implements Data
     @Override
     public int skipBytes(int n) throws IOException
     {
-        if (n < 0)
+        if (n <= 0)
             return 0;
         int requested = n;
         int position = buffer.position(), limit = buffer.limit(), remaining;

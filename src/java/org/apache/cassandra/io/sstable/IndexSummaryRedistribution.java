@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +40,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -59,16 +58,22 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     static final double UPSAMPLE_THRESHOLD = 1.5;
     static final double DOWNSAMPLE_THESHOLD = 0.75;
 
-    private final List<SSTableReader> compacting;
-    private final Map<UUID, LifecycleTransaction> transactions;
+    private final Map<TableId, LifecycleTransaction> transactions;
+    private final long nonRedistributingOffHeapSize;
     private final long memoryPoolBytes;
     private final UUID compactionId;
     private volatile long remainingSpace;
 
-    public IndexSummaryRedistribution(List<SSTableReader> compacting, Map<UUID, LifecycleTransaction> transactions, long memoryPoolBytes)
+    /**
+     *
+     * @param transactions the transactions for the different keyspaces/tables we are to redistribute
+     * @param nonRedistributingOffHeapSize the total index summary off heap size for all sstables we were not able to mark compacting (due to them being involved in other compactions)
+     * @param memoryPoolBytes size of the memory pool
+     */
+    public IndexSummaryRedistribution(Map<TableId, LifecycleTransaction> transactions, long nonRedistributingOffHeapSize, long memoryPoolBytes)
     {
-        this.compacting = compacting;
         this.transactions = transactions;
+        this.nonRedistributingOffHeapSize = nonRedistributingOffHeapSize;
         this.memoryPoolBytes = memoryPoolBytes;
         this.compactionId = UUID.randomUUID();
     }
@@ -76,26 +81,14 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
     public List<SSTableReader> redistributeSummaries() throws IOException
     {
         logger.info("Redistributing index summaries");
-        List<SSTableReader> oldFormatSSTables = new ArrayList<>();
         List<SSTableReader> redistribute = new ArrayList<>();
         for (LifecycleTransaction txn : transactions.values())
         {
-            for (SSTableReader sstable : ImmutableList.copyOf(txn.originals()))
-            {
-                // We can't change the sampling level of sstables with the old format, because the serialization format
-                // doesn't include the sampling level.  Leave this one as it is.  (See CASSANDRA-8993 for details.)
-                logger.trace("SSTable {} cannot be re-sampled due to old sstable format", sstable);
-                if (!sstable.descriptor.version.hasSamplingLevel())
-                {
-                    oldFormatSSTables.add(sstable);
-                    txn.cancel(sstable);
-                }
-            }
             redistribute.addAll(txn.originals());
         }
 
-        long total = 0;
-        for (SSTableReader sstable : Iterables.concat(compacting, redistribute))
+        long total = nonRedistributingOffHeapSize;
+        for (SSTableReader sstable : redistribute)
             total += sstable.getIndexSummaryOffHeapSize();
 
         logger.trace("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
@@ -121,9 +114,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         List<SSTableReader> sstablesByHotness = new ArrayList<>(redistribute);
         Collections.sort(sstablesByHotness, new ReadRateComparator(readRates));
 
-        long remainingBytes = memoryPoolBytes;
-        for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables))
-            remainingBytes -= sstable.getIndexSummaryOffHeapSize();
+        long remainingBytes = memoryPoolBytes - nonRedistributingOffHeapSize;
 
         logger.trace("Index summaries for compacting SSTables are using {} MB of space",
                      (memoryPoolBytes - remainingBytes) / 1024.0 / 1024.0);
@@ -135,17 +126,18 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             for (LifecycleTransaction txn : transactions.values())
                 txn.finish();
         }
-        total = 0;
-        for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables, newSSTables))
+        total = nonRedistributingOffHeapSize;
+        for (SSTableReader sstable : newSSTables)
             total += sstable.getIndexSummaryOffHeapSize();
-        logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
+        if (logger.isTraceEnabled())
+            logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
                      FBUtilities.prettyPrintMemory(total));
 
         return newSSTables;
     }
 
     private List<SSTableReader> adjustSamplingLevels(List<SSTableReader> sstables,
-                                                     Map<UUID, LifecycleTransaction> transactions,
+                                                     Map<TableId, LifecycleTransaction> transactions,
                                                      double totalReadsPerSec, long memoryPoolCapacity) throws IOException
     {
         List<ResampleEntry> toDownsample = new ArrayList<>(sstables.size() / 4);
@@ -162,8 +154,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
 
-            int minIndexInterval = sstable.metadata.params.minIndexInterval;
-            int maxIndexInterval = sstable.metadata.params.maxIndexInterval;
+            int minIndexInterval = sstable.metadata().params.minIndexInterval;
+            int maxIndexInterval = sstable.metadata().params.maxIndexInterval;
 
             double readsPerSec = sstable.getReadMeter() == null ? 0.0 : sstable.getReadMeter().fifteenMinuteRate();
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));
@@ -190,12 +182,13 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, maxSummarySize);
             double effectiveIndexInterval = sstable.getEffectiveIndexInterval();
 
-            logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
-                    "from level {} ({} entries, {}) " +
-                    "to level {} ({} entries, {})",
-                    sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
-                    currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
-                    newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
+            if (logger.isTraceEnabled())
+                logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
+                             "from level {} ({} entries, {}) " +
+                             "to level {} ({} entries, {})",
+                             sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
+                             currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
+                             newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
 
             if (effectiveIndexInterval < minIndexInterval)
             {
@@ -235,7 +228,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
                 logger.trace("SSTable {} is within thresholds of ideal sampling", sstable);
                 remainingSpace -= sstable.getIndexSummaryOffHeapSize();
                 newSSTables.add(sstable);
-                transactions.get(sstable.metadata.cfId).cancel(sstable);
+                transactions.get(sstable.metadata().id).cancel(sstable);
             }
             totalReadsPerSec -= readsPerSec;
         }
@@ -246,7 +239,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             toDownsample = result.right;
             newSSTables.addAll(result.left);
             for (SSTableReader sstable : result.left)
-                transactions.get(sstable.metadata.cfId).cancel(sstable);
+                transactions.get(sstable.metadata().id).cancel(sstable);
         }
 
         // downsample first, then upsample
@@ -262,12 +255,12 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
                          sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
-            ColumnFamilyStore cfs = Keyspace.open(sstable.metadata.ksName).getColumnFamilyStore(sstable.metadata.cfId);
+            ColumnFamilyStore cfs = Keyspace.open(sstable.metadata().keyspace).getColumnFamilyStore(sstable.metadata().id);
             long oldSize = sstable.bytesOnDisk();
             SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(cfs, entry.newSamplingLevel);
             long newSize = replacement.bytesOnDisk();
             newSSTables.add(replacement);
-            transactions.get(sstable.metadata.cfId).update(replacement, true);
+            transactions.get(sstable.metadata().id).update(replacement, true);
             addHooks(cfs, transactions, oldSize, newSize);
         }
 
@@ -278,9 +271,9 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
      * Add hooks to correctly update the storage load metrics once the transaction is closed/aborted
      */
     @SuppressWarnings("resource") // Transactions are closed in finally outside of this method
-    private void addHooks(ColumnFamilyStore cfs, Map<UUID, LifecycleTransaction> transactions, long oldSize, long newSize)
+    private void addHooks(ColumnFamilyStore cfs, Map<TableId, LifecycleTransaction> transactions, long oldSize, long newSize)
     {
-        LifecycleTransaction txn = transactions.get(cfs.metadata.cfId);
+        LifecycleTransaction txn = transactions.get(cfs.metadata.id);
         txn.runOnCommit(() -> {
             // The new size will be added in Transactional.commit() as an updated SSTable, more details: CASSANDRA-13738
             StorageMetrics.load.dec(oldSize);
@@ -337,7 +330,7 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
 
     public CompactionInfo getCompactionInfo()
     {
-        return new CompactionInfo(OperationType.INDEX_SUMMARY, (memoryPoolBytes - remainingSpace), memoryPoolBytes, Unit.BYTES, compactionId);
+        return CompactionInfo.withoutSSTables(null, OperationType.INDEX_SUMMARY, (memoryPoolBytes - remainingSpace), memoryPoolBytes, Unit.BYTES, compactionId);
     }
 
     public boolean isGlobal()

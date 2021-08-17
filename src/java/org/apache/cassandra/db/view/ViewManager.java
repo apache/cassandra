@@ -22,16 +22,18 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Striped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ViewDefinition;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 
 /**
@@ -58,7 +60,7 @@ public class ViewManager
     private static final boolean enableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_enable_coordinator_batchlog");
 
     private final ConcurrentMap<String, View> viewsByName = new ConcurrentHashMap<>();
-    private final ConcurrentMap<UUID, TableViews> viewsByBaseTable = new ConcurrentHashMap<>();
+    private final ConcurrentMap<TableId, TableViews> viewsByBaseTable = new ConcurrentHashMap<>();
     private final Keyspace keyspace;
 
     public ViewManager(Keyspace keyspace)
@@ -75,12 +77,12 @@ public class ViewManager
         {
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
-                assert keyspace.getName().equals(update.metadata().ksName);
+                assert keyspace.getName().equals(update.metadata().keyspace);
 
-                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor() == 1)
+                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata()).updatedViews(update).isEmpty())
+                if (!forTable(update.metadata().id).updatedViews(update).isEmpty())
                     return true;
             }
         }
@@ -93,37 +95,23 @@ public class ViewManager
         return viewsByName.values();
     }
 
-    public void update(String viewName)
+    public void reload(boolean buildAllViews)
     {
-        View view = viewsByName.get(viewName);
-        assert view != null : "When updating a view, it should already be in the ViewManager";
-        view.build();
-
-        // We provide the new definition from the base metadata
-        Optional<ViewDefinition> viewDefinition = keyspace.getMetadata().views.get(viewName);
-        assert viewDefinition.isPresent() : "When updating a view, it should still be in the Keyspaces views";
-        view.updateDefinition(viewDefinition.get());
-    }
-
-    public void reload()
-    {
-        Map<String, ViewDefinition> newViewsByName = new HashMap<>();
-        for (ViewDefinition definition : keyspace.getMetadata().views)
+        Views views = keyspace.getMetadata().views;
+        Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
+        for (ViewMetadata definition : views)
         {
-            newViewsByName.put(definition.viewName, definition);
+            newViewsByName.put(definition.name(), definition);
         }
 
-        for (String viewName : viewsByName.keySet())
-        {
-            if (!newViewsByName.containsKey(viewName))
-                removeView(viewName);
-        }
-
-        for (Map.Entry<String, ViewDefinition> entry : newViewsByName.entrySet())
+        for (Map.Entry<String, ViewMetadata> entry : newViewsByName.entrySet())
         {
             if (!viewsByName.containsKey(entry.getKey()))
                 addView(entry.getValue());
         }
+
+        if (!buildAllViews)
+            return;
 
         // Building views involves updating view build status in the system_distributed
         // keyspace and therefore it requires ring information. This check prevents builds
@@ -147,30 +135,36 @@ public class ViewManager
         }
     }
 
-    public void addView(ViewDefinition definition)
+    public void addView(ViewMetadata definition)
     {
         // Skip if the base table doesn't exist due to schema propagation issues, see CASSANDRA-13737
         if (!keyspace.hasColumnFamilyStore(definition.baseTableId))
         {
             logger.warn("Not adding view {} because the base table {} is unknown",
-                        definition.viewName,
+                        definition.name(),
                         definition.baseTableId);
             return;
         }
 
         View view = new View(definition, keyspace.getColumnFamilyStore(definition.baseTableId));
-        forTable(view.getDefinition().baseTableMetadata()).add(view);
-        viewsByName.put(definition.viewName, view);
+        forTable(view.getDefinition().baseTableId).add(view);
+        viewsByName.put(definition.name(), view);
     }
 
-    public void removeView(String name)
+    /**
+     * Stops the building of the specified view, no-op if it isn't building.
+     *
+     * @param name the name of the view
+     */
+    public void dropView(String name)
     {
         View view = viewsByName.remove(name);
 
         if (view == null)
             return;
 
-        forTable(view.getDefinition().baseTableMetadata()).removeByName(name);
+        view.stopBuild();
+        forTable(view.getDefinition().baseTableId).removeByName(name);
         SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
         SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
@@ -186,14 +180,13 @@ public class ViewManager
             view.build();
     }
 
-    public TableViews forTable(CFMetaData metadata)
+    public TableViews forTable(TableId id)
     {
-        UUID baseId = metadata.cfId;
-        TableViews views = viewsByBaseTable.get(baseId);
+        TableViews views = viewsByBaseTable.get(id);
         if (views == null)
         {
-            views = new TableViews(metadata);
-            TableViews previous = viewsByBaseTable.putIfAbsent(baseId, views);
+            views = new TableViews(id);
+            TableViews previous = viewsByBaseTable.putIfAbsent(id, views);
             if (previous != null)
                 views = previous;
         }

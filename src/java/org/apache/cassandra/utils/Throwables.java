@@ -20,9 +20,12 @@ package org.apache.cassandra.utils;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -36,6 +39,11 @@ public final class Throwables
     public interface DiscreteAction<E extends Exception>
     {
         void perform() throws E;
+    }
+
+    public static boolean isCausedBy(Throwable t, Predicate<Throwable> cause)
+    {
+        return cause.test(t) || (t.getCause() != null && cause.test(t.getCause()));
     }
 
     public static boolean anyCauseMatches(Throwable t, Predicate<Throwable> cause)
@@ -86,9 +94,15 @@ public final class Throwables
     }
 
     @SafeVarargs
+    public static <E extends Exception> void maybeFail(DiscreteAction<? extends E> ... actions)
+    {
+        maybeFail(Throwables.perform(null, Stream.of(actions)));
+    }
+
+    @SafeVarargs
     public static <E extends Exception> void perform(DiscreteAction<? extends E> ... actions) throws E
     {
-        perform(Stream.of(actions));
+        Throwables.<E>perform(Stream.of(actions));
     }
 
     public static <E extends Exception> void perform(Stream<? extends DiscreteAction<? extends E>> stream, DiscreteAction<? extends E> ... extra) throws E
@@ -99,7 +113,7 @@ public final class Throwables
     @SuppressWarnings("unchecked")
     public static <E extends Exception> void perform(Stream<DiscreteAction<? extends E>> actions) throws E
     {
-        Throwable fail = perform((Throwable) null, actions);
+        Throwable fail = perform(null, actions);
         if (failIfCanCast(fail, null))
             throw (E) fail;
     }
@@ -191,5 +205,57 @@ public final class Throwables
                 return Optional.of((IOException) cause);
         }
         return Optional.empty();
+    }
+
+    /**
+     * If the provided throwable is a "wrapping" exception (see below), return the cause of that throwable, otherwise
+     * return its argument untouched.
+     * <p>
+     * We call a "wrapping" exception in the context of that method an exception whose only purpose is to wrap another
+     * exception, and currently this method recognize only 2 exception as "wrapping" ones: {@link ExecutionException}
+     * and {@link CompletionException}.
+     */
+    public static Throwable unwrapped(Throwable t)
+    {
+        Throwable unwrapped = t;
+        while (unwrapped instanceof CompletionException ||
+               unwrapped instanceof ExecutionException ||
+               unwrapped instanceof InvocationTargetException)
+            unwrapped = unwrapped.getCause();
+
+        // I don't think it make sense for those 2 exception classes to ever be used with null causes, but no point
+        // in failing here if this happen. We still wrap the original exception if that happen so we get a sign
+        // that the assumption of this method is wrong.
+        return unwrapped == null
+               ? new RuntimeException("Got wrapping exception not wrapping anything", t)
+               : unwrapped;
+    }
+
+    /**
+     * If the provided exception is unchecked, return it directly, otherwise wrap it into a {@link RuntimeException}
+     * to make it unchecked.
+     */
+    public static RuntimeException unchecked(Throwable t)
+    {
+        return t instanceof RuntimeException ? (RuntimeException)t : new RuntimeException(t);
+    }
+
+    /**
+     * throw the exception as a unchecked exception, wrapping if a checked exception, else rethroing as is.
+     */
+    public static RuntimeException throwAsUncheckedException(Throwable t)
+    {
+        if (t instanceof Error)
+            throw (Error) t;
+        throw unchecked(t);
+    }
+
+    /**
+     * A shortcut for {@code unchecked(unwrapped(t))}. This is called "cleaned" because this basically removes the annoying
+     * cruft surrounding an exception :).
+     */
+    public static RuntimeException cleaned(Throwable t)
+    {
+        return unchecked(unwrapped(t));
     }
 }

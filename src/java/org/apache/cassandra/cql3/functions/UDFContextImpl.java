@@ -23,16 +23,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.TupleType;
-import com.datastax.driver.core.TupleValue;
-import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.UDTValue;
-import com.datastax.driver.core.UserType;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**

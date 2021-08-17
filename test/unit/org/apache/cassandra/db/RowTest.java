@@ -29,8 +29,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.rows.*;
@@ -54,22 +54,23 @@ public class RowTest
     private int nowInSeconds;
     private DecoratedKey dk;
     private ColumnFamilyStore cfs;
-    private CFMetaData cfm;
+    private TableMetadata metadata;
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
-        CFMetaData cfMetadata = CFMetaData.Builder.create(KEYSPACE1, CF_STANDARD1)
-                                                  .addPartitionKey("key", BytesType.instance)
-                                                  .addClusteringColumn("col1", AsciiType.instance)
-                                                  .addRegularColumn("a", AsciiType.instance)
-                                                  .addRegularColumn("b", AsciiType.instance)
-                                                  .build();
+
+        TableMetadata.Builder metadata =
+            TableMetadata.builder(KEYSPACE1, CF_STANDARD1)
+                         .addPartitionKeyColumn("key", BytesType.instance)
+                         .addClusteringColumn("col1", AsciiType.instance)
+                         .addRegularColumn("a", AsciiType.instance)
+                         .addRegularColumn("b", AsciiType.instance);
+
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple(1),
-                                    cfMetadata);
+
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), metadata);
     }
 
     @Before
@@ -78,19 +79,19 @@ public class RowTest
         nowInSeconds = FBUtilities.nowInSeconds();
         dk = Util.dk("key0");
         cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
-        cfm = cfs.metadata;
+        metadata = cfs.metadata();
     }
 
     @Test
-    public void testMergeRangeTombstones() throws InterruptedException
+    public void testMergeRangeTombstones()
     {
-        PartitionUpdate update1 = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
+        PartitionUpdate.Builder update1 = new PartitionUpdate.Builder(metadata, dk, metadata.regularAndStaticColumns(), 1);
         writeRangeTombstone(update1, "1", "11", 123, 123);
         writeRangeTombstone(update1, "2", "22", 123, 123);
         writeRangeTombstone(update1, "3", "31", 123, 123);
         writeRangeTombstone(update1, "4", "41", 123, 123);
 
-        PartitionUpdate update2 = new PartitionUpdate(cfm, dk, cfm.partitionColumns(), 1);
+        PartitionUpdate.Builder update2 = new PartitionUpdate.Builder(metadata, dk, metadata.regularAndStaticColumns(), 1);
         writeRangeTombstone(update2, "1", "11", 123, 123);
         writeRangeTombstone(update2, "111", "112", 1230, 123);
         writeRangeTombstone(update2, "2", "24", 123, 123);
@@ -98,7 +99,7 @@ public class RowTest
         writeRangeTombstone(update2, "4", "41", 123, 1230);
         writeRangeTombstone(update2, "5", "51", 123, 1230);
 
-        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.unfilteredIterator(), update2.unfilteredIterator()), nowInSeconds))
+        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(ImmutableList.of(update1.build().unfilteredIterator(), update2.build().unfilteredIterator())))
         {
             Object[][] expected = new Object[][]{ { "1", "11", 123l, 123 },
                                                   { "111", "112", 1230l, 123 },
@@ -110,12 +111,12 @@ public class RowTest
             while (merged.hasNext())
             {
                 RangeTombstoneBoundMarker openMarker = (RangeTombstoneBoundMarker)merged.next();
-                ClusteringBound openBound = openMarker.clustering();
+                ClusteringBound<?> openBound = openMarker.clustering();
                 DeletionTime openDeletion = new DeletionTime(openMarker.deletionTime().markedForDeleteAt(),
                                                                    openMarker.deletionTime().localDeletionTime());
 
                 RangeTombstoneBoundMarker closeMarker = (RangeTombstoneBoundMarker)merged.next();
-                ClusteringBound closeBound = closeMarker.clustering();
+                ClusteringBound<?> closeBound = closeMarker.clustering();
                 DeletionTime closeDeletion = new DeletionTime(closeMarker.deletionTime().markedForDeleteAt(),
                                                                     closeMarker.deletionTime().localDeletionTime());
 
@@ -128,23 +129,23 @@ public class RowTest
     @Test
     public void testResolve()
     {
-        ColumnDefinition defA = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
-        ColumnDefinition defB = cfm.getColumnDefinition(new ColumnIdentifier("b", true));
+        ColumnMetadata defA = metadata.getColumn(new ColumnIdentifier("a", true));
+        ColumnMetadata defB = metadata.getColumn(new ColumnIdentifier("b", true));
 
-        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSeconds);
-        builder.newRow(cfm.comparator.make("c1"));
-        writeSimpleCellValue(builder, cfm, defA, "a1", 0);
-        writeSimpleCellValue(builder, cfm, defA, "a2", 1);
-        writeSimpleCellValue(builder, cfm, defB, "b1", 1);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(metadata.comparator.make("c1"));
+        writeSimpleCellValue(builder, defA, "a1", 0);
+        writeSimpleCellValue(builder, defA, "a2", 1);
+        writeSimpleCellValue(builder, defB, "b1", 1);
         Row row = builder.build();
 
-        PartitionUpdate update = PartitionUpdate.singleRowUpdate(cfm, dk, row);
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, dk, row);
 
         Unfiltered unfiltered = update.unfilteredIterator().next();
         assertTrue(unfiltered.kind() == Unfiltered.Kind.ROW);
         row = (Row) unfiltered;
-        assertEquals("a2", defA.cellValueType().getString(row.getCell(defA).value()));
-        assertEquals("b1", defB.cellValueType().getString(row.getCell(defB).value()));
+        assertEquals("a2", defA.cellValueType().getString(row.getCell(defA).buffer()));
+        assertEquals("b1", defB.cellValueType().getString(row.getCell(defB).buffer()));
         assertEquals(2, row.columns().size());
     }
 
@@ -152,17 +153,17 @@ public class RowTest
     public void testExpiringColumnExpiration() throws IOException
     {
         int ttl = 1;
-        ColumnDefinition def = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
+        ColumnMetadata def = metadata.getColumn(new ColumnIdentifier("a", true));
 
-        Cell cell = BufferCell.expiring(def, 0, ttl, nowInSeconds, ((AbstractType) def.cellValueType()).decompose("a1"));
+        Cell<?> cell = BufferCell.expiring(def, 0, ttl, nowInSeconds, ((AbstractType) def.cellValueType()).decompose("a1"));
 
-        PartitionUpdate update = PartitionUpdate.singleRowUpdate(cfm, dk, BTreeRow.singleCellRow(cfm.comparator.make("c1"), cell));
+        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, dk, BTreeRow.singleCellRow(metadata.comparator.make("c1"), cell));
         new Mutation(update).applyUnsafe();
 
         // when we read with a nowInSeconds before the cell has expired,
         // the PartitionIterator includes the row we just wrote
         Row row = Util.getOnlyRow(Util.cmd(cfs, dk).includeRow("c1").withNowInSeconds(nowInSeconds).build());
-        assertEquals("a1", ByteBufferUtil.string(row.getCell(def).value()));
+        assertEquals("a1", ByteBufferUtil.string(row.getCell(def).buffer()));
 
         // when we read with a nowInSeconds after the cell has expired, the row is filtered
         // so the PartitionIterator is empty
@@ -172,14 +173,14 @@ public class RowTest
     @Test
     public void testHashCode()
     {
-        ColumnDefinition defA = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
-        ColumnDefinition defB = cfm.getColumnDefinition(new ColumnIdentifier("b", true));
+        ColumnMetadata defA = metadata.getColumn(new ColumnIdentifier("a", true));
+        ColumnMetadata defB = metadata.getColumn(new ColumnIdentifier("b", true));
 
-        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSeconds);
-        builder.newRow(cfm.comparator.make("c1"));
-        writeSimpleCellValue(builder, cfm, defA, "a1", 0);
-        writeSimpleCellValue(builder, cfm, defA, "a2", 1);
-        writeSimpleCellValue(builder, cfm, defB, "b1", 1);
+        Row.Builder builder = BTreeRow.unsortedBuilder();
+        builder.newRow(metadata.comparator.make("c1"));
+        writeSimpleCellValue(builder, defA, "a1", 0);
+        writeSimpleCellValue(builder, defA, "a2", 1);
+        writeSimpleCellValue(builder, defB, "b1", 1);
         Row row = builder.build();
 
         Map<Row, Integer> map = new HashMap<>();
@@ -187,34 +188,33 @@ public class RowTest
         assertEquals(Integer.valueOf(1), map.get(row));
     }
 
-    private void assertRangeTombstoneMarkers(ClusteringBound start, ClusteringBound end, DeletionTime deletionTime, Object[] expected)
+    private void assertRangeTombstoneMarkers(ClusteringBound<?> start, ClusteringBound<?> end, DeletionTime deletionTime, Object[] expected)
     {
-        AbstractType clusteringType = (AbstractType)cfm.comparator.subtype(0);
+        AbstractType clusteringType = (AbstractType) metadata.comparator.subtype(0);
 
         assertEquals(1, start.size());
         assertEquals(start.kind(), ClusteringPrefix.Kind.INCL_START_BOUND);
-        assertEquals(expected[0], clusteringType.getString(start.get(0)));
+        assertEquals(expected[0], clusteringType.getString(start.bufferAt(0)));
 
         assertEquals(1, end.size());
         assertEquals(end.kind(), ClusteringPrefix.Kind.INCL_END_BOUND);
-        assertEquals(expected[1], clusteringType.getString(end.get(0)));
+        assertEquals(expected[1], clusteringType.getString(end.bufferAt(0)));
 
         assertEquals(expected[2], deletionTime.markedForDeleteAt());
         assertEquals(expected[3], deletionTime.localDeletionTime());
     }
 
-    public void writeRangeTombstone(PartitionUpdate update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
+    public void writeRangeTombstone(PartitionUpdate.Builder update, Object start, Object end, long markedForDeleteAt, int localDeletionTime)
     {
         ClusteringComparator comparator = cfs.getComparator();
         update.add(new RangeTombstone(Slice.make(comparator.make(start), comparator.make(end)), new DeletionTime(markedForDeleteAt, localDeletionTime)));
     }
 
     private void writeSimpleCellValue(Row.Builder builder,
-                                      CFMetaData cfm,
-                                      ColumnDefinition columnDefinition,
+                                      ColumnMetadata columnMetadata,
                                       String value,
                                       long timestamp)
     {
-       builder.addCell(BufferCell.live(columnDefinition, timestamp, ((AbstractType) columnDefinition.cellValueType()).decompose(value)));
+       builder.addCell(BufferCell.live(columnMetadata, timestamp, ((AbstractType) columnMetadata.cellValueType()).decompose(value)));
     }
 }

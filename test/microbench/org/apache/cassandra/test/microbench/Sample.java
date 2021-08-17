@@ -20,7 +20,7 @@ package org.apache.cassandra.test.microbench;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
+import net.jpountz.lz4.LZ4SafeDecompressor;
 import org.openjdk.jmh.annotations.*;
 import org.xerial.snappy.Snappy;
 
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 2, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1,jvmArgsAppend = "-Xmx512M")
+@Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
 public class Sample
@@ -56,7 +56,7 @@ public class Sample
     private byte[][] snappyBytes;
     private byte[][] rawBytes;
 
-    private LZ4FastDecompressor lz4Decompressor = LZ4Factory.fastestInstance().fastDecompressor();
+    private LZ4SafeDecompressor lz4Decompressor = LZ4Factory.fastestInstance().safeDecompressor();
 
     private LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
 

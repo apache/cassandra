@@ -21,7 +21,14 @@ import java.util.*;
 
 import org.junit.Test;
 
+import com.datastax.driver.core.ColumnDefinitions;
+import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Session;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -115,13 +122,14 @@ public class CollectionsTest extends CQLTester
         );
 
         execute("UPDATE %s SET s += ? WHERE k = 0", set("v5"));
-        execute("UPDATE %s SET s += ? WHERE k = 0", set("v6"));
+        execute("UPDATE %s SET s += {'v6'} WHERE k = 0");
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"),
                    row(set("v5", "v6", "v7"))
         );
 
-        execute("UPDATE %s SET s -= ? WHERE k = 0", set("v6", "v5"));
+        execute("UPDATE %s SET s -= ? WHERE k = 0", set("v5"));
+        execute("UPDATE %s SET s -= {'v6'} WHERE k = 0");
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"),
                    row(set("v7"))
@@ -143,6 +151,15 @@ public class CollectionsTest extends CQLTester
     public void testMaps() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, int>)");
+
+        assertInvalidMessage("Value for a map addition has to be a map, but was: '{1}'",
+                             "UPDATE %s SET m = m + {1} WHERE k = 0;");
+        assertInvalidMessage("Not enough bytes to read a map",
+                             "UPDATE %s SET m += ? WHERE k = 0", set("v1"));
+        assertInvalidMessage("Value for a map substraction has to be a set, but was: '{'v1': 1}'",
+                             "UPDATE %s SET m = m - {'v1': 1} WHERE k = 0", map("v1", 1));
+        assertInvalidMessage("Unexpected extraneous bytes after set value",
+                             "UPDATE %s SET m -= ? WHERE k = 0", map("v1", 1));
 
         execute("INSERT INTO %s(k, m) VALUES (0, ?)", map("v1", 1, "v2", 2));
 
@@ -188,6 +205,18 @@ public class CollectionsTest extends CQLTester
         );
 
         execute("UPDATE %s SET m -= ? WHERE k = 0", set("v7"));
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map("v5", 5, "v6", 6))
+        );
+
+        execute("UPDATE %s SET m += {'v7': 7} WHERE k = 0");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map("v5", 5, "v6", 6, "v7", 7))
+        );
+
+        execute("UPDATE %s SET m -= {'v7'} WHERE k = 0");
 
         assertRows(execute("SELECT m FROM %s WHERE k = 0"),
                    row(map("v5", 5, "v6", 6))
@@ -275,6 +304,10 @@ public class CollectionsTest extends CQLTester
 
         execute("UPDATE %s SET l = l - ? WHERE k=0", list("v11"));
 
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
+
+        execute("UPDATE %s SET l = l + ? WHERE k = 0", list("v1", "v2", "v1", "v2", "v1", "v2"));
+        execute("UPDATE %s SET l = l - ? WHERE k=0", list("v1", "v2"));
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
     }
 
@@ -543,16 +576,6 @@ public class CollectionsTest extends CQLTester
     }
 
     /**
-     * Migrated from cql_tests.py:TestCQL.collection_compact_test()
-     */
-    @Test
-    public void testCompactCollections() throws Throwable
-    {
-        String tableName = KEYSPACE + "." + createTableName();
-        assertInvalid(String.format("CREATE TABLE %s (user ascii PRIMARY KEY, mails list < text >) WITH COMPACT STORAGE;", tableName));
-    }
-
-    /**
      * Migrated from cql_tests.py:TestCQL.collection_function_test()
      */
     @Test
@@ -564,16 +587,53 @@ public class CollectionsTest extends CQLTester
         assertInvalid("SELECT writetime(l) FROM %s WHERE k = 0");
     }
 
-    /**
-     * Migrated from cql_tests.py:TestCQL.bug_5376()
-     */
     @Test
-    public void testInClauseWithCollections() throws Throwable
+    public void testInRestrictionWithCollection() throws Throwable
     {
-        createTable("CREATE TABLE %s (key text, c bigint, v text, x set < text >, PRIMARY KEY(key, c) )");
+        for (boolean frozen : new boolean[]{true, false})
+        {
+            createTable(frozen ? "CREATE TABLE %s (a int, b int, c int, d frozen<list<int>>, e frozen<map<int, int>>, f frozen<set<int>>, PRIMARY KEY (a, b, c))"
+                    : "CREATE TABLE %s (a int, b int, c int, d list<int>, e map<int, int>, f set<int>, PRIMARY KEY (a, b, c))");
 
-        assertInvalid("select * from %s where key = 'foo' and c in (1,3,4)");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 1, [1, 2], {1: 2}, {1, 2})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 2, [1, 3], {1: 3}, {1, 3})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 1, 3, [1, 4], {1: 4}, {1, 4})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 2, 3, [1, 3], {1: 3}, {1, 3})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (1, 2, 4, [1, 3], {1: 3}, {1, 3})");
+            execute("INSERT INTO %s (a, b, c, d, e, f) VALUES (2, 1, 1, [1, 2], {2: 2}, {1, 2})");
+
+            beforeAndAfterFlush(() -> {
+                assertRows(execute("SELECT * FROM %s WHERE a in (1,2)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)),
+                           row(1, 2, 3, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 2, 4, list(1, 3), map(1, 3), set(1, 3)),
+                           row(2, 1, 1, list(1, 2), map(2, 2), set(1, 2)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b IN (1,2)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)),
+                           row(1, 2, 3, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 2, 4, list(1, 3), map(1, 3), set(1, 3)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 1 AND c in (1,2)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b IN (1, 2) AND c in (1,2,3)"),
+                           row(1, 1, 1, list(1, 2), map(1, 2), set(1, 2)),
+                           row(1, 1, 2, list(1, 3), map(1, 3), set(1, 3)),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)),
+                           row(1, 2, 3, list(1, 3), map(1, 3), set(1, 3)));
+
+                assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b IN (1, 2) AND c in (1,2,3) AND d CONTAINS 4 ALLOW FILTERING"),
+                           row(1, 1, 3, list(1, 4), map(1, 4), set(1, 4)));
+            });
+        }
     }
+
 
     /**
      * Test for bug #5795,
@@ -622,13 +682,13 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
-    public void testDropAndReaddFrozenCollection() throws Throwable
+    public void testDropAndReaddDroppedCollection() throws Throwable
     {
-        createTable("create table %s (k int primary key, v frozen<set<text>>, x int)");
+        createTable("create table %s (k int primary key, v set<text>, x int)");
         execute("insert into %s (k, v) VALUES (0, {'fffffffff'})");
         flush();
         execute("alter table %s drop v");
-        assertInvalid("alter table %s add v frozen<set<int>>");
+        execute("alter table %s add v set<text>");
     }
 
     @Test
@@ -1037,6 +1097,790 @@ public class CollectionsTest extends CQLTester
     }
 
     @Test
+    public void testMapOperation() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, l text, " +
+                    "m map<text, text>, " +
+                    "fm frozen<map<text, text>>, " +
+                    "sm map<text, text> STATIC, " +
+                    "fsm frozen<map<text, text>> STATIC, " +
+                    "o int, PRIMARY KEY (k, c))");
+
+        execute("INSERT INTO %s(k, c, l, m, fm, sm, fsm, o) VALUES (0, 0, 'foobar', ?, ?, ?, ?, 42)",
+                map("22", "value22", "333", "value333"),
+                map("1", "fvalue1", "22", "fvalue22", "333", "fvalue333"),
+                map("22", "svalue22", "333", "svalue333"),
+                map("1", "fsvalue1", "22", "fsvalue22", "333", "fsvalue333"));
+
+        execute("INSERT INTO %s(k, c, l, m, fm, sm, fsm, o) VALUES (2, 0, 'row2', ?, ?, ?, ?, 88)",
+                map("22", "2value22", "333", "2value333"),
+                map("1", "2fvalue1", "22", "2fvalue22", "333", "2fvalue333"),
+                map("22", "2svalue22", "333", "2svalue333"),
+                map("1", "2fsvalue1", "22", "2fsvalue22", "333", "2fsvalue333"));
+
+        flush();
+
+        execute("UPDATE %s SET m = m + ? WHERE k = 0 AND c = 0",
+                map("1", "value1"));
+
+        execute("UPDATE %s SET sm = sm + ? WHERE k = 0",
+                map("1", "svalue1"));
+
+        flush();
+
+        assertRows(execute("SELECT m['22'] FROM %s WHERE k = 0 AND c = 0"),
+                   row("value22")
+        );
+        assertRows(execute("SELECT m['1'], m['22'], m['333'] FROM %s WHERE k = 0 AND c = 0"),
+                   row("value1", "value22", "value333")
+        );
+        assertRows(execute("SELECT m['2'..'3'] FROM %s WHERE k = 0 AND c = 0"),
+                   row(map("22", "value22"))
+        );
+
+        execute("INSERT INTO %s(k, c, l, m, fm, o) VALUES (0, 1, 'foobar', ?, ?, 42)",
+                map("1", "value1_2", "333", "value333_2"),
+                map("1", "fvalue1_2", "333", "fvalue333_2"));
+
+        assertRows(execute("SELECT c, m['1'], fm['1'] FROM %s WHERE k = 0"),
+                   row(0, "value1", "fvalue1"),
+                   row(1, "value1_2", "fvalue1_2")
+        );
+        assertRows(execute("SELECT c, sm['1'], fsm['1'] FROM %s WHERE k = 0"),
+                   row(0, "svalue1", "fsvalue1"),
+                   row(1, "svalue1", "fsvalue1")
+        );
+
+        assertRows(execute("SELECT c, m['1'], fm['1'] FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "value1", "fvalue1")
+        );
+
+        assertRows(execute("SELECT c, m['1'], fm['1'] FROM %s WHERE k = 0"),
+                   row(0, "value1", "fvalue1"),
+                   row(1, "value1_2", "fvalue1_2")
+        );
+
+        assertColumnNames(execute("SELECT k, l, m['1'] as mx, o FROM %s WHERE k = 0"),
+                          "k", "l", "mx", "o");
+        assertColumnNames(execute("SELECT k, l, m['1'], o FROM %s WHERE k = 0"),
+                          "k", "l", "m['1']", "o");
+
+        assertRows(execute("SELECT k, l, m['22'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", "value22", 42),
+                   row(0, "foobar", null, 42)
+        );
+        assertColumnNames(execute("SELECT k, l, m['22'], o FROM %s WHERE k = 0"),
+                          "k", "l", "m['22']", "o");
+
+        assertRows(execute("SELECT k, l, m['333'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", "value333", 42),
+                   row(0, "foobar", "value333_2", 42)
+        );
+
+        assertRows(execute("SELECT k, l, m['foobar'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", null, 42),
+                   row(0, "foobar", null, 42)
+        );
+
+        assertRows(execute("SELECT k, l, m['1'..'22'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42),
+                   row(0, "foobar", map("1", "value1_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, m[''..'23'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42),
+                   row(0, "foobar", map("1", "value1_2"), 42)
+        );
+        assertColumnNames(execute("SELECT k, l, m[''..'23'], o FROM %s WHERE k = 0"),
+                          "k", "l", "m[''..'23']", "o");
+
+        assertRows(execute("SELECT k, l, m['2'..'3'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("22", "value22"), 42),
+                   row(0, "foobar", null, 42)
+        );
+
+        assertRows(execute("SELECT k, l, m['22'..], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("22", "value22",
+                                        "333", "value333"), 42),
+                   row(0, "foobar", map("333", "value333_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, m[..'22'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42),
+                   row(0, "foobar", map("1", "value1_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, m, o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22",
+                                        "333", "value333"), 42),
+                   row(0, "foobar", map("1", "value1_2",
+                                        "333", "value333_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, m, m as m2, o FROM %s WHERE k = 0"),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22",
+                                        "333", "value333"),
+                       map("1", "value1",
+                           "22", "value22",
+                           "333", "value333"), 42),
+                   row(0, "foobar", map("1", "value1_2",
+                                        "333", "value333_2"),
+                       map("1", "value1_2",
+                           "333", "value333_2"), 42)
+        );
+
+        // with UDF as slice arg
+
+        String f = createFunction(KEYSPACE, "text",
+                                  "CREATE FUNCTION %s(arg text) " +
+                                  "CALLED ON NULL INPUT " +
+                                  "RETURNS TEXT " +
+                                  "LANGUAGE java AS 'return arg;'");
+
+        assertRows(execute("SELECT k, c, l, m[" + f +"('1').." + f +"('22')], o FROM %s WHERE k = 0"),
+                   row(0, 0, "foobar", map("1", "value1",
+                                           "22", "value22"), 42),
+                   row(0, 1, "foobar", map("1", "value1_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, c, l, m[" + f +"(?).." + f +"(?)], o FROM %s WHERE k = 0", "1", "22"),
+                   row(0, 0, "foobar", map("1", "value1",
+                                           "22", "value22"), 42),
+                   row(0, 1, "foobar", map("1", "value1_2"), 42)
+        );
+
+        // with UDF taking a map
+
+        f = createFunction(KEYSPACE, "map<text,text>",
+                           "CREATE FUNCTION %s(m text) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS TEXT " +
+                           "LANGUAGE java AS $$return m;$$");
+
+        assertRows(execute("SELECT k, c, " + f + "(m['1']) FROM %s WHERE k = 0"),
+                   row(0, 0, "value1"),
+                   row(0, 1, "value1_2"));
+
+        // with UDF taking multiple cols
+
+        f = createFunction(KEYSPACE, "map<text,text>,map<text,text>,int,int",
+                           "CREATE FUNCTION %s(m1 map<text,text>, m2 text, k int, c int) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS TEXT " +
+                           "LANGUAGE java AS $$return m1.get(\"1\") + ':' + m2 + ':' + k + ':' + c;$$");
+
+        assertRows(execute("SELECT " + f + "(m, m['1'], k, c) FROM %s WHERE k = 0"),
+                   row("value1:value1:0:0"),
+                   row("value1_2:value1_2:0:1"));
+
+        // with nested UDF + aggregation and multiple cols
+
+        f = createFunction(KEYSPACE, "int,int",
+                           "CREATE FUNCTION %s(k int, c int) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE java AS $$return k + c;$$");
+
+        assertColumnNames(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s WHERE k = 0"),
+                          "sel1", "system.max(" + f + "(k, c))");
+        assertRows(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s WHERE k = 0"),
+                   row(1, 1));
+
+        assertColumnNames(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s"),
+                          "sel1", "system.max(" + f + "(k, c))");
+        assertRows(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s"),
+                   row(2, 2));
+
+        // prepared parameters
+
+        assertRows(execute("SELECT c, m[?], fm[?] FROM %s WHERE k = 0", "1", "1"),
+                   row(0, "value1", "fvalue1"),
+                   row(1, "value1_2", "fvalue1_2")
+        );
+        assertRows(execute("SELECT c, sm[?], fsm[?] FROM %s WHERE k = 0", "1", "1"),
+                   row(0, "svalue1", "fsvalue1"),
+                   row(1, "svalue1", "fsvalue1")
+        );
+        assertRows(execute("SELECT k, l, m[?..?], o FROM %s WHERE k = 0", "1", "22"),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42),
+                   row(0, "foobar", map("1", "value1_2"), 42)
+        );
+    }
+
+    @Test
+    public void testMapOperationWithIntKey() throws Throwable
+    {
+        // used type "int" as map key intentionally since CQL parsing relies on "BigInteger"
+
+        createTable("CREATE TABLE %s (k int, c int, l text, " +
+                    "m map<int, text>, " +
+                    "fm frozen<map<int, text>>, " +
+                    "sm map<int, text> STATIC, " +
+                    "fsm frozen<map<int, text>> STATIC, " +
+                    "o int, PRIMARY KEY (k, c))");
+
+        execute("INSERT INTO %s(k, c, l, m, fm, sm, fsm, o) VALUES (0, 0, 'foobar', ?, ?, ?, ?, 42)",
+                map(22, "value22", 333, "value333"),
+                map(1, "fvalue1", 22, "fvalue22", 333, "fvalue333"),
+                map(22, "svalue22", 333, "svalue333"),
+                map(1, "fsvalue1", 22, "fsvalue22", 333, "fsvalue333"));
+
+        execute("INSERT INTO %s(k, c, l, m, fm, sm, fsm, o) VALUES (2, 0, 'row2', ?, ?, ?, ?, 88)",
+                map(22, "2value22", 333, "2value333"),
+                map(1, "2fvalue1", 22, "2fvalue22", 333, "2fvalue333"),
+                map(22, "2svalue22", 333, "2svalue333"),
+                map(1, "2fsvalue1", 22, "2fsvalue22", 333, "2fsvalue333"));
+
+        flush();
+
+        execute("UPDATE %s SET m = m + ? WHERE k = 0 AND c = 0",
+                map(1, "value1"));
+
+        execute("UPDATE %s SET sm = sm + ? WHERE k = 0",
+                map(1, "svalue1"));
+
+        flush();
+
+        assertRows(execute("SELECT m[22] FROM %s WHERE k = 0 AND c = 0"),
+                   row("value22")
+        );
+        assertRows(execute("SELECT m[1], m[22], m[333] FROM %s WHERE k = 0 AND c = 0"),
+                   row("value1", "value22", "value333")
+        );
+        assertRows(execute("SELECT m[20 .. 25] FROM %s WHERE k = 0 AND c = 0"),
+                   row(map(22, "value22"))
+        );
+
+        execute("INSERT INTO %s(k, c, l, m, fm, o) VALUES (0, 1, 'foobar', ?, ?, 42)",
+                map(1, "value1_2", 333, "value333_2"),
+                map(1, "fvalue1_2", 333, "fvalue333_2"));
+
+        assertRows(execute("SELECT c, m[1], fm[1] FROM %s WHERE k = 0"),
+                   row(0, "value1", "fvalue1"),
+                   row(1, "value1_2", "fvalue1_2")
+        );
+        assertRows(execute("SELECT c, sm[1], fsm[1] FROM %s WHERE k = 0"),
+                   row(0, "svalue1", "fsvalue1"),
+                   row(1, "svalue1", "fsvalue1")
+        );
+
+        // with UDF as slice arg
+
+        String f = createFunction(KEYSPACE, "int",
+                                  "CREATE FUNCTION %s(arg int) " +
+                                  "CALLED ON NULL INPUT " +
+                                  "RETURNS int " +
+                                  "LANGUAGE java AS 'return arg;'");
+
+        assertRows(execute("SELECT k, c, l, m[" + f +"(1).." + f +"(22)], o FROM %s WHERE k = 0"),
+                   row(0, 0, "foobar", map(1, "value1",
+                                           22, "value22"), 42),
+                   row(0, 1, "foobar", map(1, "value1_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, c, l, m[" + f +"(?).." + f +"(?)], o FROM %s WHERE k = 0", 1, 22),
+                   row(0, 0, "foobar", map(1, "value1",
+                                           22, "value22"), 42),
+                   row(0, 1, "foobar", map(1, "value1_2"), 42)
+        );
+
+        // with UDF taking a map
+
+        f = createFunction(KEYSPACE, "map<int,text>",
+                           "CREATE FUNCTION %s(m text) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS TEXT " +
+                           "LANGUAGE java AS $$return m;$$");
+
+        assertRows(execute("SELECT k, c, " + f + "(m[1]) FROM %s WHERE k = 0"),
+                   row(0, 0, "value1"),
+                   row(0, 1, "value1_2"));
+
+        // with UDF taking multiple cols
+
+        f = createFunction(KEYSPACE, "map<int,text>,map<int,text>,int,int",
+                           "CREATE FUNCTION %s(m1 map<int,text>, m2 text, k int, c int) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS TEXT " +
+                           "LANGUAGE java AS $$return m1.get(1) + ':' + m2 + ':' + k + ':' + c;$$");
+
+        assertRows(execute("SELECT " + f + "(m, m[1], k, c) FROM %s WHERE k = 0"),
+                   row("value1:value1:0:0"),
+                   row("value1_2:value1_2:0:1"));
+
+        // with nested UDF + aggregation and multiple cols
+
+        f = createFunction(KEYSPACE, "int,int",
+                           "CREATE FUNCTION %s(k int, c int) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE java AS $$return k + c;$$");
+
+        assertColumnNames(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s WHERE k = 0"),
+                          "sel1", "system.max(" + f + "(k, c))");
+        assertRows(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s WHERE k = 0"),
+                   row(1, 1));
+
+        assertColumnNames(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s"),
+                          "sel1", "system.max(" + f + "(k, c))");
+        assertRows(execute("SELECT max(" + f + "(k, c)) as sel1, max(" + f + "(k, c)) FROM %s"),
+                   row(2, 2));
+
+        // prepared parameters
+
+        assertRows(execute("SELECT c, m[?], fm[?] FROM %s WHERE k = 0", 1, 1),
+                   row(0, "value1", "fvalue1"),
+                   row(1, "value1_2", "fvalue1_2")
+        );
+        assertRows(execute("SELECT c, sm[?], fsm[?] FROM %s WHERE k = 0", 1, 1),
+                   row(0, "svalue1", "fsvalue1"),
+                   row(1, "svalue1", "fsvalue1")
+        );
+        assertRows(execute("SELECT k, l, m[?..?], o FROM %s WHERE k = 0", 1, 22),
+                   row(0, "foobar", map(1, "value1",
+                                        22, "value22"), 42),
+                   row(0, "foobar", map(1, "value1_2"), 42)
+        );
+    }
+
+    @Test
+    public void testMapOperationOnPartKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k frozen<map<text, text>> PRIMARY KEY, l text, o int)");
+
+        execute("INSERT INTO %s(k, l, o) VALUES (?, 'foobar', 42)", map("1", "value1", "22", "value22", "333", "value333"));
+
+        assertRows(execute("SELECT l, k['1'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", "value1", 42)
+        );
+
+        assertRows(execute("SELECT l, k['22'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", "value22", 42)
+        );
+
+        assertRows(execute("SELECT l, k['333'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", "value333", 42)
+        );
+
+        assertRows(execute("SELECT l, k['foobar'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", null, 42)
+        );
+
+        assertRows(execute("SELECT l, k['1'..'22'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", map("1", "value1",
+                                     "22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT l, k[''..'23'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", map("1", "value1",
+                                     "22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT l, k['2'..'3'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", map("22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT l, k['22'..], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", map("22", "value22",
+                                     "333", "value333"), 42)
+        );
+
+        assertRows(execute("SELECT l, k[..'22'], o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", map("1", "value1",
+                                     "22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT l, k, o FROM %s WHERE k = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row("foobar", map("1", "value1",
+                                     "22", "value22",
+                                     "333", "value333"), 42)
+        );
+    }
+
+    @Test
+    public void testMapOperationOnClustKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c frozen<map<text, text>>, l text, o int, PRIMARY KEY (k, c))");
+
+        execute("INSERT INTO %s(k, c, l, o) VALUES (0, ?, 'foobar', 42)", map("1", "value1", "22", "value22", "333", "value333"));
+
+        assertRows(execute("SELECT k, l, c['1'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", "value1", 42)
+        );
+
+        assertRows(execute("SELECT k, l, c['22'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", "value22", 42)
+        );
+
+        assertRows(execute("SELECT k, l, c['333'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", "value333", 42)
+        );
+
+        assertRows(execute("SELECT k, l, c['foobar'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", null, 42)
+        );
+
+        assertRows(execute("SELECT k, l, c['1'..'22'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, c[''..'23'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, c['2'..'3'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", map("22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, c['22'..], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", map("22", "value22",
+                                        "333", "value333"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, c[..'22'], o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, c, o FROM %s WHERE k = 0 AND c = ?", map("1", "value1", "22", "value22", "333", "value333")),
+                   row(0, "foobar", map("1", "value1",
+                                        "22", "value22",
+                                        "333", "value333"), 42)
+        );
+    }
+
+    @Test
+    public void testSetOperation() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, l text, " +
+                    "s set<text>, " +
+                    "fs frozen<set<text>>, " +
+                    "ss set<text> STATIC, " +
+                    "fss frozen<set<text>> STATIC, " +
+                    "o int, PRIMARY KEY (k, c))");
+
+        execute("INSERT INTO %s(k, c, l, s, fs, ss, fss, o) VALUES (0, 0, 'foobar', ?, ?, ?, ?, 42)",
+                set("1", "22", "333"),
+                set("f1", "f22", "f333"),
+                set("s1", "s22", "s333"),
+                set("fs1", "fs22", "fs333"));
+
+        flush();
+
+        execute("UPDATE %s SET s = s + ? WHERE k = 0 AND c = 0", set("22_2"));
+
+        execute("UPDATE %s SET ss = ss + ? WHERE k = 0", set("s22_2"));
+
+        flush();
+
+        execute("INSERT INTO %s(k, c, l, s, o) VALUES (0, 1, 'foobar', ?, 42)",
+                set("22", "333"));
+
+        assertRows(execute("SELECT c, s, fs, ss, fss FROM %s WHERE k = 0"),
+                   row(0, set("1", "22", "22_2", "333"), set("f1", "f22", "f333"), set("s1", "s22", "s22_2", "s333"), set("fs1", "fs22", "fs333")),
+                   row(1, set("22", "333"), null, set("s1", "s22", "s22_2", "s333"), set("fs1", "fs22", "fs333"))
+        );
+
+        assertRows(execute("SELECT c, s['1'], fs['f1'], ss['s1'], fss['fs1'] FROM %s WHERE k = 0"),
+                   row(0, "1", "f1", "s1", "fs1"),
+                   row(1, null, null, "s1", "fs1")
+        );
+
+        assertRows(execute("SELECT s['1'], fs['f1'], ss['s1'], fss['fs1'] FROM %s WHERE k = 0 AND c = 0"),
+                   row("1", "f1", "s1", "fs1")
+        );
+
+        assertRows(execute("SELECT k, c, l, s['1'], fs['f1'], ss['s1'], fss['fs1'], o FROM %s WHERE k = 0"),
+                   row(0, 0, "foobar", "1", "f1", "s1", "fs1", 42),
+                   row(0, 1, "foobar", null, null, "s1", "fs1", 42)
+        );
+
+        assertColumnNames(execute("SELECT k, l, s['1'], o FROM %s WHERE k = 0"),
+                          "k", "l", "s['1']", "o");
+
+        assertRows(execute("SELECT k, l, s['22'], o FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "foobar", "22", 42)
+        );
+
+        assertRows(execute("SELECT k, l, s['333'], o FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "foobar", "333", 42)
+        );
+
+        assertRows(execute("SELECT k, l, s['foobar'], o FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "foobar", null, 42)
+        );
+
+        assertRows(execute("SELECT k, l, s['1'..'22'], o FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "foobar", set("1", "22"), 42)
+        );
+        assertColumnNames(execute("SELECT k, l, s[''..'22'], o FROM %s WHERE k = 0"),
+                          "k", "l", "s[''..'22']", "o");
+
+        assertRows(execute("SELECT k, l, s[''..'23'], o FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "foobar", set("1", "22", "22_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, s['2'..'3'], o FROM %s WHERE k = 0 AND c = 0"),
+                   row(0, "foobar", set("22", "22_2"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, s['22'..], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", set("22", "22_2", "333"), 42),
+                   row(0, "foobar", set("22", "333"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, s[..'22'], o FROM %s WHERE k = 0"),
+                   row(0, "foobar", set("1", "22"), 42),
+                   row(0, "foobar", set("22"), 42)
+        );
+
+        assertRows(execute("SELECT k, l, s, o FROM %s WHERE k = 0"),
+                   row(0, "foobar", set("1", "22", "22_2", "333"), 42),
+                   row(0, "foobar", set("22", "333"), 42)
+        );
+    }
+
+    @Test
+    public void testCollectionSliceOnMV() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, l text, m map<text, text>, o int, PRIMARY KEY (k, c))");
+        assertInvalidMessage("Can only select columns by name when defining a materialized view (got m['abc'])",
+                             "CREATE MATERIALIZED VIEW " + KEYSPACE + ".view1 AS SELECT m['abc'] FROM %s WHERE k IS NOT NULL AND c IS NOT NULL AND m IS NOT NULL PRIMARY KEY (c, k)");
+        assertInvalidMessage("Can only select columns by name when defining a materialized view (got m['abc'..'def'])",
+                             "CREATE MATERIALIZED VIEW " + KEYSPACE + ".view1 AS SELECT m['abc'..'def'] FROM %s WHERE k IS NOT NULL AND c IS NOT NULL AND m IS NOT NULL PRIMARY KEY (c, k)");
+    }
+
+    @Test
+    public void testElementAccessOnList() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, l list<int>)");
+        execute("INSERT INTO %s (pk, l) VALUES (1, [1, 2, 3])");
+
+        assertInvalidMessage("Element selection is only allowed on sets and maps, but l is a list",
+                             "SELECT pk, l[0] FROM %s");
+
+        assertInvalidMessage("Slice selection is only allowed on sets and maps, but l is a list",
+                "SELECT pk, l[1..3] FROM %s");
+    }
+
+    @Test
+    public void testCollectionOperationResultSetMetadata() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY," +
+                    "m map<text, text>," +
+                    "fm frozen<map<text, text>>," +
+                    "s set<text>," +
+                    "fs frozen<set<text>>)");
+
+        execute("INSERT INTO %s (k, m, fm, s, fs) VALUES (?, ?, ?, ?, ?)",
+                0,
+                map("1", "one", "2", "two"),
+                map("1", "one", "2", "two"),
+                set("1", "2", "3"),
+                set("1", "2", "3"));
+
+        String cql = "SELECT k, " +
+                     "m, m['2'], m['2'..'3'], m[..'2'], m['3'..], " +
+                     "fm, fm['2'], fm['2'..'3'], fm[..'2'], fm['3'..], " +
+                     "s, s['2'], s['2'..'3'], s[..'2'], s['3'..], " +
+                     "fs, fs['2'], fs['2'..'3'], fs[..'2'], fs['3'..] " +
+                     "FROM " + KEYSPACE + '.' + currentTable() + " WHERE k = 0";
+        UntypedResultSet result = execute(cql);
+        Iterator<ColumnSpecification> meta = result.metadata().iterator();
+        meta.next();
+        for (int i = 0; i < 4; i++)
+        {
+            // take the "full" collection selection
+            ColumnSpecification ref = meta.next();
+            ColumnSpecification selSingle = meta.next();
+            assertEquals(ref.toString(), UTF8Type.instance, selSingle.type);
+            for (int selOrSlice = 0; selOrSlice < 3; selOrSlice++)
+            {
+                ColumnSpecification selSlice = meta.next();
+                assertEquals(ref.toString(), ref.type, selSlice.type);
+            }
+        }
+
+        assertRows(result,
+                   row(0,
+                       map("1", "one", "2", "two"), "two", map("2", "two"), map("1", "one", "2", "two"), null,
+                       map("1", "one", "2", "two"), "two", map("2", "two"), map("1", "one", "2", "two"), map(),
+                       set("1", "2", "3"), "2", set("2", "3"), set("1", "2"), set("3"),
+                       set("1", "2", "3"), "2", set("2", "3"), set("1", "2"), set("3")));
+
+        Session session = sessionNet();
+        ResultSet rset = session.execute(cql);
+        ColumnDefinitions colDefs = rset.getColumnDefinitions();
+        Iterator<ColumnDefinitions.Definition> colDefIter = colDefs.asList().iterator();
+        colDefIter.next();
+        for (int i = 0; i < 4; i++)
+        {
+            // take the "full" collection selection
+            ColumnDefinitions.Definition ref = colDefIter.next();
+            ColumnDefinitions.Definition selSingle = colDefIter.next();
+            assertEquals(ref.getName(), DataType.NativeType.text(), selSingle.getType());
+            for (int selOrSlice = 0; selOrSlice < 3; selOrSlice++)
+            {
+                ColumnDefinitions.Definition selSlice = colDefIter.next();
+                assertEquals(ref.getName() + ' ' + ref.getType(), ref.getType(), selSlice.getType());
+            }
+        }
+    }
+
+    @Test
+    public void testFrozenCollectionNestedAccess() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, frozen<map<text, set<int>>>>)");
+
+        execute("INSERT INTO %s(k, m) VALUES (0, ?)", map("1", map("a", set(1, 2, 4), "b", set(3)), "2", map("a", set(2, 4))));
+
+        assertRows(execute("SELECT m[?] FROM %s WHERE k = 0", "1"), row(map("a", set(1, 2, 4), "b", set(3))));
+        assertRows(execute("SELECT m[?][?] FROM %s WHERE k = 0", "1", "a"), row(set(1, 2, 4)));
+        assertRows(execute("SELECT m[?][?][?] FROM %s WHERE k = 0", "1", "a", 2), row(2));
+        assertRows(execute("SELECT m[?][?][?..?] FROM %s WHERE k = 0", "1", "a", 2, 3), row(set(2)));
+
+        // Checks it still work after flush
+        flush();
+
+        assertRows(execute("SELECT m[?] FROM %s WHERE k = 0", "1"), row(map("a", set(1, 2, 4), "b", set(3))));
+        assertRows(execute("SELECT m[?][?] FROM %s WHERE k = 0", "1", "a"), row(set(1, 2, 4)));
+        assertRows(execute("SELECT m[?][?][?] FROM %s WHERE k = 0", "1", "a", 2), row(2));
+        assertRows(execute("SELECT m[?][?][?..?] FROM %s WHERE k = 0", "1", "a", 2, 3), row(set(2)));
+    }
+
+    @Test
+    public void testUDTAndCollectionNestedAccess() throws Throwable
+    {
+        String type = createType("CREATE TYPE %s (s set<int>, m map<text, text>)");
+
+        assertInvalidMessage("Non-frozen UDTs are not allowed inside collections",
+                             "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v map<text, " + type + ">)");
+
+        String mapType = "map<text, frozen<" + type + ">>";
+        for (boolean frozen : new boolean[]{false, true})
+        {
+            mapType = frozen ? "frozen<" + mapType + ">" : mapType;
+
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + mapType + ")");
+
+            execute("INSERT INTO %s(k, v) VALUES (0, ?)", map("abc", userType("s", set(2, 4, 6), "m", map("a", "v1", "d", "v2"))));
+
+            beforeAndAfterFlush(() ->
+            {
+                assertRows(execute("SELECT v[?].s FROM %s WHERE k = 0", "abc"), row(set(2, 4, 6)));
+                assertRows(execute("SELECT v[?].m[..?] FROM %s WHERE k = 0", "abc", "b"), row(map("a", "v1")));
+                assertRows(execute("SELECT v[?].m[?] FROM %s WHERE k = 0", "abc", "d"), row("v2"));
+            });
+        }
+
+        assertInvalidMessage("Non-frozen UDTs with nested non-frozen collections are not supported",
+                             "CREATE TABLE " + KEYSPACE + ".t (k int PRIMARY KEY, v " + type + ")");
+
+        type = createType("CREATE TYPE %s (s frozen<set<int>>, m frozen<map<text, text>>)");
+
+        for (boolean frozen : new boolean[]{false, true})
+        {
+            type = frozen ? "frozen<" + type + ">" : type;
+
+            createTable("CREATE TABLE %s (k int PRIMARY KEY, v " + type + ")");
+
+            execute("INSERT INTO %s(k, v) VALUES (0, ?)", userType("s", set(2, 4, 6), "m", map("a", "v1", "d", "v2")));
+
+            beforeAndAfterFlush(() ->
+            {
+                assertRows(execute("SELECT v.s[?] FROM %s WHERE k = 0", 2), row(2));
+                assertRows(execute("SELECT v.s[?..?] FROM %s WHERE k = 0", 2, 5), row(set(2, 4)));
+                assertRows(execute("SELECT v.s[..?] FROM %s WHERE k = 0", 3), row(set(2)));
+                assertRows(execute("SELECT v.m[..?] FROM %s WHERE k = 0", "b"), row(map("a", "v1")));
+                assertRows(execute("SELECT v.m[?] FROM %s WHERE k = 0", "d"), row("v2"));
+            });
+        }
+    }
+
+    @Test
+    public void testMapOverlappingSlices() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<int, int>)");
+
+        execute("INSERT INTO %s(k, m) VALUES (?, ?)", 0, map(0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5));
+
+        flush();
+
+        assertRows(execute("SELECT m[7..8] FROM %s WHERE k=?", 0),
+                   row((Map<Integer, Integer>) null));
+
+        assertRows(execute("SELECT m[0..3] FROM %s WHERE k=?", 0),
+                   row(map(0, 0, 1, 1, 2, 2, 3, 3)));
+
+        assertRows(execute("SELECT m[0..3], m[2..4] FROM %s WHERE k=?", 0),
+                   row(map(0, 0, 1, 1, 2, 2, 3, 3), map(2, 2, 3, 3, 4, 4)));
+
+        assertRows(execute("SELECT m, m[2..4] FROM %s WHERE k=?", 0),
+                   row(map(0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5), map(2, 2, 3, 3, 4, 4)));
+
+        assertRows(execute("SELECT m[..3], m[3..4] FROM %s WHERE k=?", 0),
+                   row(map(0, 0, 1, 1, 2, 2, 3, 3), map(3, 3, 4, 4)));
+
+        assertRows(execute("SELECT m[1..3], m[2] FROM %s WHERE k=?", 0),
+                   row(map(1, 1, 2, 2, 3, 3), 2));
+    }
+
+    @Test
+    public void testMapOverlappingSlicesWithDoubles() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<double, double>)");
+
+        execute("INSERT INTO %s(k, m) VALUES (?, ?)", 0, map(0.0, 0.0, 1.1, 1.1, 2.2, 2.2, 3.0, 3.0, 4.4, 4.4, 5.5, 5.5));
+
+        flush();
+
+        assertRows(execute("SELECT m[0.0..3.0] FROM %s WHERE k=?", 0),
+                   row(map(0.0, 0.0, 1.1, 1.1, 2.2, 2.2, 3.0, 3.0)));
+
+        assertRows(execute("SELECT m[0...3.], m[2.2..4.4] FROM %s WHERE k=?", 0),
+                   row(map(0.0, 0.0, 1.1, 1.1, 2.2, 2.2, 3.0, 3.0), map(2.2, 2.2, 3.0, 3.0, 4.4, 4.4)));
+
+        assertRows(execute("SELECT m, m[2.2..4.4] FROM %s WHERE k=?", 0),
+                   row(map(0.0, 0.0, 1.1, 1.1, 2.2, 2.2, 3.0, 3.0, 4.4, 4.4, 5.5, 5.5), map(2.2, 2.2, 3.0, 3.0, 4.4, 4.4)));
+
+        assertRows(execute("SELECT m[..3.], m[3...4.4] FROM %s WHERE k=?", 0),
+                   row(map(0.0, 0.0, 1.1, 1.1, 2.2, 2.2, 3.0, 3.0), map(3.0, 3.0, 4.4, 4.4)));
+
+        assertRows(execute("SELECT m[1.1..3.0], m[2.2] FROM %s WHERE k=?", 0),
+                   row(map(1.1, 1.1, 2.2, 2.2, 3.0, 3.0), 2.2));
+    }
+
+    @Test
+    public void testNestedAccessWithNestedMap() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, m map<float, frozen<map<int, text>>>)");
+
+        execute("INSERT INTO %s (id,m) VALUES ('1', {1: {2: 'one-two'}})");
+
+        flush();
+
+        assertRows(execute("SELECT m[1][2] FROM %s WHERE id = '1'"),
+                   row("one-two"));
+
+        assertRows(execute("SELECT m[1..][2] FROM %s WHERE id = '1'"),
+                   row((Map) null));
+
+        assertRows(execute("SELECT m[1][..2] FROM %s WHERE id = '1'"),
+                   row(map(2, "one-two")));
+
+        assertRows(execute("SELECT m[1..][..2] FROM %s WHERE id = '1'"),
+                   row(map(1F, map(2, "one-two"))));
+    }
+
+    @Test
     public void testInsertingCollectionsWithInvalidElements() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s frozen<set<tuple<int, text, double>>>)");
@@ -1070,5 +1914,69 @@ public class CollectionsTest extends CQLTester
 
         assertInvalidMessage("Invalid map literal for m: value (1, '1', 1.0, 1) is not of type frozen<tuple<int, text, double>>",
                              "INSERT INTO %s (k, m) VALUES (0, {1 : (1, '1', 1.0, 1)})");
+    }
+
+    @Test
+    public void testSelectionOfEmptyCollections() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<text, int>>, s frozen<set<int>>)");
+
+        execute("INSERT INTO %s(k) VALUES (0)");
+        execute("INSERT INTO %s(k, m, s) VALUES (1, {}, {})");
+        execute("INSERT INTO %s(k, m, s) VALUES (2, ?, ?)", map(), set());
+        execute("INSERT INTO %s(k, m, s) VALUES (3, {'2':2}, {2})");
+
+        beforeAndAfterFlush(() ->
+        {
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 0"), row(null, null));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 0"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 0"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 0"), row(null, null));
+
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 1"), row(map(), set()));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 1"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 1"), row(map(), set()));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 1"), row(map(), set()));
+
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 2"), row(map(), set()));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 2"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 2"), row(map(), set()));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 2"), row(map(), set()));
+
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 3"), row(map("2", 2), set(2)));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 3"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 3"), row(map(), set()));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 3"), row(map(), set()));
+        });
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<text, int>, s set<int>)");
+
+        execute("INSERT INTO %s(k) VALUES (0)");
+        execute("INSERT INTO %s(k, m, s) VALUES (1, {}, {})");
+        execute("INSERT INTO %s(k, m, s) VALUES (2, ?, ?)", map(), set());
+        execute("INSERT INTO %s(k, m, s) VALUES (3, {'2':2}, {2})");
+
+        beforeAndAfterFlush(() ->
+        {
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 0"), row(null, null));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 0"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 0"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 0"), row(null, null));
+
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 1"), row(null, null));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 1"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 1"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 1"), row(null, null));
+
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 2"), row(null, null));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 2"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 2"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 2"), row(null, null));
+
+            assertRows(execute("SELECT m, s FROM %s WHERE k = 3"), row(map("2", 2), set(2)));
+            assertRows(execute("SELECT m['0'], s[0] FROM %s WHERE k = 3"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1'], s[0..1] FROM %s WHERE k = 3"), row(null, null));
+            assertRows(execute("SELECT m['0'..'1']['3'..'5'], s[0..1][3..5] FROM %s WHERE k = 3"), row(null, null));
+        });
     }
 }

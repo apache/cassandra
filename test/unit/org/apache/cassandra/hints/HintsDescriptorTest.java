@@ -27,17 +27,16 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.ByteStreams;
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotSame;
 import static junit.framework.Assert.fail;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class HintsDescriptorTest
 {
@@ -121,22 +120,33 @@ public class HintsDescriptorTest
     }
 
     @Test
+    public void testMessagingVersion()
+    {
+        String errorMsg = "Please update the current Hints messaging version to match the current messaging version";
+        int messageVersion = HintsDescriptor.messagingVersion(HintsDescriptor.CURRENT_VERSION);
+        assertEquals(errorMsg, messageVersion, MessagingService.current_version);
+
+        HintsDescriptor descriptor = new HintsDescriptor(UUID.randomUUID(), HintsDescriptor.CURRENT_VERSION, System.currentTimeMillis(), ImmutableMap.of());
+        assertEquals(errorMsg, descriptor.messagingVersion(), MessagingService.current_version);
+    }
+
+    @Test
     public void testHandleIOE() throws IOException
     {
         Path p = Files.createTempFile("testing", ".hints");
         // empty file;
-        assertTrue(p.toFile().exists());
-        Assert.assertEquals(0, Files.size(p));
+        assertThat(p).exists();
+        assertThat(Files.size(p)).isEqualTo(0);
         HintsDescriptor.handleDescriptorIOE(new IOException("test"), p);
-        assertFalse(Files.exists(p));
+        assertThat(p).doesNotExist();
 
         // non-empty
         p = Files.createTempFile("testing", ".hints");
         Files.write(p, Collections.singleton("hello"));
         HintsDescriptor.handleDescriptorIOE(new IOException("test"), p);
         File newFile = new File(p.getParent().toFile(), p.getFileName().toString().replace(".hints", ".corrupt.hints"));
-        assertFalse(Files.exists(p));
-        assertTrue(newFile.toString(), newFile.exists());
+        assertThat(p).doesNotExist();
+        assertThat(newFile).exists();
         newFile.deleteOnExit();
     }
 

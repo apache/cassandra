@@ -19,16 +19,16 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.junit.Assert;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.Unfiltered.Kind;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTree;
 
 public class UnfilteredRowsGenerator
@@ -46,7 +46,7 @@ public class UnfilteredRowsGenerator
     {
         if (curr == null)
             return "null";
-        String val = Int32Type.instance.getString(curr.clustering().get(0));
+        String val = Int32Type.instance.getString(curr.clustering().bufferAt(0));
         if (curr instanceof RangeTombstoneMarker)
         {
             RangeTombstoneMarker marker = (RangeTombstoneMarker) curr;
@@ -111,7 +111,7 @@ public class UnfilteredRowsGenerator
         }
     }
 
-    public List<Unfiltered> generateSource(Random r, int items, int range, int del_range, Function<Integer, Integer> timeGenerator)
+    public List<Unfiltered> generateSource(Random r, int items, int range, int del_range, IntUnaryOperator timeGenerator)
     {
         int[] positions = new int[items + 1];
         for (int i=0; i<items; ++i)
@@ -219,29 +219,29 @@ public class UnfilteredRowsGenerator
         return out;
     }
 
-    static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)
+    static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
-        final Clustering clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(timeGenerator.apply(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
+        final Clustering<?> clustering = clusteringFor(pos);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), UnfilteredRowIteratorsMergeTest.nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
     static Row emptyRowAt(int pos, int time, int deletionTime)
     {
-        final Clustering clustering = clusteringFor(pos);
+        final Clustering<?> clustering = clusteringFor(pos);
         final LivenessInfo live = LivenessInfo.create(time, UnfilteredRowIteratorsMergeTest.nowInSec);
         final DeletionTime delTime = deletionTime == -1 ? DeletionTime.LIVE : new DeletionTime(deletionTime, deletionTime);
         return BTreeRow.create(clustering, live, Row.Deletion.regular(delTime), BTree.empty());
     }
 
-    static Clustering clusteringFor(int i)
+    static Clustering<?> clusteringFor(int i)
     {
         return Clustering.make(Int32Type.instance.decompose(i));
     }
 
-    static ClusteringBound boundFor(int pos, boolean start, boolean inclusive)
+    static ClusteringBound<?> boundFor(int pos, boolean start, boolean inclusive)
     {
-        return ClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
+        return BufferClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
     static void attachBoundaries(List<Unfiltered> content)
@@ -257,10 +257,10 @@ public class UnfilteredRowsGenerator
             if (prev != null && curr != null && prev.isClose(false) && curr.isOpen(false) && prev.clustering().invert().equals(curr.clustering()))
             {
                 // Join. Prefer not to use merger to check its correctness.
-                ClusteringBound b = (ClusteringBound) prev.clustering();
+                ClusteringBound<?> b = (ClusteringBound) prev.clustering();
                 ClusteringBoundary boundary = ClusteringBoundary.create(
                         b.isInclusive() ? ClusteringBound.Kind.INCL_END_EXCL_START_BOUNDARY : ClusteringBound.Kind.EXCL_END_INCL_START_BOUNDARY,
-                        b.getRawValues());
+                        b);
                 prev = new RangeTombstoneBoundaryMarker(boundary, prev.closeDeletionTime(false), curr.openDeletionTime(false));
                 currUnfiltered = prev;
                 --di;
@@ -284,17 +284,17 @@ public class UnfilteredRowsGenerator
 
     private static RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
     {
-        return new RangeTombstoneBoundMarker(ClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
-                                                                    new ByteBuffer[] {clusteringFor(pos).get(0)}),
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
+                                                                    new ByteBuffer[] {clusteringFor(pos).bufferAt(0)}),
                                              new DeletionTime(delTime, delTime));
     }
 
-    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, CFMetaData metadata, DecoratedKey partitionKey)
+    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey)
     {
         return source(content, metadata, partitionKey, DeletionTime.LIVE);
     }
 
-    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, CFMetaData metadata, DecoratedKey partitionKey, DeletionTime delTime)
+    public static UnfilteredRowIterator source(Iterable<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey, DeletionTime delTime)
     {
         return new Source(content.iterator(), metadata, partitionKey, delTime, false);
     }
@@ -303,12 +303,12 @@ public class UnfilteredRowsGenerator
     {
         Iterator<Unfiltered> content;
 
-        protected Source(Iterator<Unfiltered> content, CFMetaData metadata, DecoratedKey partitionKey, DeletionTime partitionLevelDeletion, boolean reversed)
+        protected Source(Iterator<Unfiltered> content, TableMetadata metadata, DecoratedKey partitionKey, DeletionTime partitionLevelDeletion, boolean reversed)
         {
             super(metadata,
                   partitionKey,
                   partitionLevelDeletion,
-                  metadata.partitionColumns(),
+                  metadata.regularAndStaticColumns(),
                   Rows.EMPTY_STATIC_ROW,
                   reversed,
                   EncodingStats.NO_STATS);

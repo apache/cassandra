@@ -17,27 +17,28 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
-
-import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionsTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.EmptyIterators;
@@ -45,20 +46,19 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.messages.RepairMessage;
-import org.apache.cassandra.repair.messages.ValidationComplete;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -68,6 +68,7 @@ import static org.junit.Assert.assertTrue;
 public class ValidatorTest
 {
     private static final long TEST_TIMEOUT = 60; //seconds
+    private static int testSizeMegabytes;
 
     private static final String keyspace = "ValidatorTest";
     private static final String columnFamily = "Standard1";
@@ -80,13 +81,21 @@ public class ValidatorTest
         SchemaLoader.createKeyspace(keyspace,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(keyspace, columnFamily));
-        partitioner = Schema.instance.getCFMetaData(keyspace, columnFamily).partitioner;
+        partitioner = Schema.instance.getTableMetadata(keyspace, columnFamily).partitioner;
+        testSizeMegabytes = DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
     }
 
     @After
     public void tearDown()
     {
-        MessagingService.instance().clearMessageSinks();
+        MessagingService.instance().outboundSink.clear();
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
+    }
+
+    @Before
+    public void setup()
+    {
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(testSizeMegabytes);
     }
 
     @Test
@@ -95,36 +104,35 @@ public class ValidatorTest
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
-        InetAddress remote = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(columnFamily);
 
-        Validator validator = new Validator(desc, remote, 0);
-        MerkleTrees tree = new MerkleTrees(partitioner);
-        tree.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
-        validator.prepare(cfs, tree);
+        Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
+        MerkleTrees trees = new MerkleTrees(partitioner);
+        trees.addMerkleTrees((int) Math.pow(2, 15), validator.desc.ranges);
+        validator.prepare(cfs, trees);
 
-        // and confirm that the tree was split
-        assertTrue(tree.size() > 1);
+        // and confirm that the trees were split
+        assertTrue(trees.size() > 1);
 
         // add a row
         Token mid = partitioner.midpoint(range.left, range.right);
-        validator.add(EmptyIterators.unfilteredRow(cfs.metadata, new BufferDecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), false));
+        validator.add(EmptyIterators.unfilteredRow(cfs.metadata(), new BufferDecoratedKey(mid, ByteBufferUtil.bytes("inconceivable!")), false));
         validator.complete();
 
-        // confirm that the tree was validated
-        Token min = tree.partitioner().getMinimumToken();
-        assertNotNull(tree.hash(new Range<>(min, min)));
+        // confirm that the trees were validated
+        Token min = trees.partitioner().getMinimumToken();
+        assertNotNull(trees.hash(new Range<>(min, min)));
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
-        RepairMessage m = (RepairMessage) message.payload;
-        assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals(Verb.VALIDATION_RSP, message.verb());
+        ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
-        assertTrue(((ValidationComplete) m).success());
-        assertNotNull(((ValidationComplete) m).trees);
+        assertTrue(m.success());
+        assertNotNull(m.trees);
     }
 
 
@@ -134,20 +142,19 @@ public class ValidatorTest
         Range<Token> range = new Range<>(partitioner.getMinimumToken(), partitioner.getRandomToken());
         final RepairJobDesc desc = new RepairJobDesc(UUID.randomUUID(), UUID.randomUUID(), keyspace, columnFamily, Arrays.asList(range));
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
 
-        InetAddress remote = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort remote = InetAddressAndPort.getByName("127.0.0.2");
 
-        Validator validator = new Validator(desc, remote, 0);
+        Validator validator = new Validator(desc, remote, 0, PreviewKind.NONE);
         validator.fail();
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
-        RepairMessage m = (RepairMessage) message.payload;
-        assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals(Verb.VALIDATION_RSP, message.verb());
+        ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
-        assertFalse(((ValidationComplete) m).success());
-        assertNull(((ValidationComplete) m).trees);
+        assertFalse(m.success());
+        assertNull(m.trees);
     }
 
     @Test
@@ -188,49 +195,184 @@ public class ValidatorTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         UUID repairSessionId = UUIDGen.getTimeUUID();
         final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
-                                               cfs.getColumnFamilyName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
-                                                                                                                sstable.last.getToken())));
+                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+                                                                                                               sstable.last.getToken())));
 
-        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, FBUtilities.getBroadcastAddress(),
+        InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
+
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, host,
                                                                  Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
-                                                                 false);
+                                                                 false, PreviewKind.NONE);
 
-        final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), 0, true);
-        CompactionManager.instance.submitValidation(cfs, validator);
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
+        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        ValidationManager.instance.submitValidation(cfs, validator);
 
-        MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
-        assertEquals(MessagingService.Verb.REPAIR_MESSAGE, message.verb);
-        RepairMessage m = (RepairMessage) message.payload;
-        assertEquals(RepairMessage.Type.VALIDATION_COMPLETE, m.messageType);
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        assertEquals(Verb.VALIDATION_RSP, message.verb());
+        ValidationResponse m = (ValidationResponse) message.payload;
         assertEquals(desc, m.desc);
-        assertTrue(((ValidationComplete) m).success());
-        MerkleTrees trees = ((ValidationComplete) m).trees;
+        assertTrue(m.success());
 
-        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
+        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = m.trees.iterator();
         while (iterator.hasNext())
         {
             assertEquals(Math.pow(2, Math.ceil(Math.log(n) / Math.log(2))), iterator.next().getValue().size(), 0.0);
         }
-        assertEquals(trees.rowCount(), n);
+        assertEquals(m.trees.rowCount(), n);
     }
 
-    private CompletableFuture<MessageOut> registerOutgoingMessageSink()
+    /*
+     * Test for CASSANDRA-14096 size limiting. We:
+     * 1. Limit the size of a repair session
+     * 2. Submit a validation
+     * 3. Check that the resulting tree is of limited depth
+     */
+    @Test
+    public void testSizeLimiting() throws Exception
     {
-        final CompletableFuture<MessageOut> future = new CompletableFuture<>();
-        MessagingService.instance().addMessageSink(new IMessageSink()
-        {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
-            {
-                future.complete(message);
-                return false;
-            }
+        Keyspace ks = Keyspace.open(keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
+        cfs.clearUnsafe();
 
-            public boolean allowIncomingMessage(MessageIn message, int id)
-            {
-                return false;
-            }
-        });
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
+        CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
+
+        cfs.forceBlockingFlush();
+        assertEquals(1, cfs.getLiveSSTables().size());
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        UUID repairSessionId = UUIDGen.getTimeUUID();
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), Collections.singletonList(new Range<>(sstable.first.getToken(),
+                                                                                                               sstable.last.getToken())));
+
+        InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
+
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, host,
+                                                                 Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                 false, PreviewKind.NONE);
+
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
+        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        ValidationManager.instance.submitValidation(cfs, validator);
+
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        MerkleTrees trees = ((ValidationResponse) message.payload).trees;
+
+        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
+        int numTrees = 0;
+        while (iterator.hasNext())
+        {
+            assertEquals(1 << 12, iterator.next().getValue().size(), 0.0);
+            numTrees++;
+        }
+        assertEquals(1, numTrees);
+
+        assertEquals(trees.rowCount(), 1 << 14);
+    }
+
+    /*
+     * Test for CASSANDRA-11390. When there are multiple subranges the trees should
+     * automatically size down to make each subrange fit in the provided memory
+     * 1. Limit the size of all the trees
+     * 2. Submit a validation against more than one range
+     * 3. Check that we have the right number and sizes of trees
+     */
+    @Test
+    public void testRangeSplittingTreeSizeLimit() throws Exception
+    {
+        Keyspace ks = Keyspace.open(keyspace);
+        ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
+        cfs.clearUnsafe();
+
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(1);
+
+        // disable compaction while flushing
+        cfs.disableAutoCompaction();
+
+        // 2 ** 14 rows would normally use 2^14 leaves, but with only 1 meg we should only use 2^12
+        CompactionsTest.populate(keyspace, columnFamily, 0, 1 << 14, 0);
+
+        cfs.forceBlockingFlush();
+        assertEquals(1, cfs.getLiveSSTables().size());
+
+        // wait enough to force single compaction
+        TimeUnit.SECONDS.sleep(5);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        UUID repairSessionId = UUIDGen.getTimeUUID();
+
+        List<Range<Token>> ranges = splitHelper(new Range<>(sstable.first.getToken(), sstable.last.getToken()), 2);
+
+
+        final RepairJobDesc desc = new RepairJobDesc(repairSessionId, UUIDGen.getTimeUUID(), cfs.keyspace.getName(),
+                                                     cfs.getTableName(), ranges);
+
+        InetAddressAndPort host = InetAddressAndPort.getByName("127.0.0.2");
+
+        ActiveRepairService.instance.registerParentRepairSession(repairSessionId, host,
+                                                                 Collections.singletonList(cfs), desc.ranges, false, ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                                 false, PreviewKind.NONE);
+
+        final CompletableFuture<Message> outgoingMessageSink = registerOutgoingMessageSink();
+        Validator validator = new Validator(desc, host, 0, true, false, PreviewKind.NONE);
+        ValidationManager.instance.submitValidation(cfs, validator);
+
+        Message message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);
+        MerkleTrees trees = ((ValidationResponse) message.payload).trees;
+
+        // Should have 4 trees each with a depth of on average 10 (since each range should have gotten 0.25 megabytes)
+        Iterator<Map.Entry<Range<Token>, MerkleTree>> iterator = trees.iterator();
+        int numTrees = 0;
+        double totalResolution = 0;
+        while (iterator.hasNext())
+        {
+            long size = iterator.next().getValue().size();
+            // So it turns out that sstable range estimates are pretty variable, depending on the sampling we can
+            // get a wide range of values here. So we just make sure that we're smaller than in the single range
+            // case and have the right total size.
+            assertTrue(size <= (1 << 11));
+            assertTrue(size >= (1 << 9));
+            totalResolution += size;
+            numTrees += 1;
+        }
+
+        assertEquals(trees.rowCount(), 1 << 14);
+        assertEquals(4, numTrees);
+
+        // With a single tree and a megabyte we should had a total resolution of 2^12 leaves; with multiple
+        // ranges we should get similar overall resolution, but not more.
+        assertTrue(totalResolution > (1 << 11) && totalResolution < (1 << 13));
+    }
+
+    private List<Range<Token>> splitHelper(Range<Token> range, int depth)
+    {
+        if (depth <= 0)
+        {
+            List<Range<Token>> tokens = new ArrayList<>();
+            tokens.add(range);
+            return tokens;
+        }
+        Token midpoint = partitioner.midpoint(range.left, range.right);
+        List<Range<Token>> left = splitHelper(new Range<>(range.left, midpoint), depth - 1);
+        List<Range<Token>> right = splitHelper(new Range<>(midpoint, range.right), depth - 1);
+        left.addAll(right);
+        return left;
+    }
+
+    private CompletableFuture<Message> registerOutgoingMessageSink()
+    {
+        final CompletableFuture<Message> future = new CompletableFuture<>();
+        MessagingService.instance().outboundSink.add((message, to) -> future.complete(message));
         return future;
     }
 }

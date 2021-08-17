@@ -18,7 +18,6 @@
 package org.apache.cassandra.distributed.test;
 
 import java.util.HashMap;
-import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
@@ -27,14 +26,17 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.net.InboundMessageHandlers;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundConnections;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.junit.matchers.JUnitMatchers.containsString;
 
 public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 {
@@ -85,20 +87,19 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 
             cluster.get(1).runOnInstance(() ->
             {
-                List<MessagingService.SocketThread> threads = MessagingService.instance().getSocketThreads();
-                assertEquals(2, threads.size());
+                InboundMessageHandlers inbound = getOnlyElement(MessagingService.instance().messageHandlers.values());
+                assertEquals(0, inbound.count());
 
-                for (MessagingService.SocketThread thread : threads)
-                {
-                    assertEquals(0, thread.connections.size());
-                }
+                OutboundConnections outbound = getOnlyElement(MessagingService.instance().channelManagers.values());
+                assertFalse(outbound.small.isConnected() || outbound.large.isConnected() || outbound.urgent.isConnected());
             });
 
             cluster.get(2).runOnInstance(() ->
             {
-                List<MessagingService.SocketThread> threads = MessagingService.instance().getSocketThreads();
-                assertEquals(1, threads.size());
-                assertTrue(getOnlyElement(threads).connections.isEmpty());
+                assertTrue(MessagingService.instance().messageHandlers.isEmpty());
+
+                OutboundConnections outbound = getOnlyElement(MessagingService.instance().channelManagers.values());
+                assertFalse(outbound.small.isConnected() || outbound.large.isConnected() || outbound.urgent.isConnected());
             });
         }
     }
@@ -113,8 +114,7 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
                 c.with(Feature.NETWORK);
                 c.with(Feature.NATIVE_PROTOCOL);
 
-                HashMap<String, Object> encryption = new HashMap<>();
-                encryption.put("keystore", "test/conf/cassandra_ssl_test.keystore");
+                HashMap<String, Object> encryption = new HashMap<>(); encryption.put("keystore", "test/conf/cassandra_ssl_test.keystore");
                 encryption.put("keystore_password", "cassandra");
                 encryption.put("truststore", "test/conf/cassandra_ssl_test.truststore");
                 encryption.put("truststore_password", "cassandra");
@@ -135,14 +135,11 @@ public final class InternodeEncryptionEnforcementTest extends TestBaseImpl
 
             SerializableRunnable runnable = () ->
             {
-                List<MessagingService.SocketThread> threads = MessagingService.instance().getSocketThreads();
-                assertEquals(2, threads.size());
+                InboundMessageHandlers inbound = getOnlyElement(MessagingService.instance().messageHandlers.values());
+                assertTrue(inbound.count() > 0);
 
-                MessagingService.SocketThread sslThread = threads.get(0);
-                assertEquals(1, sslThread.connections.size());
-
-                MessagingService.SocketThread plainThread = threads.get(1);
-                assertEquals(0, plainThread.connections.size());
+                OutboundConnections outbound = getOnlyElement(MessagingService.instance().channelManagers.values());
+                assertTrue(outbound.small.isConnected() || outbound.large.isConnected() || outbound.urgent.isConnected());
             };
 
             cluster.get(1).runOnInstance(runnable);

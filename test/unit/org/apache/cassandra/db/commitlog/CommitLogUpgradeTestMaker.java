@@ -33,12 +33,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
+import org.junit.Assert;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
@@ -92,9 +93,7 @@ public class CommitLogUpgradeTestMaker
         }
 
         SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    metadata);
+        SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), metadata);
     }
 
     public void makeLog() throws IOException, InterruptedException
@@ -112,7 +111,7 @@ public class CommitLogUpgradeTestMaker
         Thread.sleep(runTimeMs);
         stop = true;
         scheduled.shutdown();
-        scheduled.awaitTermination(2, TimeUnit.SECONDS);
+        Assert.assertTrue(scheduled.awaitTermination(1, TimeUnit.MINUTES));
 
         int hash = 0;
         int cells = 0;
@@ -134,7 +133,7 @@ public class CommitLogUpgradeTestMaker
             FileUtils.createHardLink(f, new File(dataDir, f.getName()));
 
         Properties prop = new Properties();
-        prop.setProperty(CFID_PROPERTY, Schema.instance.getId(KEYSPACE, TABLE).toString());
+        prop.setProperty(CFID_PROPERTY, Schema.instance.getTableMetadata(KEYSPACE, TABLE).id.toString());
         prop.setProperty(CELLS_PROPERTY, Integer.toString(cells));
         prop.setProperty(HASH_PROPERTY, Integer.toString(hash));
         prop.store(new FileOutputStream(new File(dataDir, PROPERTIES_FILE)),
@@ -236,7 +235,7 @@ public class CommitLogUpgradeTestMaker
                     rl.acquire();
                 ByteBuffer key = randomBytes(16, tlr);
 
-                UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getCFMetaData(KEYSPACE, TABLE), Util.dk(key));
+                UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getTableMetadata(KEYSPACE, TABLE), Util.dk(key));
 
                 for (int ii = 0; ii < numCells; ii++)
                 {

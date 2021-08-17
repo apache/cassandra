@@ -30,6 +30,7 @@ import com.google.common.collect.PeekingIterator;
 import com.google.common.util.concurrent.Striped;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
@@ -38,12 +39,17 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.btree.BTreeSet;
+
+import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
 
 public class CounterMutation implements IMutation
 {
@@ -65,14 +71,23 @@ public class CounterMutation implements IMutation
         return mutation.getKeyspaceName();
     }
 
-    public Collection<UUID> getColumnFamilyIds()
+    public Collection<TableId> getTableIds()
     {
-        return mutation.getColumnFamilyIds();
+        return mutation.getTableIds();
     }
 
     public Collection<PartitionUpdate> getPartitionUpdates()
     {
         return mutation.getPartitionUpdates();
+    }
+
+    public void validateSize(int version, int overhead)
+    {
+        long totalSize = serializedSize(version) + overhead;
+        if(totalSize > MAX_MUTATION_SIZE)
+        {
+            throw new MutationExceededMaxSizeException(this, version, totalSize);
+        }
     }
 
     public Mutation getMutation()
@@ -88,11 +103,6 @@ public class CounterMutation implements IMutation
     public ConsistencyLevel consistency()
     {
         return consistency;
-    }
-
-    public MessageOut<CounterMutation> makeMutationMessage()
-    {
-        return new MessageOut<>(MessagingService.Verb.COUNTER_MUTATION, this, serializer);
     }
 
     /**
@@ -111,7 +121,7 @@ public class CounterMutation implements IMutation
      */
     public Mutation applyCounterMutation() throws WriteTimeoutException
     {
-        Mutation result = new Mutation(getKeyspaceName(), key());
+        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
         List<Lock> locks = new ArrayList<>();
@@ -120,7 +130,9 @@ public class CounterMutation implements IMutation
         {
             grabCounterLocks(keyspace, locks);
             for (PartitionUpdate upd : getPartitionUpdates())
-                result.add(processModifications(upd));
+                resultBuilder.add(processModifications(upd));
+
+            Mutation result = resultBuilder.build();
             result.apply();
             return result;
         }
@@ -140,18 +152,19 @@ public class CounterMutation implements IMutation
     {
         long startTime = System.nanoTime();
 
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
         for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
         {
-            long timeout = TimeUnit.MILLISECONDS.toNanos(getTimeout()) - (System.nanoTime() - startTime);
+            long timeout = getTimeout(NANOSECONDS) - (System.nanoTime() - startTime);
             try
             {
-                if (!lock.tryLock(timeout, TimeUnit.NANOSECONDS))
-                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+                if (!lock.tryLock(timeout, NANOSECONDS))
+                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
                 locks.add(lock);
             }
             catch (InterruptedException e)
             {
-                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(keyspace));
+                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
             }
         }
     }
@@ -175,7 +188,7 @@ public class CounterMutation implements IMutation
                         {
                             public Object apply(final ColumnData data)
                             {
-                                return Objects.hashCode(update.metadata().cfId, key(), row.clustering(), data.column());
+                                return Objects.hashCode(update.metadata().id, key(), row.clustering(), data.column());
                             }
                         }));
                     }
@@ -186,7 +199,7 @@ public class CounterMutation implements IMutation
 
     private PartitionUpdate processModifications(PartitionUpdate changes)
     {
-        ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changes.metadata().cfId);
+        ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changes.metadata().id);
 
         List<PartitionUpdate.CounterMark> marks = changes.collectCounterMarks();
 
@@ -211,7 +224,7 @@ public class CounterMutation implements IMutation
     private void updateWithCurrentValue(PartitionUpdate.CounterMark mark, ClockAndCount currentValue, ColumnFamilyStore cfs)
     {
         long clock = Math.max(FBUtilities.timestampMicros(), currentValue.clock + 1L);
-        long count = currentValue.count + CounterContext.instance().total(mark.value());
+        long count = currentValue.count + CounterContext.instance().total(mark.value(), ByteBufferAccessor.instance);
 
         mark.setValue(CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count));
 
@@ -239,7 +252,7 @@ public class CounterMutation implements IMutation
     private void updateWithCurrentValuesFromCFS(List<PartitionUpdate.CounterMark> marks, ColumnFamilyStore cfs)
     {
         ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
-        BTreeSet.Builder<Clustering> names = BTreeSet.builder(cfs.metadata.comparator);
+        BTreeSet.Builder<Clustering<?>> names = BTreeSet.builder(cfs.metadata().comparator);
         for (PartitionUpdate.CounterMark mark : marks)
         {
             if (mark.clustering() != Clustering.STATIC_CLUSTERING)
@@ -252,7 +265,7 @@ public class CounterMutation implements IMutation
 
         int nowInSec = FBUtilities.nowInSeconds();
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names.build(), false);
-        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata, nowInSec, key(), builder.build(), filter);
+        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, key(), builder.build(), filter);
         PeekingIterator<PartitionUpdate.CounterMark> markIter = Iterators.peekingIterator(marks.iterator());
         try (ReadExecutionController controller = cmd.executionController();
              RowIterator partition = UnfilteredRowIterators.filter(cmd.queryMemtableAndDisk(cfs, controller), nowInSec))
@@ -269,7 +282,7 @@ public class CounterMutation implements IMutation
         }
     }
 
-    private int compare(Clustering c1, Clustering c2, ColumnFamilyStore cfs)
+    private int compare(Clustering<?> c1, Clustering<?> c2, ColumnFamilyStore cfs)
     {
         if (c1 == Clustering.STATIC_CLUSTERING)
             return c2 == Clustering.STATIC_CLUSTERING ? 0 : -1;
@@ -292,10 +305,10 @@ public class CounterMutation implements IMutation
         while (cmp == 0)
         {
             PartitionUpdate.CounterMark mark = markIter.next();
-            Cell cell = mark.path() == null ? row.getCell(mark.column()) : row.getCell(mark.column(), mark.path());
+            Cell<?> cell = mark.path() == null ? row.getCell(mark.column()) : row.getCell(mark.column(), mark.path());
             if (cell != null)
             {
-                updateWithCurrentValue(mark, CounterContext.instance().getLocalClockAndCount(cell.value()), cfs);
+                updateWithCurrentValue(mark, CounterContext.instance().getLocalClockAndCount(cell.buffer()), cfs);
                 markIter.remove();
             }
             if (!markIter.hasNext())
@@ -305,9 +318,34 @@ public class CounterMutation implements IMutation
         }
     }
 
-    public long getTimeout()
+    public long getTimeout(TimeUnit unit)
     {
-        return DatabaseDescriptor.getCounterWriteRpcTimeout();
+        return DatabaseDescriptor.getCounterWriteRpcTimeout(unit);
+    }
+
+    private int serializedSize30;
+    private int serializedSize3014;
+    private int serializedSize40;
+
+    public int serializedSize(int version)
+    {
+        switch (version)
+        {
+            case VERSION_30:
+                if (serializedSize30 == 0)
+                    serializedSize30 = (int) serializer.serializedSize(this, VERSION_30);
+                return serializedSize30;
+            case VERSION_3014:
+                if (serializedSize3014 == 0)
+                    serializedSize3014 = (int) serializer.serializedSize(this, VERSION_3014);
+                return serializedSize3014;
+            case VERSION_40:
+                if (serializedSize40 == 0)
+                    serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
+                return serializedSize40;
+            default:
+                throw new IllegalStateException("Unknown serialization version: " + version);
+        }
     }
 
     @Override
@@ -338,7 +376,7 @@ public class CounterMutation implements IMutation
 
         public long serializedSize(CounterMutation cm, int version)
         {
-            return Mutation.serializer.serializedSize(cm.mutation, version)
+            return cm.mutation.serializedSize(version)
                  + TypeSizes.sizeof(cm.consistency.name());
         }
     }

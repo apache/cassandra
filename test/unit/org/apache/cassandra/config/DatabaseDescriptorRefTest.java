@@ -49,44 +49,63 @@ import static org.junit.Assert.fail;
  * unexpected threads.
  *
  * {@link DatabaseDescriptor#toolInitialization()} is tested via unit tests extending
- * {@link org.apache.cassandra.tools.ToolsTester}.
+ * {@link org.apache.cassandra.tools.OfflineToolUtils}.
  */
 public class DatabaseDescriptorRefTest
 {
     static final String[] validClasses = {
+    "org.apache.cassandra.audit.AuditLogOptions",
+    "org.apache.cassandra.audit.BinAuditLogger",
+    "org.apache.cassandra.audit.BinLogAuditLogger",
+    "org.apache.cassandra.audit.IAuditLogger",
+    "org.apache.cassandra.auth.AllowAllInternodeAuthenticator",
     "org.apache.cassandra.auth.IInternodeAuthenticator",
     "org.apache.cassandra.auth.IAuthenticator",
     "org.apache.cassandra.auth.IAuthorizer",
     "org.apache.cassandra.auth.IRoleManager",
+    "org.apache.cassandra.auth.INetworkAuthorizer",
     "org.apache.cassandra.config.DatabaseDescriptor",
     "org.apache.cassandra.config.ConfigurationLoader",
     "org.apache.cassandra.config.Config",
     "org.apache.cassandra.config.Config$1",
-    "org.apache.cassandra.config.Config$RequestSchedulerId",
     "org.apache.cassandra.config.Config$CommitLogSync",
+    "org.apache.cassandra.config.Config$CommitFailurePolicy",
     "org.apache.cassandra.config.Config$DiskAccessMode",
     "org.apache.cassandra.config.Config$DiskFailurePolicy",
-    "org.apache.cassandra.config.Config$CommitFailurePolicy",
     "org.apache.cassandra.config.Config$DiskOptimizationStrategy",
+    "org.apache.cassandra.config.Config$FlushCompression",
     "org.apache.cassandra.config.Config$InternodeCompression",
     "org.apache.cassandra.config.Config$MemtableAllocationType",
+    "org.apache.cassandra.config.Config$RepairCommandPoolFullStrategy",
     "org.apache.cassandra.config.Config$UserFunctionTimeoutPolicy",
-    "org.apache.cassandra.config.RequestSchedulerOptions",
+    "org.apache.cassandra.config.Config$CorruptedTombstoneStrategy",
+    "org.apache.cassandra.config.DatabaseDescriptor$ByteUnit",
     "org.apache.cassandra.config.ParameterizedClass",
     "org.apache.cassandra.config.EncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ClientEncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions",
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions$InternodeEncryption",
+    "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptions$OutgoingEncryptedPortSource",
     "org.apache.cassandra.config.ReplicaFilteringProtectionOptions",
     "org.apache.cassandra.config.YamlConfigurationLoader",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
     "org.apache.cassandra.config.YamlConfigurationLoader$CustomConstructor",
     "org.apache.cassandra.config.TransparentDataEncryptionOptions",
+    "org.apache.cassandra.db.ConsistencyLevel",
+    "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerFactory",
+    "org.apache.cassandra.db.commitlog.DefaultCommitLogSegmentMgrFactory",
+    "org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager",
+    "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerCDC",
+    "org.apache.cassandra.db.commitlog.CommitLogSegmentManagerStandard",
+    "org.apache.cassandra.db.commitlog.CommitLog",
+    "org.apache.cassandra.db.commitlog.CommitLogMBean",
     "org.apache.cassandra.dht.IPartitioner",
-    "org.apache.cassandra.distributed.impl.InstanceClassLoader",
+    "org.apache.cassandra.distributed.api.IInstance",
+    "org.apache.cassandra.distributed.api.IIsolatedExecutor",
+    "org.apache.cassandra.distributed.shared.InstanceClassLoader",
     "org.apache.cassandra.distributed.impl.InstanceConfig",
-    "org.apache.cassandra.distributed.impl.InvokableInstance",
+    "org.apache.cassandra.distributed.api.IInvokableInstance",
     "org.apache.cassandra.distributed.impl.InvokableInstance$CallableNoExcept",
     "org.apache.cassandra.distributed.impl.InvokableInstance$InstanceFunction",
     "org.apache.cassandra.distributed.impl.InvokableInstance$SerializableBiConsumer",
@@ -98,14 +117,18 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.distributed.impl.InvokableInstance$SerializableTriFunction",
     "org.apache.cassandra.distributed.impl.InvokableInstance$TriFunction",
     "org.apache.cassandra.distributed.impl.Message",
+    "org.apache.cassandra.distributed.impl.NetworkTopology",
     "org.apache.cassandra.exceptions.ConfigurationException",
     "org.apache.cassandra.exceptions.RequestValidationException",
     "org.apache.cassandra.exceptions.CassandraException",
     "org.apache.cassandra.exceptions.TransportException",
+    "org.apache.cassandra.fql.FullQueryLogger",
+    "org.apache.cassandra.fql.FullQueryLoggerOptions",
     "org.apache.cassandra.locator.IEndpointSnitch",
     "org.apache.cassandra.io.FSWriteError",
     "org.apache.cassandra.io.FSError",
     "org.apache.cassandra.io.compress.ICompressor",
+    "org.apache.cassandra.io.compress.ICompressor$Uses",
     "org.apache.cassandra.io.compress.LZ4Compressor",
     "org.apache.cassandra.io.sstable.metadata.MetadataType",
     "org.apache.cassandra.io.util.BufferedDataOutputStreamPlus",
@@ -115,12 +138,13 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.util.DataOutputPlus",
     "org.apache.cassandra.io.util.DiskOptimizationStrategy",
     "org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy",
+    "org.apache.cassandra.locator.Replica",
     "org.apache.cassandra.locator.SimpleSeedProvider",
     "org.apache.cassandra.locator.SeedProvider",
-    "org.apache.cassandra.net.BackPressureStrategy",
-    "org.apache.cassandra.scheduler.IRequestScheduler",
+    "org.apache.cassandra.security.SSLFactory",
     "org.apache.cassandra.security.EncryptionContext",
     "org.apache.cassandra.service.CacheService$CacheType",
+    "org.apache.cassandra.utils.binlog.BinLogOptions",
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",
     "org.apache.cassandra.utils.CloseableIterator",
@@ -140,6 +164,9 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.EncryptionOptions$ServerEncryptionOptionsCustomizer",
     "org.apache.cassandra.ConsoleAppenderBeanInfo",
     "org.apache.cassandra.ConsoleAppenderCustomizer",
+    "org.apache.cassandra.locator.InetAddressAndPort",
+    "org.apache.cassandra.cql3.statements.schema.AlterKeyspaceStatement",
+    "org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement"
     };
 
     static final Set<String> checkedClasses = new HashSet<>(Arrays.asList(validClasses));
@@ -173,6 +200,13 @@ public class DatabaseDescriptorRefTest
 
             protected Class<?> findClass(String name) throws ClassNotFoundException
             {
+                if (name.startsWith("java."))
+                    // Java 11 does not allow a "custom" class loader (i.e. user code)
+                    // to define classes in protected packages (like java, java.sql, etc).
+                    // Therefore we have to delegate the call to the delegate class loader
+                    // itself.
+                    return delegate.loadClass(name);
+
                 Class<?> cls = classMap.get(name);
                 if (cls != null)
                     return cls;
@@ -187,7 +221,15 @@ public class DatabaseDescriptorRefTest
 
                 URL url = delegate.getResource(name.replace('.', '/') + ".class");
                 if (url == null)
-                    throw new ClassNotFoundException(name);
+                {
+                    // For Java 11: system class files are not readable via getResource(), so
+                    // try it this way
+                    cls = Class.forName(name, false, delegate);
+                    classMap.put(name, cls);
+                    return cls;
+                }
+
+                // Java8 way + all non-system class files
                 try (InputStream in = url.openConnection().getInputStream())
                 {
                     ByteArrayOutputStream os = new ByteArrayOutputStream();
@@ -215,7 +257,6 @@ public class DatabaseDescriptorRefTest
         for (String methodName : new String[]{
             "clientInitialization",
             "applyAddressConfig",
-            "applyThriftHSHA",
             "applyTokensConfig",
             // no seed provider in default configuration for clients
             // "applySeedProvider",
@@ -225,17 +266,16 @@ public class DatabaseDescriptorRefTest
             // "applySnitch",
             "applyEncryptionContext",
             // starts "REQUEST-SCHEDULER" thread via RoundRobinScheduler
-            // "applyRequestScheduler",
         })
         {
             Method method = cDatabaseDescriptor.getDeclaredMethod(methodName);
             method.invoke(null);
 
             if ("clientInitialization".equals(methodName) &&
-                threadCount + 1 == threads.getThreadCount())
+                threadCount + 2 == threads.getThreadCount())
             {
-                // ignore the "AsyncAppender-Worker-ASYNC" thread
-                threadCount++;
+                // ignore the "AsyncAppender-Worker-ASYNC" and "logback-1" threads
+                threadCount = threadCount + 2;
             }
 
             if (threadCount != threads.getThreadCount())

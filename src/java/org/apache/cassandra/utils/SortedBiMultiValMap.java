@@ -18,7 +18,6 @@
 package org.apache.cassandra.utils;
 
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -27,9 +26,6 @@ import com.google.common.collect.TreeMultimap;
 
 public class SortedBiMultiValMap<K, V> extends BiMultiValMap<K, V>
 {
-    @SuppressWarnings("unchecked")
-    private static final Comparator DEFAULT_COMPARATOR = (o1, o2) -> ((Comparable) o1).compareTo(o2);
-
     protected SortedBiMultiValMap(SortedMap<K, V> forwardMap, SortedSetMultimap<V, K> reverseMap)
     {
         super(forwardMap, reverseMap);
@@ -40,41 +36,15 @@ public class SortedBiMultiValMap<K, V> extends BiMultiValMap<K, V>
         return new SortedBiMultiValMap<K, V>(new TreeMap<K,V>(), TreeMultimap.<V, K>create());
     }
 
-    public static <K, V> SortedBiMultiValMap<K, V> create(Comparator<K> keyComparator, Comparator<V> valueComparator)
-    {
-        if (keyComparator == null)
-            keyComparator = defaultComparator();
-        if (valueComparator == null)
-            valueComparator = defaultComparator();
-        return new SortedBiMultiValMap<K, V>(new TreeMap<K,V>(keyComparator), TreeMultimap.<V, K>create(valueComparator, keyComparator));
-    }
-
     public static <K extends Comparable<K>, V extends Comparable<V>> SortedBiMultiValMap<K, V> create(BiMultiValMap<K, V> map)
     {
         SortedBiMultiValMap<K, V> newMap = SortedBiMultiValMap.<K,V>create();
-        copy(map, newMap);
-        return newMap;
-    }
-
-    public static <K, V> SortedBiMultiValMap<K, V> create(BiMultiValMap<K, V> map, Comparator<K> keyComparator, Comparator<V> valueComparator)
-    {
-        SortedBiMultiValMap<K, V> newMap = create(keyComparator, valueComparator);
-        copy(map, newMap);
-        return newMap;
-    }
-
-    private static <K, V> void copy(BiMultiValMap<K, V> map, BiMultiValMap<K, V> newMap)
-    {
         newMap.forwardMap.putAll(map.forwardMap);
         // Put each individual TreeSet instead of Multimap#putAll(Multimap) to get linear complexity
         // See CASSANDRA-14660
         for (Entry<V, Collection<K>> entry : map.inverse().asMap().entrySet())
             newMap.reverseMap.putAll(entry.getKey(), entry.getValue());
+        return newMap;
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> Comparator<T> defaultComparator()
-    {
-        return DEFAULT_COMPARATOR;
-    }
 }

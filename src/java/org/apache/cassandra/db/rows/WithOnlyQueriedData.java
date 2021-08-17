@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.db.PartitionColumns;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.Transformation;
 
@@ -36,7 +36,7 @@ public class WithOnlyQueriedData<I extends BaseRowIterator<?>> extends Transform
     }
 
     @Override
-    protected PartitionColumns applyToPartitionColumns(PartitionColumns columns)
+    protected RegularAndStaticColumns applyToPartitionColumns(RegularAndStaticColumns columns)
     {
         return filter.queriedColumns();
     }

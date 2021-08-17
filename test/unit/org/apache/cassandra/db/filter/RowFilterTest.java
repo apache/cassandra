@@ -25,16 +25,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
-import org.apache.cassandra.db.PartitionColumns;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -46,6 +43,8 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTree;
 
 public class RowFilterTest
@@ -55,14 +54,13 @@ public class RowFilterTest
     public void testCQLFilterClose()
     {
         // CASSANDRA-15126
-        SchemaLoader.prepareServer();
-        CFMetaData metadata = CFMetaData.Builder.create("testks", "testcf")
-                                                .addPartitionKey("pk", Int32Type.instance)
-                                                .addStaticColumn("s", Int32Type.instance)
-                                                .addRegularColumn("r", Int32Type.instance)
-                                                .build();
-        ColumnDefinition s = metadata.getColumnDefinition(new ColumnIdentifier("s", true));
-        ColumnDefinition r = metadata.getColumnDefinition(new ColumnIdentifier("r", true));
+        TableMetadata metadata = TableMetadata.builder("testks", "testcf")
+                                              .addPartitionKeyColumn("pk", Int32Type.instance)
+                                              .addStaticColumn("s", Int32Type.instance)
+                                              .addRegularColumn("r", Int32Type.instance)
+                                              .build();
+        ColumnMetadata s = metadata.getColumn(new ColumnIdentifier("s", true));
+        ColumnMetadata r = metadata.getColumn(new ColumnIdentifier("r", true));
 
         ByteBuffer one = Int32Type.instance.decompose(1);
         RowFilter filter = RowFilter.NONE.withNewExpressions(new ArrayList<>());
@@ -72,9 +70,9 @@ public class RowFilterTest
         {
             public DeletionTime partitionLevelDeletion() { return null; }
             public EncodingStats stats() { return null; }
-            public CFMetaData metadata() { return metadata; }
+            public TableMetadata metadata() { return metadata; }
             public boolean isReverseOrder() { return false; }
-            public PartitionColumns columns() { return null; }
+            public RegularAndStaticColumns columns() { return null; }
             public DecoratedKey partitionKey() { return null; }
             public boolean hasNext() { return false; }
             public Unfiltered next() { return null; }
@@ -89,7 +87,7 @@ public class RowFilterTest
             {
                 closed.set(true);
             }
-        }, false), 1);
+        }), 1);
         Assert.assertFalse(iter.hasNext());
         Assert.assertTrue(closed.get());
 
@@ -101,9 +99,9 @@ public class RowFilterTest
             boolean hasNext = true;
             public DeletionTime partitionLevelDeletion() { return null; }
             public EncodingStats stats() { return null; }
-            public CFMetaData metadata() { return metadata; }
+            public TableMetadata metadata() { return metadata; }
             public boolean isReverseOrder() { return false; }
-            public PartitionColumns columns() { return null; }
+            public RegularAndStaticColumns columns() { return null; }
             public DecoratedKey partitionKey() { return null; }
             public Row staticRow() { return Rows.EMPTY_STATIC_ROW; }
             public boolean hasNext()
@@ -123,7 +121,7 @@ public class RowFilterTest
             {
                 closed.set(true);
             }
-        }, false), 1);
+        }), 1);
         Assert.assertFalse(iter.hasNext());
         Assert.assertTrue(closed.get());
     }

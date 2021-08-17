@@ -22,8 +22,10 @@ package org.apache.cassandra.index.internal.keys;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -39,26 +41,26 @@ public class KeysIndex extends CassandraIndex
         super(baseCfs, indexDef);
     }
 
-    public CFMetaData.Builder addIndexClusteringColumns(CFMetaData.Builder builder,
-                                                        CFMetaData baseMetadata,
-                                                        ColumnDefinition cfDef)
+    public TableMetadata.Builder addIndexClusteringColumns(TableMetadata.Builder builder,
+                                                           TableMetadataRef baseMetadata,
+                                                           ColumnMetadata cfDef)
     {
         // no additional clustering columns required
         return builder;
     }
 
-    protected CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
-                                               CellPath path)
+    protected <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                      ClusteringPrefix<T> prefix,
+                                                      CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
-        builder.add(partitionKey);
+        builder.add(partitionKey, ByteBufferAccessor.instance);
         return builder;
     }
 
     protected ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
-                                      CellPath path, ByteBuffer cellValue)
+                                         Clustering<?> clustering,
+                                         CellPath path, ByteBuffer cellValue)
     {
         return cellValue;
     }
@@ -68,15 +70,20 @@ public class KeysIndex extends CassandraIndex
         throw new UnsupportedOperationException("KEYS indexes do not use a specialized index entry format");
     }
 
+    private <V> int compare(ByteBuffer left, Cell<V> right)
+    {
+        return indexedColumn.type.compare(left, ByteBufferAccessor.instance, right.value(), right.accessor());
+    }
+
     public boolean isStale(Row row, ByteBuffer indexValue, int nowInSec)
     {
         if (row == null)
             return true;
 
-        Cell cell = row.getCell(indexedColumn);
+        Cell<?> cell = row.getCell(indexedColumn);
 
         return (cell == null
-             || !cell.isLive(nowInSec)
-             || indexedColumn.type.compare(indexValue, cell.value()) != 0);
+                || !cell.isLive(nowInSec)
+                || compare(indexValue, cell) != 0);
     }
 }

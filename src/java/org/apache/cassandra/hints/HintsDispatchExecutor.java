@@ -18,13 +18,12 @@
 package org.apache.cassandra.hints;
 
 import java.io.File;
-import java.net.InetAddress;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -36,6 +35,7 @@ import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 
 /**
@@ -50,10 +50,10 @@ final class HintsDispatchExecutor
     private final File hintsDirectory;
     private final ExecutorService executor;
     private final AtomicBoolean isPaused;
-    private final Function<InetAddress, Boolean> isAlive;
+    private final Predicate<InetAddressAndPort> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
 
-    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Function<InetAddress, Boolean> isAlive)
+    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Predicate<InetAddressAndPort> isAlive)
     {
         this.hintsDirectory = hintsDirectory;
         this.isPaused = isPaused;
@@ -154,7 +154,7 @@ final class HintsDispatchExecutor
         public void run()
         {
             UUID hostId = hostIdSupplier.get();
-            InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
+            InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             logger.info("Transferring all hints to {}: {}", address, hostId);
             if (transfer(hostId))
                 return;
@@ -240,7 +240,7 @@ final class HintsDispatchExecutor
                 }
                 catch (FSReadError e)
                 {
-                    logger.error("Failed to dispatch hints file {}: file is corrupted ({})", descriptor.fileName(), e);
+                    logger.error(String.format("Failed to dispatch hints file %s: file is corrupted", descriptor.fileName()), e);
                     store.cleanUp(descriptor);
                     store.markCorrupted(descriptor);
                     throw e;
@@ -255,7 +255,7 @@ final class HintsDispatchExecutor
         {
             logger.trace("Dispatching hints file {}", descriptor.fileName());
 
-            InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
+            InetAddressAndPort address = StorageService.instance.getEndpointForHostId(hostId);
             if (address != null)
                 return deliver(descriptor, address);
 
@@ -264,12 +264,12 @@ final class HintsDispatchExecutor
             return true;
         }
 
-        private boolean deliver(HintsDescriptor descriptor, InetAddress address)
+        private boolean deliver(HintsDescriptor descriptor, InetAddressAndPort address)
         {
             File file = new File(hintsDirectory, descriptor.fileName());
             InputPosition offset = store.getDispatchOffset(descriptor);
 
-            BooleanSupplier shouldAbort = () -> !isAlive.apply(address) || isPaused.get();
+            BooleanSupplier shouldAbort = () -> !isAlive.test(address) || isPaused.get();
             try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
             {
                 if (offset != null)
@@ -305,5 +305,15 @@ final class HintsDispatchExecutor
                 logger.info("Finished converting hints file {}", descriptor.fileName());
             }
         }
+    }
+
+    public boolean isPaused()
+    {
+        return isPaused.get();
+    }
+
+    public boolean hasScheduledDispatches()
+    {
+        return !scheduledDispatches.isEmpty();
     }
 }

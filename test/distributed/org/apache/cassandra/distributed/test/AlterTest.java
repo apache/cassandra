@@ -40,7 +40,7 @@ public class AlterTest extends TestBaseImpl
                     Keyspace.open(ks)
                             .getColumnFamilyStore("tbl")
                             .setCompressionParametersJson("{\"chunk_length_in_kb\": \"128\"," +
-                                                          " \"class\": \"org.apache.cassandra.io.compress.LZ4Compressor\"}");
+                                                          "  \"class\": \"org.apache.cassandra.io.compress.LZ4Compressor\"}");
                     Assert.assertTrue(Keyspace.open(ks)
                                               .getColumnFamilyStore("tbl")
                                               .getCompressionParametersJson().contains("128"));

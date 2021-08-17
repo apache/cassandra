@@ -26,7 +26,7 @@ import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -59,7 +59,7 @@ public class AbstractCompactionStrategyTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, LCS_TABLE)
                                                 .compaction(CompactionParams.lcs(Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STCS_TABLE)
-                                                .compaction(CompactionParams.scts(Collections.emptyMap())),
+                                                .compaction(CompactionParams.stcs(Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KEYSPACE1, DTCS_TABLE)
                                                 .compaction(CompactionParams.create(DateTieredCompactionStrategy.class, Collections.emptyMap())),
                                     SchemaLoader.standardCFMD(KEYSPACE1, TWCS_TABLE)
@@ -134,7 +134,7 @@ public class AbstractCompactionStrategyTest
         long timestamp = System.currentTimeMillis();
         DecoratedKey dk = Util.dk(String.format("%03d", key));
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(table);
-        new RowUpdateBuilder(cfs.metadata, timestamp, dk.getKey())
+        new RowUpdateBuilder(cfs.metadata(), timestamp, dk.getKey())
         .clustering(String.valueOf(key))
         .add("val", "val")
         .build()

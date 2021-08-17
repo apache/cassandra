@@ -45,13 +45,13 @@ public abstract class Distribution implements Serializable
     public long average()
     {
         double sum = 0;
-        int count = 0;
-        for (float d = 0 ; d <= 1.0d ; d += 0.02d)
+        float d = 0;
+        for (int count = 0; count < 51 ; count++)
         {
             sum += inverseCumProb(d);
-            count += 1;
+            d += 0.02d;
         }
-        return (long) (sum / count);
+        return (long) (sum / 51);
     }
 
 }

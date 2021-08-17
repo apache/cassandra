@@ -21,9 +21,9 @@ package org.apache.cassandra.distributed.mock.nodetool;
 import java.io.IOException;
 
 import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeProbeFactory;
+import org.apache.cassandra.tools.INodeProbeFactory;
 
-public class InternalNodeProbeFactory extends NodeProbeFactory
+public class InternalNodeProbeFactory implements INodeProbeFactory
 {
     private final boolean withNotifications;
 

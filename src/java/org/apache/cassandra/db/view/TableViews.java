@@ -21,18 +21,22 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -43,16 +47,21 @@ import org.apache.cassandra.utils.btree.BTreeSet;
  */
 public class TableViews extends AbstractCollection<View>
 {
-    private final CFMetaData baseTableMetadata;
+    private final TableMetadataRef baseTableMetadata;
 
     // We need this to be thread-safe, but the number of times this is changed (when a view is created in the keyspace)
     // is massively exceeded by the number of times it's read (for every mutation on the keyspace), so a copy-on-write
     // list is the best option.
     private final List<View> views = new CopyOnWriteArrayList();
 
-    public TableViews(CFMetaData baseTableMetadata)
+    public TableViews(TableId id)
     {
-        this.baseTableMetadata = baseTableMetadata;
+        baseTableMetadata = Schema.instance.getTableMetadataRef(id);
+    }
+
+    public boolean hasViews()
+    {
+        return !views.isEmpty();
     }
 
     public int size()
@@ -79,8 +88,8 @@ public class TableViews extends AbstractCollection<View>
 
     public Iterable<ColumnFamilyStore> allViewsCfs()
     {
-        Keyspace keyspace = Keyspace.open(baseTableMetadata.ksName);
-        return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().viewName));
+        Keyspace keyspace = Keyspace.open(baseTableMetadata.keyspace);
+        return Iterables.transform(views, view -> keyspace.getColumnFamilyStore(view.getDefinition().name()));
     }
 
     public void build()
@@ -129,7 +138,7 @@ public class TableViews extends AbstractCollection<View>
      */
     public void pushViewReplicaUpdates(PartitionUpdate update, boolean writeCommitLog, AtomicLong baseComplete)
     {
-        assert update.metadata().cfId.equals(baseTableMetadata.cfId);
+        assert update.metadata().id.equals(baseTableMetadata.id);
 
         Collection<View> views = updatedViews(update);
         if (views.isEmpty())
@@ -179,7 +188,7 @@ public class TableViews extends AbstractCollection<View>
                                                               int nowInSec,
                                                               boolean separateUpdates)
     {
-        assert updates.metadata().cfId.equals(baseTableMetadata.cfId);
+        assert updates.metadata().id.equals(baseTableMetadata.id);
 
         List<ViewUpdateGenerator> generators = new ArrayList<>(views.size());
         for (View view : views)
@@ -202,7 +211,7 @@ public class TableViews extends AbstractCollection<View>
 
             Row existingRow;
             Row updateRow;
-            int cmp = baseTableMetadata.comparator.compare(update, existing);
+            int cmp = baseTableMetadata.get().comparator.compare(update, existing);
             if (cmp < 0)
             {
                 // We have an update where there was nothing before
@@ -251,7 +260,7 @@ public class TableViews extends AbstractCollection<View>
                 updateRow = ((Row)updatesIter.next()).withRowDeletion(updatesDeletion.currentDeletion());
             }
 
-            addToViewUpdateGenerators(existingRow, updateRow, generators, nowInSec);
+            addToViewUpdateGenerators(existingRow, updateRow, generators);
         }
 
         // We only care about more existing rows if the update deletion isn't live, i.e. if we had a partition deletion
@@ -266,13 +275,13 @@ public class TableViews extends AbstractCollection<View>
                     continue;
 
                 Row existingRow = (Row)existing;
-                addToViewUpdateGenerators(existingRow, emptyRow(existingRow.clustering(), updatesDeletion.currentDeletion()), generators, nowInSec);
+                addToViewUpdateGenerators(existingRow, emptyRow(existingRow.clustering(), updatesDeletion.currentDeletion()), generators);
             }
         }
 
         if (separateUpdates)
         {
-            final Collection<Mutation> firstBuild = buildMutations(baseTableMetadata, generators);
+            final Collection<Mutation> firstBuild = buildMutations(baseTableMetadata.get(), generators);
 
             return new Iterator<Collection<Mutation>>()
             {
@@ -296,13 +305,12 @@ public class TableViews extends AbstractCollection<View>
                         Row updateRow = (Row) update;
                         addToViewUpdateGenerators(emptyRow(updateRow.clustering(), existingsDeletion.currentDeletion()),
                                                   updateRow,
-                                                  generators,
-                                                  nowInSec);
+                                                  generators);
 
                         // If the updates have been filtered, then we won't have any mutations; we need to make sure that we
                         // only return if the mutations are empty. Otherwise, we continue to search for an update which is
                         // not filtered
-                        Collection<Mutation> mutations = buildMutations(baseTableMetadata, generators);
+                        Collection<Mutation> mutations = buildMutations(baseTableMetadata.get(), generators);
                         if (!mutations.isEmpty())
                             return mutations;
                     }
@@ -338,11 +346,10 @@ public class TableViews extends AbstractCollection<View>
                 Row updateRow = (Row) update;
                 addToViewUpdateGenerators(emptyRow(updateRow.clustering(), existingsDeletion.currentDeletion()),
                                           updateRow,
-                                          generators,
-                                          nowInSec);
+                                          generators);
             }
 
-            return Iterators.singletonIterator(buildMutations(baseTableMetadata, generators));
+            return Iterators.singletonIterator(buildMutations(baseTableMetadata.get(), generators));
         }
     }
 
@@ -380,7 +387,7 @@ public class TableViews extends AbstractCollection<View>
     {
         Slices.Builder sliceBuilder = null;
         DeletionInfo deletionInfo = updates.deletionInfo();
-        CFMetaData metadata = updates.metadata();
+        TableMetadata metadata = updates.metadata();
         DecoratedKey key = updates.partitionKey();
         // TODO: This is subtle: we need to gather all the slices that we have to fetch between partition del, range tombstones and rows.
         if (!deletionInfo.isLive())
@@ -414,7 +421,7 @@ public class TableViews extends AbstractCollection<View>
 
         // If we had some slices from the deletions above, we'll continue using that. Otherwise, it's more efficient to build
         // a names query.
-        BTreeSet.Builder<Clustering> namesBuilder = sliceBuilder == null ? BTreeSet.builder(metadata.comparator) : null;
+        BTreeSet.Builder<Clustering<?>> namesBuilder = sliceBuilder == null ? BTreeSet.builder(metadata.comparator) : null;
         for (Row row : updates)
         {
             // Don't read the existing state if we can prove the update won't affect any views
@@ -427,7 +434,7 @@ public class TableViews extends AbstractCollection<View>
                 namesBuilder.add(row.clustering());
         }
 
-        NavigableSet<Clustering> names = namesBuilder == null ? null : namesBuilder.build();
+        NavigableSet<Clustering<?>> names = namesBuilder == null ? null : namesBuilder.build();
         // If we have a slice builder, it means we had some deletions and we have to read. But if we had
         // only row updates, it's possible none of them affected the views, in which case we have nothing
         // to do.
@@ -441,8 +448,8 @@ public class TableViews extends AbstractCollection<View>
         // If we have more than one view, we should merge the queried columns by each views but to keep it simple we just
         // include everything. We could change that in the future.
         ColumnFilter queriedColumns = views.size() == 1 && metadata.enforceStrictLiveness()
-                                   ? Iterables.getOnlyElement(views).getSelectStatement().queriedColumns()
-                                   : ColumnFilter.all(metadata);
+                                    ? Iterables.getOnlyElement(views).getSelectStatement().queriedColumns()
+                                    : ColumnFilter.all(metadata);
         // Note that the views could have restrictions on regular columns, but even if that's the case we shouldn't apply those
         // when we read, because even if an existing row doesn't match the view filter, the update can change that in which
         // case we'll need to know the existing content. There is also no easy way to merge those RowFilter when we have multiple views.
@@ -470,9 +477,8 @@ public class TableViews extends AbstractCollection<View>
      * @param existingBaseRow the base table row as it is before an update.
      * @param updateBaseRow the newly updates made to {@code existingBaseRow}.
      * @param generators the view update generators to add the new changes to.
-     * @param nowInSec the current time in seconds. Used to decide if data is live or not.
      */
-    private static void addToViewUpdateGenerators(Row existingBaseRow, Row updateBaseRow, Collection<ViewUpdateGenerator> generators, int nowInSec)
+    private static void addToViewUpdateGenerators(Row existingBaseRow, Row updateBaseRow, Collection<ViewUpdateGenerator> generators)
     {
         // Having existing empty is useful, it just means we'll insert a brand new entry for updateBaseRow,
         // but if we have no update at all, we shouldn't get there.
@@ -480,12 +486,12 @@ public class TableViews extends AbstractCollection<View>
 
         // We allow existingBaseRow to be null, which we treat the same as being empty as an small optimization
         // to avoid allocating empty row objects when we know there was nothing existing.
-        Row mergedBaseRow = existingBaseRow == null ? updateBaseRow : Rows.merge(existingBaseRow, updateBaseRow, nowInSec);
+        Row mergedBaseRow = existingBaseRow == null ? updateBaseRow : Rows.merge(existingBaseRow, updateBaseRow);
         for (ViewUpdateGenerator generator : generators)
             generator.addBaseTableUpdate(existingBaseRow, mergedBaseRow);
     }
 
-    private static Row emptyRow(Clustering clustering, DeletionTime deletion)
+    private static Row emptyRow(Clustering<?> clustering, DeletionTime deletion)
     {
         // Returning null for an empty row is slightly ugly, but the case where there is no pre-existing row is fairly common
         // (especially when building the view), so we want to avoid a dummy allocation of an empty row every time.
@@ -502,7 +508,7 @@ public class TableViews extends AbstractCollection<View>
      * @param generators the generators from which to extract the view mutations from.
      * @return the mutations created by all the generators in {@code generators}.
      */
-    private Collection<Mutation> buildMutations(CFMetaData baseTableMetadata, List<ViewUpdateGenerator> generators)
+    private Collection<Mutation> buildMutations(TableMetadata baseTableMetadata, List<ViewUpdateGenerator> generators)
     {
         // One view is probably common enough and we can optimize a bit easily
         if (generators.size() == 1)
@@ -517,23 +523,23 @@ public class TableViews extends AbstractCollection<View>
             return mutations;
         }
 
-        Map<DecoratedKey, Mutation> mutations = new HashMap<>();
+        Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutations = new HashMap<>();
         for (ViewUpdateGenerator generator : generators)
         {
             for (PartitionUpdate update : generator.generateViewUpdates())
             {
                 DecoratedKey key = update.partitionKey();
-                Mutation mutation = mutations.get(key);
-                if (mutation == null)
+                Mutation.PartitionUpdateCollector collector = mutations.get(key);
+                if (collector == null)
                 {
-                    mutation = new Mutation(baseTableMetadata.ksName, key);
-                    mutations.put(key, mutation);
+                    collector = new Mutation.PartitionUpdateCollector(baseTableMetadata.keyspace, key);
+                    mutations.put(key, collector);
                 }
-                mutation.add(update);
+                collector.add(update);
             }
             generator.clear();
         }
-        return mutations.values();
+        return mutations.values().stream().map(Mutation.PartitionUpdateCollector::build).collect(Collectors.toList());
     }
 
     /**

@@ -19,8 +19,8 @@ package org.apache.cassandra.cql3.functions;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.config.SchemaConstants;
-import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.schema.SchemaConstants;
 
 public final class FunctionName
 {
@@ -84,17 +84,20 @@ public final class FunctionName
         return keyspace == null ? name : keyspace + "." + name;
     }
 
-    /**
-     * Returns a string representation of the function name that is safe to use directly in CQL queries.
-     * If necessary, the name components will be double-quoted, and any quotes inside the names will be escaped.
-     */
-    public String toCQLString()
+    public void appendCqlTo(CqlBuilder builder)
     {
-        String maybeQuotedName = equalsNativeFunction(TOKEN_FUNCTION_NAME)
-               ? name
-               : ColumnIdentifier.maybeQuote(name);
-        return keyspace == null
-               ? maybeQuotedName
-               : ColumnIdentifier.maybeQuote(keyspace) + '.' + maybeQuotedName;
+        if (equalsNativeFunction(TOKEN_FUNCTION_NAME))
+        {
+            builder.append(name);
+        }
+        else
+        {
+            if (keyspace != null)
+            {
+                builder.appendQuotingIfNeeded(keyspace)
+                       .append('.');
+            }
+            builder.appendQuotingIfNeeded(name);
+        }
     }
 }

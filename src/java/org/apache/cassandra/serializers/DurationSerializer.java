@@ -21,12 +21,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.Duration;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-public final class DurationSerializer implements TypeSerializer<Duration>
+public final class DurationSerializer extends TypeSerializer<Duration>
 {
     public static final DurationSerializer instance = new DurationSerializer();
 
@@ -40,8 +41,8 @@ public final class DurationSerializer implements TypeSerializer<Duration>
         long nanoseconds = duration.getNanoseconds();
 
         int size = VIntCoding.computeVIntSize(months)
-                + VIntCoding.computeVIntSize(days)
-                + VIntCoding.computeVIntSize(nanoseconds);
+                   + VIntCoding.computeVIntSize(days)
+                   + VIntCoding.computeVIntSize(nanoseconds);
 
         try (DataOutputBufferFixed output = new DataOutputBufferFixed(size))
         {
@@ -57,12 +58,12 @@ public final class DurationSerializer implements TypeSerializer<Duration>
         }
     }
 
-    public Duration deserialize(ByteBuffer bytes)
+    public <V> Duration deserialize(V value, ValueAccessor<V> accessor)
     {
-        if (bytes.remaining() == 0)
+        if (accessor.isEmpty(value))
             return null;
 
-        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        try (DataInputBuffer in = new DataInputBuffer(accessor.toBuffer(value), true))  // TODO: make a value input buffer
         {
             int months = (int) in.readVInt();
             int days = (int) in.readVInt();
@@ -76,12 +77,12 @@ public final class DurationSerializer implements TypeSerializer<Duration>
         }
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
     {
-        if (bytes.remaining() < 3)
-            throw new MarshalException(String.format("Expected at least 3 bytes for a duration (%d)", bytes.remaining()));
+        if (accessor.size(value) < 3)
+            throw new MarshalException(String.format("Expected at least 3 bytes for a duration (%d)", accessor.size(value)));
 
-        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
+        try (DataInputBuffer in = new DataInputBuffer(accessor.toBuffer(value), true))  // FIXME: value input buffer
         {
             long monthsAsLong = in.readVInt();
             long daysAsLong = in.readVInt();

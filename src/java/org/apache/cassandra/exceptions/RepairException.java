@@ -18,29 +18,43 @@
 package org.apache.cassandra.exceptions;
 
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.streaming.PreviewKind;
 
 /**
  * Exception thrown during repair
  */
 public class RepairException extends Exception
 {
-    public final RepairJobDesc desc;
+    private final boolean shouldLogWarn;
 
-    public RepairException(RepairJobDesc desc, String message)
+    private RepairException(RepairJobDesc desc, PreviewKind previewKind, String message, boolean shouldLogWarn)
     {
-        super(message);
-        this.desc = desc;
+        this(desc.toString(previewKind != null ? previewKind : PreviewKind.NONE) + ' ' + message, shouldLogWarn);
     }
 
-    public RepairException(RepairJobDesc desc, String message, Throwable cause)
+    private RepairException(String msg, boolean shouldLogWarn)
     {
-        super(message, cause);
-        this.desc = desc;
+        super(msg);
+        this.shouldLogWarn = shouldLogWarn;
     }
 
-    @Override
-    public String getMessage()
+    public static RepairException error(RepairJobDesc desc, PreviewKind previewKind, String message)
     {
-        return desc + " " + super.getMessage();
+        return new RepairException(desc, previewKind, message, false);
+    }
+
+    public static RepairException warn(RepairJobDesc desc, PreviewKind previewKind, String message)
+    {
+        return new RepairException(desc, previewKind, message, true);
+    }
+
+    public static RepairException warn(String message)
+    {
+        return new RepairException(message, true);
+    }
+
+    public static boolean shouldWarn(Throwable throwable)
+    {
+        return throwable instanceof RepairException && ((RepairException)throwable).shouldLogWarn;
     }
 }

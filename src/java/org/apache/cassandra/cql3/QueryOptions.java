@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableList;
 
 import io.netty.buffer.ByteBuf;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -35,6 +35,8 @@ import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 /**
  * Options for a query.
@@ -42,7 +44,7 @@ import org.apache.cassandra.utils.Pair;
 public abstract class QueryOptions
 {
     public static final QueryOptions DEFAULT = new DefaultQueryOptions(ConsistencyLevel.ONE,
-                                                                       Collections.<ByteBuffer>emptyList(),
+                                                                       Collections.emptyList(),
                                                                        false,
                                                                        SpecificOptions.DEFAULT,
                                                                        ProtocolVersion.CURRENT);
@@ -51,11 +53,6 @@ public abstract class QueryOptions
 
     // A cache of bind values parsed as JSON, see getJsonColumnValue for details.
     private List<Map<ColumnIdentifier, Term>> jsonValuesCache;
-
-    public static QueryOptions fromThrift(ConsistencyLevel consistency, List<ByteBuffer> values)
-    {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, ProtocolVersion.V3);
-    }
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
@@ -72,9 +69,34 @@ public abstract class QueryOptions
         return new DefaultQueryOptions(null, null, true, null, protocolVersion);
     }
 
-    public static QueryOptions create(ConsistencyLevel consistency, List<ByteBuffer> values, boolean skipMetadata, int pageSize, PagingState pagingState, ConsistencyLevel serialConsistency, ProtocolVersion version)
+    public static QueryOptions create(ConsistencyLevel consistency,
+                                      List<ByteBuffer> values,
+                                      boolean skipMetadata,
+                                      int pageSize,
+                                      PagingState pagingState,
+                                      ConsistencyLevel serialConsistency,
+                                      ProtocolVersion version,
+                                      String keyspace)
     {
-        return new DefaultQueryOptions(consistency, values, skipMetadata, new SpecificOptions(pageSize, pagingState, serialConsistency, Long.MIN_VALUE), version);
+        return create(consistency, values, skipMetadata, pageSize, pagingState, serialConsistency, version, keyspace, Long.MIN_VALUE, Integer.MIN_VALUE);
+    }
+
+    public static QueryOptions create(ConsistencyLevel consistency,
+                                      List<ByteBuffer> values,
+                                      boolean skipMetadata,
+                                      int pageSize,
+                                      PagingState pagingState,
+                                      ConsistencyLevel serialConsistency,
+                                      ProtocolVersion version,
+                                      String keyspace,
+                                      long timestamp,
+                                      int nowInSeconds)
+    {
+        return new DefaultQueryOptions(consistency,
+                                       values,
+                                       skipMetadata,
+                                       new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds),
+                                       version);
     }
 
     public static QueryOptions addColumnSpecifications(QueryOptions options, List<ColumnSpecification> columnSpecs)
@@ -91,11 +113,11 @@ public abstract class QueryOptions
      *
      * This is functionally equivalent to:
      *   {@code Json.parseJson(UTF8Type.instance.getSerializer().deserialize(getValues().get(bindIndex)), expectedReceivers).get(columnName)}
-     * but this cache the result of parsing the JSON so that while this might be called for multiple columns on the same {@code bindIndex}
+     * but this caches the result of parsing the JSON, so that while this might be called for multiple columns on the same {@code bindIndex}
      * value, the underlying JSON value is only parsed/processed once.
      *
-     * Note: this is a bit more involved in CQL specifics than this class generally is but we as we need to cache this per-query and in an object
-     * that is available when we bind values, this is the easier place to have this.
+     * Note: this is a bit more involved in CQL specifics than this class generally is, but as we need to cache this per-query and in an object
+     * that is available when we bind values, this is the easiest place to have this.
      *
      * @param bindIndex the index of the bind value that should be interpreted as a JSON value.
      * @param columnName the name of the column we want the value of.
@@ -106,7 +128,7 @@ public abstract class QueryOptions
      * @return the value correspong to column {@code columnName} in the (JSON) bind value at index {@code bindIndex}. This may return null if the
      * JSON value has no value for this column.
      */
-    public Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnDefinition> expectedReceivers) throws InvalidRequestException
+    public Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnMetadata> expectedReceivers) throws InvalidRequestException
     {
         if (jsonValuesCache == null)
             jsonValuesCache = new ArrayList<>(Collections.<Map<ColumnIdentifier, Term>>nCopies(getValues().size(), null));
@@ -141,7 +163,7 @@ public abstract class QueryOptions
      *
      * <p>The column specifications will be present only for prepared statements.</p>
      *
-     * <p>Invoke the {@link hasColumnSpecifications} method before invoking this method in order to ensure that this
+     * <p>Invoke the {@link #hasColumnSpecifications} method before invoking this method in order to ensure that this
      * <code>QueryOptions</code> contains the column specifications.</p>
      *
      * @return the option names
@@ -177,9 +199,17 @@ public abstract class QueryOptions
         return tstamp != Long.MIN_VALUE ? tstamp : state.getTimestamp();
     }
 
+    public int getNowInSeconds(QueryState state)
+    {
+        int nowInSeconds = getSpecificOptions().nowInSeconds;
+        return nowInSeconds != Integer.MIN_VALUE ? nowInSeconds : state.getNowInSeconds();
+    }
+
+    /** The keyspace that this query is bound to, or null if not relevant. */
+    public String getKeyspace() { return getSpecificOptions().keyspace; }
+
     /**
-     * The protocol version for the query. Will be 3 if the object don't come from
-     * a native protocol request (i.e. it's been allocated locally or by CQL-over-thrift).
+     * The protocol version for the query.
      */
     public abstract ProtocolVersion getProtocolVersion();
 
@@ -320,7 +350,7 @@ public abstract class QueryOptions
         {
             super.prepare(specs);
 
-            orderedValues = new ArrayList<ByteBuffer>(specs.size());
+            orderedValues = new ArrayList<>(specs.size());
             for (int i = 0; i < specs.size(); i++)
             {
                 String name = specs.get(i).name.toString();
@@ -347,19 +377,28 @@ public abstract class QueryOptions
     // Options that are likely to not be present in most queries
     static class SpecificOptions
     {
-        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE);
+        private static final SpecificOptions DEFAULT = new SpecificOptions(-1, null, null, Long.MIN_VALUE, null, Integer.MIN_VALUE);
 
         private final int pageSize;
         private final PagingState state;
         private final ConsistencyLevel serialConsistency;
         private final long timestamp;
+        private final String keyspace;
+        private final int nowInSeconds;
 
-        private SpecificOptions(int pageSize, PagingState state, ConsistencyLevel serialConsistency, long timestamp)
+        private SpecificOptions(int pageSize,
+                                PagingState state,
+                                ConsistencyLevel serialConsistency,
+                                long timestamp,
+                                String keyspace,
+                                int nowInSeconds)
         {
             this.pageSize = pageSize;
             this.state = state;
             this.serialConsistency = serialConsistency == null ? ConsistencyLevel.SERIAL : serialConsistency;
             this.timestamp = timestamp;
+            this.keyspace = keyspace;
+            this.nowInSeconds = nowInSeconds;
         }
     }
 
@@ -374,7 +413,9 @@ public abstract class QueryOptions
             PAGING_STATE,
             SERIAL_CONSISTENCY,
             TIMESTAMP,
-            NAMES_FOR_VALUES;
+            NAMES_FOR_VALUES,
+            KEYSPACE,
+            NOW_IN_SECONDS;
 
             private static final Flag[] ALL_VALUES = values();
 
@@ -429,7 +470,7 @@ public abstract class QueryOptions
             if (!flags.isEmpty())
             {
                 int pageSize = flags.contains(Flag.PAGE_SIZE) ? body.readInt() : -1;
-                PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValue(body), version) : null;
+                PagingState pagingState = flags.contains(Flag.PAGING_STATE) ? PagingState.deserialize(CBUtil.readValueNoCopy(body), version) : null;
                 ConsistencyLevel serialConsistency = flags.contains(Flag.SERIAL_CONSISTENCY) ? CBUtil.readConsistencyLevel(body) : ConsistencyLevel.SERIAL;
                 long timestamp = Long.MIN_VALUE;
                 if (flags.contains(Flag.TIMESTAMP))
@@ -439,9 +480,11 @@ public abstract class QueryOptions
                         throw new ProtocolException(String.format("Out of bound timestamp, must be in [%d, %d] (got %d)", Long.MIN_VALUE + 1, Long.MAX_VALUE, ts));
                     timestamp = ts;
                 }
-
-                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp);
+                String keyspace = flags.contains(Flag.KEYSPACE) ? CBUtil.readString(body) : null;
+                int nowInSeconds = flags.contains(Flag.NOW_IN_SECONDS) ? body.readInt() : Integer.MIN_VALUE;
+                options = new SpecificOptions(pageSize, pagingState, serialConsistency, timestamp, keyspace, nowInSeconds);
             }
+
             DefaultQueryOptions opts = new DefaultQueryOptions(consistency, values, skipMetadata, options, version);
             return names == null ? opts : new OptionsWithNames(opts, names);
         }
@@ -450,7 +493,7 @@ public abstract class QueryOptions
         {
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
-            EnumSet<Flag> flags = gatherFlags(options);
+            EnumSet<Flag> flags = gatherFlags(options, version);
             if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
                 dest.writeInt(Flag.serialize(flags));
             else
@@ -466,6 +509,10 @@ public abstract class QueryOptions
                 CBUtil.writeConsistencyLevel(options.getSerialConsistency(), dest);
             if (flags.contains(Flag.TIMESTAMP))
                 dest.writeLong(options.getSpecificOptions().timestamp);
+            if (flags.contains(Flag.KEYSPACE))
+                CBUtil.writeAsciiString(options.getSpecificOptions().keyspace, dest);
+            if (flags.contains(Flag.NOW_IN_SECONDS))
+                dest.writeInt(options.getSpecificOptions().nowInSeconds);
 
             // Note that we don't really have to bother with NAMES_FOR_VALUES server side,
             // and in fact we never really encode QueryOptions, only decode them, so we
@@ -478,7 +525,7 @@ public abstract class QueryOptions
 
             size += CBUtil.sizeOfConsistencyLevel(options.getConsistency());
 
-            EnumSet<Flag> flags = gatherFlags(options);
+            EnumSet<Flag> flags = gatherFlags(options, version);
             size += (version.isGreaterOrEqualTo(ProtocolVersion.V5) ? 4 : 1);
 
             if (flags.contains(Flag.VALUES))
@@ -491,11 +538,15 @@ public abstract class QueryOptions
                 size += CBUtil.sizeOfConsistencyLevel(options.getSerialConsistency());
             if (flags.contains(Flag.TIMESTAMP))
                 size += 8;
+            if (flags.contains(Flag.KEYSPACE))
+                size += CBUtil.sizeOfAsciiString(options.getSpecificOptions().keyspace);
+            if (flags.contains(Flag.NOW_IN_SECONDS))
+                size += 4;
 
             return size;
         }
 
-        private EnumSet<Flag> gatherFlags(QueryOptions options)
+        private EnumSet<Flag> gatherFlags(QueryOptions options, ProtocolVersion version)
         {
             EnumSet<Flag> flags = EnumSet.noneOf(Flag.class);
             if (options.getValues().size() > 0)
@@ -510,7 +561,22 @@ public abstract class QueryOptions
                 flags.add(Flag.SERIAL_CONSISTENCY);
             if (options.getSpecificOptions().timestamp != Long.MIN_VALUE)
                 flags.add(Flag.TIMESTAMP);
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+            {
+                if (options.getSpecificOptions().keyspace != null)
+                    flags.add(Flag.KEYSPACE);
+                if (options.getSpecificOptions().nowInSeconds != Integer.MIN_VALUE)
+                    flags.add(Flag.NOW_IN_SECONDS);
+            }
+
             return flags;
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 }

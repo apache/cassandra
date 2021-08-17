@@ -42,7 +42,7 @@ public class RewindableDataInputStreamPlusTest
     @Before
     public void setup() throws Exception
     {
-        this.file = new File(System.getProperty("java.io.tmpdir"), "subdir/test.buffer");
+        this.file = new File(FileUtils.getTempDir(), "subdir/test.buffer");
     }
 
     @Test
@@ -378,7 +378,7 @@ public class RewindableDataInputStreamPlusTest
             //finish reading again previous sequence
 
             reader.mark();
-            //read 3 bytes - OK
+            //read 3 bytes - START
             assertEquals('a', reader.readChar());
             //read 1 more bytes - CAPACITY will exhaust when trying to reset :(
             assertEquals(1, reader.readShort());

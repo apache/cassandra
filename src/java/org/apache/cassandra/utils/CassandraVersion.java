@@ -18,10 +18,17 @@
 package org.apache.cassandra.utils;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.base.Objects;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 /**
@@ -33,21 +40,40 @@ import org.apache.commons.lang3.StringUtils;
 public class CassandraVersion implements Comparable<CassandraVersion>
 {
     /**
-     * note: 3rd group matches to words but only allows number and checked after regexp test.
+     * note: 3rd/4th groups matches to words but only allows number and checked after regexp test.
      * this is because 3rd and the last can be identical.
      **/
-    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)(?:\\.(\\w+))?(\\-[.\\w]+)?([.+][.\\w]+)?";
-    private static final Pattern PATTERN_WHITESPACE = Pattern.compile("\\w+");
+    private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)(?:\\.(\\w+))?(?:\\.(\\w+))?(\\-[-.\\w]+)?([.+][.\\w]+)?";
+    private static final Pattern PATTERN_WORDS = Pattern.compile("\\w+");
+    @VisibleForTesting
+    static final int NO_HOTFIX = -1;
 
-    private static final Pattern pattern = Pattern.compile(VERSION_REGEXP);
-    private static final Pattern SNAPSHOT = Pattern.compile("-SNAPSHOT");
+    private static final Pattern PATTERN = Pattern.compile(VERSION_REGEXP);
+
+    public static final CassandraVersion CASSANDRA_4_0 = new CassandraVersion("4.0").familyLowerBound.get();
+    public static final CassandraVersion CASSANDRA_4_0_RC2 = new CassandraVersion(4, 0, 0, NO_HOTFIX, new String[] {"rc2"}, null);
+    public static final CassandraVersion CASSANDRA_3_4 = new CassandraVersion("3.4").familyLowerBound.get();
 
     public final int major;
     public final int minor;
     public final int patch;
+    public final int hotfix;
+
+    public final Supplier<CassandraVersion> familyLowerBound = Suppliers.memoize(this::getFamilyLowerBound);
 
     private final String[] preRelease;
     private final String[] build;
+
+    @VisibleForTesting
+    CassandraVersion(int major, int minor, int patch, int hotfix, String[] preRelease, String[] build)
+    {
+        this.major = major;
+        this.minor = minor;
+        this.patch = patch;
+        this.hotfix = hotfix;
+        this.preRelease = preRelease;
+        this.build = build;
+    }
 
     /**
      * Parse a version from a string.
@@ -58,8 +84,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
      */
     public CassandraVersion(String version)
     {
-        String stripped = SNAPSHOT.matcher(version).replaceFirst("");
-        Matcher matcher = pattern.matcher(stripped);
+        Matcher matcher = PATTERN.matcher(version);
         if (!matcher.matches())
             throw new IllegalArgumentException("Invalid version value: " + version);
 
@@ -68,12 +93,13 @@ public class CassandraVersion implements Comparable<CassandraVersion>
             this.major = Integer.parseInt(matcher.group(1));
             this.minor = Integer.parseInt(matcher.group(2));
             this.patch = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0;
+            this.hotfix = matcher.group(4) != null ? Integer.parseInt(matcher.group(4)) : NO_HOTFIX;
 
-            String pr = matcher.group(4);
-            String bld = matcher.group(5);
+            String pr = matcher.group(5);
+            String bld = matcher.group(6);
 
-            this.preRelease = pr == null || pr.isEmpty() ? null : parseIdentifiers(stripped, pr);
-            this.build = bld == null || bld.isEmpty() ? null : parseIdentifiers(stripped, bld);
+            this.preRelease = pr == null || pr.isEmpty() ? null : parseIdentifiers(version, pr);
+            this.build = bld == null || bld.isEmpty() ? null : parseIdentifiers(version, bld);
         }
         catch (NumberFormatException e)
         {
@@ -81,17 +107,34 @@ public class CassandraVersion implements Comparable<CassandraVersion>
         }
     }
 
+    private CassandraVersion getFamilyLowerBound()
+    {
+        return patch == 0 && hotfix == NO_HOTFIX && preRelease != null && preRelease.length == 0 && build == null
+               ? this
+               : new CassandraVersion(major, minor, 0, NO_HOTFIX, ArrayUtils.EMPTY_STRING_ARRAY, null);
+    }
+
     private static String[] parseIdentifiers(String version, String str)
     {
         // Drop initial - or +
         str = str.substring(1);
-        String[] parts = StringUtils.split(str, '.');
+        String[] parts = StringUtils.split(str, ".-");
         for (String part : parts)
         {
-            if (!PATTERN_WHITESPACE.matcher(part).matches())
-                throw new IllegalArgumentException("Invalid version value: " + version);
+            if (!PATTERN_WORDS.matcher(part).matches())
+                throw new IllegalArgumentException("Invalid version value: " + version + "; " + part + " not a valid identifier");
         }
         return parts;
+    }
+
+    public List<String> getPreRelease()
+    {
+        return preRelease != null ? Arrays.asList(preRelease) : Collections.emptyList();
+    }
+
+    public List<String> getBuild()
+    {
+        return build != null ? Arrays.asList(build) : Collections.emptyList();
     }
 
     public int compareTo(CassandraVersion other)
@@ -111,43 +154,15 @@ public class CassandraVersion implements Comparable<CassandraVersion>
         if (patch > other.patch)
             return 1;
 
-        int c = compareIdentifiers(preRelease, other.preRelease, 1);
+        int c = Integer.compare(hotfix, other.hotfix);
+        if (c != 0)
+            return c;
+
+        c = compareIdentifiers(preRelease, other.preRelease, 1);
         if (c != 0)
             return c;
 
         return compareIdentifiers(build, other.build, -1);
-    }
-
-    public boolean is30()
-    {
-        return major == 3 && minor == 0;
-    }
-
-    /**
-     * Returns a version that is backward compatible with this version amongst a list
-     * of provided version, or null if none can be found.
-     * <p>
-     * For instance:
-     * "2.0.0".findSupportingVersion("2.0.0", "3.0.0") == "2.0.0"
-     * "2.0.0".findSupportingVersion("2.1.3", "3.0.0") == "2.1.3"
-     * "2.0.0".findSupportingVersion("3.0.0") == null
-     * "2.0.3".findSupportingVersion("2.0.0") == "2.0.0"
-     * "2.1.0".findSupportingVersion("2.0.0") == null
-     * </p>
-     */
-    public CassandraVersion findSupportingVersion(CassandraVersion... versions)
-    {
-        for (CassandraVersion version : versions)
-        {
-            if (isSupportedBy(version))
-                return version;
-        }
-        return null;
-    }
-
-    public boolean isSupportedBy(CassandraVersion version)
-    {
-        return version != null && major == version.major && this.compareTo(version) <= 0;
     }
 
     private static int compareIdentifiers(String[] ids1, String[] ids2, int defaultPred)
@@ -177,16 +192,34 @@ public class CassandraVersion implements Comparable<CassandraVersion>
                 if (i2 != null)
                     return 1;
 
-                int c = ids1[i].compareTo(ids2[i]);
+                int c = ids1[i].compareToIgnoreCase(ids2[i]);
                 if (c != 0)
                     return c;
             }
         }
 
         if (ids1.length < ids2.length)
-            return -1;
+        {
+            // If the preRelease is empty it means that it is a family lower bound and that the first identifier is smaller than the second one
+            // (e.g. 4.0.0- < 4.0.0-beta1)
+            if (ids1.length == 0)
+                return -1;
+
+            // If the difference in length is only due to SNAPSHOT we know that the second identifier is smaller than the first one.
+            // (e.g. 4.0.0-rc1 > 4.0.0-rc1-SNAPSHOT)
+            return (ids2.length - ids1.length) == 1 && ids2[ids2.length - 1].equalsIgnoreCase("SNAPSHOT") ? 1 : -1;
+        }
         if (ids1.length > ids2.length)
-            return 1;
+        {
+            // If the preRelease is empty it means that it is a family lower bound and that the second identifier is smaller than the first one
+            // (e.g. 4.0.0-beta1 > 4.0.0-)
+            if (ids2.length == 0)
+                return 1;
+
+            // If the difference in length is only due to SNAPSHOT we know that the first identifier is smaller than the second one.
+            // (e.g. 4.0.0-rc1-SNAPSHOT < 4.0.0-rc1)
+            return (ids1.length - ids2.length) == 1 && ids1[ids1.length - 1].equalsIgnoreCase("SNAPSHOT") ? -1 : 1;
+        }
         return 0;
     }
 
@@ -205,20 +238,24 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     @Override
     public boolean equals(Object o)
     {
-        if (!(o instanceof CassandraVersion))
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         CassandraVersion that = (CassandraVersion) o;
-        return major == that.major
-               && minor == that.minor
-               && patch == that.patch
-               && Arrays.equals(preRelease, that.preRelease)
-               && Arrays.equals(build, that.build);
+        return major == that.major &&
+               minor == that.minor &&
+               patch == that.patch &&
+               hotfix == that.hotfix &&
+               Arrays.equals(preRelease, that.preRelease) &&
+               Arrays.equals(build, that.build);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(major, minor, patch, preRelease, build);
+        int result = Objects.hash(major, minor, patch, hotfix);
+        result = 31 * result + Arrays.hashCode(preRelease);
+        result = 31 * result + Arrays.hashCode(build);
+        return result;
     }
 
     @Override
@@ -226,6 +263,8 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     {
         StringBuilder sb = new StringBuilder();
         sb.append(major).append('.').append(minor).append('.').append(patch);
+        if (hotfix != NO_HOTFIX)
+            sb.append('.').append(hotfix);
         if (preRelease != null)
             sb.append('-').append(StringUtils.join(preRelease, "."));
         if (build != null)

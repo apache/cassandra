@@ -19,7 +19,8 @@ package org.apache.cassandra.index.internal.composites;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -45,10 +46,10 @@ public class CollectionEntryIndex extends CollectionKeyIndexBase
     }
 
     public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
-                                      Clustering clustering,
+                                      Clustering<?> clustering,
                                       CellPath path, ByteBuffer cellValue)
     {
-        return CompositeType.build(path.get(0), cellValue);
+        return CompositeType.build(ByteBufferAccessor.instance, path.get(0), cellValue);
     }
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
@@ -57,12 +58,12 @@ public class CollectionEntryIndex extends CollectionKeyIndexBase
         ByteBuffer mapKey = components[0];
         ByteBuffer mapValue = components[1];
 
-        ColumnDefinition columnDef = indexedColumn;
-        Cell cell = data.getCell(columnDef, CellPath.create(mapKey));
+        ColumnMetadata columnDef = indexedColumn;
+        Cell<?> cell = data.getCell(columnDef, CellPath.create(mapKey));
         if (cell == null || !cell.isLive(nowInSec))
             return true;
 
         AbstractType<?> valueComparator = ((CollectionType)columnDef.type).valueComparator();
-        return valueComparator.compare(mapValue, cell.value()) != 0;
+        return valueComparator.compare(mapValue, cell.buffer()) != 0;
     }
 }

@@ -17,13 +17,11 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
@@ -31,41 +29,55 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class LocalStrategy extends AbstractReplicationStrategy
 {
+    private static final ReplicationFactor RF = ReplicationFactor.fullOnly(1);
+    private final EndpointsForRange replicas;
+
     public LocalStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
+        replicas = EndpointsForRange.of(
+                new Replica(FBUtilities.getBroadcastAddressAndPort(),
+                        DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                        DatabaseDescriptor.getPartitioner().getMinimumToken(),
+                        true
+                )
+        );
     }
 
     /**
-     * We need to override this even if we override calculateNaturalEndpoints,
+     * We need to override this even if we override calculateNaturalReplicas,
      * because the default implementation depends on token calculations but
      * LocalStrategy may be used before tokens are set up.
      */
     @Override
-    public ArrayList<InetAddress> getNaturalEndpoints(RingPosition searchPosition)
+    public EndpointsForRange getNaturalReplicas(RingPosition<?> searchPosition)
     {
-        ArrayList<InetAddress> l = new ArrayList<InetAddress>(1);
-        l.add(FBUtilities.getBroadcastAddress());
-        return l;
+        return replicas;
     }
 
-    public List<InetAddress> calculateNaturalEndpoints(Token token, TokenMetadata metadata)
+    public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
-        return Collections.singletonList(FBUtilities.getBroadcastAddress());
+        return replicas;
     }
 
-    public int getReplicationFactor()
+    public ReplicationFactor getReplicationFactor()
     {
-        return 1;
+        return RF;
     }
 
     public void validateOptions() throws ConfigurationException
     {
     }
 
+    @Override
+    public void maybeWarnOnOptions()
+    {
+    }
+
+    @Override
     public Collection<String> recognizedOptions()
     {
         // LocalStrategy doesn't expect any options.
-        return Collections.<String>emptySet();
+        return Collections.emptySet();
     }
 }

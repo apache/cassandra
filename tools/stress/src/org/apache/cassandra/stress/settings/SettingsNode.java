@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.settings;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,24 +8,28 @@ package org.apache.cassandra.stress.settings;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.*;
+
+import com.google.common.net.HostAndPort;
 
 import com.datastax.driver.core.Host;
 import org.apache.cassandra.stress.util.ResultLogger;
@@ -44,7 +48,7 @@ public class SettingsNode implements Serializable
             {
                 String node;
                 List<String> tmpNodes = new ArrayList<>();
-                try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(options.file.value()))))
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(Files.newInputStream(Paths.get(options.file.value())))))
                 {
                     while ((node = in.readLine()) != null)
                     {
@@ -74,15 +78,13 @@ public class SettingsNode implements Serializable
         Set<String> r = new HashSet<>();
         switch (settings.mode.api)
         {
-            case THRIFT_SMART:
             case JAVA_DRIVER_NATIVE:
                 if (!isWhiteList)
                 {
                     for (Host host : settings.getJavaDriverClient().getCluster().getMetadata().getAllHosts())
-                        r.add(host.getAddress().getHostName());
+                        r.add(host.getSocketAddress().getHostString() + ":" + host.getSocketAddress().getPort());
                     break;
                 }
-            case THRIFT:
             case SIMPLE_NATIVE:
                 for (InetAddress address : resolveAllSpecified())
                     r.add(address.getHostName());
@@ -97,7 +99,8 @@ public class SettingsNode implements Serializable
         {
             try
             {
-                r.add(InetAddress.getByName(node));
+                HostAndPort hap = HostAndPort.fromString(node);
+                r.add(InetAddress.getByName(hap.getHost()));
             }
             catch (UnknownHostException e)
             {
@@ -114,7 +117,8 @@ public class SettingsNode implements Serializable
         {
             try
             {
-                r.add(new InetSocketAddress(InetAddress.getByName(node), port));
+                HostAndPort hap = HostAndPort.fromString(node).withDefaultPort(port);
+                r.add(new InetSocketAddress(InetAddress.getByName(hap.getHost()), hap.getPort()));
             }
             catch (UnknownHostException e)
             {

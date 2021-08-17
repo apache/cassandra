@@ -55,10 +55,12 @@ public class InstrumentingCache<K, V>
 
     public V get(K key)
     {
-        V v = map.get(key);
         metrics.requests.mark();
+        V v = map.get(key);
         if (v != null)
             metrics.hits.mark();
+        else
+            metrics.misses.mark();
         return v;
     }
 
@@ -95,6 +97,9 @@ public class InstrumentingCache<K, V>
     public void clear()
     {
         map.clear();
+
+        // this does not clear metered metrics which are defined statically. for testing purposes, these can be
+        // cleared by CacheMetrics.reset()
         metrics = new CacheMetrics(type, map);
     }
 

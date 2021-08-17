@@ -80,7 +80,6 @@ public abstract class MemtablePool
         ExecutorUtils.shutdownNowAndWait(timeout, unit, cleaner);
     }
 
-
     public abstract MemtableAllocator newAllocator();
 
     public boolean needsCleaning()

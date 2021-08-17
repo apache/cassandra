@@ -22,12 +22,19 @@
 Table of Contents
 
   1. Overview
-  2. Frame header
-    2.1. version
-    2.2. flags
-    2.3. stream
-    2.4. opcode
-    2.5. length
+  2. Frame format
+    2.1. Uncompressed Format
+    2.2. Compressed Format
+    2.3 Protocol Negotiation
+      2.3.1 Initial Handshake
+      2.3.2 Compression
+    2.4. Frame Payload
+      2.4.1 Frame Header
+      2.4.1.1. version
+      2.4.1.2. flags
+      2.4.1.3. stream
+      2.4.1.4. opcode
+      2.4.1.5. length
   3. Notations
   4. Messages
     4.1. Requests
@@ -53,17 +60,144 @@ Table of Contents
       4.2.6. EVENT
       4.2.7. AUTH_CHALLENGE
       4.2.8. AUTH_SUCCESS
-  5. Compression
-  6. Data Type Serialization Formats
-  7. User Defined Type Serialization
-  8. Result paging
-  9. Error codes
-  10. Changes from v4
+  5. Data Type Serialization Formats
+  6. User Defined Type Serialization
+  7. Result paging
+  8. Error codes
+  9. Changes from v4
 
 
 1. Overview
 
-  The CQL binary protocol is a frame based protocol. Frames are defined as:
+  The CQL binary protocol is a frame based protocol with a frame comprises a header, payload
+  and trailer. In v5 there are two distinct frame formats, compressed and uncompressed, in
+  both cases, the payload is a stream of CQL envelopes (Section 2.4). Each envelope contains
+  a single CQL message, along with a metadata header. In effect, the v5 framing format is a
+  simple wrapper around protocol v5.
+
+  In either format, a frame may or may not be self contained. If self contained, then the
+  payload includes one or more complete envelopes and can be fully processed immediately.
+  Otherwise, the payload contains some part of a large envelope, which has been split into
+  its own sequence of frames. These are expected to be transmitted/received in order, so
+  the receiver can accumulate them as they arrive and process them once all have been received.
+
+  The frame header contains length information for the payload, a flag to indicate whether
+  or not the frame is self contained and a CRC24 to assert the integrity of the header itself.
+  There are slight variations in the header format between the compressed and uncompressed
+  variants.
+
+  The payload is opaque as far as the framing format is concerned, modulo the self
+  contained variation.
+
+  The trailer contains a CRC32 to protect the integrity of the payload, covering all envelopes
+  (whole or partial) contained therein.
+
+
+2. Frame Format
+
+2.1 Uncompressed Format
+
+  The uncompressed variant uses a 6 byte header containing payload length, self contained
+  flag and CRC24 for the header itself. The max size for the payload is 128KiB, and is
+  followed by its CRC32.
+
+  1. Payload length               (17 bits)
+  2. isSelfContained flag         (1 bit)
+  3. Header padding               (6 bits)
+  4. CRC24 of the header          (24 bits)
+  5. Payload                      (up to 2 ^ 17 - 1 bits)
+  6. Payload CRC32                (32 bits)
+
+  0                   1                   2                   3
+  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |          Payload Length         |C|           |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            CRC24 of Header       |                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               +
+  |                                                               |
+  +                                                               +
+  |                            Payload                            |
+  +                                                               +
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                        CRC32 of Payload                       |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+2.2 LZ4 Compressed Format
+
+  The variant with LZ4 compression uses an 8 byte header, containing both the compressed
+  and uncompressed lengths of the payload, the self contained flag and a CRC24 for the
+  header. As with uncompressed frames, the max payload size is 128KiB and is followed
+  by a CRC32 trailer. This is the CRC of the compressed payload.
+
+  1. Compressed length            (17 bits)
+  2. Uncompressed length          (17 bits)
+  3. isSelfContained flag         (1 bit)
+  4. Header padding               (5 bits)
+  5. CRC24 of Header contents     (24 bits)
+  6. Compressed Payload           (up to 2 ^ 17 - 1 bits)
+  7. CRC32 of Compressed Payload  (32 bits)
+
+   0                   1                   2                   3
+   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |        Compressed Length        |     Uncompressed Length
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+      |C|         |                 CRC24 of Header               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                                                               |
+  +                                                               +
+  |                      Compressed Payload                       |
+  +                                                               +
+  |                                                               |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |                  CRC32 of Compressed Payload                  |
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+
+2.3 Protocol Negotiation
+
+  2.3.1 Initial Handshake
+
+  In order to support both v5 and earlier formats, the v5 framing format is not
+  applied to message exchanges before an initial handshake is completed. Practically,
+  this means that the initial STARTUP message and any OPTIONS messages which precede
+  it are expected to be unframed. Likewise, the responses returned by the server,
+  SUPPORTED in response to OPTIONS and either READY or AUTHENTICATE in response to
+  STARTUP are transmitted unframed.
+
+  After sending the READY or AUTHENTICATE response to a STARTUP message, the server
+  will begin encoding and decoding all further transmissions according to the protocol
+  version of that STARTUP message. Compression of the frames is dictated by the
+  COMPRESSION option sent in the STARTUP message. Only LZ4 compression is currently
+  supported for v5.
+
+  Note: OPTIONS requests may be sent by the client at any time in the connection
+  lifecycle, both before and after the STARTUP exchange. As mentioned, those
+  transmitted before STARTUP, as well as the SUPPORTED responses the server returns
+  are unframed. Any OPTIONS/SUPPORTED exchanges after the STARTUP handshake are
+  formatted according to the negotiated protocol version, so for v5 these must be
+  framed.
+
+  2.3.2 Compression
+
+  Before being used, client and server must agree on a compression algorithm to
+  use, which is done in the STARTUP message. As a consequence, a STARTUP message
+  must never be compressed.  However, once the STARTUP frame has been received
+  by the server, messages can be compressed (including the response to the STARTUP
+  request). Frames do not have to be compressed, however, even if compression has
+  been agreed upon (a sender may only compress frames above a certain size at its
+  discretion). Where compression has been agreed, the sender signals that the payload
+  is not compressed by setting the compressed length to 0.
+
+  As of v5 of the protocol, the only compression available is lz4
+  (https://code.google.com/p/lz4/).
+
+
+2.4. Frame Payload
+
+  Envelopes are defined as:
 
       0         8        16        24        32         40
       +---------+---------+---------+---------+---------+
@@ -79,28 +213,34 @@ Table of Contents
 
   The protocol is big-endian (network byte order).
 
-  Each frame contains a fixed size header (9 bytes) followed by a variable size
-  body. The header is described in Section 2. The content of the body depends
+  Each envelope contains a fixed size header (9 bytes) followed by a variable size
+  body. The header is described in Section 2.4.1. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
-  opcode values). The list of allowed opcodes is defined in Section 2.4 and the
+  opcode values). The list of allowed opcodes is defined in Section 2.4.1.4 and the
   details of each corresponding message are described Section 4.
 
-  The protocol distinguishes two types of frames: requests and responses. Requests
-  are those frames sent by the client to the server. Responses are those frames sent
+  The protocol distinguishes two types of envelope: requests and responses. Requests
+  are those envelopes sent by the client to the server. Responses are those envelopes sent
   by the server to the client. Note, however, that the protocol supports server pushes
   (events) so a response does not necessarily come right after a client request.
 
   Note to client implementors: client libraries should always assume that the
-  body of a given frame may contain more data than what is described in this
-  document. It will however always be safe to ignore the remainder of the frame
-  body in such cases. The reason is that this may enable extending the protocol
+  body of a given envelope may contain more data than what is described in this
+  document. It will however always be safe to ignore the remainder of the body
+  in such cases. The reason is that this may enable extending the protocol
   with optional features without needing to change the protocol version.
 
+  Envelope headers are designed to support backwards compatibility with earlier
+  protocol versions. For that reason, they include an unused leading byte in place
+  of the version field from previous protocol versions. This was always to some extent
+  redundant as the version is set and enforced at the connection level. It was also
+  previously possible to enable compression for an individual envelope. This is no
+  longer possible, as the framing format is responsible for compression, which is set for
+  the lifetime of a connection and applies to all messages transmitted throughout it
+  (see Section 2.2.1 for caveats). The compression flag is therefore deprecated and
+  ignored in protocol v5.
 
-
-2. Frame header
-
-2.1. version
+2.4.1.1. version
 
   The version is a single byte that indicates both the direction of the message
   (request or response) and the version of the protocol in use. The most
@@ -110,61 +250,54 @@ Table of Contents
   it is moving. The rest of that byte is the protocol version (5 for the protocol
   defined in this document). In other words, for this version of the protocol,
   version will be one of:
-    0x04    Request frame for this protocol version
-    0x84    Response frame for this protocol version
+    0x05    Request frame for this protocol version
+    0x85    Response frame for this protocol version
 
   Please note that while every message ships with the version, only one version
   of messages is accepted on a given connection. In other words, the first message
   exchanged (STARTUP) sets the version for the connection for the lifetime of this
-  connection. The single exception to this behavior is when a startup message
-  is sent with a version that is higher than the current server version. In this
-  case, the server will respond with its current version.
+  connection.
 
   This document describes version 5 of the protocol. For the changes made since
   version 4, see Section 10.
 
+2.4.1.2. flags
 
-2.2. flags
-
-  Flags applying to this frame. The flags have the following meaning (described
+  Flags applying to this envelope. The flags have the following meaning (described
   by the mask that allows selecting them):
-    0x01: Compression flag. If set, the frame body is compressed. The actual
-          compression to use should have been set up beforehand through the
-          Startup message (which thus cannot be compressed; Section 4.1.1).
-    0x02: Tracing flag. For a request frame, this indicates the client requires
-          tracing of the request. Note that only QUERY, PREPARE and EXECUTE queries
+    0x01: Compression flag. In protocol v5 this flag is deprecated and ignored.
+    0x02: Tracing flag. For a request, this indicates the client requires tracing
+          of the request. Note that only QUERY, PREPARE and EXECUTE queries
           support tracing. Other requests will simply ignore the tracing flag if
-          set. If a request supports tracing and the tracing flag is set, the response
-          to this request will have the tracing flag set and contain tracing
-          information.
-          If a response frame has the tracing flag set, its body contains
-          a tracing ID. The tracing ID is a [uuid] and is the first thing in
-          the frame body.
-    0x04: Custom payload flag. For a request or response frame, this indicates
-          that a generic key-value custom payload for a custom QueryHandler
-          implementation is present in the frame. Such a custom payload is simply
-          ignored by the default QueryHandler implementation.
-          Currently, only QUERY, PREPARE, EXECUTE and BATCH requests support
-          payload.
+          set. If a request supports tracing and the tracing flag is set, the
+          response to this request will have the tracing flag set and contain
+          tracing information.
+          If a response has the tracing flag set, its body contains a tracing ID.
+          The tracing ID is a [uuid] and is the first thing in the body.
+    0x04: Custom payload flag. For a request or response, this indicates that a
+          generic key-value custom payload for a custom QueryHandler implementation
+          is present. Such a custom payload is simply ignored by the default
+          QueryHandler implementation. Currently, only QUERY, PREPARE, EXECUTE and
+          BATCH requests support custom payloads.
           Type of custom payload is [bytes map] (see below). If either or both
           of the tracing and warning flags are set, the custom payload will follow
-          those indicated elements in the frame body. If neither are set, the custom
-          payload will be the first value in the frame body.
+          those indicated elements in the body. If neither are set, the custom
+          payload will be the first value in the body.
     0x08: Warning flag. The response contains warnings which were generated by the
           server to go along with this response.
-          If a response frame has the warning flag set, its body will contain the
-          text of the warnings. The warnings are a [string list] and will be the
-          first value in the frame body if the tracing flag is not set, or directly
-          after the tracing ID if it is.
+          If a response has the warning flag set, its body will contain the text of
+          the warnings. The warnings are a [string list] and will be the first value
+          in the body if the tracing flag is not set, or directly after the tracing
+          ID if it is.
     0x10: Use beta flag. Indicates that the client opts in to use protocol version
           that is currently in beta. Server will respond with ERROR if protocol
           version is marked as beta on server and client does not provide this flag.
 
   The rest of flags is currently unused and ignored.
 
-2.3. stream
+2.4.1.3. stream
 
-  A frame has a stream id (a [short] value). When sending request messages, this
+  An envelope has a stream id (a [short] value). When sending request messages, this
   stream id must be set by the client to a non-negative value (negative stream id
   are reserved for streams initiated by the server; currently all EVENT messages
   (section 4.2.6) have a streamId of -1). If a client sends a request message
@@ -182,10 +315,11 @@ Table of Contents
 
   Note that clients are free to use the protocol synchronously (i.e. wait for
   the response to REQ_N before sending REQ_N+1). In that case, the stream id
-  can be safely set to 0. Clients should also feel free to use only a subset of
-  the 32768 maximum possible stream ids if it is simpler for its implementation.
+  can be safely set to 0 as long as each frame contains only a single envelope.
+  Clients should also feel free to use only a subset of the 32768 maximum possible stream
+  ids if it is simpler for its implementation.
 
-2.4. opcode
+2.4.1.4. opcode
 
   An integer byte that distinguishes the actual message:
     0x00    ERROR
@@ -209,16 +343,15 @@ Table of Contents
 
   (Note that there is no 0x04 message in this version of the protocol)
 
+2.4.1.5. length
 
-2.5. length
-
-  A 4 byte integer representing the length of the body of the frame (note:
-  currently a frame is limited to 256MB in length).
+  A 4 byte integer representing the length of the body of the envelope (note:
+  currently an envelope body is limited to 256MB in length).
 
 
 3. Notations
 
-  To describe the layout of the frame body for the messages in Section 4, we
+  To describe the layout of the envelope body for the messages in Section 4, we
   define the following:
 
     [int]             A 4 bytes integer
@@ -324,9 +457,21 @@ Table of Contents
     - "CQL_VERSION": the version of CQL to use. This option is mandatory and
       currently the only version supported is "3.0.0". Note that this is
       different from the protocol version.
-    - "COMPRESSION": the compression algorithm to use for frames (See section 5).
+    - "COMPRESSION": the compression algorithm to use for frames (See section 2.3.2).
       This is optional; if not specified no compression will be used.
+    - "DRIVER_NAME": allows clients to supply a free-form label representing the driver
+      implementation. This is displayed in the output of `nodetool clientstats`
+    - "DRIVER_VERSION": allows clients to supply a free-form label represting the driver
+      version. This is displayed in the output of `nodetool clientstats`
+    - "THROW_ON_OVERLOAD": flag to specify server behaviour where the incoming message
+      rate is too high. An [string] value of "1" instructs the server to respond with
+      and Error when its resources are exhausted. Any other value, or if the the key
+      is not present, and the server will apply backpressure to the connection until it
+      has cleared its backlog of inbound messages.
 
+  As mentioned in Section 2.3, STARTUP messages must not be sent in the framed format. STARTUP,
+  any OPTIONS requests which precede them, as well as the server's responses to those messages
+  must be unframed to support protocol negotiation with older clients.
 
 4.1.2. AUTH_RESPONSE
 
@@ -360,49 +505,57 @@ Table of Contents
     <query><query_parameters>
   where <query> is a [long string] representing the query and
   <query_parameters> must be
-    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>]
+    <consistency><flags>[<n>[name_1]<value_1>...[name_n]<value_n>][<result_page_size>][<paging_state>][<serial_consistency>][<timestamp>][<keyspace>][<now_in_seconds>]
   where:
     - <consistency> is the [consistency] level for the operation.
     - <flags> is a [int] whose bits define the options for this query and
       in particular influence what the remainder of the message contains.
       A flag is set if the bit corresponding to its `mask` is set. Supported
       flags are, given their mask:
-        0x01: Values. If set, a [short] <n> followed by <n> [value]
-              values are provided. Those values are used for bound variables in
-              the query. Optionally, if the 0x40 flag is present, each value
-              will be preceded by a [string] name, representing the name of
-              the marker the value must be bound to.
-        0x02: Skip_metadata. If set, the Result Set returned as a response
-              to the query (if any) will have the NO_METADATA flag (see
-              Section 4.2.5.2).
-        0x04: Page_size. If set, <result_page_size> is an [int]
-              controlling the desired page size of the result (in CQL3 rows).
-              See the section on paging (Section 8) for more details.
-        0x08: With_paging_state. If set, <paging_state> should be present.
-              <paging_state> is a [bytes] value that should have been returned
-              in a result set (Section 4.2.5.2). The query will be
-              executed but starting from a given paging state. This is also to
-              continue paging on a different node than the one where it
-              started (See Section 8 for more details).
-        0x10: With serial consistency. If set, <serial_consistency> should be
-              present. <serial_consistency> is the [consistency] level for the
-              serial phase of conditional updates. That consitency can only be
-              either SERIAL or LOCAL_SERIAL and if not present, it defaults to
-              SERIAL. This option will be ignored for anything else other than a
-              conditional update/insert.
-        0x20: With default timestamp. If set, <timestamp> should be present.
-              <timestamp> is a [long] representing the default timestamp for the query
-              in microseconds (negative values are forbidden). This will
-              replace the server side assigned timestamp as default timestamp.
-              Note that a timestamp in the query itself will still override
-              this timestamp. This is entirely optional.
-        0x40: With names for values. This only makes sense if the 0x01 flag is set and
-              is ignored otherwise. If present, the values from the 0x01 flag will
-              be preceded by a name (see above). Note that this is only useful for
-              QUERY requests where named bind markers are used; for EXECUTE statements,
-              since the names for the expected values was returned during preparation,
-              a client can always provide values in the right order without any names
-              and using this flag, while supported, is almost surely inefficient.
+        0x0001: Values. If set, a [short] <n> followed by <n> [value]
+                values are provided. Those values are used for bound variables in
+                the query. Optionally, if the 0x40 flag is present, each value
+                will be preceded by a [string] name, representing the name of
+                the marker the value must be bound to.
+        0x0002: Skip_metadata. If set, the Result Set returned as a response
+                to the query (if any) will have the NO_METADATA flag (see
+                Section 4.2.5.2).
+        0x0004: Page_size. If set, <result_page_size> is an [int]
+                controlling the desired page size of the result (in CQL3 rows).
+                See the section on paging (Section 7) for more details.
+        0x0008: With_paging_state. If set, <paging_state> should be present.
+                <paging_state> is a [bytes] value that should have been returned
+                in a result set (Section 4.2.5.2). The query will be
+                executed but starting from a given paging state. This is also to
+                continue paging on a different node than the one where it
+                started (See Section 7 for more details).
+        0x0010: With serial consistency. If set, <serial_consistency> should be
+                present. <serial_consistency> is the [consistency] level for the
+                serial phase of conditional updates. That consitency can only be
+                either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+                SERIAL. This option will be ignored for anything else other than a
+                conditional update/insert.
+        0x0020: With default timestamp. If set, <timestamp> must be present.
+                <timestamp> is a [long] representing the default timestamp for the query
+                in microseconds (negative values are forbidden). This will
+                replace the server side assigned timestamp as default timestamp.
+                Note that a timestamp in the query itself will still override
+                this timestamp. This is entirely optional.
+        0x0040: With names for values. This only makes sense if the 0x01 flag is set and
+                is ignored otherwise. If present, the values from the 0x01 flag will
+                be preceded by a name (see above). Note that this is only useful for
+                QUERY requests where named bind markers are used; for EXECUTE statements,
+                since the names for the expected values was returned during preparation,
+                a client can always provide values in the right order without any names
+                and using this flag, while supported, is almost surely inefficient.
+        0x0080: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+                [string] indicating the keyspace that the query should be executed in.
+                It supercedes the keyspace that the connection is bound to, if any.
+        0x0100: With now in seconds. If set, <now_in_seconds> must be present.
+                <now_in_seconds> is an [int] representing the current time (now) for
+                the query. Affects TTL cell liveness in read queries and local deletion
+                time for tombstones and TTL cells in update requests. It's intended
+                for testing purposes and is optional.
 
   Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
   TRUNCATE, ...).
@@ -413,8 +566,17 @@ Table of Contents
 
 4.1.5. PREPARE
 
-  Prepare a query for later execution (through EXECUTE). The body consists of
-  the CQL query to prepare as a [long string].
+  Prepare a query for later execution (through EXECUTE). The body of the message must be:
+    <query><flags>[<keyspace>]
+  where:
+    - <query> is a [long string] representing the CQL query.
+    - <flags> is a [int] whose bits define the options for this statement and in particular
+      influence what the remainder of the message contains.
+      A flag is set if the bit corresponding to its `mask` is set. Supported
+      flags are, given their mask:
+        0x01: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+              [string] indicating the keyspace that the query should be executed in.
+              It supercedes the keyspace that the connection is bound to, if any.
 
   The server will respond with a RESULT message with a `prepared` kind (0x0004,
   see Section 4.2.5).
@@ -423,12 +585,15 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><query_parameters>
-  where <id> is the prepared query ID. It's the [short bytes] returned as a
-  response to a PREPARE message. As for <query_parameters>, it has the exact
-  same definition as in QUERY (see Section 4.1.4).
-
-  The response from the server will be a RESULT message.
+  <id><result_metadata_id><query_parameters>
+  where
+    - <id> is the prepared query ID. It's the [short bytes] returned as a
+      response to a PREPARE message.
+    - <result_metadata_id> is the ID of the resultset metadata that was sent
+      along with response to PREPARE message. If a RESULT/Rows message reports
+      changed resultset metadata with the Metadata_changed flag, the reported new
+      resultset metadata must be used in subsequent executions.
+    - <query_parameters> has the exact same definition as in QUERY (see Section 4.1.4).
 
 
 4.1.7. BATCH
@@ -436,7 +601,7 @@ Table of Contents
   Allows executing a list of queries (prepared or not) as a batch (note that
   only DML statements are accepted in a batch). The body of the message must
   be:
-    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>]
+    <type><n><query_1>...<query_n><consistency><flags>[<serial_consistency>][<timestamp>][<keyspace>][<now_in_seconds>]
   where:
     - <type> is a [byte] indicating the type of batch to use:
         - If <type> == 0, the batch will be "logged". This is equivalent to a
@@ -450,24 +615,32 @@ Table of Contents
       bits must always be 0 as their corresponding options do not make sense for
       Batch. A flag is set if the bit corresponding to its `mask` is set. Supported
       flags are, given their mask:
-        0x10: With serial consistency. If set, <serial_consistency> should be
-              present. <serial_consistency> is the [consistency] level for the
-              serial phase of conditional updates. That consistency can only be
-              either SERIAL or LOCAL_SERIAL and if not present, it defaults to
-              SERIAL. This option will be ignored for anything else other than a
-              conditional update/insert.
-        0x20: With default timestamp. If set, <timestamp> should be present.
-              <timestamp> is a [long] representing the default timestamp for the query
-              in microseconds. This will replace the server side assigned
-              timestamp as default timestamp. Note that a timestamp in the query itself
-              will still override this timestamp. This is entirely optional.
-        0x40: With names for values. If set, then all values for all <query_i> must be
-              preceded by a [string] <name_i> that have the same meaning as in QUERY
-              requests [IMPORTANT NOTE: this feature does not work and should not be
-              used. It is specified in a way that makes it impossible for the server
-              to implement. This will be fixed in a future version of the native
-              protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
-              more details].
+        0x0010: With serial consistency. If set, <serial_consistency> should be
+                present. <serial_consistency> is the [consistency] level for the
+                serial phase of conditional updates. That consistency can only be
+                either SERIAL or LOCAL_SERIAL and if not present, it defaults to
+                SERIAL. This option will be ignored for anything else other than a
+                conditional update/insert.
+        0x0020: With default timestamp. If set, <timestamp> should be present.
+                <timestamp> is a [long] representing the default timestamp for the query
+                in microseconds. This will replace the server side assigned
+                timestamp as default timestamp. Note that a timestamp in the query itself
+                will still override this timestamp. This is entirely optional.
+        0x0040: With names for values. If set, then all values for all <query_i> must be
+                preceded by a [string] <name_i> that have the same meaning as in QUERY
+                requests [IMPORTANT NOTE: this feature does not work and should not be
+                used. It is specified in a way that makes it impossible for the server
+                to implement. This will be fixed in a future version of the native
+                protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
+                more details].
+        0x0080: With keyspace. If set, <keyspace> must be present. <keyspace> is a
+                [string] indicating the keyspace that the query should be executed in.
+                It supercedes the keyspace that the connection is bound to, if any.
+        0x0100: With now in seconds. If set, <now_in_seconds> must be present.
+                <now_in_seconds> is an [int] representing the current time (now) for
+                the query. Affects TTL cell liveness in read queries and local deletion
+                time for tombstones and TTL cells in update requests. It's intended
+                for testing purposes and is optional.
     - <n> is a [short] indicating the number of following queries.
     - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
       form:
@@ -521,7 +694,7 @@ Table of Contents
   Indicates an error processing a request. The body of the message will be an
   error code ([int]) followed by a [string] error message. Then, depending on
   the exception, more content may follow. The error codes are defined in
-  Section 9, along with their additional content if any.
+  Section 8, along with their additional content if any.
 
 
 4.2.2. READY
@@ -596,7 +769,7 @@ Table of Contents
     <metadata><rows_count><rows_content>
   where:
     - <metadata> is composed of:
-        <flags><columns_count>[<paging_state>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
+        <flags><columns_count>[<paging_state>][<new_metadata_id>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
         - <flags> is an [int]. The bits of <flags> provides information on the
           formatting of the remaining information. A flag is set if the bit
@@ -610,16 +783,23 @@ Table of Contents
                       <paging_state> will be present. The <paging_state> is a
                       [bytes] value that should be used in QUERY/EXECUTE to
                       continue paging and retrieve the remainder of the result for
-                      this query (See Section 8 for more details).
+                      this query (See Section 7 for more details).
             0x0004    No_metadata: if set, the <metadata> is only composed of
                       these <flags>, the <column_count> and optionally the
                       <paging_state> (depending on the Has_more_pages flag) but
                       no other information (so no <global_table_spec> nor <col_spec_i>).
                       This will only ever be the case if this was requested
                       during the query (see QUERY and RESULT messages).
+            0x0008    Metadata_changed: if set, the No_metadata flag has to be unset
+                      and <new_metadata_id> has to be supplied. This flag is to be
+                      used to avoid a roundtrip in case of metadata changes for queries
+                      that requested metadata to be skipped.
         - <columns_count> is an [int] representing the number of columns selected
           by the query that produced this result. It defines the number of <col_spec_i>
           elements in and the number of elements for each row in <rows_content>.
+        - <new_metadata_id> is [short bytes] representing the new, changed resultset
+           metadata. The new metadata ID must also be used in subsequent executions of
+           the corresponding prepared statement, if any.
         - <global_table_spec> is present if the Global_tables_spec is set in
           <flags>. It is composed of two [string] representing the
           (unique) keyspace name and table name the columns belong to.
@@ -701,9 +881,10 @@ Table of Contents
 4.2.5.4. Prepared
 
   The result to a PREPARE message. The body of a Prepared result is:
-    <id><metadata><result_metadata>
+    <id><result_metadata_id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
+    - <result_metadata_id> is [short bytes] representing the resultset metadata ID.
     - <metadata> is composed of:
         <flags><columns_count><pk_count>[<pk_index_1>...<pk_index_n>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
@@ -816,7 +997,7 @@ Table of Contents
             - [string] the function/aggregate name
             - [string list] one string for each argument type (as CQL type)
 
-  All EVENT messages have a streamId of -1 (Section 2.3).
+  All EVENT messages have a streamId of -1 (Section 2.4.1.3).
 
   Please note that "NEW_NODE" and "UP" events are sent based on internal Gossip
   communication and as such may be sent a short delay before the binary
@@ -848,30 +1029,7 @@ Table of Contents
   actual authenticator used.
 
 
-5. Compression
-
-  Frame compression is supported by the protocol, but then only the frame body
-  is compressed (the frame header should never be compressed).
-
-  Before being used, client and server must agree on a compression algorithm to
-  use, which is done in the STARTUP message. As a consequence, a STARTUP message
-  must never be compressed.  However, once the STARTUP frame has been received
-  by the server, messages can be compressed (including the response to the STARTUP
-  request). Frames do not have to be compressed, however, even if compression has
-  been agreed upon (a server may only compress frames above a certain size at its
-  discretion). A frame body should be compressed if and only if the compressed
-  flag (see Section 2.2) is set.
-
-  As of version 2 of the protocol, the following compressions are available:
-    - lz4 (https://code.google.com/p/lz4/). In that, note that the first four bytes
-      of the body will be the uncompressed length (followed by the compressed
-      bytes).
-    - snappy (https://code.google.com/p/snappy/). This compression might not be
-      available as it depends on a native lib (server-side) that might not be
-      avaivable on some installations.
-
-
-6. Data Type Serialization Formats
+5. Data Type Serialization Formats
 
   This sections describes the serialization formats for all CQL data types
   supported by Cassandra through the native protocol.  These serialization
@@ -890,25 +1048,25 @@ Table of Contents
 
   As with the rest of the native protocol, all encodings are big-endian.
 
-6.1. ascii
+5.1. ascii
 
   A sequence of bytes in the ASCII range [0, 127].  Bytes with values outside of
   this range will result in a validation error.
 
-6.2 bigint
+5.2 bigint
 
   An eight-byte two's complement integer.
 
-6.3 blob
+5.3 blob
 
   Any sequence of bytes.
 
-6.4 boolean
+5.4 boolean
 
   A single byte.  A value of 0 denotes "false"; any other value denotes "true".
   (However, it is recommended that a value of 1 be used to represent "true".)
 
-6.5 date
+5.5 date
 
   An unsigned integer representing days with epoch centered at 2^31.
   (unix epoch January 1st, 1970).
@@ -917,18 +1075,18 @@ Table of Contents
     2^31: 1970-1-1
     2^32: 5881580-07-11
 
-6.6 decimal
+5.6 decimal
 
   The decimal format represents an arbitrary-precision number.  It contains an
-  [int] "scale" component followed by a varint encoding (see section 6.17)
+  [int] "scale" component followed by a varint encoding (see section 5.24)
   of the unscaled value.  The encoded value represents "<unscaled>E<-scale>".
   In other words, "<unscaled> * 10 ^ (-1 * <scale>)".
 
-6.7 double
+5.7 double
 
   An 8 byte floating point number in the IEEE 754 binary64 format.
 
-6.8 duration
+5.8 duration
 
   A duration is composed of 3 signed variable length integers ([vint]s).
   The first [vint] represents a number of months, the second [vint] represents
@@ -939,77 +1097,77 @@ Table of Contents
   all the integers must be positive or zero. If a duration is
   negative all the numbers must be negative or zero.
 
-6.9 float
+5.9 float
 
   A 4 byte floating point number in the IEEE 754 binary32 format.
 
-6.10 inet
+5.10 inet
 
   A 4 byte or 16 byte sequence denoting an IPv4 or IPv6 address, respectively.
 
-6.11 int
+5.11 int
 
   A 4 byte two's complement integer.
 
-6.12 list
+5.12 list
 
   A [int] n indicating the number of elements in the list, followed by n
   elements.  Each element is [bytes] representing the serialized value.
 
-6.13 map
+5.13 map
 
   A [int] n indicating the number of key/value pairs in the map, followed by
   n entries.  Each entry is composed of two [bytes] representing the key
   and value.
 
-6.14 set
+5.14 set
 
   A [int] n indicating the number of elements in the set, followed by n
   elements.  Each element is [bytes] representing the serialized value.
 
-6.15 smallint
+5.15 smallint
 
   A 2 byte two's complement integer.
 
-6.16 text
+5.16 text
 
   A sequence of bytes conforming to the UTF-8 specifications.
 
-6.17 time
+5.17 time
 
   An 8 byte two's complement long representing nanoseconds since midnight.
   Valid values are in the range 0 to 86399999999999
 
-6.18 timestamp
+5.18 timestamp
 
   An 8 byte two's complement integer representing a millisecond-precision
   offset from the unix epoch (00:00:00, January 1st, 1970).  Negative values
   represent a negative offset from the epoch.
 
-6.19 timeuuid
+5.19 timeuuid
 
   A 16 byte sequence representing a version 1 UUID as defined by RFC 4122.
 
-6.20 tinyint
+5.20 tinyint
 
   A 1 byte two's complement integer.
 
-6.21 tuple
+5.21 tuple
 
   A sequence of [bytes] values representing the items in a tuple.  The encoding
   of each element depends on the data type for that position in the tuple.
   Null values may be represented by using length -1 for the [bytes]
   representation of an element.
 
-6.22 uuid
+5.22 uuid
 
   A 16 byte sequence representing any valid UUID as defined by RFC 4122.
 
-6.23 varchar
+5.23 varchar
 
   An alias of the "text" type.
 
-6.24 varint
+5.24 varint
 
   A variable-length two's complement encoding of a signed integer.
 
@@ -1032,7 +1190,7 @@ Table of Contents
   with a leading 0x00 byte.
 
 
-7. User Defined Types
+6. User Defined Types
 
   This section describes the serialization format for User defined types (UDT),
   as described in section 4.2.5.2.
@@ -1043,7 +1201,7 @@ Table of Contents
   the type has fields.
 
 
-8. Result paging
+7. Result paging
 
   The protocol allows for paging the result of queries. For that, the QUERY and
   EXECUTE messages have a <result_page_size> value that indicate the desired
@@ -1080,7 +1238,7 @@ Table of Contents
     using the protocol v4 for instance.
 
 
-9. Error codes
+8. Error codes
 
   Let us recall that an ERROR message is composed of <code><message>[...]
   (see 4.2.1 for details). The supported error codes, as well as any additional
@@ -1112,7 +1270,7 @@ Table of Contents
     0x1003    Truncate_error: error during a truncation error.
     0x1100    Write_timeout: Timeout exception during a write request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><writeType>
+                <cl><received><blockfor><writeType><contentions>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1136,12 +1294,14 @@ Table of Contents
                              - "BATCH_LOG": the timeout occurred during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                            - "CAS": the timeout occured during the Compare And Set write/update.
-                            - "VIEW": the timeout occured when a write involves
-                              VIEW update and failure to acqiure local view(MV)
-                              lock for key within timeout
-                            - "CDC": the timeout occured when cdc_total_space_in_mb is
-                              exceeded when doing a write to data tracked by cdc.
+                             - "CAS": the timeout occured during the Compare And Set write/update.
+                             - "VIEW": the timeout occured when a write involves
+                               VIEW update and failure to acqiure local view(MV)
+                               lock for key within timeout
+                             - "CDC": the timeout occured when cdc_total_space_in_mb is
+                               exceeded when doing a write to data tracked by cdc.
+                <contentions> is a [short] that describes the number of contentions occured during the CAS operation.
+                              The field only presents when the <writeType> is "CAS".
     0x1200    Read_timeout: Timeout exception during a read request. The rest
               of the ERROR message body will be
                 <cl><received><blockfor><data_present>
@@ -1217,12 +1377,24 @@ Table of Contents
                              - "BATCH_LOG": the failure occured during the
                                write to the batch log when a (logged) batch
                                write was requested.
-                            - "CAS": the failure occured during the Compare And Set write/update.
-                            - "VIEW": the failure occured when a write involves
-                              VIEW update and failure to acqiure local view(MV)
-                              lock for key within timeout
-                            - "CDC": the failure occured when cdc_total_space_in_mb is
-                              exceeded when doing a write to data tracked by cdc.
+                             - "CAS": the failure occured during the Compare And Set write/update.
+                             - "VIEW": the failure occured when a write involves
+                               VIEW update and failure to acqiure local view(MV)
+                               lock for key within timeout
+                             - "CDC": the failure occured when cdc_total_space_in_mb is
+                               exceeded when doing a write to data tracked by cdc.
+    0x1600    CDC_WRITE_FAILURE: // todo
+    0x1700    CAS_WRITE_UNKNOWN: An exception occured due to contended Compare And Set write/update.
+              The CAS operation was only partially completed and the operation may or may not get completed by
+              the contending CAS write or SERIAL/LOCAL_SERIAL read. The rest of the ERROR message body will be
+                <cl><received><blockfor>
+              where:
+                <cl> is the [consistency] level of the query having triggered
+                     the exception.
+                <received> is an [int] representing the number of nodes having
+                           acknowledged the request.
+                <blockfor> is an [int] representing the number of replicas whose
+                           acknowledgement is required to achieve <cl>.
 
     0x2000    Syntax_error: The submitted query has a syntax error.
     0x2100    Unauthorized: The logged user doesn't have the right to perform
@@ -1244,8 +1416,9 @@ Table of Contents
               this host. The rest of the ERROR message body will be [short
               bytes] representing the unknown ID.
 
-10. Changes from v4
+9. Changes from v4
 
+  * Added result set metadata id to Prepared responses (Section 4.2.5.4)
   * Beta protocol flag for v5 native protocol is added (Section 2.2)
   * <numfailures> in Read_failure and Write_failure error message bodies (Section 9)
     has been replaced with <reasonmap>. The <reasonmap> maps node IP addresses to
@@ -1253,3 +1426,9 @@ Table of Contents
   * Enlarged flag's bitmaps for QUERY, EXECUTE and BATCH messages from [byte] to [int]
     (Sections 4.1.4, 4.1.6 and 4.1.7).
   * Add the duration data type
+  * Added keyspace field in QUERY, PREPARE, and BATCH messages (Sections 4.1.4, 4.1.5, and 4.1.7).
+  * Added now_in_seconds field in QUERY, EXECUTE, and BATCH messages (Sections 4.1.4, 4.1.6, and 4.1.7).
+  * Added [int] flags field in PREPARE message (Section 4.1.5).
+  * Removed NO_COMPACT startup option (Section 4.1.1.)
+  * Introduces outer framing format wrapping the "frames" of v4 and earlier, which are
+    now referred to as "envelopes" (Sections 2.1, 2.2 and 2.3)

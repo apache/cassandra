@@ -22,9 +22,13 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 
+
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -36,22 +40,24 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.net.MessagingService.Verb.PAXOS_COMMIT;
-import static org.apache.cassandra.net.MessagingService.Verb.PAXOS_PREPARE;
-import static org.apache.cassandra.net.MessagingService.Verb.PAXOS_PROPOSE;
-import static org.apache.cassandra.net.MessagingService.Verb.READ;
+import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS_PREPARE_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
+import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class CASTest extends TestBaseImpl
 {
+    private static final Logger logger = LoggerFactory.getLogger(CASTest.class);
+
     /**
      * The {@code cas_contention_timeout_in_ms} used during the tests
      */
@@ -89,15 +95,15 @@ public class CASTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-            IMessageFilters.Filter drop = cluster.filters().verbs(PAXOS_PREPARE.ordinal()).from(1).to(2, 3).drop();
+            IMessageFilters.Filter drop = cluster.filters().verbs(PAXOS_PREPARE_REQ.id).from(1).to(2, 3).drop();
             try
             {
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
                 Assert.fail();
             }
-            catch (RuntimeException wrapped)
+            catch (RuntimeException e)
             {
-                Assert.assertEquals("Operation timed out - received only 1 responses.", wrapped.getCause().getMessage());
+                Assert.assertEquals("CAS operation timed out - encountered contentions: 0", e.getMessage());
             }
             drop.off();
             cluster.coordinator(1).execute("UPDATE " + KEYSPACE + ".tbl SET v = 2 WHERE pk = 1 and ck = 1 IF v = 1", ConsistencyLevel.QUORUM);
@@ -113,19 +119,19 @@ public class CASTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-            IMessageFilters.Filter drop1 = cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(2, 3).drop();
+            IMessageFilters.Filter drop1 = cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(2, 3).drop();
             try
             {
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
                 Assert.fail();
             }
-            catch (RuntimeException wrapped)
+            catch (RuntimeException e)
             {
-                Assert.assertEquals("Operation timed out - received only 1 responses.", wrapped.getCause().getMessage());
+                Assert.assertEquals("CAS operation timed out - encountered contentions: 0", e.getMessage());
             }
             drop1.off();
             // make sure we encounter one of the in-progress proposals so we complete it
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal()).from(1).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id).from(1).to(2).drop();
             cluster.coordinator(1).execute("UPDATE " + KEYSPACE + ".tbl SET v = 2 WHERE pk = 1 and ck = 1 IF v = 1", ConsistencyLevel.QUORUM);
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.SERIAL),
                     row(1, 1, 2));
@@ -140,19 +146,19 @@ public class CASTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-            IMessageFilters.Filter drop1 = cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(2, 3).drop();
+            IMessageFilters.Filter drop1 = cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop();
             try
             {
                 cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM);
                 Assert.fail();
             }
-            catch (RuntimeException wrapped)
+            catch (RuntimeException e)
             {
-                Assert.assertEquals("Operation timed out - received only 1 responses.", wrapped.getCause().getMessage());
+                Assert.assertEquals("CAS operation timed out - encountered contentions: 0", e.getMessage());
             }
             drop1.off();
             // make sure we see one of the successful commits
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(2).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(2).drop();
             cluster.coordinator(1).execute("UPDATE " + KEYSPACE + ".tbl SET v = 2 WHERE pk = 1 and ck = 1 IF v = 1", ConsistencyLevel.QUORUM);
             assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1", ConsistencyLevel.SERIAL),
                     row(1, 1, 2));
@@ -160,12 +166,7 @@ public class CASTest extends TestBaseImpl
     }
 
     private int[] paxosAndReadVerbs() {
-        return new int[] {
-            MessagingService.Verb.PAXOS_PREPARE.ordinal(),
-            MessagingService.Verb.PAXOS_PROPOSE.ordinal(),
-            MessagingService.Verb.PAXOS_COMMIT.ordinal(),
-            MessagingService.Verb.READ.ordinal()
-        };
+        return new int[] { PAXOS_PREPARE_REQ.id, PAXOS_PROPOSE_REQ.id, PAXOS_COMMIT_REQ.id, READ_REQ.id };
     }
 
     /**
@@ -211,13 +212,16 @@ public class CASTest extends TestBaseImpl
             // through and should timeout. Importantly, node 3 does receive and answer the PROPOSE.
             IMessageFilters.Filter dropProposeFilter = cluster.filters()
                                                               .inbound()
-                                                              .verbs(MessagingService.Verb.PAXOS_PROPOSE.ordinal())
+                                                              .verbs(PAXOS_PROPOSE_REQ.id)
+                                                              .from(3)
                                                               .to(1, 2)
                                                               .drop();
             try
             {
                 // NOTE: the consistency below is the "commit" one, so it doesn't matter at all here.
-                cluster.coordinator(1)
+                // NOTE 2: we use node 3 as coordinator because message filters don't currently work for locally
+                //   delivered messages and as we want to drop messages to 1 and 2, we can't use them.
+                cluster.coordinator(3)
                        .execute("INSERT INTO " + table + "(k, v) VALUES (0, 0) IF NOT EXISTS", ConsistencyLevel.ONE);
                 fail("The insertion should have timed-out");
             }
@@ -229,7 +233,7 @@ public class CASTest extends TestBaseImpl
                 // TODO: we can't use an instanceof below because the WriteTimeoutException we get is from a different class
                 //  loader than the one the test run under, and that's our poor-man work-around. This kind of things should
                 //  be improved at the dtest API level.
-                if (!e.getCause().getClass().getSimpleName().equals("WriteTimeoutException"))
+                if (!e.getClass().getSimpleName().equals("CasWriteTimeoutException"))
                     throw e;
             }
             finally
@@ -243,7 +247,7 @@ public class CASTest extends TestBaseImpl
             IMessageFilters.Filter dropCommitFilter = null;
             if (loseCommitOfOperation1)
             {
-                dropCommitFilter = cluster.filters().verbs(PAXOS_COMMIT.ordinal()).to(1, 2).drop();
+                dropCommitFilter = cluster.filters().verbs(PAXOS_COMMIT_REQ.id).to(1, 2).drop();
             }
             try
             {
@@ -385,9 +389,9 @@ public class CASTest extends TestBaseImpl
             int pk = pk(cluster, 1, 2);
 
             // {1} promises and accepts on !{3} => {1, 2}; commits on !{2,3} => {1}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop();
             assertRows(cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(true));
 
@@ -395,8 +399,8 @@ public class CASTest extends TestBaseImpl
                 cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
 
             // {4} reads from !{2} => {3, 4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(4).to(2).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(4).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(4).to(2).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(4).to(2).drop();
             assertRows(cluster.coordinator(4).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(false, pk, 1, 1, null));
         }
@@ -425,16 +429,16 @@ public class CASTest extends TestBaseImpl
 
             // {4} promises, accepts and commits on !{2} => {3, 4}
             int pk = pk(cluster, 1, 2);
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(4).to(2).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(4).to(2).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(4).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(4).to(2).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(4).to(2).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(4).to(2).drop();
             assertRows(cluster.coordinator(4).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(true));
 
             // {1} promises, accepts and commmits on !{3} => {1, 2}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(3).drop();
             assertRows(cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(false, pk, 1, 1, null));
         }
@@ -468,9 +472,9 @@ public class CASTest extends TestBaseImpl
             int pk = pk(cluster, 1, 2);
 
             // {1} promises and accepts on !{3} => {1, 2}; commmits on !{2, 3} => {1}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop();
             assertRows(cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, 1, 1) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(true));
 
@@ -479,7 +483,7 @@ public class CASTest extends TestBaseImpl
                 cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(3).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
             assertRows(cluster.coordinator(3).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?", ConsistencyLevel.SERIAL, pk),
                     row(pk, 1, 1));
         }
@@ -512,9 +516,9 @@ public class CASTest extends TestBaseImpl
             int pk = pk(cluster, 1, 2);
 
             // {1} promises and accepts on !{3} => {1, 2}; commits on !{2, 3} => {1}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop();
             assertRows(cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(true));
 
@@ -523,7 +527,7 @@ public class CASTest extends TestBaseImpl
                 cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(3).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
             assertRows(cluster.coordinator(3).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(false, pk, 1, 1, null));
 
@@ -564,8 +568,8 @@ public class CASTest extends TestBaseImpl
             int pk = pk(cluster, 1, 2);
 
             // {4} promises and accepts on !{1} => {2, 3, 4}; commits on !{1, 2, 3} => {4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(4).to(1).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(4).to(1, 2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(4).to(1).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(4).to(1, 2, 3).drop();
             try
             {
                 cluster.coordinator(4).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM, pk);
@@ -577,9 +581,9 @@ public class CASTest extends TestBaseImpl
             }
 
             // {1} promises and accepts on !{3} => {1, 2}; commits on !{2, 3} => {1}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop();
             assertRows(cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(true));
 
@@ -588,8 +592,8 @@ public class CASTest extends TestBaseImpl
                 cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(3).to(2).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(3).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(3).to(2).drop();
             assertRows(cluster.coordinator(3).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?", ConsistencyLevel.SERIAL, pk),
                     row(pk, 1, null, 2));
         }
@@ -628,8 +632,8 @@ public class CASTest extends TestBaseImpl
             int pk = pk(cluster, 1, 2);
 
             // {4} promises and accepts on !{1} => {2, 3, 4}; commits on !{1, 2, 3} => {4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(4).to(1).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(4).to(1, 2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(4).to(1).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(4).to(1, 2, 3).drop();
             try
             {
                 cluster.coordinator(4).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (?, 1, 1) IF NOT EXISTS", ConsistencyLevel.QUORUM, pk);
@@ -641,9 +645,9 @@ public class CASTest extends TestBaseImpl
             }
 
             // {1} promises and accepts on !{3} => {1, 2}; commits on !{2, 3} => {1}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(1).to(3).drop();
-            cluster.filters().verbs(PAXOS_COMMIT.ordinal()).from(1).to(2, 3).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(1).to(3).drop();
+            cluster.filters().verbs(PAXOS_COMMIT_REQ.id).from(1).to(2, 3).drop();
             assertRows(cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(true));
 
@@ -652,8 +656,8 @@ public class CASTest extends TestBaseImpl
                 cluster.get(i).acceptsOnInstance(Instance::addToRingNormal).accept(cluster.get(4));
 
             // {3} reads from !{2} => {3, 4}
-            cluster.filters().verbs(PAXOS_PREPARE.ordinal(), READ.ordinal()).from(3).to(2).drop();
-            cluster.filters().verbs(PAXOS_PROPOSE.ordinal()).from(3).to(2).drop();
+            cluster.filters().verbs(PAXOS_PREPARE_REQ.id, READ_REQ.id).from(3).to(2).drop();
+            cluster.filters().verbs(PAXOS_PROPOSE_REQ.id).from(3).to(2).drop();
             assertRows(cluster.coordinator(3).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v2) VALUES (?, 1, 2) IF NOT EXISTS", ConsistencyLevel.ONE, pk),
                     row(false, 5, 1, null, 2));
         }
@@ -682,15 +686,15 @@ public class CASTest extends TestBaseImpl
     private static void debugOwnership(Cluster cluster, int pk)
     {
         for (int i = 1 ; i <= cluster.size() ; ++i)
-            System.out.println(i + ": " + cluster.get(i).appliesOnInstance((Integer v) -> StorageService.instance.getNaturalAndPendingEndpoints(KEYSPACE, Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(v))))
+            System.out.println(i + ": " + cluster.get(i).appliesOnInstance((Integer v) -> StorageService.instance.getNaturalEndpointsWithPort(KEYSPACE, Int32Type.instance.decompose(v)))
                     .apply(pk));
     }
 
     private static void debugPaxosState(Cluster cluster, int pk)
     {
-        UUID cfid = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metadata.cfId);
+        TableId tableId = cluster.get(1).callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metadata.id);
         for (int i = 1 ; i <= cluster.size() ; ++i)
-            for (Object[] row : cluster.get(i).executeInternal("select in_progress_ballot, proposal_ballot, most_recent_commit_at from system.paxos where row_key = ? and cf_id = ?", Int32Type.instance.decompose(pk), cfid))
+            for (Object[] row : cluster.get(i).executeInternal("select in_progress_ballot, proposal_ballot, most_recent_commit_at from system.paxos where row_key = ? and cf_id = ?", Int32Type.instance.decompose(pk), tableId))
                 System.out.println(i + ": " + (row[0] == null ? 0L : UUIDGen.microsTimestamp((UUID)row[0])) + ", " + (row[1] == null ? 0L : UUIDGen.microsTimestamp((UUID)row[1])) + ", " + (row[2] == null ? 0L : UUIDGen.microsTimestamp((UUID)row[2])));
     }
 

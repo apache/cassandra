@@ -21,13 +21,15 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TimeUUIDSerializer;
 
-public class TimeUUIDType extends AbstractType<UUID>
+public class TimeUUIDType extends TemporalType<UUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
 
@@ -41,23 +43,20 @@ public class TimeUUIDType extends AbstractType<UUID>
         return true;
     }
 
-    public int compareCustom(ByteBuffer b1, ByteBuffer b2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         // Compare for length
-        int s1 = b1.position(), s2 = b2.position();
-        int l1 = b1.limit(), l2 = b2.limit();
-
-        // should we assert exactly 16 bytes (or 0)? seems prudent
-        boolean p1 = l1 - s1 == 16, p2 = l2 - s2 == 16;
+        boolean p1 = accessorL.size(left) == 16, p2 = accessorR.size(right) == 16;
         if (!(p1 & p2))
         {
-            assert p1 | (l1 == s1);
-            assert p2 | (l2 == s2);
+            // should we assert exactly 16 bytes (or 0)? seems prudent
+            assert p1 || accessorL.isEmpty(left);
+            assert p2 || accessorR.isEmpty(right);
             return p1 ? 1 : p2 ? -1 : 0;
         }
 
-        long msb1 = b1.getLong(s1);
-        long msb2 = b2.getLong(s2);
+        long msb1 = accessorL.getLong(left, 0);
+        long msb2 = accessorR.getLong(right, 0);
         msb1 = reorderTimestampBytes(msb1);
         msb2 = reorderTimestampBytes(msb2);
 
@@ -70,8 +69,8 @@ public class TimeUUIDType extends AbstractType<UUID>
 
         // this has to be a signed per-byte comparison for compatibility
         // so we transform the bytes so that a simple long comparison is equivalent
-        long lsb1 = signedBytesToNativeLong(b1.getLong(s1 + 8));
-        long lsb2 = signedBytesToNativeLong(b2.getLong(s2 + 8));
+        long lsb1 = signedBytesToNativeLong(accessorL.getLong(left, 8));
+        long lsb2 = signedBytesToNativeLong(accessorR.getLong(right, 8));
         return Long.compare(lsb1, lsb2);
     }
 
@@ -130,8 +129,32 @@ public class TimeUUIDType extends AbstractType<UUID>
     }
 
     @Override
-    protected int valueLengthIfFixed()
+    public int valueLengthIfFixed()
     {
         return 16;
+    }
+
+    @Override
+    public long toTimeInMillis(ByteBuffer value)
+    {
+        return UUIDGen.unixTimestamp(UUIDGen.getUUID(value));
+    }
+
+    @Override
+    public ByteBuffer addDuration(ByteBuffer temporal, ByteBuffer duration)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteBuffer substractDuration(ByteBuffer temporal, ByteBuffer duration)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ByteBuffer now()
+    {
+        return ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes());
     }
 }

@@ -27,7 +27,7 @@ Operating Cassandra
    repair
    read_repair
    hints
-   compaction
+   compaction/index
    bloom_filters
    compression
    cdc

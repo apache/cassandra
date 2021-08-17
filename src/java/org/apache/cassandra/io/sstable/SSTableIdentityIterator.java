@@ -19,7 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -49,13 +49,16 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         this.staticRow = iterator.readStaticRow();
     }
 
+    @SuppressWarnings("resource")
     public static SSTableIdentityIterator create(SSTableReader sstable, RandomAccessReader file, DecoratedKey key)
     {
         try
         {
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
-            SerializationHelper helper = new SerializationHelper(sstable.metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
-            SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata, file, sstable.header, helper, partitionLevelDeletion);
+            if (!partitionLevelDeletion.validate())
+                UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
+            DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
+            SSTableSimpleIterator iterator = SSTableSimpleIterator.create(sstable.metadata(), file, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, file.getPath(), iterator);
         }
         catch (IOException e)
@@ -65,6 +68,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
+    @SuppressWarnings("resource")
     public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, RowIndexEntry<?> indexEntry, DecoratedKey key, boolean tombstoneOnly)
     {
         try
@@ -72,10 +76,10 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
             dfile.seek(indexEntry.position);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
-            SerializationHelper helper = new SerializationHelper(sstable.metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL);
+            DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
-                    ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata, dfile, sstable.header, helper, partitionLevelDeletion)
-                    : SSTableSimpleIterator.create(sstable.metadata, dfile, sstable.header, helper, partitionLevelDeletion);
+                    ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
+                    : SSTableSimpleIterator.create(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion);
             return new SSTableIdentityIterator(sstable, key, partitionLevelDeletion, dfile.getPath(), iterator);
         }
         catch (IOException e)
@@ -85,14 +89,14 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         }
     }
 
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
-        return sstable.metadata;
+        return iterator.metadata;
     }
 
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
-        return metadata().partitionColumns();
+        return metadata().regularAndStaticColumns();
     }
 
     public boolean isReverseOrder()
@@ -167,7 +171,9 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
 
     protected Unfiltered doCompute()
     {
-        return iterator.next();
+        Unfiltered unfiltered = iterator.next();
+        UnfilteredValidation.maybeValidateUnfiltered(unfiltered, metadata(), key, sstable);
+        return unfiltered;
     }
 
     public void close()
@@ -184,7 +190,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         // We could return sstable.header.stats(), but this may not be as accurate than the actual sstable stats (see
         // SerializationHeader.make() for details) so we use the latter instead.
-        return new EncodingStats(sstable.getMinTimestamp(), sstable.getMinLocalDeletionTime(), sstable.getMinTTL());
+        return sstable.stats();
     }
 
     public int compareTo(SSTableIdentityIterator o)

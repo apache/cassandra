@@ -194,7 +194,6 @@ The supported @<properties>@ for @CREATE KEYSPACE@ are:
 The @replication@ @<property>@ is mandatory. It must at least contains the @'class'@ sub-option which defines the replication strategy class to use. The rest of the sub-options depends on that replication strategy class. By default, Cassandra support the following @'class'@:
 * @'SimpleStrategy'@: A simple strategy that defines a simple replication factor for the whole cluster. The only sub-options supported is @'replication_factor'@ to define that replication factor and is mandatory.
 * @'NetworkTopologyStrategy'@: A replication strategy that allows to set the replication factor independently for each data-center. The rest of the sub-options are key-value pairs where each time the key is the name of a datacenter and the value the replication factor for that data-center.
-* @'OldNetworkTopologyStrategy'@: A legacy replication strategy. You should avoid this strategy for new keyspaces and prefer @'NetworkTopologyStrategy'@.
 
 Attempting to create an already existing keyspace will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the keyspace already exists.
 
@@ -269,8 +268,7 @@ CREATE TABLE monkeySpecies (
     common_name text,
     population varint,
     average_size int
-) WITH comment='Important biological records'
-   AND read_repair_chance = 1.0;
+) WITH comment='Important biological records';
 
 CREATE TABLE timeline (
     userid uuid,
@@ -353,8 +351,6 @@ Table creation supports the following other @<property>@:
 
 |_. option                    |_. kind   |_. default   |_. description|
 |@comment@                    | _simple_ | none        | A free-form, human-readable comment.|
-|@read_repair_chance@         | _simple_ | 0.1         | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) for the purpose of read repairs.|
-|@dclocal_read_repair_chance@ | _simple_ | 0           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
 |@gc_grace_seconds@           | _simple_ | 864000      | Time to wait before garbage collecting tombstones (deletion markers).|
 |@bloom_filter_fp_chance@     | _simple_ | 0.00075     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
 |@default_time_to_live@       | _simple_ | 0           | The default expiration time ("TTL") in seconds for a table.|
@@ -366,24 +362,24 @@ h4(#compactionOptions). Compaction options
 
 The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@, @'DateTieredCompactionStrategy'@ and @'TimeWindowCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
-|_. option                         |_. supported compaction strategy |_. default    |_. description |
-| @enabled@                        | _all_                           | true         | A boolean denoting whether compaction should be enabled or not.|
-| @tombstone_threshold@            | _all_                           | 0.2          | A ratio such that if a sstable has more than this ratio of gcable tombstones over all contained columns, the sstable will be compacted (with no other sstables) for the purpose of purging those tombstones. |
-| @tombstone_compaction_interval@  | _all_                           | 1 day        | The minimum time to wait after an sstable creation time before considering it for "tombstone compaction", where "tombstone compaction" is the compaction triggered if the sstable has more gcable tombstones than @tombstone_threshold@. |
-| @unchecked_tombstone_compaction@ | _all_                           | false        | Setting this to true enables more aggressive tombstone compactions - single sstable tombstone compactions will run without checking how likely it is that they will be successful. |
-| @min_sstable_size@               | SizeTieredCompactionStrategy    | 50MB         | The size tiered strategy groups SSTables to compact in buckets. A bucket groups SSTables that differs from less than 50% in size.  However, for small sizes, this would result in a bucketing that is too fine grained. @min_sstable_size@ defines a size threshold (in bytes) below which all SSTables belong to one unique bucket|
-| @min_threshold@                  | SizeTieredCompactionStrategy    | 4            | Minimum number of SSTables needed to start a minor compaction.|
-| @max_threshold@                  | SizeTieredCompactionStrategy    | 32           | Maximum number of SSTables processed by one minor compaction.|
-| @bucket_low@                     | SizeTieredCompactionStrategy    | 0.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%)|
-| @bucket_high@                    | SizeTieredCompactionStrategy    | 1.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%).|
-| @sstable_size_in_mb@             | LeveledCompactionStrategy       | 5MB          | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
-| @timestamp_resolution@           | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
-| @base_time_seconds@              | DateTieredCompactionStrategy    | 60           | The base size of the time windows. |
-| @max_sstable_age_days@           | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
-| @timestamp_resolution@           | TimeWindowCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
-| @compaction_window_unit@         | TimeWindowCompactionStrategy    | DAYS         | The Java TimeUnit used for the window size, set in conjunction with @compaction_window_size@. Must be one of DAYS, HOURS, MINUTES |
-| @compaction_window_size@         | TimeWindowCompactionStrategy    | 1            | The number of @compaction_window_unit@ units that make up a time window. |
-
+|_. option                               |_. supported compaction strategy |_. default    |_. description |
+| @enabled@                              | _all_                           | true         | A boolean denoting whether compaction should be enabled or not.|
+| @tombstone_threshold@                  | _all_                           | 0.2          | A ratio such that if a sstable has more than this ratio of gcable tombstones over all contained columns, the sstable will be compacted (with no other sstables) for the purpose of purging those tombstones. |
+| @tombstone_compaction_interval@        | _all_                           | 1 day        | The minimum time to wait after an sstable creation time before considering it for "tombstone compaction", where "tombstone compaction" is the compaction triggered if the sstable has more gcable tombstones than @tombstone_threshold@. |
+| @unchecked_tombstone_compaction@       | _all_                           | false        | Setting this to true enables more aggressive tombstone compactions - single sstable tombstone compactions will run without checking how likely it is that they will be successful. |
+| @min_sstable_size@                     | SizeTieredCompactionStrategy    | 50MB         | The size tiered strategy groups SSTables to compact in buckets. A bucket groups SSTables that differs from less than 50% in size.  However, for small sizes, this would result in a bucketing that is too fine grained. @min_sstable_size@ defines a size threshold (in bytes) below which all SSTables belong to one unique bucket|
+| @min_threshold@                        | SizeTieredCompactionStrategy    | 4            | Minimum number of SSTables needed to start a minor compaction.|
+| @max_threshold@                        | SizeTieredCompactionStrategy    | 32           | Maximum number of SSTables processed by one minor compaction.|
+| @bucket_low@                           | SizeTieredCompactionStrategy    | 0.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%)|
+| @bucket_high@                          | SizeTieredCompactionStrategy    | 1.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%).|
+| @sstable_size_in_mb@                   | LeveledCompactionStrategy       | 5MB          | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
+| @timestamp_resolution@                 | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
+| @base_time_seconds@                    | DateTieredCompactionStrategy    | 60           | The base size of the time windows. |
+| @max_sstable_age_days@                 | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
+| @timestamp_resolution@                 | TimeWindowCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
+| @compaction_window_unit@               | TimeWindowCompactionStrategy    | DAYS         | The Java TimeUnit used for the window size, set in conjunction with @compaction_window_size@. Must be one of DAYS, HOURS, MINUTES |
+| @compaction_window_size@               | TimeWindowCompactionStrategy    | 1            | The number of @compaction_window_unit@ units that make up a time window. |
+| @unsafe_aggressive_sstable_expiration@ | TimeWindowCompactionStrategy    | false        | Expired sstables will be dropped without checking its data is shadowing other sstables. This is a potentially risky option that can lead to data loss or deleted data re-appearing, going beyond what `unchecked_tombstone_compaction` does for single  sstable compaction. Due to the risk the jvm must also be started with `-Dcassandra.unsafe_aggressive_sstable_expiration=true`. |
 
 h4(#compressionOptions). Compression options
 
@@ -419,6 +415,7 @@ bc(syntax)..
                 | ADD   ( <identifier> <type> ( , <identifier> <type> )* )
                 | DROP  <identifier>
                 | DROP  ( <identifier> ( , <identifier> )* )
+                | DROP COMPACT STORAGE
                 | WITH  <option> ( AND <option> )*
 p. 
 __Sample:__
@@ -430,14 +427,14 @@ ALTER TABLE addamsFamily
 ADD gravesite varchar;
 
 ALTER TABLE addamsFamily
-WITH comment = 'A most excellent and useful column family'
- AND read_repair_chance = 0.2;
+WITH comment = 'A most excellent and useful column family';
 p. 
 The @ALTER@ statement is used to manipulate table definitions. It allows for adding new columns, dropping existing ones, or updating the table options. As with table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
 * @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option.
+* @DROP COMPACT STORAGE@: Removes Thrift compatibility mode from the table.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
 
 h4. CQL type compatibility:
@@ -565,12 +562,6 @@ Attempting to create an already existing materialized view will return an error 
 h4(#createMVWhere). @WHERE@ Clause
 
 The @<where-clause>@ is similar to the "where clause of a @SELECT@ statement":#selectWhere, with a few differences.  First, the where clause must contain an expression that disallows @NULL@ values in columns in the view's primary key.  If no other restriction is desired, this can be accomplished with an @IS NOT NULL@ expression.  Second, only columns which are in the base table's primary key may be restricted with expressions other than @IS NOT NULL@.  (Note that this second restriction may be lifted in the future.)
-
-h4. MV Limitations
-
-__Note:__
-Removal of columns not selected in the Materialized View (via `UPDATE base SET unselected_column = null` or `DELETE unselected_column FROM base`) may shadow missed updates to other columns received by hints or repair.
-For this reason, we advise against doing deletions on base columns not selected in views until this is fixed on CASSANDRA-13826.
 
 h3(#alterMVStmt). ALTER MATERIALIZED VIEW
 
@@ -1095,6 +1086,9 @@ bc(syntax)..
              | TTL '(' <identifier> ')'
              | CAST '(' <selector> AS <type> ')'
              | <function> '(' (<selector> (',' <selector>)*)? ')'
+             | <selector> '.' <identifier>
+             | <selector> '[' <term> ']'
+             | <selector> '[' <term>? .. <term>? ']'
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
@@ -1137,6 +1131,8 @@ h4(#selectSelection). @<select-clause>@
 The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table. Please note that for wildcard @SELECT@ queries the order of columns returned is not specified and is not guaranteed to be stable between Cassandra versions.
 
 A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)) and the "@CAST@":#castFun function can be used to convert one data type to another.
+
+Additionally, individual values of maps and sets can be selected using @[ <term> ]@. For maps, this will return the value corresponding to the key, if such entry exists. For sets, this will return the key that is selected if it exists and is thus mainly a way to check element existence. It is also possible to select a slice of a set or map with @[ <term> ... <term> @], where both bound can be omitted.
 
 Any @<selector>@ can be aliased using @AS@ keyword (see examples). Please note that @<where-clause>@ and @<order-by>@ clause should refer to the columns by their original names and not by their aliases.
 
@@ -2457,6 +2453,10 @@ The following describes the changes in each version of CQL.
 h3. 3.4.3
 
 * Support for @GROUP BY@. See "@<group-by>@":#selectGroupBy (see "CASSANDRA-10707":https://issues.apache.org/jira/browse/CASSANDRA-10707).
+
+h3. 3.4.2
+
+* Support for selecting elements and slices of a collection ("CASSANDRA-7396":https://issues.apache.org/jira/browse/CASSANDRA-7396).
 
 h3. 3.4.2
 

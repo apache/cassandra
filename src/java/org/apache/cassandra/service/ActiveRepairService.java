@@ -18,30 +18,37 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.management.openmbean.CompositeData;
+import java.util.function.Predicate;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AbstractFuture;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.locator.EndpointsByRange;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -49,27 +56,46 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
+import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.IAsyncCallbackWithFailure;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.metrics.RepairMetrics;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.AnticompactionTask;
+import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.RepairSession;
-import org.apache.cassandra.repair.messages.*;
-import org.apache.cassandra.utils.CassandraVersion;
-import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.repair.consistent.CoordinatorSessions;
+import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
+import org.apache.cassandra.repair.consistent.admin.PendingStats;
+import org.apache.cassandra.repair.consistent.admin.RepairStats;
+import org.apache.cassandra.repair.consistent.RepairedState;
+import org.apache.cassandra.repair.consistent.admin.SchemaArgsParser;
+import org.apache.cassandra.repair.messages.CleanupMessage;
+import org.apache.cassandra.repair.messages.PrepareMessage;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.concurrent.Refs;
+
+import static com.google.common.collect.Iterables.concat;
+import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.net.Verb.PREPARE_MSG;
 
 /**
  * ActiveRepairService is the starting point for manual "active" repairs.
@@ -85,27 +111,30 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * The creation of a repair session is done through the submitRepairSession that
  * returns a future on the completion of that session.
  */
-public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener
+public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFailureDetectionEventListener, ActiveRepairServiceMBean
 {
-    /**
-     * @deprecated this statuses are from the previous JMX notification service,
-     * which will be deprecated on 4.0. For statuses of the new notification
-     * service, see {@link org.apache.cassandra.streaming.StreamEvent.ProgressEvent}
-     */
-    @Deprecated
-    public static enum Status
-    {
-        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
-    }
-    private boolean registeredForEndpointChanges = false;
 
-    public static CassandraVersion SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION = new CassandraVersion("2.2.1");
+    public enum ParentRepairStatus
+    {
+        IN_PROGRESS, COMPLETED, FAILED
+    }
+
+    public static class ConsistentSessions
+    {
+        public final LocalSessions local = new LocalSessions();
+        public final CoordinatorSessions coordinated = new CoordinatorSessions();
+    }
+
+    public final ConsistentSessions consistent = new ConsistentSessions();
+
+    private boolean registeredForEndpointChanges = false;
 
     private static final Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
     // singleton enforcement
     public static final ActiveRepairService instance = new ActiveRepairService(FailureDetector.instance, Gossiper.instance);
 
     public static final long UNREPAIRED_SSTABLE = 0;
+    public static final UUID NO_PENDING_REPAIR = null;
 
     /**
      * A map of active coordinator session.
@@ -114,13 +143,180 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     private final ConcurrentMap<UUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
 
+    static
+    {
+        RepairMetrics.init();
+    }
+
+    public static class RepairCommandExecutorHandle
+    {
+        private static final ThreadPoolExecutor repairCommandExecutor =
+            initializeExecutor(DatabaseDescriptor.getRepairCommandPoolSize(),
+                               DatabaseDescriptor.getRepairCommandPoolFullStrategy());
+    }
+
+    @VisibleForTesting
+    static ThreadPoolExecutor initializeExecutor(int maxPoolSize, Config.RepairCommandPoolFullStrategy strategy)
+    {
+        int corePoolSize = 1;
+        BlockingQueue<Runnable> queue;
+        if (strategy == Config.RepairCommandPoolFullStrategy.reject)
+        {
+            // new threads will be created on demand up to max pool
+            // size so we can leave corePoolSize at 1 to start with
+            queue = new SynchronousQueue<>();
+        }
+        else
+        {
+            // new threads are only created if > corePoolSize threads are running
+            // and the queue is full, so set corePoolSize to the desired max as the
+            // queue will _never_ be full. Idle core threads will eventually time
+            // out and may be re-created if/when subsequent tasks are submitted.
+            corePoolSize = maxPoolSize;
+            queue = new LinkedBlockingQueue<>();
+        }
+
+        ThreadPoolExecutor executor = new JMXEnabledThreadPoolExecutor(corePoolSize,
+                                                                       maxPoolSize,
+                                                                       1,
+                                                                       TimeUnit.HOURS,
+                                                                       queue,
+                                                                       new NamedThreadFactory("Repair-Task"),
+                                                                       "internal",
+                                                                       new ThreadPoolExecutor.AbortPolicy());
+        // allow idle core threads to be terminated
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
+
+    public static ThreadPoolExecutor repairCommandExecutor()
+    {
+        return RepairCommandExecutorHandle.repairCommandExecutor;
+    }
+
     private final IFailureDetector failureDetector;
     private final Gossiper gossiper;
+    private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
 
     public ActiveRepairService(IFailureDetector failureDetector, Gossiper gossiper)
     {
         this.failureDetector = failureDetector;
         this.gossiper = gossiper;
+        this.repairStatusByCmd = CacheBuilder.newBuilder()
+                                             .expireAfterWrite(
+                                             Long.getLong("cassandra.parent_repair_status_expiry_seconds",
+                                                          TimeUnit.SECONDS.convert(1, TimeUnit.DAYS)), TimeUnit.SECONDS)
+                                             // using weight wouldn't work so well, since it doesn't reflect mutation of cached data
+                                             // see https://github.com/google/guava/wiki/CachesExplained
+                                             // We assume each entry is unlikely to be much more than 100 bytes, so bounding the size should be sufficient.
+                                             .maximumSize(Long.getLong("cassandra.parent_repair_status_cache_size", 100_000))
+                                             .build();
+
+        MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
+    }
+
+    public void start()
+    {
+        consistent.local.start();
+        ScheduledExecutors.optionalTasks.scheduleAtFixedRate(consistent.local::cleanup, 0,
+                                                             LocalSessions.CLEANUP_INTERVAL,
+                                                             TimeUnit.SECONDS);
+    }
+
+    public void stop()
+    {
+        consistent.local.stop();
+    }
+
+    @Override
+    public List<Map<String, String>> getSessions(boolean all, String rangesStr)
+    {
+        Set<Range<Token>> ranges = RepairOption.parseRanges(rangesStr, DatabaseDescriptor.getPartitioner());
+        return consistent.local.sessionInfo(all, ranges);
+    }
+
+    @Override
+    public void failSession(String session, boolean force)
+    {
+        UUID sessionID = UUID.fromString(session);
+        consistent.local.cancelSession(sessionID, force);
+    }
+
+    @Override
+    public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
+    {
+        DatabaseDescriptor.setRepairSessionSpaceInMegabytes(sizeInMegabytes);
+    }
+
+    @Override
+    public int getRepairSessionSpaceInMegabytes()
+    {
+        return DatabaseDescriptor.getRepairSessionSpaceInMegabytes();
+    }
+
+    public List<CompositeData> getRepairStats(List<String> schemaArgs, String rangeString)
+    {
+        List<CompositeData> stats = new ArrayList<>();
+        Collection<Range<Token>> userRanges = rangeString != null
+                                              ? RepairOption.parseRanges(rangeString, DatabaseDescriptor.getPartitioner())
+                                              : null;
+
+        for (ColumnFamilyStore cfs : SchemaArgsParser.parse(schemaArgs))
+        {
+            String keyspace = cfs.keyspace.getName();
+            Collection<Range<Token>> ranges = userRanges != null
+                                              ? userRanges
+                                              : StorageService.instance.getLocalReplicas(keyspace).ranges();
+            RepairedState.Stats cfStats = consistent.local.getRepairedStats(cfs.metadata().id, ranges);
+            stats.add(RepairStats.fromRepairState(keyspace, cfs.name, cfStats).toComposite());
+        }
+
+        return stats;
+    }
+
+    @Override
+    public List<CompositeData> getPendingStats(List<String> schemaArgs, String rangeString)
+    {
+        List<CompositeData> stats = new ArrayList<>();
+        Collection<Range<Token>> userRanges = rangeString != null
+                                              ? RepairOption.parseRanges(rangeString, DatabaseDescriptor.getPartitioner())
+                                              : null;
+        for (ColumnFamilyStore cfs : SchemaArgsParser.parse(schemaArgs))
+        {
+            String keyspace = cfs.keyspace.getName();
+            Collection<Range<Token>> ranges = userRanges != null
+                                              ? userRanges
+                                              : StorageService.instance.getLocalReplicas(keyspace).ranges();
+            PendingStats cfStats = consistent.local.getPendingStats(cfs.metadata().id, ranges);
+            stats.add(cfStats.toComposite());
+        }
+
+        return stats;
+    }
+
+    @Override
+    public List<CompositeData> cleanupPending(List<String> schemaArgs, String rangeString, boolean force)
+    {
+        List<CompositeData> stats = new ArrayList<>();
+        Collection<Range<Token>> userRanges = rangeString != null
+                                              ? RepairOption.parseRanges(rangeString, DatabaseDescriptor.getPartitioner())
+                                              : null;
+        for (ColumnFamilyStore cfs : SchemaArgsParser.parse(schemaArgs))
+        {
+            String keyspace = cfs.keyspace.getName();
+            Collection<Range<Token>> ranges = userRanges != null
+                                              ? userRanges
+                                              : StorageService.instance.getLocalReplicas(keyspace).ranges();
+            CleanupSummary summary = consistent.local.cleanup(cfs.metadata().id, ranges, force);
+            stats.add(summary.toComposite());
+        }
+        return stats;
+    }
+
+    @Override
+    public int parentRepairSessionsCount()
+    {
+        return parentRepairSessions.size();
     }
 
     /**
@@ -129,26 +325,32 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * @return Future for asynchronous call or null if there is no need to repair
      */
     public RepairSession submitRepairSession(UUID parentRepairSession,
-                                             Collection<Range<Token>> range,
+                                             CommonRange range,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
-                                             Set<InetAddress> endpoints,
-                                             long repairedAt,
+                                             boolean isIncremental,
                                              boolean pullRepair,
+                                             PreviewKind previewKind,
+                                             boolean optimiseStreams,
                                              ListeningExecutorService executor,
                                              String... cfnames)
     {
-        if (endpoints.isEmpty())
+        if (range.endpoints.isEmpty())
             return null;
 
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace, parallelismDegree, endpoints, repairedAt, pullRepair, cfnames);
+        final RepairSession session = new RepairSession(parentRepairSession, UUIDGen.getTimeUUID(), range, keyspace,
+                                                        parallelismDegree, isIncremental, pullRepair,
+                                                        previewKind, optimiseStreams, cfnames);
 
         sessions.put(session.getId(), session);
         // register listeners
         registerOnFdAndGossip(session);
+
+        if (session.previewKind == PreviewKind.REPAIRED)
+            LocalSessions.registerListener(session);
 
         // remove session at completion
         session.addListener(new Runnable()
@@ -159,10 +361,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             public void run()
             {
                 sessions.remove(session.getId());
+                LocalSessions.unregisterListener(session);
             }
         }, MoreExecutors.directExecutor());
         session.start(executor);
         return session;
+    }
+
+    public boolean getUseOffheapMerkleTrees()
+    {
+        return DatabaseDescriptor.useOffheapMerkleTrees();
+    }
+
+    public void setUseOffheapMerkleTrees(boolean value)
+    {
+        DatabaseDescriptor.useOffheapMerkleTrees(value);
     }
 
     private <T extends AbstractFuture &
@@ -183,7 +396,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 failureDetector.unregisterFailureDetectionEventListener(task);
                 gossiper.unregister(task);
             }
-        }, MoreExecutors.sameThreadExecutor());
+        }, MoreExecutors.directExecutor());
     }
 
     public synchronized void terminateSessions()
@@ -196,6 +409,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         parentRepairSessions.clear();
     }
 
+    public void recordRepairStatus(int cmd, ParentRepairStatus parentRepairStatus, List<String> messages)
+    {
+        repairStatusByCmd.put(cmd, Pair.create(parentRepairStatus, messages));
+    }
+
+
+    Pair<ParentRepairStatus, List<String>> getRepairStatus(Integer cmd)
+    {
+        return repairStatusByCmd.getIfPresent(cmd);
+    }
+
     /**
      * Return all of the neighbors with whom we share the provided range.
      *
@@ -206,12 +430,12 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @return neighbors with whom we share the provided range
      */
-    public static Set<InetAddress> getNeighbors(String keyspaceName, Collection<Range<Token>> keyspaceLocalRanges,
-                                                Range<Token> toRepair, Collection<String> dataCenters,
-                                                Collection<String> hosts)
+    public static EndpointsForRange getNeighbors(String keyspaceName, Iterable<Range<Token>> keyspaceLocalRanges,
+                                          Range<Token> toRepair, Collection<String> dataCenters,
+                                          Collection<String> hosts)
     {
         StorageService ss = StorageService.instance;
-        Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(keyspaceName);
+        EndpointsByRange replicaSets = ss.getRangeToAddressMap(keyspaceName);
         Range<Token> rangeSuperSet = null;
         for (Range<Token> range : keyspaceLocalRanges)
         {
@@ -229,33 +453,26 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             }
         }
         if (rangeSuperSet == null || !replicaSets.containsKey(rangeSuperSet))
-            return Collections.emptySet();
+            return EndpointsForRange.empty(toRepair);
 
-        Set<InetAddress> neighbors = new HashSet<>(replicaSets.get(rangeSuperSet));
-        neighbors.remove(FBUtilities.getBroadcastAddress());
+        EndpointsForRange neighbors = replicaSets.get(rangeSuperSet).withoutSelf();
 
         if (dataCenters != null && !dataCenters.isEmpty())
         {
             TokenMetadata.Topology topology = ss.getTokenMetadata().cloneOnlyTokenMap().getTopology();
-            Set<InetAddress> dcEndpoints = Sets.newHashSet();
-            Multimap<String,InetAddress> dcEndpointsMap = topology.getDatacenterEndpoints();
-            for (String dc : dataCenters)
-            {
-                Collection<InetAddress> c = dcEndpointsMap.get(dc);
-                if (c != null)
-                   dcEndpoints.addAll(c);
-            }
-            return Sets.intersection(neighbors, dcEndpoints);
+            Multimap<String, InetAddressAndPort> dcEndpointsMap = topology.getDatacenterEndpoints();
+            Iterable<InetAddressAndPort> dcEndpoints = concat(transform(dataCenters, dcEndpointsMap::get));
+            return neighbors.select(dcEndpoints, true);
         }
         else if (hosts != null && !hosts.isEmpty())
         {
-            Set<InetAddress> specifiedHost = new HashSet<>();
+            Set<InetAddressAndPort> specifiedHost = new HashSet<>();
             for (final String host : hosts)
             {
                 try
                 {
-                    final InetAddress endpoint = InetAddress.getByName(host.trim());
-                    if (endpoint.equals(FBUtilities.getBroadcastAddress()) || neighbors.contains(endpoint))
+                    final InetAddressAndPort endpoint = InetAddressAndPort.getByName(host.trim());
+                    if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) || neighbors.endpoints().contains(endpoint))
                         specifiedHost.add(endpoint);
                 }
                 catch (UnknownHostException e)
@@ -264,7 +481,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 }
             }
 
-            if (!specifiedHost.contains(FBUtilities.getBroadcastAddress()))
+            if (!specifiedHost.contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalArgumentException("The current host must be part of the repair");
 
             if (specifiedHost.size() <= 1)
@@ -275,66 +492,112 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                 throw new IllegalArgumentException(String.format(msg, hosts, toRepair, neighbors));
             }
 
-            specifiedHost.remove(FBUtilities.getBroadcastAddress());
-            return specifiedHost;
-
+            specifiedHost.remove(FBUtilities.getBroadcastAddressAndPort());
+            return neighbors.keep(specifiedHost);
         }
 
         return neighbors;
     }
 
-    public UUID prepareForRepair(UUID parentRepairSession, InetAddress coordinator, Set<InetAddress> endpoints, RepairOption options, List<ColumnFamilyStore> columnFamilyStores)
+    /**
+     * we only want to set repairedAt for incremental repairs including all replicas for a token range. For non-global
+     * incremental repairs, forced incremental repairs, and full repairs, the UNREPAIRED_SSTABLE value will prevent
+     * sstables from being promoted to repaired or preserve the repairedAt/pendingRepair values, respectively.
+     */
+    static long getRepairedAt(RepairOption options, boolean force)
     {
-        long timestamp = Clock.instance.currentTimeMillis();
-        registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), timestamp, options.isGlobal());
+        // we only want to set repairedAt for incremental repairs including all replicas for a token range. For non-global incremental repairs, full repairs, the UNREPAIRED_SSTABLE value will prevent
+        // sstables from being promoted to repaired or preserve the repairedAt/pendingRepair values, respectively. For forced repairs, repairedAt time is only set to UNREPAIRED_SSTABLE if we actually
+        // end up skipping replicas
+        if (options.isIncremental() && options.isGlobal() && ! force)
+        {
+            return System.currentTimeMillis();
+        }
+        else
+        {
+            return  ActiveRepairService.UNREPAIRED_SSTABLE;
+        }
+    }
+
+    public static boolean verifyCompactionsPendingThreshold(UUID parentRepairSession, PreviewKind previewKind)
+    {
+        // Snapshot values so failure message is consistent with decision
+        int pendingCompactions = CompactionManager.instance.getPendingTasks();
+        int pendingThreshold = ActiveRepairService.instance.getRepairPendingCompactionRejectThreshold();
+        if (pendingCompactions > pendingThreshold)
+        {
+            logger.error("[{}] Rejecting incoming repair, pending compactions ({}) above threshold ({})",
+                          previewKind.logPrefix(parentRepairSession), pendingCompactions, pendingThreshold);
+            return false;
+        }
+        return true;
+    }
+
+    public UUID prepareForRepair(UUID parentRepairSession, InetAddressAndPort coordinator, Set<InetAddressAndPort> endpoints, RepairOption options, boolean isForcedRepair, List<ColumnFamilyStore> columnFamilyStores)
+    {
+        if (!verifyCompactionsPendingThreshold(parentRepairSession, options.getPreviewKind()))
+            failRepair(parentRepairSession, "Rejecting incoming repair, pending compactions above threshold"); // failRepair throws exception
+
+        long repairedAt = getRepairedAt(options, isForcedRepair);
+        registerParentRepairSession(parentRepairSession, coordinator, columnFamilyStores, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
         final CountDownLatch prepareLatch = new CountDownLatch(endpoints.size());
         final AtomicBoolean status = new AtomicBoolean(true);
         final Set<String> failedNodes = Collections.synchronizedSet(new HashSet<String>());
-        IAsyncCallbackWithFailure callback = new IAsyncCallbackWithFailure()
+        RequestCallback callback = new RequestCallback()
         {
-            public void response(MessageIn msg)
+            @Override
+            public void onResponse(Message msg)
             {
                 prepareLatch.countDown();
             }
 
-            public boolean isLatencyForSnitch()
-            {
-                return false;
-            }
-
-            public void onFailure(InetAddress from, RequestFailureReason failureReason)
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
             {
                 status.set(false);
-                failedNodes.add(from.getHostAddress());
+                failedNodes.add(from.toString());
                 prepareLatch.countDown();
+            }
+
+            @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
             }
         };
 
-        List<UUID> cfIds = new ArrayList<>(columnFamilyStores.size());
+        List<TableId> tableIds = new ArrayList<>(columnFamilyStores.size());
         for (ColumnFamilyStore cfs : columnFamilyStores)
-            cfIds.add(cfs.metadata.cfId);
+            tableIds.add(cfs.metadata.id);
 
-        for (InetAddress neighbour : endpoints)
+        for (InetAddressAndPort neighbour : endpoints)
         {
             if (FailureDetector.instance.isAlive(neighbour))
             {
-                PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental(), timestamp, options.isGlobal());
-                MessageOut<RepairMessage> msg = message.createMessage();
-                MessagingService.instance().sendRR(msg, neighbour, callback, TimeUnit.HOURS.toMillis(1), true);
+                PrepareMessage message = new PrepareMessage(parentRepairSession, tableIds, options.getRanges(), options.isIncremental(), repairedAt, options.isGlobal(), options.getPreviewKind());
+                Message<RepairMessage> msg = Message.out(PREPARE_MSG, message);
+                MessagingService.instance().sendWithCallback(msg, neighbour, callback);
             }
             else
             {
-                // bailout early to avoid potentially waiting for a long time.
-                failRepair(parentRepairSession, "Endpoint not alive: " + neighbour);
+                // we pre-filter the endpoints we want to repair for forced incremental repairs. So if any of the
+                // remaining ones go down, we still want to fail so we don't create repair sessions that can't complete
+                if (isForcedRepair && !options.isIncremental())
+                {
+                    prepareLatch.countDown();
+                }
+                else
+                {
+                    // bailout early to avoid potentially waiting for a long time.
+                    failRepair(parentRepairSession, "Endpoint not alive: " + neighbour);
+                }
+
             }
         }
-
         try
         {
-            // Failed repair is expensive so we wait for longer time.
-            if (!prepareLatch.await(1, TimeUnit.HOURS)) {
+            if (!prepareLatch.await(DatabaseDescriptor.getRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS))
                 failRepair(parentRepairSession, "Did not get replies from all endpoints.");
-            }
         }
         catch (InterruptedException e)
         {
@@ -349,13 +612,57 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return parentRepairSession;
     }
 
+    /**
+     * Send Verb.CLEANUP_MSG to the given endpoints. This results in removing parent session object from the
+     * endpoint's cache.
+     * This method does not throw an exception in case of a messaging failure.
+     */
+    public void cleanUp(UUID parentRepairSession, Set<InetAddressAndPort> endpoints)
+    {
+        for (InetAddressAndPort endpoint : endpoints)
+        {
+            try
+            {
+                if (FailureDetector.instance.isAlive(endpoint))
+                {
+                    CleanupMessage message = new CleanupMessage(parentRepairSession);
+                    Message<CleanupMessage> msg = Message.out(Verb.CLEANUP_MSG, message);
+
+                    RequestCallback loggingCallback = new RequestCallback()
+                    {
+                        @Override
+                        public void onResponse(Message msg)
+                        {
+                            logger.trace("Successfully cleaned up {} parent repair session on {}.", parentRepairSession, endpoint);
+                        }
+
+                        @Override
+                        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                        {
+                            logger.debug("Failed to clean up parent repair session {} on {}. The uncleaned sessions will " +
+                                    "be removed on a node restart. This should not be a problem unless you see thousands " +
+                                    "of messages like this.", parentRepairSession, endpoint);
+                        }
+                    };
+
+                    MessagingService.instance().sendWithCallback(msg, endpoint, loggingCallback);
+                }
+            }
+            catch (Exception exc)
+            {
+                logger.warn("Failed to send a clean up message to {}", endpoint, exc);
+            }
+        }
+    }
+
     private void failRepair(UUID parentRepairSession, String errorMsg) {
         removeParentRepairSession(parentRepairSession);
         throw new RuntimeException(errorMsg);
     }
 
-    public synchronized void registerParentRepairSession(UUID parentRepairSession, InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long timestamp, boolean isGlobal)
+    public synchronized void registerParentRepairSession(UUID parentRepairSession, InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
     {
+        assert isIncremental || repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE;
         if (!registeredForEndpointChanges)
         {
             Gossiper.instance.register(this);
@@ -365,51 +672,26 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         if (!parentRepairSessions.containsKey(parentRepairSession))
         {
-            parentRepairSessions.put(parentRepairSession, new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, timestamp, isGlobal));
+            parentRepairSessions.put(parentRepairSession, new ParentRepairSession(coordinator, columnFamilyStores, ranges, isIncremental, repairedAt, isGlobal, previewKind));
         }
-    }
-
-    public Set<SSTableReader> currentlyRepairing(UUID cfId, UUID parentRepairSession)
-    {
-        Set<SSTableReader> repairing = new HashSet<>();
-        for (Map.Entry<UUID, ParentRepairSession> entry : parentRepairSessions.entrySet())
-        {
-            Collection<SSTableReader> sstables = entry.getValue().getActiveSSTables(cfId);
-            if (sstables != null && !entry.getKey().equals(parentRepairSession))
-                repairing.addAll(sstables);
-        }
-        return repairing;
     }
 
     /**
-     * Run final process of repair.
-     * This removes all resources held by parent repair session, after performing anti compaction if necessary.
-     *
-     * @param parentSession Parent session ID
-     * @param neighbors Repair participants (not including self)
-     * @param successfulRanges Ranges that repaired successfully
+     * We assume when calling this method that a parent session for the provided identifier 
+     * exists, and that session is still in progress. When it doesn't, that should mean either 
+     * {@link #abort(Predicate, String)} or {@link #failRepair(UUID, String)} have removed it.
+     * 
+     * @param parentSessionId an identifier for an active parent repair session
+     * 
+     * @return the {@link ParentRepairSession} associated with the provided identifier
+     * 
+     * @throws NoSuchRepairSessionException if the provided identifier does not map to an active parent session
      */
-    public synchronized ListenableFuture finishParentSession(UUID parentSession, Set<InetAddress> neighbors, Collection<Range<Token>> successfulRanges)
-    {
-        List<ListenableFuture<?>> tasks = new ArrayList<>(neighbors.size() + 1);
-        for (InetAddress neighbor : neighbors)
-        {
-            AnticompactionTask task = new AnticompactionTask(parentSession, neighbor, successfulRanges);
-            registerOnFdAndGossip(task);
-            tasks.add(task);
-            task.run(); // 'run' is just sending message
-        }
-        tasks.add(doAntiCompaction(parentSession, successfulRanges));
-        return Futures.successfulAsList(tasks);
-    }
-
-    public ParentRepairSession getParentRepairSession(UUID parentSessionId)
+    public ParentRepairSession getParentRepairSession(UUID parentSessionId) throws NoSuchRepairSessionException
     {
         ParentRepairSession session = parentRepairSessions.get(parentSessionId);
-        // this can happen if a node thinks that the coordinator was down, but that coordinator got back before noticing
-        // that it was down itself.
         if (session == null)
-            throw new RuntimeException("Parent repair session with id = " + parentSessionId + " has failed.");
+            throw new NoSuchRepairSessionException(parentSessionId);
 
         return session;
     }
@@ -419,83 +701,56 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * clears out any snapshots created by this repair
      *
-     * @param parentSessionId
-     * @return
+     * @param parentSessionId an identifier for an active parent repair session
+     *                        
+     * @return the {@link ParentRepairSession} associated with the provided identifier
      */
     public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
     {
         String snapshotName = parentSessionId.toString();
-        for (ColumnFamilyStore cfs : getParentRepairSession(parentSessionId).columnFamilyStores.values())
+        ParentRepairSession session = parentRepairSessions.remove(parentSessionId);
+        if (session == null)
+            return null;
+        for (ColumnFamilyStore cfs : session.columnFamilyStores.values())
         {
             if (cfs.snapshotExists(snapshotName))
                 cfs.clearSnapshot(snapshotName);
         }
-        return parentRepairSessions.remove(parentSessionId);
+        return session;
     }
 
-    /**
-     * Submit anti-compaction jobs to CompactionManager.
-     * When all jobs are done, parent repair session is removed whether those are suceeded or not.
-     *
-     * @param parentRepairSession parent repair session ID
-     * @return Future result of all anti-compaction jobs.
-     */
-    @SuppressWarnings("resource")
-    public ListenableFuture<List<Object>> doAntiCompaction(final UUID parentRepairSession, Collection<Range<Token>> successfulRanges)
+    public void handleMessage(Message<? extends RepairMessage> message)
     {
-        assert parentRepairSession != null;
-        ParentRepairSession prs = getParentRepairSession(parentRepairSession);
-        //A repair will be marked as not global if it is a subrange repair to avoid many small anti-compactions
-        //in addition to other scenarios such as repairs not involving all DCs or hosts
-        if (!prs.isGlobal)
-        {
-            logger.info("[repair #{}] Not a global repair, will not do anticompaction", parentRepairSession);
-            removeParentRepairSession(parentRepairSession);
-            return Futures.immediateFuture(Collections.emptyList());
-        }
-        assert prs.ranges.containsAll(successfulRanges) : "Trying to perform anticompaction on unknown ranges";
-
-        List<ListenableFuture<?>> futures = new ArrayList<>();
-        // if we don't have successful repair ranges, then just skip anticompaction
-        if (!successfulRanges.isEmpty())
-        {
-            for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
-            {
-                Refs<SSTableReader> sstables = prs.getActiveRepairedSSTableRefsForAntiCompaction(columnFamilyStoreEntry.getKey(), parentRepairSession);
-                ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
-                futures.add(CompactionManager.instance.submitAntiCompaction(cfs, successfulRanges, sstables, prs.repairedAt, parentRepairSession));
-            }
-        }
-
-        ListenableFuture<List<Object>> allAntiCompactionResults = Futures.successfulAsList(futures);
-        allAntiCompactionResults.addListener(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                removeParentRepairSession(parentRepairSession);
-            }
-        }, MoreExecutors.directExecutor());
-
-        return allAntiCompactionResults;
-    }
-
-    public void handleMessage(InetAddress endpoint, RepairMessage message)
-    {
-        RepairJobDesc desc = message.desc;
+        RepairMessage payload = message.payload;
+        RepairJobDesc desc = payload.desc;
         RepairSession session = sessions.get(desc.sessionId);
+
         if (session == null)
-            return;
-        switch (message.messageType)
         {
-            case VALIDATION_COMPLETE:
-                ValidationComplete validation = (ValidationComplete) message;
-                session.validationComplete(desc, endpoint, validation.trees);
+            if (payload instanceof ValidationResponse)
+            {
+                // The trees may be off-heap, and will therefore need to be released.
+                ValidationResponse validation = (ValidationResponse) payload;
+                MerkleTrees trees = validation.trees;
+                
+                // The response from a failed validation won't have any trees.
+                if (trees != null)
+                    trees.release();
+            }
+
+            return;
+        }
+
+        switch (message.verb())
+        {
+            case VALIDATION_RSP:
+                ValidationResponse validation = (ValidationResponse) payload;
+                session.validationComplete(desc, message.from(), validation.trees);
                 break;
-            case SYNC_COMPLETE:
+            case SYNC_RSP:
                 // one of replica is synced.
-                SyncComplete sync = (SyncComplete) message;
-                session.syncComplete(desc, sync.nodes, sync.success);
+                SyncResponse sync = (SyncResponse) payload;
+                session.syncComplete(desc, sync.nodes, sync.success, sync.summaries);
                 break;
             default:
                 break;
@@ -506,217 +761,61 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * We keep a ParentRepairSession around for the duration of the entire repair, for example, on a 256 token vnode rf=3 cluster
      * we would have 768 RepairSession but only one ParentRepairSession. We use the PRS to avoid anticompacting the sstables
      * 768 times, instead we take all repaired ranges at the end of the repair and anticompact once.
-     *
-     * We do an optimistic marking of sstables - when we start an incremental repair we mark all unrepaired sstables as
-     * repairing (@see markSSTablesRepairing), then while the repair is ongoing compactions might remove those sstables,
-     * and when it is time for anticompaction we will only anticompact the sstables that are still on disk.
-     *
-     * Note that validation and streaming do not care about which sstables we have marked as repairing - they operate on
-     * all unrepaired sstables (if it is incremental), otherwise we would not get a correct repair.
      */
     public static class ParentRepairSession
     {
-        private final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
+        private final Keyspace keyspace;
+        private final Map<TableId, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
         private final Collection<Range<Token>> ranges;
-        public final Map<UUID, Set<String>> sstableMap = new HashMap<>();
         public final boolean isIncremental;
         public final boolean isGlobal;
         public final long repairedAt;
-        public final InetAddress coordinator;
-        /**
-         * Indicates whether we have marked sstables as repairing. Can only be done once per table per ParentRepairSession
-         */
-        private final Set<UUID> marked = new HashSet<>();
+        public final InetAddressAndPort coordinator;
+        public final PreviewKind previewKind;
 
-        public ParentRepairSession(InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal)
+        public ParentRepairSession(InetAddressAndPort coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal, PreviewKind previewKind)
         {
             this.coordinator = coordinator;
+            Set<Keyspace> keyspaces = new HashSet<>();
             for (ColumnFamilyStore cfs : columnFamilyStores)
             {
-                this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
-                sstableMap.put(cfs.metadata.cfId, new HashSet<String>());
+                keyspaces.add(cfs.keyspace);
+                this.columnFamilyStores.put(cfs.metadata.id, cfs);
             }
+
+            Preconditions.checkArgument(keyspaces.size() == 1, "repair sessions cannot operate on multiple keyspaces");
+            this.keyspace = Iterables.getOnlyElement(keyspaces);
+
             this.ranges = ranges;
             this.repairedAt = repairedAt;
             this.isIncremental = isIncremental;
             this.isGlobal = isGlobal;
+            this.previewKind = previewKind;
         }
 
-        /**
-         * Mark sstables repairing - either all sstables or only the unrepaired ones depending on
-         *
-         * whether this is an incremental or full repair
-         *
-         * @param cfId the column family
-         * @param parentSessionId the parent repair session id, used to make sure we don't start multiple repairs over the same sstables
-         */
-        public synchronized void markSSTablesRepairing(UUID cfId, UUID parentSessionId)
+        public boolean isPreview()
         {
-            if (!marked.contains(cfId))
-            {
-                List<SSTableReader> sstables = columnFamilyStores.get(cfId).select(View.select(SSTableSet.CANONICAL, (s) -> !isIncremental || !s.isRepaired())).sstables;
-                Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfId, parentSessionId);
-                if (!Sets.intersection(currentlyRepairing, Sets.newHashSet(sstables)).isEmpty())
-                {
-                    logger.error("Cannot start multiple repair sessions over the same sstables");
-                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
-                }
-                addSSTables(cfId, sstables);
-                marked.add(cfId);
-            }
+            return previewKind != PreviewKind.NONE;
         }
 
-        /**
-         * Get the still active sstables we should run anticompaction on
-         *
-         * note that validation and streaming do not call this method - they have to work on the actual active sstables on the node, we only call this
-         * to know which sstables are still there that were there when we started the repair
-         *
-         * @param cfId
-         * @param parentSessionId for checking if there exists a snapshot for this repair
-         * @return
-         */
-        @SuppressWarnings("resource")
-        public synchronized Refs<SSTableReader> getActiveRepairedSSTableRefsForAntiCompaction(UUID cfId, UUID parentSessionId)
+        public Collection<ColumnFamilyStore> getColumnFamilyStores()
         {
-            assert marked.contains(cfId);
-            if (!columnFamilyStores.containsKey(cfId))
-                throw new RuntimeException("Not possible to get sstables for anticompaction for " + cfId);
-            boolean isSnapshotRepair = columnFamilyStores.get(cfId).snapshotExists(parentSessionId.toString());
-            ImmutableMap.Builder<SSTableReader, Ref<SSTableReader>> references = ImmutableMap.builder();
-            Iterable<SSTableReader> sstables = isSnapshotRepair ? getSSTablesForSnapshotRepair(cfId, parentSessionId) : getActiveSSTables(cfId);
-            // we check this above - if columnFamilyStores contains the cfId sstables will not be null
-            assert sstables != null;
-            for (SSTableReader sstable : sstables)
-            {
-                Ref<SSTableReader> ref = sstable.tryRef();
-                if (ref == null)
-                    sstableMap.get(cfId).remove(sstable.getFilename());
-                else
-                    references.put(sstable, ref);
-            }
-            return new Refs<>(references.build());
+            return ImmutableSet.<ColumnFamilyStore>builder().addAll(columnFamilyStores.values()).build();
         }
 
-        /**
-         * If we are running a snapshot repair we need to find the 'real' sstables when we start anticompaction
-         *
-         * We use the generation of the sstables as identifiers instead of the file name to avoid having to parse out the
-         * actual filename.
-         *
-         * @param cfId
-         * @param parentSessionId
-         * @return
-         */
-        private Set<SSTableReader> getSSTablesForSnapshotRepair(UUID cfId, UUID parentSessionId)
+        public Keyspace getKeyspace()
         {
-            Set<SSTableReader> activeSSTables = new HashSet<>();
-            ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
-            if (cfs == null)
-                return null;
-
-            Set<Integer> snapshotGenerations = new HashSet<>();
-            try (Refs<SSTableReader> snapshottedSSTables = cfs.getSnapshotSSTableReader(parentSessionId.toString()))
-            {
-                for (SSTableReader sstable : snapshottedSSTables)
-                {
-                    snapshotGenerations.add(sstable.descriptor.generation);
-                }
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-            for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
-                if (snapshotGenerations.contains(sstable.descriptor.generation))
-                    activeSSTables.add(sstable);
-            return activeSSTables;
+            return keyspace;
         }
 
-        public synchronized void maybeSnapshot(UUID cfId, UUID parentSessionId)
+        public Set<TableId> getTableIds()
         {
-            String snapshotName = parentSessionId.toString();
-            if (!columnFamilyStores.get(cfId).snapshotExists(snapshotName))
-            {
-                Set<SSTableReader> snapshottedSSTables = columnFamilyStores.get(cfId).snapshot(snapshotName, new Predicate<SSTableReader>()
-                {
-                    public boolean apply(SSTableReader sstable)
-                    {
-                        return sstable != null &&
-                               (!isIncremental || !sstable.isRepaired()) &&
-                               !(sstable.metadata.isIndex()) && // exclude SSTables from 2i
-                               new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);
-                    }
-                }, true, false);
-
-                if (isAlreadyRepairing(cfId, parentSessionId, snapshottedSSTables))
-                {
-                    columnFamilyStores.get(cfId).clearSnapshot(parentSessionId.toString());
-                    logger.error("Cannot start multiple repair sessions over the same sstables");
-                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
-                }
-                addSSTables(cfId, snapshottedSSTables);
-                marked.add(cfId);
-            }
+            return ImmutableSet.copyOf(transform(getColumnFamilyStores(), cfs -> cfs.metadata.id));
         }
 
-
-        /**
-         * Compares other repairing sstables *generation* to the ones we just snapshotted
-         *
-         * we compare generations since the sstables have different paths due to snapshot names
-         *
-         * @param cfId id of the column family store
-         * @param parentSessionId parent repair session
-         * @param sstables the newly snapshotted sstables
-         * @return
-         */
-        private boolean isAlreadyRepairing(UUID cfId, UUID parentSessionId, Collection<SSTableReader> sstables)
+        public Set<Range<Token>> getRanges()
         {
-            Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfId, parentSessionId);
-            Set<Integer> currentlyRepairingGenerations = new HashSet<>();
-            Set<Integer> newRepairingGenerations = new HashSet<>();
-            for (SSTableReader sstable : currentlyRepairing)
-                currentlyRepairingGenerations.add(sstable.descriptor.generation);
-            for (SSTableReader sstable : sstables)
-                newRepairingGenerations.add(sstable.descriptor.generation);
-
-            return !Sets.intersection(currentlyRepairingGenerations, newRepairingGenerations).isEmpty();
-        }
-
-        private Set<SSTableReader> getActiveSSTables(UUID cfId)
-        {
-            if (!columnFamilyStores.containsKey(cfId))
-                return null;
-
-            Set<String> repairedSSTables = sstableMap.get(cfId);
-            Set<SSTableReader> activeSSTables = new HashSet<>();
-            Set<String> activeSSTableNames = new HashSet<>();
-            ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
-            for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
-            {
-                if (repairedSSTables.contains(sstable.getFilename()))
-                {
-                    activeSSTables.add(sstable);
-                    activeSSTableNames.add(sstable.getFilename());
-                }
-            }
-            sstableMap.put(cfId, activeSSTableNames);
-            return activeSSTables;
-        }
-
-        private void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
-        {
-            for (SSTableReader sstable : sstables)
-                sstableMap.get(cfId).add(sstable.getFilename());
-        }
-
-
-        public long getRepairedAt()
-        {
-            if (isGlobal)
-                return repairedAt;
-            return ActiveRepairService.UNREPAIRED_SSTABLE;
+            return ImmutableSet.copyOf(ranges);
         }
 
         @Override
@@ -725,7 +824,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return "ParentRepairSession{" +
                     "columnFamilyStores=" + columnFamilyStores +
                     ", ranges=" + ranges +
-                    ", sstableMap=" + sstableMap +
                     ", repairedAt=" + repairedAt +
                     '}';
         }
@@ -735,18 +833,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     If the coordinator node dies we should remove the parent repair session from the other nodes.
     This uses the same notifications as we get in RepairSession
      */
-    public void onJoin(InetAddress endpoint, EndpointState epState) {}
-    public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-    public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
-    public void onAlive(InetAddress endpoint, EndpointState state) {}
-    public void onDead(InetAddress endpoint, EndpointState state) {}
+    public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
+    public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
+    public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
+    public void onAlive(InetAddressAndPort endpoint, EndpointState state) {}
+    public void onDead(InetAddressAndPort endpoint, EndpointState state) {}
 
-    public void onRemove(InetAddress endpoint)
+    public void onRemove(InetAddressAndPort endpoint)
     {
         convict(endpoint, Double.MAX_VALUE);
     }
 
-    public void onRestart(InetAddress endpoint, EndpointState state)
+    public void onRestart(InetAddressAndPort endpoint, EndpointState state)
     {
         convict(endpoint, Double.MAX_VALUE);
     }
@@ -760,28 +858,40 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * @param ep  endpoint to be convicted
      * @param phi the value of phi with with ep was convicted
      */
-    public void convict(InetAddress ep, double phi)
+    public void convict(InetAddressAndPort ep, double phi)
     {
         // We want a higher confidence in the failure detection than usual because failing a repair wrongly has a high cost.
         if (phi < 2 * DatabaseDescriptor.getPhiConvictThreshold() || parentRepairSessions.isEmpty())
             return;
 
-        Set<UUID> toRemove = new HashSet<>();
-
-        for (Map.Entry<UUID, ParentRepairSession> repairSessionEntry : parentRepairSessions.entrySet())
-        {
-            if (repairSessionEntry.getValue().coordinator.equals(ep))
-            {
-                toRemove.add(repairSessionEntry.getKey());
-            }
-        }
-
-        if (!toRemove.isEmpty())
-        {
-            logger.debug("Removing {} in parent repair sessions", toRemove);
-            for (UUID id : toRemove)
-                removeParentRepairSession(id);
-        }
+        abort((prs) -> prs.coordinator.equals(ep), "Removing {} in parent repair sessions");
     }
 
+    public int getRepairPendingCompactionRejectThreshold()
+    {
+        return DatabaseDescriptor.getRepairPendingCompactionRejectThreshold();
+    }
+
+    public void setRepairPendingCompactionRejectThreshold(int value)
+    {
+        DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(value);
+    }
+
+    /**
+     * Remove any parent repair sessions matching predicate
+     */
+    public void abort(Predicate<ParentRepairSession> predicate, String message)
+    {
+        Set<UUID> parentSessionsToRemove = new HashSet<>();
+        for (Map.Entry<UUID, ParentRepairSession> repairSessionEntry : parentRepairSessions.entrySet())
+        {
+            if (predicate.test(repairSessionEntry.getValue()))
+                parentSessionsToRemove.add(repairSessionEntry.getKey());
+        }
+        if (!parentSessionsToRemove.isEmpty())
+        {
+            logger.info(message, parentSessionsToRemove);
+            parentSessionsToRemove.forEach(this::removeParentRepairSession);
+        }
+    }
 }

@@ -29,7 +29,6 @@ import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,11 +48,11 @@ public class LeveledManifest
     private static final Logger logger = LoggerFactory.getLogger(LeveledManifest.class);
 
     /**
-     * limit the number of L0 sstables we do at once, because compaction bloom filter creation
-     * uses a pessimistic estimate of how many keys overlap (none), so we risk wasting memory
-     * or even OOMing when compacting highly overlapping sstables
+     * if we have more than MAX_COMPACTING_L0 sstables in L0, we will run a round of STCS with at most
+     * cfs.getMaxCompactionThreshold() sstables.
      */
     private static final int MAX_COMPACTING_L0 = 32;
+
     /**
      * If we go this many rounds without compacting
      * in the highest level, we start bringing in sstables from
@@ -151,7 +150,6 @@ public class LeveledManifest
 
         if (logger.isTraceEnabled())
             logger.trace("Adding [{}]", toString(added));
-
         generations.addAll(added);
         lastCompactedSSTables[minLevel] = SSTableReader.sstableOrdering.max(added);
     }
@@ -212,12 +210,12 @@ public class LeveledManifest
         // L2: 12  [ideal: 100]
         //
         // The problem is that L0 has a much higher score (almost 250) than L1 (11), so what we'll
-        // do is compact a batch of MAX_COMPACTING_L0 sstables with all 117 L1 sstables, and put the
-        // result (say, 120 sstables) in L1. Then we'll compact the next batch of MAX_COMPACTING_L0,
+        // do is compact a batch of cfs.getMaximumCompactionThreshold() sstables with all 117 L1 sstables, and put the
+        // result (say, 120 sstables) in L1. Then we'll compact the next batch of cfs.getMaxCompactionThreshold(),
         // and so forth.  So we spend most of our i/o rewriting the L1 data with each batch.
         //
         // If we could just do *all* L0 a single time with L1, that would be ideal.  But we can't
-        // -- see the javadoc for MAX_COMPACTING_L0.
+        // since we might run out of memory
         //
         // LevelDB's way around this is to simply block writes if L0 compaction falls behind.
         // We don't have that luxury.
@@ -231,6 +229,11 @@ public class LeveledManifest
         // This isn't a magic wand -- if you are consistently writing too fast for LCS to keep
         // up, you're still screwed.  But if instead you have intermittent bursts of activity,
         // it can help a lot.
+
+        // Let's check that L0 is far enough behind to warrant STCS.
+        // If it is, it will be used before proceeding any of higher level
+        CompactionCandidate l0Compaction = getSTCSInL0CompactionCandidate();
+
         for (int i = generations.levelCount() - 1; i > 0; i--)
         {
             Set<SSTableReader> sstables = generations.get(i);
@@ -256,7 +259,6 @@ public class LeveledManifest
                 }
 
                 // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
-                CompactionCandidate l0Compaction = getSTCSInL0CompactionCandidate();
                 if (l0Compaction != null)
                     return l0Compaction;
 
@@ -268,7 +270,7 @@ public class LeveledManifest
                     candidates = getOverlappingStarvedSSTables(nextLevel, candidates);
                     if (logger.isTraceEnabled())
                         logger.trace("Compaction candidates for L{} are {}", i, toString(candidates));
-                    return new CompactionCandidate(candidates, nextLevel, cfs.getCompactionStrategyManager().getMaxSSTableBytes());
+                    return new CompactionCandidate(candidates, nextLevel, maxSSTableSizeInBytes);
                 }
                 else
                 {
@@ -286,7 +288,7 @@ public class LeveledManifest
             // Since we don't have any other compactions to do, see if there is a STCS compaction to perform in L0; if
             // there is a long running compaction, we want to make sure that we continue to keep the number of SSTables
             // small in L0.
-            return getSTCSInL0CompactionCandidate();
+            return l0Compaction;
         }
         return new CompactionCandidate(candidates, getNextLevel(candidates), maxSSTableSizeInBytes);
     }
@@ -314,7 +316,8 @@ public class LeveledManifest
                                                                                     options.bucketHigh,
                                                                                     options.bucketLow,
                                                                                     options.minSSTableSize);
-        return SizeTieredCompactionStrategy.mostInterestingBucket(buckets, 4, 32);
+        return SizeTieredCompactionStrategy.mostInterestingBucket(buckets,
+                cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
     }
 
     /**
@@ -390,6 +393,11 @@ public class LeveledManifest
     public synchronized int[] getAllLevelSize()
     {
         return generations.getAllLevelSize();
+    }
+
+    public synchronized long[] getAllLevelSizeBytes()
+    {
+        return generations.getAllLevelSizeBytes();
     }
 
     @VisibleForTesting
@@ -503,7 +511,7 @@ public class LeveledManifest
             // 1a. add sstables to the candidate set until we have at least maxSSTableSizeInMB
             // 1b. prefer choosing older sstables as candidates, to newer ones
             // 1c. any L0 sstables that overlap a candidate, will also become candidates
-            // 2. At most MAX_COMPACTING_L0 sstables from L0 will be compacted at once
+            // 2. At most max_threshold sstables from L0 will be compacted at once
             // 3. If total candidate size is less than maxSSTableSizeInMB, we won't bother compacting with L1,
             //    and the result of the compaction will stay in L0 instead of being promoted (see promote())
             //
@@ -529,10 +537,10 @@ public class LeveledManifest
                     remaining.remove(newCandidate);
                 }
 
-                if (candidates.size() > MAX_COMPACTING_L0)
+                if (candidates.size() > cfs.getMaximumCompactionThreshold())
                 {
-                    // limit to only the MAX_COMPACTING_L0 oldest candidates
-                    candidates = new HashSet<>(ageSortedSSTables(candidates).subList(0, MAX_COMPACTING_L0));
+                    // limit to only the cfs.getMaximumCompactionThreshold() oldest candidates
+                    candidates = new HashSet<>(ageSortedSSTables(candidates).subList(0, cfs.getMaximumCompactionThreshold()));
                     break;
                 }
             }
@@ -590,9 +598,7 @@ public class LeveledManifest
     @VisibleForTesting
     List<SSTableReader> ageSortedSSTables(Collection<SSTableReader> candidates)
     {
-        List<SSTableReader> copy = new ArrayList<>(candidates);
-        copy.sort(SSTableReader.maxTimestampAscending);
-        return ImmutableList.copyOf(copy);
+        return ImmutableList.sortedCopyOf(SSTableReader.maxTimestampAscending, candidates);
     }
 
     public synchronized Set<SSTableReader>[] getSStablesPerLevelSnapshot()
@@ -627,6 +633,13 @@ public class LeveledManifest
             // If there is 1 byte over TBL - (MBL * 1.001), there is still a task left, so we need to round up.
             estimated[i] = (long)Math.ceil((double)Math.max(0L, SSTableReader.getTotalBytes(sstables) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
             tasks += estimated[i];
+        }
+
+        if (!DatabaseDescriptor.getDisableSTCSInL0() && generations.get(0).size() > cfs.getMaximumCompactionThreshold())
+        {
+            int l0compactions = generations.get(0).size() / cfs.getMaximumCompactionThreshold();
+            tasks += l0compactions;
+            estimated[0] += l0compactions;
         }
 
         logger.trace("Estimating {} compactions to do for {}.{}",
@@ -664,9 +677,13 @@ public class LeveledManifest
 
     synchronized List<SSTableReader> getLevelSorted(int level, Comparator<SSTableReader> comparator)
     {
-        List<SSTableReader> copy = new ArrayList<>(generations.get(level));
-        copy.sort(comparator);
-        return ImmutableList.copyOf(copy);
+        return ImmutableList.sortedCopyOf(comparator, generations.get(level));
+    }
+
+    synchronized void newLevel(SSTableReader sstable, int oldLevel)
+    {
+        generations.newLevel(sstable, oldLevel);
+        lastCompactedSSTables[oldLevel] = sstable;
     }
 
     public static class CompactionCandidate

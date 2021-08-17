@@ -20,7 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 
 @Command(name = "gcstats", description = "Print GC Statistics")
 public class GcStats extends NodeToolCmd

@@ -19,16 +19,18 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ExpirationDateOverflowHandling;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
-public class BufferCell extends AbstractCell
+public class BufferCell extends AbstractCell<ByteBuffer>
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new BufferCell(ColumnDefinition.regularDef("", "", "", ByteType.instance), 0L, 0, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, null));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new BufferCell(ColumnMetadata.regularColumn("", "", "", ByteType.instance), 0L, 0, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, null));
 
     private final long timestamp;
     private final int ttl;
@@ -37,7 +39,7 @@ public class BufferCell extends AbstractCell
     private final ByteBuffer value;
     private final CellPath path;
 
-    public BufferCell(ColumnDefinition column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+    public BufferCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
     {
         super(column);
         assert !column.isPrimaryKeyColumn();
@@ -49,33 +51,33 @@ public class BufferCell extends AbstractCell
         this.path = path;
     }
 
-    public static BufferCell live(ColumnDefinition column, long timestamp, ByteBuffer value)
+    public static BufferCell live(ColumnMetadata column, long timestamp, ByteBuffer value)
     {
         return live(column, timestamp, value, null);
     }
 
-    public static BufferCell live(ColumnDefinition column, long timestamp, ByteBuffer value, CellPath path)
+    public static BufferCell live(ColumnMetadata column, long timestamp, ByteBuffer value, CellPath path)
     {
         return new BufferCell(column, timestamp, NO_TTL, NO_DELETION_TIME, value, path);
     }
 
-    public static BufferCell expiring(ColumnDefinition column, long timestamp, int ttl, int nowInSec, ByteBuffer value)
+    public static BufferCell expiring(ColumnMetadata column, long timestamp, int ttl, int nowInSec, ByteBuffer value)
     {
         return expiring(column, timestamp, ttl, nowInSec, value, null);
     }
 
-    public static BufferCell expiring(ColumnDefinition column, long timestamp, int ttl, int nowInSec, ByteBuffer value, CellPath path)
+    public static BufferCell expiring(ColumnMetadata column, long timestamp, int ttl, int nowInSec, ByteBuffer value, CellPath path)
     {
         assert ttl != NO_TTL;
         return new BufferCell(column, timestamp, ttl, ExpirationDateOverflowHandling.computeLocalExpirationTime(nowInSec, ttl), value, path);
     }
 
-    public static BufferCell tombstone(ColumnDefinition column, long timestamp, int nowInSec)
+    public static BufferCell tombstone(ColumnMetadata column, long timestamp, int nowInSec)
     {
         return tombstone(column, timestamp, nowInSec, null);
     }
 
-    public static BufferCell tombstone(ColumnDefinition column, long timestamp, int nowInSec, CellPath path)
+    public static BufferCell tombstone(ColumnMetadata column, long timestamp, int nowInSec, CellPath path)
     {
         return new BufferCell(column, timestamp, NO_TTL, nowInSec, ByteBufferUtil.EMPTY_BYTE_BUFFER, path);
     }
@@ -100,32 +102,37 @@ public class BufferCell extends AbstractCell
         return value;
     }
 
+    public ValueAccessor<ByteBuffer> accessor()
+    {
+        return ByteBufferAccessor.instance;
+    }
+
     public CellPath path()
     {
         return path;
     }
 
-    public Cell withUpdatedColumn(ColumnDefinition newColumn)
+    public Cell<?> withUpdatedColumn(ColumnMetadata newColumn)
     {
         return new BufferCell(newColumn, timestamp, ttl, localDeletionTime, value, path);
     }
 
-    public Cell withUpdatedValue(ByteBuffer newValue)
+    public Cell<?> withUpdatedValue(ByteBuffer newValue)
     {
         return new BufferCell(column, timestamp, ttl, localDeletionTime, newValue, path);
     }
 
-    public Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    public Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
         return new BufferCell(column, newTimestamp, ttl, newLocalDeletionTime, value, path);
     }
 
-    public Cell withSkippedValue()
+    public Cell<?> withSkippedValue()
     {
         return withUpdatedValue(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
-    public Cell copy(AbstractAllocator allocator)
+    public Cell<?> copy(AbstractAllocator allocator)
     {
         if (!value.hasRemaining())
             return this;

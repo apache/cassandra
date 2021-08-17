@@ -53,6 +53,7 @@ import java.nio.ByteBuffer;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.io.util.DataInputPlus;
 
 /**
  * Borrows idea from
@@ -60,6 +61,7 @@ import net.nicoulaj.compilecommand.annotations.Inline;
  */
 public class VIntCoding
 {
+    public static final int MAX_SIZE = 10;
 
     public static long readUnsignedVInt(DataInput input) throws IOException
     {
@@ -81,6 +83,13 @@ public class VIntCoding
         return retval;
     }
 
+    public static void skipUnsignedVInt(DataInputPlus input) throws IOException
+    {
+        int firstByte = input.readByte();
+        if (firstByte < 0)
+            input.skipBytesFully(numberOfExtraBytesToRead(firstByte));
+    }
+
     /**
      * Note this method is the same as {@link #readUnsignedVInt(DataInput)},
      * except that we do *not* block if there are not enough bytes in the buffer
@@ -94,7 +103,6 @@ public class VIntCoding
     {
         return getUnsignedVInt(input, readerIndex, input.limit());
     }
-
     public static long getUnsignedVInt(ByteBuffer input, int readerIndex, int readerLimit)
     {
         if (readerIndex >= readerLimit)
@@ -119,6 +127,24 @@ public class VIntCoding
         }
 
         return retval;
+    }
+
+    /**
+     * Computes size of an unsigned vint that starts at readerIndex of the provided ByteBuf.
+     *
+     * @return -1 if there are not enough bytes in the input to calculate the size; else, the vint unsigned value size in bytes.
+     */
+    public static int computeUnsignedVIntSize(ByteBuffer input, int readerIndex)
+    {
+        return computeUnsignedVIntSize(input, readerIndex, input.limit());
+    }
+    public static int computeUnsignedVIntSize(ByteBuffer input, int readerIndex, int readerLimit)
+    {
+        if (readerIndex >= readerLimit)
+            return -1;
+
+        int firstByte = input.get(readerIndex);
+        return 1 + ((firstByte >= 0) ? 0 : numberOfExtraBytesToRead(firstByte));
     }
 
     public static long readVInt(DataInput input) throws IOException
@@ -156,6 +182,7 @@ public class VIntCoding
         }
     };
 
+    @Inline
     public static void writeUnsignedVInt(long value, DataOutput output) throws IOException
     {
         int size = VIntCoding.computeUnsignedVIntSize(value);
@@ -165,24 +192,47 @@ public class VIntCoding
             return;
         }
 
-        output.write(VIntCoding.encodeVInt(value, size), 0, size);
+        output.write(VIntCoding.encodeUnsignedVInt(value, size), 0, size);
     }
 
     @Inline
-    public static byte[] encodeVInt(long value, int size)
+    public static void writeUnsignedVInt(long value, ByteBuffer output)
     {
-        byte encodingSpace[] = encodingBuffer.get();
-        int extraBytes = size - 1;
-
-        for (int i = extraBytes ; i >= 0; --i)
+        int size = VIntCoding.computeUnsignedVIntSize(value);
+        if (size == 1)
         {
-            encodingSpace[i] = (byte) value;
-            value >>= 8;
+            output.put((byte) value);
+            return;
         }
-        encodingSpace[0] |= VIntCoding.encodeExtraBytesToRead(extraBytes);
+
+        output.put(VIntCoding.encodeUnsignedVInt(value, size), 0, size);
+    }
+
+    /**
+     * @return a TEMPORARY THREAD LOCAL BUFFER containing the encoded bytes of the value
+     * This byte[] must be discarded by the caller immediately, and synchronously
+     */
+    @Inline
+    private static byte[] encodeUnsignedVInt(long value, int size)
+    {
+        byte[] encodingSpace = encodingBuffer.get();
+        encodeUnsignedVInt(value, size, encodingSpace);
         return encodingSpace;
     }
 
+    @Inline
+    private static void encodeUnsignedVInt(long value, int size, byte[] encodeInto)
+    {
+        int extraBytes = size - 1;
+        for (int i = extraBytes ; i >= 0; --i)
+        {
+            encodeInto[i] = (byte) value;
+            value >>= 8;
+        }
+        encodeInto[0] |= VIntCoding.encodeExtraBytesToRead(extraBytes);
+    }
+
+    @Inline
     public static void writeVInt(long value, DataOutput output) throws IOException
     {
         writeUnsignedVInt(encodeZigZag64(value), output);

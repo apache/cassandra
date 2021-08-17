@@ -68,12 +68,15 @@ public class InstanceConfig implements IInstanceConfig
                            String broadcast_rpc_address,
                            String rpc_address,
                            String seedIp,
+                           int seedPort,
                            String saved_caches_directory,
                            String[] data_file_directories,
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           String initial_token)
+                           String initial_token,
+                           int storage_port,
+                           int native_transport_port)
     {
         this.num = num;
         this.networkTopology = networkTopology;
@@ -99,10 +102,13 @@ public class InstanceConfig implements IInstanceConfig
                 .set("concurrent_compactors", 1)
                 .set("memtable_heap_space_in_mb", 10)
                 .set("commitlog_sync", "batch")
-                .set("storage_port", 7012)
+                .set("storage_port", storage_port)
+                .set("native_transport_port", native_transport_port)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", seedIp)))
+                        Collections.singletonMap("seeds", seedIp + ":" + seedPort)))
+                // required settings for dtest functionality
+                .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity_in_mb", 50l)
@@ -129,6 +135,11 @@ public class InstanceConfig implements IInstanceConfig
     public InetSocketAddress broadcastAddress()
     {
         return DistributedTestSnitch.fromCassandraInetAddressAndPort(getBroadcastAddressAndPort());
+    }
+
+    public void unsetBroadcastAddressAndPort()
+    {
+        broadcastAddressAndPort = null;
     }
 
     protected InetAddressAndPort getBroadcastAddressAndPort()
@@ -184,7 +195,6 @@ public class InstanceConfig implements IInstanceConfig
     {
         if (value == null)
             value = NULL;
-
         getParams(fieldName).put(fieldName, value);
         return this;
     }
@@ -238,21 +248,29 @@ public class InstanceConfig implements IInstanceConfig
         return params;
     }
 
-    public static InstanceConfig generate(int nodeNum, String ipAddress, NetworkTopology networkTopology, File root, String token, String seedIp, int datadirCount)
+    public static InstanceConfig generate(int nodeNum,
+                                          INodeProvisionStrategy provisionStrategy,
+                                          NetworkTopology networkTopology,
+                                          File root,
+                                          String token,
+                                          int datadirCount)
     {
         return new InstanceConfig(nodeNum,
                                   networkTopology,
-                                  ipAddress,
-                                  ipAddress,
-                                  ipAddress,
-                                  ipAddress,
-                                  seedIp,
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.ipAddress(nodeNum),
+                                  provisionStrategy.seedIp(),
+                                  provisionStrategy.seedPort(),
                                   String.format("%s/node%d/saved_caches", root, nodeNum),
                                   datadirs(datadirCount, root, nodeNum),
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  token);
+                                  token,
+                                  provisionStrategy.storagePort(nodeNum),
+                                  provisionStrategy.nativeTransportPort(nodeNum));
     }
 
     private static String[] datadirs(int datadirCount, File root, int nodeNum)
@@ -266,7 +284,11 @@ public class InstanceConfig implements IInstanceConfig
 
     public InstanceConfig forVersion(Semver version)
     {
-        return new InstanceConfig(this)
+        // Versions before 4.0 need to set 'seed_provider' without specifying the port
+        if (UpgradeTestBase.v40.compareTo(version) < 0)
+            return this;
+        else
+            return new InstanceConfig(this)
                             .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
                                                                          Collections.singletonMap("seeds", "127.0.0.1")));
     }

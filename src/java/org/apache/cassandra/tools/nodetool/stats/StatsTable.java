@@ -23,10 +23,13 @@ import java.util.List;
 
 public class StatsTable
 {
-    public String name;
+    public String fullName;
+    public String keyspaceName;
+    public String tableName;
     public boolean isIndex;
     public boolean isLeveledSstable = false;
     public Object sstableCount;
+    public Object oldSSTableCount;
     public String spaceUsedLive;
     public String spaceUsedTotal;
     public String spaceUsedBySnapshotsTotal;
@@ -57,10 +60,15 @@ public class StatsTable
     public long compactedPartitionMaximumBytes;
     public long compactedPartitionMeanBytes;
     public double percentRepaired;
+    public long bytesRepaired;
+    public long bytesUnrepaired;
+    public long bytesPendingRepair;
     public double averageLiveCellsPerSliceLastFiveMinutes;
     public long maximumLiveCellsPerSliceLastFiveMinutes;
     public double averageTombstonesPerSliceLastFiveMinutes;
     public long maximumTombstonesPerSliceLastFiveMinutes;
     public String droppedMutations;
     public List<String> sstablesInEachLevel = new ArrayList<>();
+    public List<String> sstableBytesInEachLevel = new ArrayList<>();
+    public Boolean isInCorrectLocation = null; // null: option not active
 }

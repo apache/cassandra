@@ -17,14 +17,19 @@
  */
 package org.apache.cassandra.repair;
 
-import java.net.InetAddress;
+import java.util.concurrent.ExecutionException;
 
 import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.exceptions.RepairException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
+
+import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 
 /**
  * ValidationTask sends {@link ValidationRequest} to a replica.
@@ -33,14 +38,18 @@ import org.apache.cassandra.utils.MerkleTrees;
 public class ValidationTask extends AbstractFuture<TreeResponse> implements Runnable
 {
     private final RepairJobDesc desc;
-    private final InetAddress endpoint;
-    private final int gcBefore;
+    private final InetAddressAndPort endpoint;
+    private final int nowInSec;
+    private final PreviewKind previewKind;
+    
+    private boolean active = true;
 
-    public ValidationTask(RepairJobDesc desc, InetAddress endpoint, int gcBefore)
+    public ValidationTask(RepairJobDesc desc, InetAddressAndPort endpoint, int nowInSec, PreviewKind previewKind)
     {
         this.desc = desc;
         this.endpoint = endpoint;
-        this.gcBefore = gcBefore;
+        this.nowInSec = nowInSec;
+        this.previewKind = previewKind;
     }
 
     /**
@@ -48,8 +57,8 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
      */
     public void run()
     {
-        ValidationRequest request = new ValidationRequest(desc, gcBefore);
-        MessagingService.instance().sendOneWay(request.createMessage(), endpoint);
+        ValidationRequest request = new ValidationRequest(desc, nowInSec);
+        MessagingService.instance().send(Message.out(VALIDATION_REQ, request), endpoint);
     }
 
     /**
@@ -57,15 +66,60 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
      *
      * @param trees MerkleTrees that is sent from replica. Null if validation failed on replica node.
      */
-    public void treesReceived(MerkleTrees trees)
+    public synchronized void treesReceived(MerkleTrees trees)
     {
         if (trees == null)
         {
-            setException(new RepairException(desc, "Validation failed in " + endpoint));
+            active = false;
+            setException(RepairException.warn(desc, previewKind, "Validation failed in " + endpoint));
         }
-        else
+        else if (active)
         {
             set(new TreeResponse(endpoint, trees));
         }
+        else
+        {
+            // If the task has already been aborted, just release the possibly off-heap trees and move along.
+            trees.release();
+            set(null);
+        }
+    }
+
+    /**
+     * Release any trees already received by this task, and place it a state where any trees 
+     * received subsequently will be properly discarded.
+     */
+    public synchronized void abort()
+    {
+        if (active) 
+        {
+            if (isDone())
+            {
+                try 
+                {
+                    // If we're done, this should return immediately.
+                    TreeResponse response = get();
+                    
+                    if (response.trees != null)
+                        response.trees.release();
+                } 
+                catch (InterruptedException e) 
+                {
+                    // Restore the interrupt.
+                    Thread.currentThread().interrupt();
+                } 
+                catch (ExecutionException e) 
+                {
+                    // Do nothing here. If an exception was set, there were no trees to release.
+                }
+            }
+            
+            active = false;
+        }
+    }
+    
+    public synchronized boolean isActive()
+    {
+        return active;
     }
 }

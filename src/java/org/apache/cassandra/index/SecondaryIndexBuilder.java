@@ -25,6 +25,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 public abstract class SecondaryIndexBuilder extends CompactionInfo.Holder
 {
     public abstract void build();
+
     public boolean isGlobal()
     {
         return false;

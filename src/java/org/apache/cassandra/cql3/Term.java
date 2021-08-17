@@ -70,6 +70,14 @@ public interface Term
      */
     public abstract boolean containsBindMarker();
 
+    /**
+     * Whether that term is terminal (this is a shortcut for {@code this instanceof Term.Terminal}).
+     */
+    default public boolean isTerminal()
+    {
+        return false; // overriden below by Terminal
+    }
+
     public void addFunctionsTo(List<Function> functions);
 
     /**
@@ -116,6 +124,18 @@ public interface Term
         {
             return getText();
         }
+
+        @Override
+        public int hashCode()
+        {
+            return getText().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            return this == o || (o instanceof Raw && getText().equals(((Raw) o).getText()));
+        }
     }
 
     public abstract class MultiColumnRaw extends Term.Raw
@@ -151,6 +171,12 @@ public interface Term
         public boolean containsBindMarker()
         {
             return false;
+        }
+
+        @Override
+        public boolean isTerminal()
+        {
+            return true;
         }
 
         /**

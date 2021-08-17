@@ -1,0 +1,47 @@
+--- a/bin/cassandra.in.sh
++++ b/bin/cassandra.in.sh
+@@ -14,17 +14,17 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-if [ "x$CASSANDRA_HOME" = "x" ]; then
+-    CASSANDRA_HOME="`dirname "$0"`/.."
+-fi
++CASSANDRA_HOME=/usr/share/cassandra
+ 
+ # The directory where Cassandra's configs live (required)
+-if [ "x$CASSANDRA_CONF" = "x" ]; then
+-    CASSANDRA_CONF="$CASSANDRA_HOME/conf"
+-fi
++CASSANDRA_CONF=/etc/cassandra
+ 
+ # The java classpath (required)
+-CLASSPATH="$CASSANDRA_CONF"
++if [ -n "$CLASSPATH" ]; then
++    CLASSPATH=$CLASSPATH:$CASSANDRA_CONF
++else
++    CLASSPATH="$CASSANDRA_CONF"
++fi
+ 
+ # This can be the path to a jar file, or a directory containing the 
+ # compiled classes. NOTE: This isn't needed by the startup script,
+@@ -38,7 +38,7 @@ fi
+ 
+ # the default location for commitlogs, sstables, and saved caches
+ # if not set in cassandra.yaml
+-cassandra_storagedir="$CASSANDRA_HOME/data"
++cassandra_storagedir=/var/lib/cassandra
+ 
+ # JAVA_HOME can optionally be set here
+ #JAVA_HOME=/usr/local/jdk6
+@@ -47,6 +47,10 @@ for jar in "$CASSANDRA_HOME"/lib/*.jar; do
+     CLASSPATH="$CLASSPATH:$jar"
+ done
+ 
++for jar in "$CASSANDRA_HOME"/*.jar; do
++    CLASSPATH="$CLASSPATH:$jar"
++done
++
+ CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
+ 
+ # JSR223 - collect all JSR223 engines' jars

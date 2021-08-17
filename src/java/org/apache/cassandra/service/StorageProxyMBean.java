@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+
 public interface StorageProxyMBean
 {
     public long getTotalHints();
@@ -59,13 +60,38 @@ public interface StorageProxyMBean
     public long getReadRepairRepairedBlocking();
     public long getReadRepairRepairedBackground();
 
+    @Deprecated
     public int getOtcBacklogExpirationInterval();
+    @Deprecated
     public void setOtcBacklogExpirationInterval(int intervalInMillis);
 
     /** Returns each live node's schema version */
-    public Map<String, List<String>> getSchemaVersions();
+    @Deprecated public Map<String, List<String>> getSchemaVersions();
+    public Map<String, List<String>> getSchemaVersionsWithPort();
 
     public int getNumberOfTables();
+
+    public String getIdealConsistencyLevel();
+    public String setIdealConsistencyLevel(String cl);
+
+    /**
+     * Tracking and reporting of variances in the repaired data set across replicas at read time
+     */
+    void enableRepairedDataTrackingForRangeReads();
+    void disableRepairedDataTrackingForRangeReads();
+    boolean getRepairedDataTrackingEnabledForRangeReads();
+
+    void enableRepairedDataTrackingForPartitionReads();
+    void disableRepairedDataTrackingForPartitionReads();
+    boolean getRepairedDataTrackingEnabledForPartitionReads();
+
+    void enableReportingUnconfirmedRepairedDataMismatches();
+    void disableReportingUnconfirmedRepairedDataMismatches();
+    boolean getReportingUnconfirmedRepairedDataMismatchesEnabled();
+
+    void enableSnapshotOnRepairedDataMismatch();
+    void disableSnapshotOnRepairedDataMismatch();
+    boolean getSnapshotOnRepairedDataMismatchEnabled();
 
     void enableSnapshotOnDuplicateRowDetection();
     void disableSnapshotOnDuplicateRowDetection();

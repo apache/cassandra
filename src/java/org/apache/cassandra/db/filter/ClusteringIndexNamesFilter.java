@@ -21,16 +21,16 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
@@ -42,14 +42,14 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     // This could be empty if selectedColumns only has static columns (in which case the filter still
     // selects the static row)
-    private final NavigableSet<Clustering> clusterings;
+    private final NavigableSet<Clustering<?>> clusterings;
 
     // clusterings is always in clustering order (because we need it that way in some methods), but we also
     // sometimes need those clustering in "query" order (i.e. in reverse clustering order if the query is
     // reversed), so we keep that too for simplicity.
-    private final NavigableSet<Clustering> clusteringsInQueryOrder;
+    private final NavigableSet<Clustering<?>> clusteringsInQueryOrder;
 
-    public ClusteringIndexNamesFilter(NavigableSet<Clustering> clusterings, boolean reversed)
+    public ClusteringIndexNamesFilter(NavigableSet<Clustering<?>> clusterings, boolean reversed)
     {
         super(reversed);
         assert !clusterings.contains(Clustering.STATIC_CLUSTERING);
@@ -65,7 +65,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
      * @return the set of requested clustering in clustering order (note that
      * this is always in clustering order even if the query is reversed).
      */
-    public NavigableSet<Clustering> requestedRows()
+    public NavigableSet<Clustering<?>> requestedRows()
     {
         return clusterings;
     }
@@ -77,16 +77,16 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return clusterings.isEmpty();
     }
 
-    public boolean selects(Clustering clustering)
+    public boolean selects(Clustering<?> clustering)
     {
         return clusterings.contains(clustering);
     }
 
-    public ClusteringIndexNamesFilter forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive)
+    public ClusteringIndexNamesFilter forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive)
     {
-        NavigableSet<Clustering> newClusterings = reversed ?
-                                                  clusterings.headSet(lastReturned, inclusive) :
-                                                  clusterings.tailSet(lastReturned, inclusive);
+        NavigableSet<Clustering<?>> newClusterings = reversed ?
+                                                     clusterings.headSet(lastReturned, inclusive) :
+                                                     clusterings.tailSet(lastReturned, inclusive);
 
         return new ClusteringIndexNamesFilter(newClusterings, reversed);
     }
@@ -128,48 +128,27 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return Transformation.apply(iterator, new FilterNotIndexed());
     }
 
-    public Slices getSlices(CFMetaData metadata)
+    public Slices getSlices(TableMetadata metadata)
     {
         Slices.Builder builder = new Slices.Builder(metadata.comparator, clusteringsInQueryOrder.size());
-        for (Clustering clustering : clusteringsInQueryOrder)
+        for (Clustering<?> clustering : clusteringsInQueryOrder)
             builder.add(Slice.make(clustering));
         return builder.build();
     }
 
     public UnfilteredRowIterator getUnfilteredRowIterator(final ColumnFilter columnFilter, final Partition partition)
     {
-        final Iterator<Clustering> clusteringIter = clusteringsInQueryOrder.iterator();
-        final SearchIterator<Clustering, Row> searcher = partition.searchIterator(columnFilter, reversed);
-
-        return new AbstractUnfilteredRowIterator(partition.metadata(),
-                                        partition.partitionKey(),
-                                        partition.partitionLevelDeletion(),
-                                        columnFilter.fetchedColumns(),
-                                        searcher.next(Clustering.STATIC_CLUSTERING),
-                                        reversed,
-                                        partition.stats())
-        {
-            protected Unfiltered computeNext()
-            {
-                while (clusteringIter.hasNext())
-                {
-                    Row row = searcher.next(clusteringIter.next());
-                    if (row != null)
-                        return row;
-                }
-                return endOfData();
-            }
-        };
+        return partition.unfilteredIterator(columnFilter, clusteringsInQueryOrder, isReversed());
     }
 
     public boolean shouldInclude(SSTableReader sstable)
     {
-        ClusteringComparator comparator = sstable.metadata.comparator;
+        ClusteringComparator comparator = sstable.metadata().comparator;
         List<ByteBuffer> minClusteringValues = sstable.getSSTableMetadata().minClusteringValues;
         List<ByteBuffer> maxClusteringValues = sstable.getSSTableMetadata().maxClusteringValues;
 
         // If any of the requested clustering is within the bounds covered by the sstable, we need to include the sstable
-        for (Clustering clustering : clusterings)
+        for (Clustering<?> clustering : clusterings)
         {
             if (Slice.make(clustering).intersects(comparator, minClusteringValues, maxClusteringValues))
                 return true;
@@ -177,33 +156,65 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return false;
     }
 
-    public String toString(CFMetaData metadata)
+    public String toString(TableMetadata metadata)
     {
         StringBuilder sb = new StringBuilder();
         sb.append("names(");
         int i = 0;
-        for (Clustering clustering : clusterings)
+        for (Clustering<?> clustering : clusterings)
             sb.append(i++ == 0 ? "" : ", ").append(clustering.toString(metadata));
         if (reversed)
             sb.append(", reversed");
         return sb.append(')').toString();
     }
 
-    public String toCQLString(CFMetaData metadata)
+    @Override
+    public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
     {
         if (metadata.clusteringColumns().isEmpty() || clusterings.isEmpty())
-            return "";
+            return rowFilter.toCQLString();
+
+        boolean isSingleColumn = metadata.clusteringColumns().size() == 1;
+        boolean isSingleClustering = clusterings.size() == 1;
 
         StringBuilder sb = new StringBuilder();
-        sb.append('(').append(ColumnDefinition.toCQLString(metadata.clusteringColumns())).append(')');
-        sb.append(clusterings.size() == 1 ? " = " : " IN (");
+        sb.append(isSingleColumn ? "" : '(')
+          .append(ColumnMetadata.toCQLString(metadata.clusteringColumns()))
+          .append(isSingleColumn ? "" : ')');
+
+        sb.append(isSingleClustering ? " = " : " IN (");
         int i = 0;
-        for (Clustering clustering : clusterings)
-            sb.append(i++ == 0 ? "" : ", ").append('(').append(clustering.toCQLString(metadata)).append(')');
-        sb.append(clusterings.size() == 1 ? "" : ")");
+        for (Clustering<?> clustering : clusterings)
+        {
+            sb.append(i++ == 0 ? "" : ", ")
+              .append(isSingleColumn ? "" : '(')
+              .append(clustering.toCQLString(metadata))
+              .append(isSingleColumn ? "" : ')');
+
+            for (int j = 0; j < clustering.size(); j++)
+                rowFilter = rowFilter.without(metadata.clusteringColumns().get(j), Operator.EQ, clustering.bufferAt(j));
+        }
+        sb.append(isSingleClustering ? "" : ")");
+
+        if (!rowFilter.isEmpty())
+            sb.append(" AND ").append(rowFilter.toCQLString());
 
         appendOrderByToCQLString(metadata, sb);
         return sb.toString();
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ClusteringIndexNamesFilter that = (ClusteringIndexNamesFilter) o;
+        return Objects.equals(clusterings, that.clusterings) &&
+               Objects.equals(reversed, that.reversed);
+    }
+
+    public int hashCode()
+    {
+        return Objects.hash(clusterings, reversed);
     }
 
     public Kind kind()
@@ -215,7 +226,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     {
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
         out.writeUnsignedVInt(clusterings.size());
-        for (Clustering clustering : clusterings)
+        for (Clustering<?> clustering : clusterings)
             Clustering.serializer.serialize(clustering, out, version, comparator.subtypes());
     }
 
@@ -223,17 +234,17 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     {
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
         long size = TypeSizes.sizeofUnsignedVInt(clusterings.size());
-        for (Clustering clustering : clusterings)
+        for (Clustering<?> clustering : clusterings)
             size += Clustering.serializer.serializedSize(clustering, version, comparator.subtypes());
         return size;
     }
 
     private static class NamesDeserializer implements InternalDeserializer
     {
-        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean reversed) throws IOException
         {
             ClusteringComparator comparator = metadata.comparator;
-            BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(comparator);
+            BTreeSet.Builder<Clustering<?>> clusterings = BTreeSet.builder(comparator);
             int size = (int)in.readUnsignedVInt();
             for (int i = 0; i < size; i++)
                 clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));

@@ -26,3 +26,17 @@ public interface INodeProbeFactory
 
     NodeProbe create(String host, int port, String username, String password) throws IOException;
 }
+
+class NodeProbeFactory implements INodeProbeFactory
+{
+
+    public NodeProbe create(String host, int port) throws IOException
+    {
+        return new NodeProbe(host, port);
+    }
+
+    public NodeProbe create(String host, int port, String username, String password) throws IOException
+    {
+        return new NodeProbe(host, port, username, password);
+    }
+}

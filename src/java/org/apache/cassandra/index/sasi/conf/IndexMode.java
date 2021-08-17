@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.NoOpAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer;
@@ -94,7 +94,7 @@ public class IndexMode
         return analyzer;
     }
 
-    public static void validateAnalyzer(Map<String, String> indexOptions, ColumnDefinition cd) throws ConfigurationException
+    public static void validateAnalyzer(Map<String, String> indexOptions, ColumnMetadata cd) throws ConfigurationException
     {
         // validate that a valid analyzer class was provided if specified
         if (indexOptions.containsKey(INDEX_ANALYZER_CLASS_OPTION))
@@ -127,12 +127,12 @@ public class IndexMode
         }
     }
 
-    public static IndexMode getMode(ColumnDefinition column, Optional<IndexMetadata> config) throws ConfigurationException
+    public static IndexMode getMode(ColumnMetadata column, Optional<IndexMetadata> config) throws ConfigurationException
     {
         return getMode(column, config.isPresent() ? config.get().options : null);
     }
 
-    public static IndexMode getMode(ColumnDefinition column, Map<String, String> indexOptions) throws ConfigurationException
+    public static IndexMode getMode(ColumnMetadata column, Map<String, String> indexOptions) throws ConfigurationException
     {
         if (indexOptions == null || indexOptions.isEmpty())
             return IndexMode.NOT_INDEXED;

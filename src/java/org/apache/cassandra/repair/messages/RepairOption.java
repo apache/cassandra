@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -47,6 +48,9 @@ public class RepairOption
     public static final String TRACE_KEY = "trace";
     public static final String SUB_RANGE_REPAIR_KEY = "sub_range_repair";
     public static final String PULL_REPAIR_KEY = "pullRepair";
+    public static final String FORCE_REPAIR_KEY = "forceRepair";
+    public static final String PREVIEW = "previewKind";
+    public static final String OPTIMISE_STREAMS_KEY = "optimiseStreams";
     public static final String IGNORE_UNREPLICATED_KS = "ignoreUnreplicatedKeyspaces";
 
     // we don't want to push nodes too much for repair
@@ -54,6 +58,30 @@ public class RepairOption
 
     private static final Logger logger = LoggerFactory.getLogger(RepairOption.class);
 
+    public static Set<Range<Token>> parseRanges(String rangesStr, IPartitioner partitioner)
+    {
+        if (rangesStr == null || rangesStr.isEmpty())
+            return Collections.emptySet();
+
+        Set<Range<Token>> ranges = new HashSet<>();
+        StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
+        while (tokenizer.hasMoreTokens())
+        {
+            String[] rangeStr = tokenizer.nextToken().split(":", 2);
+            if (rangeStr.length < 2)
+            {
+                continue;
+            }
+            Token parsedBeginToken = partitioner.getTokenFactory().fromString(rangeStr[0].trim());
+            Token parsedEndToken = partitioner.getTokenFactory().fromString(rangeStr[1].trim());
+            if (parsedBeginToken.equals(parsedEndToken))
+            {
+                throw new IllegalArgumentException("Start and end tokens must be different.");
+            }
+            ranges.add(new Range<>(parsedBeginToken, parsedEndToken));
+        }
+        return ranges;
+    }
     /**
      * Construct RepairOptions object from given map of Strings.
      * <p>
@@ -124,6 +152,17 @@ public class RepairOption
      *             This is only allowed if exactly 2 hosts are specified along with a token range that they share.</td>
      *             <td>false</td>
      *         </tr>
+     *         <tr>
+     *             <td>forceRepair</td>
+     *             <td>"true" if the repair should continue, even if one of the replicas involved is down.
+     *             <td>false</td>
+     *         </tr>
+     *         <tr>
+     *             <td>optimiseStreams</td>
+     *             <td>"true" if we should try to optimise the syncing to avoid transfering identical
+     *             ranges to the same host multiple times</td>
+     *             <td>false</td>
+     *         </tr>
      *     </tbody>
      * </table>
      *
@@ -137,7 +176,9 @@ public class RepairOption
         RepairParallelism parallelism = RepairParallelism.fromName(options.get(PARALLELISM_KEY));
         boolean primaryRange = Boolean.parseBoolean(options.get(PRIMARY_RANGE_KEY));
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
+        PreviewKind previewKind = PreviewKind.valueOf(options.getOrDefault(PREVIEW, PreviewKind.NONE.toString()));
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
+        boolean force = Boolean.parseBoolean(options.get(FORCE_REPAIR_KEY));
         boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
         boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
 
@@ -150,34 +191,13 @@ public class RepairOption
             }
             catch (NumberFormatException ignore) {}
         }
-        // ranges
-        String rangesStr = options.get(RANGES_KEY);
-        Set<Range<Token>> ranges = new HashSet<>();
-        if (rangesStr != null)
-        {
-            if (incremental)
-                logger.warn("Incremental repair can't be requested with subrange repair " +
-                            "because each subrange repair would generate an anti-compacted table. " +
-                            "The repair will occur but without anti-compaction.");
-            StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
-            while (tokenizer.hasMoreTokens())
-            {
-                String[] rangeStr = tokenizer.nextToken().split(":", 2);
-                if (rangeStr.length < 2)
-                {
-                    continue;
-                }
-                Token parsedBeginToken = partitioner.getTokenFactory().fromString(rangeStr[0].trim());
-                Token parsedEndToken = partitioner.getTokenFactory().fromString(rangeStr[1].trim());
-                if (parsedBeginToken.equals(parsedEndToken))
-                {
-                    throw new IllegalArgumentException("Start and end tokens must be different.");
-                }
-                ranges.add(new Range<>(parsedBeginToken, parsedEndToken));
-            }
-        }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, ignoreUnreplicatedKeyspaces);
+        // ranges
+        Set<Range<Token>> ranges = parseRanges(options.get(RANGES_KEY), partitioner);
+
+        boolean asymmetricSyncing = Boolean.parseBoolean(options.get(OPTIMISE_STREAMS_KEY));
+
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair, force, previewKind, asymmetricSyncing, ignoreUnreplicatedKeyspaces);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -253,6 +273,9 @@ public class RepairOption
     private final int jobThreads;
     private final boolean isSubrangeRepair;
     private final boolean pullRepair;
+    private final boolean forceRepair;
+    private final PreviewKind previewKind;
+    private final boolean optimiseStreams;
     private final boolean ignoreUnreplicatedKeyspaces;
 
     private final Collection<String> columnFamilies = new HashSet<>();
@@ -260,7 +283,7 @@ public class RepairOption
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean ignoreUnreplicatedKeyspaces)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair, boolean forceRepair, PreviewKind previewKind, boolean optimiseStreams, boolean ignoreUnreplicatedKeyspaces)
     {
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -279,6 +302,9 @@ public class RepairOption
         this.ranges.addAll(ranges);
         this.isSubrangeRepair = isSubrangeRepair;
         this.pullRepair = pullRepair;
+        this.forceRepair = forceRepair;
+        this.previewKind = previewKind;
+        this.optimiseStreams = optimiseStreams;
         this.ignoreUnreplicatedKeyspaces = ignoreUnreplicatedKeyspaces;
     }
 
@@ -305,6 +331,11 @@ public class RepairOption
     public boolean isPullRepair()
     {
         return pullRepair;
+    }
+
+    public boolean isForcedRepair()
+    {
+        return forceRepair;
     }
 
     public int getJobThreads()
@@ -334,7 +365,7 @@ public class RepairOption
 
     public boolean isGlobal()
     {
-        return dataCenters.isEmpty() && hosts.isEmpty() && !isSubrangeRepair();
+        return dataCenters.isEmpty() && hosts.isEmpty();
     }
 
     public boolean isSubrangeRepair()
@@ -342,29 +373,64 @@ public class RepairOption
         return isSubrangeRepair;
     }
 
-    public boolean isInLocalDCOnly() {
+    public PreviewKind getPreviewKind()
+    {
+        return previewKind;
+    }
+
+    public boolean isPreview()
+    {
+        return previewKind.isPreview();
+    }
+
+    public boolean isInLocalDCOnly()
+    {
         return dataCenters.size() == 1 && dataCenters.contains(DatabaseDescriptor.getLocalDataCenter());
+    }
+
+    public boolean optimiseStreams()
+    {
+        if(optimiseStreams)
+            return true;
+
+        if (isPullRepair() || isForcedRepair())
+            return false;
+
+        if (isIncremental() && DatabaseDescriptor.autoOptimiseIncRepairStreams())
+            return true;
+
+        if (isPreview() && DatabaseDescriptor.autoOptimisePreviewRepairStreams())
+            return true;
+
+        if (!isIncremental() && DatabaseDescriptor.autoOptimiseFullRepairStreams())
+            return true;
+
+        return false;
     }
 
     public boolean ignoreUnreplicatedKeyspaces()
     {
         return ignoreUnreplicatedKeyspaces;
     }
+
     @Override
     public String toString()
     {
         return "repair options (" +
-                       "parallelism: " + parallelism +
-                       ", primary range: " + primaryRange +
-                       ", incremental: " + incremental +
-                       ", job threads: " + jobThreads +
-                       ", ColumnFamilies: " + columnFamilies +
-                       ", dataCenters: " + dataCenters +
-                       ", hosts: " + hosts +
-                       ", # of ranges: " + ranges.size() +
-                       ", pull repair: " + pullRepair +
-                       ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
-                       ')';
+               "parallelism: " + parallelism +
+               ", primary range: " + primaryRange +
+               ", incremental: " + incremental +
+               ", job threads: " + jobThreads +
+               ", ColumnFamilies: " + columnFamilies +
+               ", dataCenters: " + dataCenters +
+               ", hosts: " + hosts +
+               ", previewKind: " + previewKind +
+               ", # of ranges: " + ranges.size() +
+               ", pull repair: " + pullRepair +
+               ", force repair: " + forceRepair +
+               ", optimise streams: "+ optimiseStreams() +
+               ", ignore unreplicated keyspaces: "+ ignoreUnreplicatedKeyspaces +
+               ')';
     }
 
     public Map<String, String> asMap()
@@ -381,6 +447,9 @@ public class RepairOption
         options.put(TRACE_KEY, Boolean.toString(trace));
         options.put(RANGES_KEY, Joiner.on(",").join(ranges));
         options.put(PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+        options.put(FORCE_REPAIR_KEY, Boolean.toString(forceRepair));
+        options.put(PREVIEW, previewKind.toString());
+        options.put(OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
         return options;
     }
 }

@@ -17,42 +17,58 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
-import java.util.Collection;
-import java.util.List;
+import java.util.Set;
+
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * This interface helps determine location of node in the data center relative to another node.
+ * This interface helps determine location of node in the datacenter relative to another node.
  * Give a node A and another node B it can tell if A and B are on the same rack or in the same
- * data center.
+ * datacenter.
  */
 
 public interface IEndpointSnitch
 {
     /**
-     * returns a String repesenting the rack this endpoint belongs to
+     * returns a String representing the rack the given endpoint belongs to
      */
-    public String getRack(InetAddress endpoint);
+    public String getRack(InetAddressAndPort endpoint);
 
     /**
-     * returns a String representing the datacenter this endpoint belongs to
+     * returns a String representing the rack current endpoint belongs to
      */
-    public String getDatacenter(InetAddress endpoint);
+    default public String getLocalRack()
+    {
+        return getRack(FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    /**
+     * returns a String representing the datacenter the given endpoint belongs to
+     */
+    public String getDatacenter(InetAddressAndPort endpoint);
+
+    /**
+     * returns a String representing the datacenter current endpoint belongs to
+     */
+    default public String getLocalDatacenter()
+    {
+        return getDatacenter(FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    default public String getDatacenter(Replica replica)
+    {
+        return getDatacenter(replica.endpoint());
+    }
 
     /**
      * returns a new <tt>List</tt> sorted by proximity to the given endpoint
      */
-    public List<InetAddress> getSortedListByProximity(InetAddress address, Collection<InetAddress> unsortedAddress);
-
-    /**
-     * This method will sort the <tt>List</tt> by proximity to the given address.
-     */
-    public void sortByProximity(InetAddress address, List<InetAddress> addresses);
+    public <C extends ReplicaCollection<? extends C>> C sortedByProximity(final InetAddressAndPort address, C addresses);
 
     /**
      * compares two endpoints in relation to the target endpoint, returning as Comparator.compare would
      */
-    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2);
+    public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2);
 
     /**
      * called after Gossiper instance exists immediately before it starts gossiping
@@ -63,5 +79,13 @@ public interface IEndpointSnitch
      * Returns whether for a range query doing a query against merged is likely
      * to be faster than 2 sequential queries, one against l1 followed by one against l2.
      */
-    public boolean isWorthMergingForRangeQuery(List<InetAddress> merged, List<InetAddress> l1, List<InetAddress> l2);
+    public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2);
+
+    /**
+     * Determine if the datacenter or rack values in the current node's snitch conflict with those passed in parameters.
+     */
+    default boolean validate(Set<String> datacenters, Set<String> racks)
+    {
+        return true;
+    }
 }

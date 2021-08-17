@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
@@ -38,8 +39,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class LongLeveledCompactionStrategyTest
@@ -75,22 +79,7 @@ public class LongLeveledCompactionStrategyTest
 
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
-        // Enough data to have a level 1 and 2
-        int rows = 128;
-        int columns = 10;
-
-        // Adds enough data to trigger multiple sstable per level
-        for (int r = 0; r < rows; r++)
-        {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
-            for (int c = 0; c < columns; c++)
-                builder.newRow("column" + c).add("val", value);
-
-            Mutation rm = new Mutation(builder.build());
-            rm.apply();
-            store.forceBlockingFlush();
-        }
+        populateSSTables(store);
 
         // Execute LCS in parallel
         ExecutorService executor = new ThreadPoolExecutor(4, 4,
@@ -108,7 +97,7 @@ public class LongLeveledCompactionStrategyTest
                 {
                     public void run()
                     {
-                        nextTask.execute(null);
+                        nextTask.execute(ActiveCompactionsTracker.NOOP);
                     }
                 });
             }
@@ -153,22 +142,8 @@ public class LongLeveledCompactionStrategyTest
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL2);
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
-        // Enough data to have a level 1 and 2
-        int rows = 128;
-        int columns = 10;
+        populateSSTables(store);
 
-        // Adds enough data to trigger multiple sstable per level
-        for (int r = 0; r < rows; r++)
-        {
-            DecoratedKey key = Util.dk(String.valueOf(r));
-            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
-            for (int c = 0; c < columns; c++)
-                builder.newRow("column" + c).add("val", value);
-
-            Mutation rm = new Mutation(builder.build());
-            rm.apply();
-            store.forceBlockingFlush();
-        }
         LeveledCompactionStrategyTest.waitForLeveling(store);
         store.disableAutoCompaction();
         CompactionStrategyManager mgr = store.getCompactionStrategyManager();
@@ -180,7 +155,7 @@ public class LongLeveledCompactionStrategyTest
         for (int r = 0; r < 10; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata(), key);
             for (int c = 0; c < 10; c++)
                 builder.newRow("column" + c).add("val", value);
 
@@ -228,5 +203,67 @@ public class LongLeveledCompactionStrategyTest
         }, true, true);
 
 
+    }
+
+    @Test
+    public void testRepairStatusChanges() throws Exception
+    {
+        String ksname = KEYSPACE1;
+        String cfname = "StandardLeveled";
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(cfname);
+        store.disableAutoCompaction();
+
+        CompactionStrategyManager mgr = store.getCompactionStrategyManager();
+        LeveledCompactionStrategy repaired = (LeveledCompactionStrategy) mgr.getStrategies().get(0).get(0);
+        LeveledCompactionStrategy unrepaired = (LeveledCompactionStrategy) mgr.getStrategies().get(1).get(0);
+
+        // populate repaired sstables
+        populateSSTables(store);
+        assertTrue(repaired.getSSTables().isEmpty());
+        assertFalse(unrepaired.getSSTables().isEmpty());
+        mgr.mutateRepaired(store.getLiveSSTables(), FBUtilities.nowInSeconds(), null, false);
+        assertFalse(repaired.getSSTables().isEmpty());
+        assertTrue(unrepaired.getSSTables().isEmpty());
+
+        // populate unrepaired sstables
+        populateSSTables(store);
+        assertFalse(repaired.getSSTables().isEmpty());
+        assertFalse(unrepaired.getSSTables().isEmpty());
+
+        // compact them into upper levels
+        store.forceMajorCompaction();
+        assertFalse(repaired.getSSTables().isEmpty());
+        assertFalse(unrepaired.getSSTables().isEmpty());
+
+        // mark unrepair
+        mgr.mutateRepaired(store.getLiveSSTables().stream().filter(s -> s.isRepaired()).collect(Collectors.toList()),
+                           ActiveRepairService.UNREPAIRED_SSTABLE,
+                           null,
+                           false);
+        assertTrue(repaired.getSSTables().isEmpty());
+        assertFalse(unrepaired.getSSTables().isEmpty());
+    }
+
+    private void populateSSTables(ColumnFamilyStore store)
+    {
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+
+        // Enough data to have a level 1 and 2
+        int rows = 128;
+        int columns = 10;
+
+        // Adds enough data to trigger multiple sstable per level
+        for (int r = 0; r < rows; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata(), key);
+            for (int c = 0; c < columns; c++)
+                builder.newRow("column" + c).add("val", value);
+
+            Mutation rm = new Mutation(builder.build());
+            rm.apply();
+            store.forceBlockingFlush();
+        }
     }
 }

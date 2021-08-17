@@ -29,7 +29,7 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class ShortType extends AbstractType<Short>
+public class ShortType extends NumberType<Short>
 {
     public static final ShortType instance = new ShortType();
 
@@ -38,13 +38,12 @@ public class ShortType extends AbstractType<Short>
         super(ComparisonType.CUSTOM);
     } // singleton
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        int diff = o1.get(o1.position()) - o2.get(o2.position());
+        int diff = accessorL.getByte(left, 0) - accessorR.getByte(right, 0);
         if (diff != 0)
             return diff;
-
-        return ByteBufferUtil.compareUnsigned(o1, o2);
+        return ValueAccessor.compare(left, accessorL, right, accessorR);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -91,5 +90,48 @@ public class ShortType extends AbstractType<Short>
     public TypeSerializer<Short> getSerializer()
     {
         return ShortSerializer.instance;
+    }
+
+    @Override
+    public short toShort(ByteBuffer value)
+    {
+        return ByteBufferUtil.toShort(value);
+    }
+
+    @Override
+    public int toInt(ByteBuffer value)
+    {
+        return toShort(value);
+    }
+
+    @Override
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) + rightType.toShort(right)));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) - rightType.toShort(right)));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) * rightType.toShort(right)));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) / rightType.toShort(right)));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes((short) (leftType.toShort(left) % rightType.toShort(right)));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes((short) -toShort(input));
     }
 }

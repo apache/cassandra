@@ -18,16 +18,20 @@
 package org.apache.cassandra.hints;
 
 import java.io.File;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +40,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.dht.Token;
@@ -43,9 +49,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
-import static com.google.common.collect.Iterables.size;
 
 /**
  * A singleton-ish wrapper over various hints components:
@@ -53,6 +57,7 @@ import static com.google.common.collect.Iterables.size;
  * - a single-threaded write executor
  * - a multi-threaded dispatch executor
  * - the buffer pool for writing hints into
+ * - an optional scheduled task to clean up the applicable hints files
  *
  * The front-end for everything hints related.
  */
@@ -62,7 +67,7 @@ public final class HintsService implements HintsServiceMBean
 
     public static HintsService instance = new HintsService();
 
-    private static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
+    public static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
 
     private static final int MIN_BUFFER_SIZE = 32 << 20;
     static final ImmutableMap<String, Object> EMPTY_PARAMS = ImmutableMap.of();
@@ -70,13 +75,14 @@ public final class HintsService implements HintsServiceMBean
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
     private final HintsBufferPool bufferPool;
-    private final HintsDispatchExecutor dispatchExecutor;
-    private final AtomicBoolean isDispatchPaused;
+    final HintsDispatchExecutor dispatchExecutor;
+    final AtomicBoolean isDispatchPaused;
 
     private volatile boolean isShutDown = false;
 
     private final ScheduledFuture triggerFlushingFuture;
     private volatile ScheduledFuture triggerDispatchFuture;
+    private final ScheduledFuture triggerCleanupFuture;
 
     public final HintedHandoffMetrics metrics;
 
@@ -106,6 +112,11 @@ public final class HintsService implements HintsServiceMBean
                                                                                         flushPeriod,
                                                                                         flushPeriod,
                                                                                         TimeUnit.MILLISECONDS);
+
+        // periodically cleanup the expired hints
+        HintsCleanupTrigger cleanupTrigger = new HintsCleanupTrigger(catalog, dispatchExecutor);
+        triggerCleanupFuture = ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(cleanupTrigger, 1, 1, TimeUnit.HOURS);
+
         metrics = new HintedHandoffMetrics();
     }
 
@@ -140,7 +151,7 @@ public final class HintsService implements HintsServiceMBean
      * @param hostIds host ids of the hint's target nodes
      * @param hint the hint to store
      */
-    public void write(Iterable<UUID> hostIds, Hint hint)
+    public void write(Collection<UUID> hostIds, Hint hint)
     {
         if (isShutDown)
             throw new IllegalStateException("HintsService is shut down and can't accept new hints");
@@ -150,7 +161,7 @@ public final class HintsService implements HintsServiceMBean
 
         bufferPool.write(hostIds, hint);
 
-        StorageMetrics.totalHints.inc(size(hostIds));
+        StorageMetrics.totalHints.inc(hostIds.size());
     }
 
     /**
@@ -172,9 +183,14 @@ public final class HintsService implements HintsServiceMBean
         String keyspaceName = hint.mutation.getKeyspaceName();
         Token token = hint.mutation.key().getToken();
 
-        Iterable<UUID> hostIds =
-        transform(filter(StorageService.instance.getNaturalAndPendingEndpoints(keyspaceName, token), StorageProxy::shouldHint),
-                  StorageService.instance::getHostIdForEndpoint);
+        EndpointsForToken replicas = ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token).all();
+
+        // judicious use of streams: eagerly materializing probably cheaper
+        // than performing filters / translations 2x extra via Iterables.filter/transform
+        List<UUID> hostIds = replicas.stream()
+                .filter(StorageProxy::shouldHint)
+                .map(replica -> StorageService.instance.getHostIdForEndpoint(replica.endpoint()))
+                .collect(Collectors.toList());
 
         write(hostIds, hint);
     }
@@ -198,6 +214,8 @@ public final class HintsService implements HintsServiceMBean
 
         isDispatchPaused.set(false);
 
+        HintsServiceDiagnostics.dispatchingStarted(this);
+
         HintsDispatchTrigger trigger = new HintsDispatchTrigger(catalog, writeExecutor, dispatchExecutor, isDispatchPaused);
         // triggering hint dispatch is now very cheap, so we can do it more often - every 10 seconds vs. every 10 minutes,
         // previously; this reduces mean time to delivery, and positively affects batchlog delivery latencies, too
@@ -208,12 +226,16 @@ public final class HintsService implements HintsServiceMBean
     {
         logger.info("Paused hints dispatch");
         isDispatchPaused.set(true);
+
+        HintsServiceDiagnostics.dispatchingPaused(this);
     }
 
     public void resumeDispatch()
     {
         logger.info("Resumed hints dispatch");
         isDispatchPaused.set(false);
+
+        HintsServiceDiagnostics.dispatchingResumed(this);
     }
 
     /**
@@ -234,11 +256,15 @@ public final class HintsService implements HintsServiceMBean
 
         triggerFlushingFuture.cancel(false);
 
+        triggerCleanupFuture.cancel(false);
+
         writeExecutor.flushBufferPool(bufferPool).get();
         writeExecutor.closeAllWriters().get();
 
         dispatchExecutor.shutdownBlocking();
         writeExecutor.shutdownBlocking();
+
+        HintsServiceDiagnostics.dispatchingShutdown(this);
         bufferPool.close();
     }
 
@@ -257,10 +283,10 @@ public final class HintsService implements HintsServiceMBean
      */
     public void deleteAllHintsForEndpoint(String address)
     {
-        InetAddress target;
+        InetAddressAndPort target;
         try
         {
-            target = InetAddress.getByName(address);
+            target = InetAddressAndPort.getByName(address);
         }
         catch (UnknownHostException e)
         {
@@ -274,7 +300,7 @@ public final class HintsService implements HintsServiceMBean
      *
      * @param target inet address of the target node
      */
-    public void deleteAllHintsForEndpoint(InetAddress target)
+    public void deleteAllHintsForEndpoint(InetAddressAndPort target)
     {
         UUID hostId = StorageService.instance.getHostIdForEndpoint(target);
         if (hostId == null)
@@ -375,5 +401,11 @@ public final class HintsService implements HintsServiceMBean
     public boolean isShutDown()
     {
         return isShutDown;
+    }
+    
+    @VisibleForTesting
+    public boolean isDispatchPaused()
+    {
+        return isDispatchPaused.get();
     }
 }

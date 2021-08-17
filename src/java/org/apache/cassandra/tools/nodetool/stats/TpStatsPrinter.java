@@ -19,9 +19,17 @@
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
+
+import com.google.common.collect.Multimap;
+
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
+import static java.util.stream.Collectors.toList;
 
 public class TpStatsPrinter
 {
@@ -36,7 +44,6 @@ public class TpStatsPrinter
             default:
                 return new DefaultPrinter();
         }
-
     }
 
     public static class DefaultPrinter implements StatsPrinter<TpStatsHolder>
@@ -44,30 +51,65 @@ public class TpStatsPrinter
         @Override
         public void print(TpStatsHolder data, PrintStream out)
         {
-            Map<String, Object> convertData = data.convert2Map();
+            final TableBuilder poolBuilder = new TableBuilder();
+            poolBuilder.add("Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
-            out.printf("%-30s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
+            final Multimap<String, String> threadPools = data.probe.getThreadPools();
 
-            Map<Object, Object> threadPools = convertData.get("ThreadPools") instanceof Map<?, ?> ? (Map)convertData.get("ThreadPools") : Collections.emptyMap();
-            for (Map.Entry<Object, Object> entry : threadPools.entrySet())
+            for (final Map.Entry<String, String> tpool : threadPools.entries())
             {
-                Map values = entry.getValue() instanceof Map<?, ?> ? (Map)entry.getValue() : Collections.emptyMap();
-                out.printf("%-30s%10s%10s%15s%10s%18s%n",
-                           entry.getKey(),
-                           values.get("ActiveTasks"),
-                           values.get("PendingTasks"),
-                           values.get("CompletedTasks"),
-                           values.get("CurrentlyBlockedTasks"),
-                           values.get("TotalBlockedTasks"));
+                poolBuilder.add(tpool.getValue(),
+                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "ActiveTasks").toString(),
+                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "PendingTasks").toString(),
+                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CompletedTasks").toString(),
+                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks").toString(),
+                                 data.probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "TotalBlockedTasks").toString());
             }
 
-            out.printf("%n%-20s%10s%n", "Message type", "Dropped");
+            poolBuilder.printTo(out);
 
-            Map<Object, Object> droppedMessages = convertData.get("DroppedMessage") instanceof Map<?, ?> ? (Map)convertData.get("DroppedMessage") : Collections.emptyMap();
-            for (Map.Entry<Object, Object> entry : droppedMessages.entrySet())
+            out.println("\nLatencies waiting in queue (micros) per dropped message types");
+
+            final TableBuilder droppedBuilder = new TableBuilder();
+            droppedBuilder.add("Message type", "Dropped    ", "50%     ", "95%     ", "99%     ", "Max");
+
+            final HashMap<String, Object> droppedMessage = new HashMap<>();
+            final HashMap<String, Double[]> waitLatencies = new HashMap<>();
+
+            for (final Map.Entry<String, Integer> entry : data.probe.getDroppedMessages().entrySet())
             {
-                out.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
+                droppedMessage.put(entry.getKey(), entry.getValue());
+                try
+                {
+                    waitLatencies.put(entry.getKey(), data.probe.metricPercentilesAsArray(data.probe.getMessagingQueueWaitMetrics(entry.getKey())));
+                }
+                catch (RuntimeException e)
+                {
+                    // ignore the exceptions when fetching metrics
+                }
             }
+
+            for (final Map.Entry<String, Object> entry : droppedMessage.entrySet())
+            {
+                final List<String> columns = Stream.of(entry.getKey(), entry.getValue().toString()).collect(toList());
+
+                if (waitLatencies.containsKey(entry.getKey()))
+                {
+                    final Double[] latencies = waitLatencies.get(entry.getKey());
+                    columns.addAll(Arrays.asList(latencies[0].toString(),
+                                                 latencies[2].toString(),
+                                                 latencies[4].toString(),
+                                                 latencies[6].toString()));
+                }
+                else
+                {
+                    columns.addAll(Arrays.asList("N/A", "N/A", "N/A", "N/A"));
+                }
+
+                droppedBuilder.add(columns.toArray(new String[0]));
+            }
+
+            droppedBuilder.printTo(out);
         }
     }
 }

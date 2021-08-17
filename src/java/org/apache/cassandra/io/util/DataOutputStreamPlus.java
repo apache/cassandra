@@ -119,7 +119,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
                 {
                     int toWriteThisTime = Math.min(buf.length, toWrite - totalWritten);
 
-                    ByteBufferUtil.arrayCopy(src, src.position() + totalWritten, buf, 0, toWriteThisTime);
+                    ByteBufferUtil.copyBytes(src, src.position() + totalWritten, buf, 0, toWriteThisTime);
 
                     DataOutputStreamPlus.this.write(buf, 0, toWriteThisTime);
 

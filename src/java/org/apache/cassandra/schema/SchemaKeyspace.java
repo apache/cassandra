@@ -19,8 +19,6 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -31,31 +29,34 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.config.CFMetaData.DroppedColumn;
-import org.apache.cassandra.config.ColumnDefinition.ClusteringOrder;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.view.View;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
+import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+
+import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.schema.CQLTypeParser.parse;
 
 /**
  * system_schema.* tables and methods for manipulating them.
@@ -104,171 +105,170 @@ public final class SchemaKeyspace
      */
     private static final Set<String> TABLES_WITH_CDC_ADDED = ImmutableSet.of(TABLES, VIEWS);
 
+    private static final TableMetadata Keyspaces =
+        parse(KEYSPACES,
+              "keyspace definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "durable_writes boolean,"
+              + "replication frozen<map<text, text>>,"
+              + "PRIMARY KEY ((keyspace_name)))");
 
-    /**
-     * Until we upgrade the messaging service version, that is version 4.0, we must preserve the old order (before CASSANDRA-12213)
-     * for digest calculations, otherwise the nodes will never agree on the schema during a rolling upgrade, see CASSANDRA-13559.
-     */
-    public static final ImmutableList<String> ALL_FOR_DIGEST =
-        ImmutableList.of(KEYSPACES, TABLES, COLUMNS, TRIGGERS, VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
+    private static final TableMetadata Tables =
+        parse(TABLES,
+              "table definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "table_name text,"
+              + "bloom_filter_fp_chance double,"
+              + "caching frozen<map<text, text>>,"
+              + "comment text,"
+              + "compaction frozen<map<text, text>>,"
+              + "compression frozen<map<text, text>>,"
+              + "crc_check_chance double,"
+              + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
+              + "default_time_to_live int,"
+              + "extensions frozen<map<text, blob>>,"
+              + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
+              + "gc_grace_seconds int,"
+              + "id uuid,"
+              + "max_index_interval int,"
+              + "memtable_flush_period_in_ms int,"
+              + "min_index_interval int,"
+              + "read_repair_chance double," // no longer used, left for drivers' sake
+              + "speculative_retry text,"
+              + "additional_write_policy text,"
+              + "cdc boolean,"
+              + "read_repair text,"
+              + "PRIMARY KEY ((keyspace_name), table_name))");
 
-    private static final CFMetaData Keyspaces =
-        compile(KEYSPACES,
-                "keyspace definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "durable_writes boolean,"
-                + "replication frozen<map<text, text>>,"
-                + "PRIMARY KEY ((keyspace_name)))");
+    private static final TableMetadata Columns =
+        parse(COLUMNS,
+              "column definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "table_name text,"
+              + "column_name text,"
+              + "clustering_order text,"
+              + "column_name_bytes blob,"
+              + "kind text,"
+              + "position int,"
+              + "type text,"
+              + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
-    private static final CFMetaData Tables =
-        compile(TABLES,
-                "table definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "table_name text,"
-                + "bloom_filter_fp_chance double,"
-                + "caching frozen<map<text, text>>,"
-                + "comment text,"
-                + "compaction frozen<map<text, text>>,"
-                + "compression frozen<map<text, text>>,"
-                + "crc_check_chance double,"
-                + "dclocal_read_repair_chance double,"
-                + "default_time_to_live int,"
-                + "extensions frozen<map<text, blob>>,"
-                + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
-                + "gc_grace_seconds int,"
-                + "id uuid,"
-                + "max_index_interval int,"
-                + "memtable_flush_period_in_ms int,"
-                + "min_index_interval int,"
-                + "read_repair_chance double,"
-                + "speculative_retry text,"
-                + "cdc boolean,"
-                + "PRIMARY KEY ((keyspace_name), table_name))");
+    private static final TableMetadata DroppedColumns =
+        parse(DROPPED_COLUMNS,
+              "dropped column registry",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "table_name text,"
+              + "column_name text,"
+              + "dropped_time timestamp,"
+              + "kind text,"
+              + "type text,"
+              + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
-    private static final CFMetaData Columns =
-        compile(COLUMNS,
-                "column definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "table_name text,"
-                + "column_name text,"
-                + "clustering_order text,"
-                + "column_name_bytes blob,"
-                + "kind text,"
-                + "position int,"
-                + "type text,"
-                + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
+    private static final TableMetadata Triggers =
+        parse(TRIGGERS,
+              "trigger definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "table_name text,"
+              + "trigger_name text,"
+              + "options frozen<map<text, text>>,"
+              + "PRIMARY KEY ((keyspace_name), table_name, trigger_name))");
 
-    private static final CFMetaData DroppedColumns =
-        compile(DROPPED_COLUMNS,
-                "dropped column registry",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "table_name text,"
-                + "column_name text,"
-                + "dropped_time timestamp,"
-                + "kind text,"
-                + "type text,"
-                + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
+    private static final TableMetadata Views =
+        parse(VIEWS,
+              "view definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "view_name text,"
+              + "base_table_id uuid,"
+              + "base_table_name text,"
+              + "where_clause text,"
+              + "bloom_filter_fp_chance double,"
+              + "caching frozen<map<text, text>>,"
+              + "comment text,"
+              + "compaction frozen<map<text, text>>,"
+              + "compression frozen<map<text, text>>,"
+              + "crc_check_chance double,"
+              + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
+              + "default_time_to_live int,"
+              + "extensions frozen<map<text, blob>>,"
+              + "gc_grace_seconds int,"
+              + "id uuid,"
+              + "include_all_columns boolean,"
+              + "max_index_interval int,"
+              + "memtable_flush_period_in_ms int,"
+              + "min_index_interval int,"
+              + "read_repair_chance double," // no longer used, left for drivers' sake
+              + "speculative_retry text,"
+              + "additional_write_policy text,"
+              + "cdc boolean,"
+              + "read_repair text,"
+              + "PRIMARY KEY ((keyspace_name), view_name))");
 
-    private static final CFMetaData Triggers =
-        compile(TRIGGERS,
-                "trigger definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "table_name text,"
-                + "trigger_name text,"
-                + "options frozen<map<text, text>>,"
-                + "PRIMARY KEY ((keyspace_name), table_name, trigger_name))");
+    private static final TableMetadata Indexes =
+        parse(INDEXES,
+              "secondary index definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "table_name text,"
+              + "index_name text,"
+              + "kind text,"
+              + "options frozen<map<text, text>>,"
+              + "PRIMARY KEY ((keyspace_name), table_name, index_name))");
 
-    private static final CFMetaData Views =
-        compile(VIEWS,
-                "view definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "view_name text,"
-                + "base_table_id uuid,"
-                + "base_table_name text,"
-                + "where_clause text,"
-                + "bloom_filter_fp_chance double,"
-                + "caching frozen<map<text, text>>,"
-                + "comment text,"
-                + "compaction frozen<map<text, text>>,"
-                + "compression frozen<map<text, text>>,"
-                + "crc_check_chance double,"
-                + "dclocal_read_repair_chance double,"
-                + "default_time_to_live int,"
-                + "extensions frozen<map<text, blob>>,"
-                + "gc_grace_seconds int,"
-                + "id uuid,"
-                + "include_all_columns boolean,"
-                + "max_index_interval int,"
-                + "memtable_flush_period_in_ms int,"
-                + "min_index_interval int,"
-                + "read_repair_chance double,"
-                + "speculative_retry text,"
-                + "cdc boolean,"
-                + "PRIMARY KEY ((keyspace_name), view_name))");
+    private static final TableMetadata Types =
+        parse(TYPES,
+              "user defined type definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "type_name text,"
+              + "field_names frozen<list<text>>,"
+              + "field_types frozen<list<text>>,"
+              + "PRIMARY KEY ((keyspace_name), type_name))");
 
-    private static final CFMetaData Indexes =
-        compile(INDEXES,
-                "secondary index definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "table_name text,"
-                + "index_name text,"
-                + "kind text,"
-                + "options frozen<map<text, text>>,"
-                + "PRIMARY KEY ((keyspace_name), table_name, index_name))");
+    private static final TableMetadata Functions =
+        parse(FUNCTIONS,
+              "user defined function definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "function_name text,"
+              + "argument_types frozen<list<text>>,"
+              + "argument_names frozen<list<text>>,"
+              + "body text,"
+              + "language text,"
+              + "return_type text,"
+              + "called_on_null_input boolean,"
+              + "PRIMARY KEY ((keyspace_name), function_name, argument_types))");
 
-    private static final CFMetaData Types =
-        compile(TYPES,
-                "user defined type definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "type_name text,"
-                + "field_names frozen<list<text>>,"
-                + "field_types frozen<list<text>>,"
-                + "PRIMARY KEY ((keyspace_name), type_name))");
+    private static final TableMetadata Aggregates =
+        parse(AGGREGATES,
+              "user defined aggregate definitions",
+              "CREATE TABLE %s ("
+              + "keyspace_name text,"
+              + "aggregate_name text,"
+              + "argument_types frozen<list<text>>,"
+              + "final_func text,"
+              + "initcond text,"
+              + "return_type text,"
+              + "state_func text,"
+              + "state_type text,"
+              + "PRIMARY KEY ((keyspace_name), aggregate_name, argument_types))");
 
-    private static final CFMetaData Functions =
-        compile(FUNCTIONS,
-                "user defined function definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "function_name text,"
-                + "argument_types frozen<list<text>>,"
-                + "argument_names frozen<list<text>>,"
-                + "body text,"
-                + "language text,"
-                + "return_type text,"
-                + "called_on_null_input boolean,"
-                + "PRIMARY KEY ((keyspace_name), function_name, argument_types))");
-
-    private static final CFMetaData Aggregates =
-        compile(AGGREGATES,
-                "user defined aggregate definitions",
-                "CREATE TABLE %s ("
-                + "keyspace_name text,"
-                + "aggregate_name text,"
-                + "argument_types frozen<list<text>>,"
-                + "final_func text,"
-                + "initcond text,"
-                + "return_type text,"
-                + "state_func text,"
-                + "state_type text,"
-                + "PRIMARY KEY ((keyspace_name), aggregate_name, argument_types))");
-
-    public static final List<CFMetaData> ALL_TABLE_METADATA =
+    private static final List<TableMetadata> ALL_TABLE_METADATA =
         ImmutableList.of(Keyspaces, Tables, Columns, Triggers, DroppedColumns, Views, Types, Functions, Aggregates, Indexes);
 
-    private static CFMetaData compile(String name, String description, String schema)
+    private static TableMetadata parse(String name, String description, String cql)
     {
-        return CFMetaData.compile(String.format(schema, name), SchemaConstants.SCHEMA_KEYSPACE_NAME)
-                         .comment(description)
-                         .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(7));
+        return CreateTableStatement.parse(format(cql, name), SchemaConstants.SCHEMA_KEYSPACE_NAME)
+                                   .id(TableId.forSystemTable(SchemaConstants.SCHEMA_KEYSPACE_NAME, name))
+                                   .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(7))
+                                   .memtableFlushPeriod((int) TimeUnit.HOURS.toMillis(1))
+                                   .comment(description)
+                                   .build();
     }
 
     public static KeyspaceMetadata metadata()
@@ -276,13 +276,51 @@ public final class SchemaKeyspace
         return KeyspaceMetadata.create(SchemaConstants.SCHEMA_KEYSPACE_NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
 
+    static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
+    {
+        Map<String, Mutation> mutations = new HashMap<>();
+
+        diff.created.forEach(k -> mutations.put(k.name, makeCreateKeyspaceMutation(k, timestamp).build()));
+        diff.dropped.forEach(k -> mutations.put(k.name, makeDropKeyspaceMutation(k, timestamp).build()));
+        diff.altered.forEach(kd ->
+        {
+            KeyspaceMetadata ks = kd.after;
+
+            Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(ks.name, ks.params, timestamp);
+
+            kd.types.created.forEach(t -> addTypeToSchemaMutation(t, builder));
+            kd.types.dropped.forEach(t -> addDropTypeToSchemaMutation(t, builder));
+            kd.types.altered(Difference.SHALLOW).forEach(td -> addTypeToSchemaMutation(td.after, builder));
+
+            kd.tables.created.forEach(t -> addTableToSchemaMutation(t, true, builder));
+            kd.tables.dropped.forEach(t -> addDropTableToSchemaMutation(t, builder));
+            kd.tables.altered(Difference.SHALLOW).forEach(td -> addAlterTableToSchemaMutation(td.before, td.after, builder));
+
+            kd.views.created.forEach(v -> addViewToSchemaMutation(v, true, builder));
+            kd.views.dropped.forEach(v -> addDropViewToSchemaMutation(v, builder));
+            kd.views.altered(Difference.SHALLOW).forEach(vd -> addAlterViewToSchemaMutation(vd.before, vd.after, builder));
+
+            kd.udfs.created.forEach(f -> addFunctionToSchemaMutation((UDFunction) f, builder));
+            kd.udfs.dropped.forEach(f -> addDropFunctionToSchemaMutation((UDFunction) f, builder));
+            kd.udfs.altered(Difference.SHALLOW).forEach(fd -> addFunctionToSchemaMutation(fd.after, builder));
+
+            kd.udas.created.forEach(a -> addAggregateToSchemaMutation((UDAggregate) a, builder));
+            kd.udas.dropped.forEach(a -> addDropAggregateToSchemaMutation((UDAggregate) a, builder));
+            kd.udas.altered(Difference.SHALLOW).forEach(ad -> addAggregateToSchemaMutation(ad.after, builder));
+
+            mutations.put(ks.name, builder.build());
+        });
+
+        return mutations.values();
+    }
+
     /**
      * Add entries to system_schema.* for the hardcoded system keyspaces
      */
     public static void saveSystemKeyspacesSchema()
     {
-        KeyspaceMetadata system = Schema.instance.getKSMetaData(SchemaConstants.SYSTEM_KEYSPACE_NAME);
-        KeyspaceMetadata schema = Schema.instance.getKSMetaData(SchemaConstants.SCHEMA_KEYSPACE_NAME);
+        KeyspaceMetadata system = Schema.instance.getKeyspaceMetadata(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        KeyspaceMetadata schema = Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME);
 
         long timestamp = FBUtilities.timestampMicros();
 
@@ -304,7 +342,7 @@ public final class SchemaKeyspace
         ALL.reverse().forEach(table -> getSchemaCFS(table).truncateBlocking());
     }
 
-    static void flush()
+    private static void flush()
     {
         if (!DatabaseDescriptor.isUnsafeSystem())
             ALL.forEach(table -> FBUtilities.waitOnFuture(getSchemaCFS(table).forceFlush()));
@@ -313,33 +351,11 @@ public final class SchemaKeyspace
     /**
      * Read schema from system keyspace and calculate MD5 digest of every row, resulting digest
      * will be converted into UUID which would act as content-based version of the schema.
-     *
-     * This implementation is special cased for 3.11 as it returns the schema digests for 3.11
-     * <em>and</em> 3.0 - i.e. with and without the beloved {@code cdc} column.
      */
-    public static Pair<UUID, UUID> calculateSchemaDigest()
+    static UUID calculateSchemaDigest()
     {
-        Set<ByteBuffer> cdc = Collections.singleton(ByteBufferUtil.bytes("cdc"));
-
-        return calculateSchemaDigest(cdc);
-    }
-
-    @VisibleForTesting
-    static Pair<UUID, UUID> calculateSchemaDigest(Set<ByteBuffer> columnsToExclude)
-    {
-        MessageDigest digest;
-        MessageDigest digest30;
-        try
-        {
-            digest = MessageDigest.getInstance("MD5");
-            digest30 = MessageDigest.getInstance("MD5");
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        for (String table : ALL_FOR_DIGEST)
+        Digest digest = Digest.forSchema();
+        for (String table : ALL)
         {
             ReadCommand cmd = getReadCommandForTableSchema(table);
             try (ReadExecutionController executionController = cmd.executionController();
@@ -350,15 +366,12 @@ public final class SchemaKeyspace
                     try (RowIterator partition = schema.next())
                     {
                         if (!isSystemKeyspaceSchemaPartition(partition.partitionKey()))
-                        {
-                            RowIterators.digest(partition, digest, digest30, columnsToExclude);
-                        }
+                            RowIterators.digest(partition, digest);
                     }
                 }
             }
         }
-
-        return Pair.create(UUID.nameUUIDFromBytes(digest.digest()), UUID.nameUUIDFromBytes(digest30.digest()));
+        return UUID.nameUUIDFromBytes(digest.digest());
     }
 
     /**
@@ -377,20 +390,20 @@ public final class SchemaKeyspace
     private static ReadCommand getReadCommandForTableSchema(String schemaTableName)
     {
         ColumnFamilyStore cfs = getSchemaCFS(schemaTableName);
-        return PartitionRangeReadCommand.allDataRead(cfs.metadata, FBUtilities.nowInSeconds());
+        return PartitionRangeReadCommand.allDataRead(cfs.metadata(), FBUtilities.nowInSeconds());
     }
 
-    public static Collection<Mutation> convertSchemaToMutations()
+    static Collection<Mutation> convertSchemaToMutations()
     {
-        Map<DecoratedKey, Mutation> mutationMap = new HashMap<>();
+        Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutationMap = new HashMap<>();
 
         for (String table : ALL)
             convertSchemaToMutations(mutationMap, table);
 
-        return mutationMap.values();
+        return mutationMap.values().stream().map(Mutation.PartitionUpdateCollector::build).collect(Collectors.toList());
     }
 
-    private static void convertSchemaToMutations(Map<DecoratedKey, Mutation> mutationMap, String schemaTableName)
+    private static void convertSchemaToMutations(Map<DecoratedKey, Mutation.PartitionUpdateCollector> mutationMap, String schemaTableName)
     {
         ReadCommand cmd = getReadCommandForTableSchema(schemaTableName);
         try (ReadExecutionController executionController = cmd.executionController();
@@ -404,14 +417,8 @@ public final class SchemaKeyspace
                         continue;
 
                     DecoratedKey key = partition.partitionKey();
-                    Mutation mutation = mutationMap.get(key);
-                    if (mutation == null)
-                    {
-                        mutation = new Mutation(SchemaConstants.SCHEMA_KEYSPACE_NAME, key);
-                        mutationMap.put(key, mutation);
-                    }
-
-                    mutation.add(makeUpdateForSchema(partition, cmd.columnFilter()));
+                    Mutation.PartitionUpdateCollector puCollector = mutationMap.computeIfAbsent(key, k -> new Mutation.PartitionUpdateCollector(SchemaConstants.SCHEMA_KEYSPACE_NAME, key));
+                    puCollector.add(makeUpdateForSchema(partition, cmd.columnFilter()));
                 }
             }
         }
@@ -419,27 +426,27 @@ public final class SchemaKeyspace
 
     /**
      * Creates a PartitionUpdate from a partition containing some schema table content.
-     * This is mainly calling {@code PartitionUpdate.fromIterator} except if cdc is not enabled to handle the problem
-     * in #12236/#16770.
+     * This is mainly calling {@code PartitionUpdate.fromIterator} except for the fact that it deals with
+     * the problem described in #12236.
      */
     private static PartitionUpdate makeUpdateForSchema(UnfilteredRowIterator partition, ColumnFilter filter)
     {
         // This method is used during schema migration tasks, and if cdc is disabled, we want to force excluding the
         // 'cdc' column from the TABLES/VIEWS schema table because it is problematic if received by older nodes (see #12236
         // and #12697). Otherwise though, we just simply "buffer" the content of the partition into a PartitionUpdate.
-        if (DatabaseDescriptor.isCDCEnabled() || !TABLES_WITH_CDC_ADDED.contains(partition.metadata().cfName))
+        if (DatabaseDescriptor.isCDCEnabled() || !TABLES_WITH_CDC_ADDED.contains(partition.metadata().name))
             return PartitionUpdate.fromIterator(partition, filter);
 
         // We want to skip the 'cdc' column. A simple solution for that is based on the fact that
         // 'PartitionUpdate.fromIterator()' will ignore any columns that are marked as 'fetched' but not 'queried'.
-        ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
-        for (ColumnDefinition column : filter.fetchedColumns())
+        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(partition.metadata(), false);
+        for (ColumnMetadata column : filter.fetchedColumns())
         {
             if (!column.name.toString().equals("cdc"))
                 builder.add(column);
         }
 
-        return PartitionUpdate.fromIteratorExplicitColumns(partition, builder.build());
+        return PartitionUpdate.fromIterator(partition, builder.build());
     }
 
     private static boolean isSystemKeyspaceSchemaPartition(DecoratedKey partitionKey)
@@ -451,14 +458,15 @@ public final class SchemaKeyspace
      * Schema entities to mutations
      */
 
-    private static DecoratedKey decorate(CFMetaData metadata, Object value)
+    @SuppressWarnings("unchecked")
+    private static DecoratedKey decorate(TableMetadata metadata, Object value)
     {
-        return metadata.decorateKey(((AbstractType)metadata.getKeyValidator()).decompose(value));
+        return metadata.partitioner.decorateKey(((AbstractType) metadata.partitionKeyType).decompose(value));
     }
 
-    public static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
+    static Mutation.SimpleBuilder makeCreateKeyspaceMutation(String name, KeyspaceParams params, long timestamp)
     {
-        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.ksName, decorate(Keyspaces, name))
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(Keyspaces.keyspace, decorate(Keyspaces, name))
                                                  .timestamp(timestamp);
 
         builder.update(Keyspaces)
@@ -469,7 +477,7 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    public static Mutation.SimpleBuilder makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
+    static Mutation.SimpleBuilder makeCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
 
@@ -482,26 +490,18 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    public static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
+    static Mutation.SimpleBuilder makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(SchemaConstants.SCHEMA_KEYSPACE_NAME, decorate(Keyspaces, keyspace.name))
                                                  .timestamp(timestamp);
 
-        for (CFMetaData schemaTable : ALL_TABLE_METADATA)
+        for (TableMetadata schemaTable : ALL_TABLE_METADATA)
             builder.update(schemaTable).delete();
 
         return builder;
     }
 
-    public static Mutation.SimpleBuilder makeCreateTypeMutation(KeyspaceMetadata keyspace, UserType type, long timestamp)
-    {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        addTypeToSchemaMutation(type, builder);
-        return builder;
-    }
-
-    static void addTypeToSchemaMutation(UserType type, Mutation.SimpleBuilder mutation)
+    private static void addTypeToSchemaMutation(UserType type, Mutation.SimpleBuilder mutation)
     {
         mutation.update(Types)
                 .row(type.getNameAsString())
@@ -509,15 +509,12 @@ public final class SchemaKeyspace
                 .add("field_types", type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList()));
     }
 
-    public static Mutation.SimpleBuilder dropTypeFromSchemaMutation(KeyspaceMetadata keyspace, UserType type, long timestamp)
+    private static void addDropTypeToSchemaMutation(UserType type, Mutation.SimpleBuilder builder)
     {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
         builder.update(Types).row(type.name).delete();
-        return builder;
     }
 
-    public static Mutation.SimpleBuilder makeCreateTableMutation(KeyspaceMetadata keyspace, CFMetaData table, long timestamp)
+    static Mutation.SimpleBuilder makeCreateTableMutation(KeyspaceMetadata keyspace, TableMetadata table, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
@@ -525,27 +522,27 @@ public final class SchemaKeyspace
         return builder;
     }
 
-    public static void addTableToSchemaMutation(CFMetaData table, boolean withColumnsAndTriggers, Mutation.SimpleBuilder builder)
+    static void addTableToSchemaMutation(TableMetadata table, boolean withColumnsAndTriggers, Mutation.SimpleBuilder builder)
     {
         Row.SimpleBuilder rowBuilder = builder.update(Tables)
-                                              .row(table.cfName)
-                                              .add("id", table.cfId)
-                                              .add("flags", CFMetaData.flagsToStrings(table.flags()));
+                                              .row(table.name)
+                                              .add("id", table.id.asUUID())
+                                              .add("flags", TableMetadata.Flag.toStringSet(table.flags));
 
         addTableParamsToRowBuilder(table.params, rowBuilder);
 
         if (withColumnsAndTriggers)
         {
-            for (ColumnDefinition column : table.allColumns())
+            for (ColumnMetadata column : table.columns())
                 addColumnToSchemaMutation(table, column, builder);
 
-            for (CFMetaData.DroppedColumn column : table.getDroppedColumns().values())
+            for (DroppedColumn column : table.droppedColumns.values())
                 addDroppedColumnToSchemaMutation(table, column, builder);
 
-            for (TriggerMetadata trigger : table.getTriggers())
+            for (TriggerMetadata trigger : table.triggers)
                 addTriggerToSchemaMutation(table, trigger, builder);
 
-            for (IndexMetadata index : table.getIndexes())
+            for (IndexMetadata index : table.indexes)
                 addIndexToSchemaMutation(table, index, builder);
         }
     }
@@ -554,18 +551,20 @@ public final class SchemaKeyspace
     {
         builder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
                .add("comment", params.comment)
-               .add("dclocal_read_repair_chance", params.dcLocalReadRepairChance)
+               .add("dclocal_read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("default_time_to_live", params.defaultTimeToLive)
                .add("gc_grace_seconds", params.gcGraceSeconds)
                .add("max_index_interval", params.maxIndexInterval)
                .add("memtable_flush_period_in_ms", params.memtableFlushPeriodInMs)
                .add("min_index_interval", params.minIndexInterval)
-               .add("read_repair_chance", params.readRepairChance)
+               .add("read_repair_chance", 0.0) // no longer used, left for drivers' sake
                .add("speculative_retry", params.speculativeRetry.toString())
+               .add("additional_write_policy", params.additionalWritePolicy.toString())
                .add("crc_check_chance", params.crcCheckChance)
                .add("caching", params.caching.asMap())
                .add("compaction", params.compaction.asMap())
                .add("compression", params.compression.asMap())
+               .add("read_repair", params.readRepair.toString())
                .add("extensions", params.extensions);
 
         // Only add CDC-enabled flag to schema if it's enabled on the node. This is to work around RTE's post-8099 if a 3.8+
@@ -574,43 +573,37 @@ public final class SchemaKeyspace
             builder.add("cdc", params.cdc);
     }
 
-    public static Mutation.SimpleBuilder makeUpdateTableMutation(KeyspaceMetadata keyspace,
-                                                                 CFMetaData oldTable,
-                                                                 CFMetaData newTable,
-                                                                 long timestamp)
+    private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
     {
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-
         addTableToSchemaMutation(newTable, false, builder);
 
-        MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(oldTable.getColumnMetadata(),
-                                                                                 newTable.getColumnMetadata());
+        MapDifference<ByteBuffer, ColumnMetadata> columnDiff = Maps.difference(oldTable.columns, newTable.columns);
 
         // columns that are no longer needed
-        for (ColumnDefinition column : columnDiff.entriesOnlyOnLeft().values())
+        for (ColumnMetadata column : columnDiff.entriesOnlyOnLeft().values())
             dropColumnFromSchemaMutation(oldTable, column, builder);
 
         // newly added columns
-        for (ColumnDefinition column : columnDiff.entriesOnlyOnRight().values())
+        for (ColumnMetadata column : columnDiff.entriesOnlyOnRight().values())
             addColumnToSchemaMutation(newTable, column, builder);
 
         // old columns with updated attributes
         for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
-            addColumnToSchemaMutation(newTable, newTable.getColumnDefinition(name), builder);
+            addColumnToSchemaMutation(newTable, newTable.getColumn(name), builder);
 
         // dropped columns
-        MapDifference<ByteBuffer, CFMetaData.DroppedColumn> droppedColumnDiff =
-            Maps.difference(oldTable.getDroppedColumns(), newTable.getDroppedColumns());
+        MapDifference<ByteBuffer, DroppedColumn> droppedColumnDiff =
+            Maps.difference(oldTable.droppedColumns, newTable.droppedColumns);
 
         // newly dropped columns
-        for (CFMetaData.DroppedColumn column : droppedColumnDiff.entriesOnlyOnRight().values())
+        for (DroppedColumn column : droppedColumnDiff.entriesOnlyOnRight().values())
             addDroppedColumnToSchemaMutation(newTable, column, builder);
 
         // columns added then dropped again
         for (ByteBuffer name : droppedColumnDiff.entriesDiffering().keySet())
-            addDroppedColumnToSchemaMutation(newTable, newTable.getDroppedColumns().get(name), builder);
+            addDroppedColumnToSchemaMutation(newTable, newTable.droppedColumns.get(name), builder);
 
-        MapDifference<String, TriggerMetadata> triggerDiff = triggersDiff(oldTable.getTriggers(), newTable.getTriggers());
+        MapDifference<String, TriggerMetadata> triggerDiff = triggersDiff(oldTable.triggers, newTable.triggers);
 
         // dropped triggers
         for (TriggerMetadata trigger : triggerDiff.entriesOnlyOnLeft().values())
@@ -620,8 +613,7 @@ public final class SchemaKeyspace
         for (TriggerMetadata trigger : triggerDiff.entriesOnlyOnRight().values())
             addTriggerToSchemaMutation(newTable, trigger, builder);
 
-        MapDifference<String, IndexMetadata> indexesDiff = indexesDiff(oldTable.getIndexes(),
-                                                                       newTable.getIndexes());
+        MapDifference<String, IndexMetadata> indexesDiff = indexesDiff(oldTable.indexes, newTable.indexes);
 
         // dropped indexes
         for (IndexMetadata index : indexesDiff.entriesOnlyOnLeft().values())
@@ -634,7 +626,15 @@ public final class SchemaKeyspace
         // updated indexes need to be updated
         for (MapDifference.ValueDifference<IndexMetadata> diff : indexesDiff.entriesDiffering().values())
             addUpdatedIndexToSchemaMutation(newTable, diff.rightValue(), builder);
+    }
 
+    static Mutation.SimpleBuilder makeUpdateTableMutation(KeyspaceMetadata keyspace,
+                                                          TableMetadata oldTable,
+                                                          TableMetadata newTable,
+                                                          long timestamp)
+    {
+        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
+        addAlterTableToSchemaMutation(oldTable, newTable, builder);
         return builder;
     }
 
@@ -660,36 +660,39 @@ public final class SchemaKeyspace
         return Maps.difference(beforeMap, afterMap);
     }
 
-    public static Mutation.SimpleBuilder makeDropTableMutation(KeyspaceMetadata keyspace, CFMetaData table, long timestamp)
+    static Mutation.SimpleBuilder makeDropTableMutation(KeyspaceMetadata keyspace, TableMetadata table, long timestamp)
     {
         // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
         Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-
-        builder.update(Tables).row(table.cfName).delete();
-
-        for (ColumnDefinition column : table.allColumns())
-            dropColumnFromSchemaMutation(table, column, builder);
-
-        for (CFMetaData.DroppedColumn column : table.getDroppedColumns().values())
-            dropDroppedColumnFromSchemaMutation(table, column, timestamp, builder);
-
-        for (TriggerMetadata trigger : table.getTriggers())
-            dropTriggerFromSchemaMutation(table, trigger, builder);
-
-        for (IndexMetadata index : table.getIndexes())
-            dropIndexFromSchemaMutation(table, index, builder);
-
+        addDropTableToSchemaMutation(table, builder);
         return builder;
     }
 
-    private static void addColumnToSchemaMutation(CFMetaData table, ColumnDefinition column, Mutation.SimpleBuilder builder)
+    private static void addDropTableToSchemaMutation(TableMetadata table, Mutation.SimpleBuilder builder)
+    {
+        builder.update(Tables).row(table.name).delete();
+
+        for (ColumnMetadata column : table.columns())
+            dropColumnFromSchemaMutation(table, column, builder);
+
+        for (TriggerMetadata trigger : table.triggers)
+            dropTriggerFromSchemaMutation(table, trigger, builder);
+
+        for (DroppedColumn column : table.droppedColumns.values())
+            dropDroppedColumnFromSchemaMutation(table, column, builder);
+
+        for (IndexMetadata index : table.indexes)
+            dropIndexFromSchemaMutation(table, index, builder);
+    }
+
+    private static void addColumnToSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
     {
         AbstractType<?> type = column.type;
         if (type instanceof ReversedType)
             type = ((ReversedType) type).baseType;
 
         builder.update(Columns)
-               .row(table.cfName, column.name.toString())
+               .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
                .add("kind", column.kind.toString().toLowerCase())
                .add("position", column.position())
@@ -697,158 +700,113 @@ public final class SchemaKeyspace
                .add("type", type.asCQL3Type().toString());
     }
 
-    private static void dropColumnFromSchemaMutation(CFMetaData table, ColumnDefinition column, Mutation.SimpleBuilder builder)
+    private static void dropColumnFromSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
     {
         // Note: we do want to use name.toString(), not name.bytes directly for backward compatibility (For CQL3, this won't make a difference).
-        builder.update(Columns).row(table.cfName, column.name.toString()).delete();
+        builder.update(Columns).row(table.name, column.name.toString()).delete();
     }
 
-    private static void addDroppedColumnToSchemaMutation(CFMetaData table, CFMetaData.DroppedColumn column, Mutation.SimpleBuilder builder)
+    private static void addDroppedColumnToSchemaMutation(TableMetadata table, DroppedColumn column, Mutation.SimpleBuilder builder)
     {
         builder.update(DroppedColumns)
-               .row(table.cfName, column.name)
+               .row(table.name, column.column.name.toString())
                .add("dropped_time", new Date(TimeUnit.MICROSECONDS.toMillis(column.droppedTime)))
-               .add("kind", null != column.kind ? column.kind.toString().toLowerCase() : null)
-               .add("type", expandUserTypes(column.type).asCQL3Type().toString());
+               .add("type", column.column.type.asCQL3Type().toString())
+               .add("kind", column.column.kind.toString().toLowerCase());
     }
 
-    private static void dropDroppedColumnFromSchemaMutation(CFMetaData table, DroppedColumn column, long timestamp, Mutation.SimpleBuilder builder)
+    private static void dropDroppedColumnFromSchemaMutation(TableMetadata table, DroppedColumn column, Mutation.SimpleBuilder builder)
     {
-        builder.update(DroppedColumns).row(table.cfName, column.name).delete();
+        builder.update(DroppedColumns).row(table.name, column.column.name.toString()).delete();
     }
 
-    private static void addTriggerToSchemaMutation(CFMetaData table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
+    private static void addTriggerToSchemaMutation(TableMetadata table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
     {
         builder.update(Triggers)
-               .row(table.cfName, trigger.name)
+               .row(table.name, trigger.name)
                .add("options", Collections.singletonMap("class", trigger.classOption));
     }
 
-    private static void dropTriggerFromSchemaMutation(CFMetaData table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
+    private static void dropTriggerFromSchemaMutation(TableMetadata table, TriggerMetadata trigger, Mutation.SimpleBuilder builder)
     {
-        builder.update(Triggers).row(table.cfName, trigger.name).delete();
+        builder.update(Triggers).row(table.name, trigger.name).delete();
     }
 
-    public static Mutation.SimpleBuilder makeCreateViewMutation(KeyspaceMetadata keyspace, ViewDefinition view, long timestamp)
+    private static void addViewToSchemaMutation(ViewMetadata view, boolean includeColumns, Mutation.SimpleBuilder builder)
     {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        addViewToSchemaMutation(view, true, builder);
-        return builder;
-    }
-
-    private static void addViewToSchemaMutation(ViewDefinition view, boolean includeColumns, Mutation.SimpleBuilder builder)
-    {
-        CFMetaData table = view.metadata;
+        TableMetadata table = view.metadata;
         Row.SimpleBuilder rowBuilder = builder.update(Views)
-                                              .row(view.viewName)
+                                              .row(view.name())
                                               .add("include_all_columns", view.includeAllColumns)
-                                              .add("base_table_id", view.baseTableId)
-                                              .add("base_table_name", view.baseTableMetadata().cfName)
-                                              .add("where_clause", view.whereClause)
-                                              .add("id", table.cfId);
+                                              .add("base_table_id", view.baseTableId.asUUID())
+                                              .add("base_table_name", view.baseTableName)
+                                              .add("where_clause", view.whereClause.toCQLString())
+                                              .add("id", table.id.asUUID());
 
         addTableParamsToRowBuilder(table.params, rowBuilder);
 
         if (includeColumns)
         {
-            for (ColumnDefinition column : table.allColumns())
+            for (ColumnMetadata column : table.columns())
                 addColumnToSchemaMutation(table, column, builder);
 
-            for (CFMetaData.DroppedColumn column : table.getDroppedColumns().values())
+            for (DroppedColumn column : table.droppedColumns.values())
                 addDroppedColumnToSchemaMutation(table, column, builder);
         }
     }
 
-    public static Mutation.SimpleBuilder makeDropViewMutation(KeyspaceMetadata keyspace, ViewDefinition view, long timestamp)
+    private static void addDropViewToSchemaMutation(ViewMetadata view, Mutation.SimpleBuilder builder)
     {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
+        builder.update(Views).row(view.name()).delete();
 
-        builder.update(Views).row(view.viewName).delete();
-
-        CFMetaData table = view.metadata;
-        for (ColumnDefinition column : table.allColumns())
+        TableMetadata table = view.metadata;
+        for (ColumnMetadata column : table.columns())
             dropColumnFromSchemaMutation(table, column, builder);
-
-        for (IndexMetadata index : table.getIndexes())
-            dropIndexFromSchemaMutation(table, index, builder);
-
-        return builder;
     }
 
-    public static Mutation.SimpleBuilder makeUpdateViewMutation(Mutation.SimpleBuilder builder,
-                                                                ViewDefinition oldView,
-                                                                ViewDefinition newView)
+    private static void addAlterViewToSchemaMutation(ViewMetadata before, ViewMetadata after, Mutation.SimpleBuilder builder)
     {
-        addViewToSchemaMutation(newView, false, builder);
+        addViewToSchemaMutation(after, false, builder);
 
-        MapDifference<ByteBuffer, ColumnDefinition> columnDiff = Maps.difference(oldView.metadata.getColumnMetadata(),
-                                                                                 newView.metadata.getColumnMetadata());
+        MapDifference<ByteBuffer, ColumnMetadata> columnDiff = Maps.difference(before.metadata.columns, after.metadata.columns);
 
         // columns that are no longer needed
-        for (ColumnDefinition column : columnDiff.entriesOnlyOnLeft().values())
-            dropColumnFromSchemaMutation(oldView.metadata, column, builder);
+        for (ColumnMetadata column : columnDiff.entriesOnlyOnLeft().values())
+            dropColumnFromSchemaMutation(before.metadata, column, builder);
 
         // newly added columns
-        for (ColumnDefinition column : columnDiff.entriesOnlyOnRight().values())
-            addColumnToSchemaMutation(newView.metadata, column, builder);
+        for (ColumnMetadata column : columnDiff.entriesOnlyOnRight().values())
+            addColumnToSchemaMutation(after.metadata, column, builder);
 
         // old columns with updated attributes
         for (ByteBuffer name : columnDiff.entriesDiffering().keySet())
-            addColumnToSchemaMutation(newView.metadata, newView.metadata.getColumnDefinition(name), builder);
-
-        // dropped columns
-        MapDifference<ByteBuffer, CFMetaData.DroppedColumn> droppedColumnDiff =
-            Maps.difference(oldView.metadata.getDroppedColumns(), oldView.metadata.getDroppedColumns());
-
-        // newly dropped columns
-        for (CFMetaData.DroppedColumn column : droppedColumnDiff.entriesOnlyOnRight().values())
-            addDroppedColumnToSchemaMutation(oldView.metadata, column, builder);
-
-        // columns added then dropped again
-        for (ByteBuffer name : droppedColumnDiff.entriesDiffering().keySet())
-            addDroppedColumnToSchemaMutation(newView.metadata, newView.metadata.getDroppedColumns().get(name), builder);
-
-        return builder;
+            addColumnToSchemaMutation(after.metadata, after.metadata.getColumn(name), builder);
     }
 
-    private static void addIndexToSchemaMutation(CFMetaData table,
-                                                 IndexMetadata index,
-                                                 Mutation.SimpleBuilder builder)
+    private static void addIndexToSchemaMutation(TableMetadata table, IndexMetadata index, Mutation.SimpleBuilder builder)
     {
         builder.update(Indexes)
-               .row(table.cfName, index.name)
+               .row(table.name, index.name)
                .add("kind", index.kind.toString())
                .add("options", index.options);
     }
 
-    private static void dropIndexFromSchemaMutation(CFMetaData table,
-                                                    IndexMetadata index,
-                                                    Mutation.SimpleBuilder builder)
+    private static void dropIndexFromSchemaMutation(TableMetadata table, IndexMetadata index, Mutation.SimpleBuilder builder)
     {
-        builder.update(Indexes).row(table.cfName, index.name).delete();
+        builder.update(Indexes).row(table.name, index.name).delete();
     }
 
-    private static void addUpdatedIndexToSchemaMutation(CFMetaData table,
+    private static void addUpdatedIndexToSchemaMutation(TableMetadata table,
                                                         IndexMetadata index,
                                                         Mutation.SimpleBuilder builder)
     {
         addIndexToSchemaMutation(table, index, builder);
     }
 
-    public static Mutation.SimpleBuilder makeCreateFunctionMutation(KeyspaceMetadata keyspace, UDFunction function, long timestamp)
-    {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        addFunctionToSchemaMutation(function, builder);
-        return builder;
-    }
-
-    static void addFunctionToSchemaMutation(UDFunction function, Mutation.SimpleBuilder builder)
+    private static void addFunctionToSchemaMutation(UDFunction function, Mutation.SimpleBuilder builder)
     {
         builder.update(Functions)
-               .row(function.name().name, functionArgumentsList(function))
+               .row(function.name().name, function.argumentsList())
                .add("body", function.body())
                .add("language", function.language())
                .add("return_type", function.returnType().asCQL3Type().toString())
@@ -868,35 +826,15 @@ public final class SchemaKeyspace
         }
     }
 
-    private static List<String> functionArgumentsList(AbstractFunction fun)
+    private static void addDropFunctionToSchemaMutation(UDFunction function, Mutation.SimpleBuilder builder)
     {
-        return fun.argTypes()
-                  .stream()
-                  .map(AbstractType::asCQL3Type)
-                  .map(CQL3Type::toString)
-                  .collect(toList());
+        builder.update(Functions).row(function.name().name, function.argumentsList()).delete();
     }
 
-    public static Mutation.SimpleBuilder makeDropFunctionMutation(KeyspaceMetadata keyspace, UDFunction function, long timestamp)
-    {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        builder.update(Functions).row(function.name().name, functionArgumentsList(function)).delete();
-        return builder;
-    }
-
-    public static Mutation.SimpleBuilder makeCreateAggregateMutation(KeyspaceMetadata keyspace, UDAggregate aggregate, long timestamp)
-    {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        addAggregateToSchemaMutation(aggregate, builder);
-        return builder;
-    }
-
-    static void addAggregateToSchemaMutation(UDAggregate aggregate, Mutation.SimpleBuilder builder)
+    private static void addAggregateToSchemaMutation(UDAggregate aggregate, Mutation.SimpleBuilder builder)
     {
         builder.update(Aggregates)
-               .row(aggregate.name().name, functionArgumentsList(aggregate))
+               .row(aggregate.name().name, aggregate.argumentsList())
                .add("return_type", aggregate.returnType().asCQL3Type().toString())
                .add("state_func", aggregate.stateFunction().name().name)
                .add("state_type", aggregate.stateType().asCQL3Type().toString())
@@ -907,19 +845,16 @@ public final class SchemaKeyspace
                                 : null);
     }
 
-    public static Mutation.SimpleBuilder makeDropAggregateMutation(KeyspaceMetadata keyspace, UDAggregate aggregate, long timestamp)
+    private static void addDropAggregateToSchemaMutation(UDAggregate aggregate, Mutation.SimpleBuilder builder)
     {
-        // Include the serialized keyspace in case the target node missed a CREATE KEYSPACE migration (see CASSANDRA-5631).
-        Mutation.SimpleBuilder builder = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
-        builder.update(Aggregates).row(aggregate.name().name, functionArgumentsList(aggregate)).delete();
-        return builder;
+        builder.update(Aggregates).row(aggregate.name().name, aggregate.argumentsList()).delete();
     }
 
     /*
      * Fetching schema
      */
 
-    public static Keyspaces fetchNonSystemKeyspaces()
+    static Keyspaces fetchNonSystemKeyspaces()
     {
         return fetchKeyspacesWithout(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
     }
@@ -935,20 +870,6 @@ public final class SchemaKeyspace
             if (!excludedKeyspaceNames.contains(keyspaceName))
                 keyspaces.add(fetchKeyspace(keyspaceName));
         }
-        return keyspaces.build();
-    }
-
-    private static Keyspaces fetchKeyspacesOnly(Set<String> includedKeyspaceNames)
-    {
-        /*
-         * We know the keyspace names we are going to query, but we still want to run the SELECT IN
-         * query, to filter out the keyspaces that had been dropped by the applied mutation set.
-         */
-        String query = format("SELECT keyspace_name FROM %s.%s WHERE keyspace_name IN ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
-
-        Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
-        for (UntypedResultSet.Row row : query(query, new ArrayList<>(includedKeyspaceNames)))
-            keyspaces.add(fetchKeyspace(row.getString("keyspace_name")));
         return keyspaces.build();
     }
 
@@ -1026,7 +947,7 @@ public final class SchemaKeyspace
         return tables.build();
     }
 
-    private static CFMetaData fetchTable(String keyspaceName, String tableName, Types types)
+    private static TableMetadata fetchTable(String keyspaceName, String tableName, Types types)
     {
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
         UntypedResultSet rows = query(query, keyspaceName, tableName);
@@ -1034,43 +955,18 @@ public final class SchemaKeyspace
             throw new RuntimeException(String.format("%s:%s not found in the schema definitions keyspace.", keyspaceName, tableName));
         UntypedResultSet.Row row = rows.one();
 
-        UUID id = row.getUUID("id");
-
-        Set<CFMetaData.Flag> flags = CFMetaData.flagsFromStrings(row.getFrozenSet("flags", UTF8Type.instance));
-
-        boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
-        boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
-        boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
-        boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
-
-        List<ColumnDefinition> columns = fetchColumns(keyspaceName, tableName, types);
-        if (!columns.stream().anyMatch(ColumnDefinition::isPartitionKey))
-        {
-            String msg = String.format("Table %s.%s did not have any partition key columns in the schema tables", keyspaceName, tableName);
-            throw new AssertionError(msg);
-        }
-
-        Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = fetchDroppedColumns(keyspaceName, tableName);
-        Indexes indexes = fetchIndexes(keyspaceName, tableName);
-        Triggers triggers = fetchTriggers(keyspaceName, tableName);
-
-        return CFMetaData.create(keyspaceName,
-                                 tableName,
-                                 id,
-                                 isDense,
-                                 isCompound,
-                                 isSuper,
-                                 isCounter,
-                                 false,
-                                 columns,
-                                 DatabaseDescriptor.getPartitioner())
-                         .params(createTableParamsFromRow(row))
-                         .droppedColumns(droppedColumns)
-                         .indexes(indexes)
-                         .triggers(triggers);
+        Set<TableMetadata.Flag> flags = TableMetadata.Flag.fromStringSet(row.getFrozenSet("flags", UTF8Type.instance));
+        return TableMetadata.builder(keyspaceName, tableName, TableId.fromUUID(row.getUUID("id")))
+                            .flags(flags)
+                            .params(createTableParamsFromRow(row))
+                            .addColumns(fetchColumns(keyspaceName, tableName, types))
+                            .droppedColumns(fetchDroppedColumns(keyspaceName, tableName))
+                            .indexes(fetchIndexes(keyspaceName, tableName))
+                            .triggers(fetchTriggers(keyspaceName, tableName))
+                            .build();
     }
 
-    public static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
+    static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
         return TableParams.builder()
                           .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
@@ -1078,83 +974,89 @@ public final class SchemaKeyspace
                           .comment(row.getString("comment"))
                           .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                           .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
-                          .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
                           .defaultTimeToLive(row.getInt("default_time_to_live"))
                           .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
                           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
                           .maxIndexInterval(row.getInt("max_index_interval"))
                           .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
                           .minIndexInterval(row.getInt("min_index_interval"))
-                          .readRepairChance(row.getDouble("read_repair_chance"))
                           .crcCheckChance(row.getDouble("crc_check_chance"))
-                          .speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")))
-                          .cdc(row.has("cdc") ? row.getBoolean("cdc") : false)
+                          .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
+                          .additionalWritePolicy(row.has("additional_write_policy") ?
+                                                     SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
+                                                     SpeculativeRetryPolicy.fromString("99PERCENTILE"))
+                          .cdc(row.has("cdc") && row.getBoolean("cdc"))
+                          .readRepair(getReadRepairStrategy(row))
                           .build();
     }
 
-    private static List<ColumnDefinition> fetchColumns(String keyspace, String table, Types types)
+    private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS);
         UntypedResultSet columnRows = query(query, keyspace, table);
         if (columnRows.isEmpty())
-            throw new MissingColumns("Columns not found in schema table for " + keyspace + "." + table);
+            throw new MissingColumns("Columns not found in schema table for " + keyspace + '.' + table);
 
-        List<ColumnDefinition> columns = new ArrayList<>();
+        List<ColumnMetadata> columns = new ArrayList<>();
         columnRows.forEach(row -> columns.add(createColumnFromRow(row, types)));
 
-        if (columns.stream().noneMatch(ColumnDefinition::isPartitionKey))
+        if (columns.stream().noneMatch(ColumnMetadata::isPartitionKey))
             throw new MissingColumns("No partition key columns found in schema table for " + keyspace + "." + table);
 
         return columns;
     }
 
-    public static ColumnDefinition createColumnFromRow(UntypedResultSet.Row row, Types types)
+    static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
     {
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
 
-        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
+        ColumnMetadata.Kind kind = ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase());
 
         int position = row.getInt("position");
         ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
 
-        AbstractType<?> type = parse(keyspace, row.getString("type"), types);
+        AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
 
         ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
 
-        return new ColumnDefinition(keyspace, table, name, type, position, kind);
+        return new ColumnMetadata(keyspace, table, name, type, position, kind);
     }
 
-    private static Map<ByteBuffer, CFMetaData.DroppedColumn> fetchDroppedColumns(String keyspace, String table)
+    private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, DROPPED_COLUMNS);
-        Map<ByteBuffer, CFMetaData.DroppedColumn> columns = new HashMap<>();
+        Map<ByteBuffer, DroppedColumn> columns = new HashMap<>();
         for (UntypedResultSet.Row row : query(query, keyspace, table))
         {
-            CFMetaData.DroppedColumn column = createDroppedColumnFromRow(row);
-            columns.put(UTF8Type.instance.decompose(column.name), column);
+            DroppedColumn column = createDroppedColumnFromRow(row);
+            columns.put(column.column.name.bytes, column);
         }
         return columns;
     }
 
-    private static CFMetaData.DroppedColumn createDroppedColumnFromRow(UntypedResultSet.Row row)
+    private static DroppedColumn createDroppedColumnFromRow(UntypedResultSet.Row row)
     {
         String keyspace = row.getString("keyspace_name");
+        String table = row.getString("table_name");
         String name = row.getString("column_name");
-
-        ColumnDefinition.Kind kind =
-            row.has("kind") ? ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase())
-                            : null;
         /*
          * we never store actual UDT names in dropped column types (so that we can safely drop types if nothing refers to
          * them anymore), so before storing dropped columns in schema we expand UDTs to tuples. See expandUserTypes method.
          * Because of that, we can safely pass Types.none() to parse()
          */
-        AbstractType<?> type = parse(keyspace, row.getString("type"), org.apache.cassandra.schema.Types.none());
+        AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), org.apache.cassandra.schema.Types.none());
+        ColumnMetadata.Kind kind = row.has("kind")
+                                 ? ColumnMetadata.Kind.valueOf(row.getString("kind").toUpperCase())
+                                 : ColumnMetadata.Kind.REGULAR;
+        assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
+            : "Unexpected dropped column kind: " + kind.toString();
+
+        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
-        return new CFMetaData.DroppedColumn(name, kind, type, droppedTime);
+        return new DroppedColumn(column, droppedTime);
     }
 
     private static Indexes fetchIndexes(String keyspace, String table)
@@ -1194,11 +1096,11 @@ public final class SchemaKeyspace
 
         Views.Builder views = org.apache.cassandra.schema.Views.builder();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
-            views.add(fetchView(keyspaceName, row.getString("view_name"), types));
+            views.put(fetchView(keyspaceName, row.getString("view_name"), types));
         return views.build();
     }
 
-    private static ViewDefinition fetchView(String keyspaceName, String viewName, Types types)
+    private static ViewMetadata fetchView(String keyspaceName, String viewName, Types types)
     {
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND view_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, VIEWS);
         UntypedResultSet rows = query(query, keyspaceName, viewName);
@@ -1206,54 +1108,51 @@ public final class SchemaKeyspace
             throw new RuntimeException(String.format("%s:%s not found in the schema definitions keyspace.", keyspaceName, viewName));
         UntypedResultSet.Row row = rows.one();
 
-        UUID id = row.getUUID("id");
-        UUID baseTableId = row.getUUID("base_table_id");
+        TableId baseTableId = TableId.fromUUID(row.getUUID("base_table_id"));
         String baseTableName = row.getString("base_table_name");
         boolean includeAll = row.getBoolean("include_all_columns");
-        String whereClause = row.getString("where_clause");
+        String whereClauseString = row.getString("where_clause");
 
-        List<ColumnDefinition> columns = fetchColumns(keyspaceName, viewName, types);
+        List<ColumnMetadata> columns = fetchColumns(keyspaceName, viewName, types);
 
-        Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = fetchDroppedColumns(keyspaceName, viewName);
+        TableMetadata metadata =
+            TableMetadata.builder(keyspaceName, viewName, TableId.fromUUID(row.getUUID("id")))
+                         .kind(TableMetadata.Kind.VIEW)
+                         .addColumns(columns)
+                         .droppedColumns(fetchDroppedColumns(keyspaceName, viewName))
+                         .params(createTableParamsFromRow(row))
+                         .build();
 
-        CFMetaData cfm = CFMetaData.create(keyspaceName,
-                                           viewName,
-                                           id,
-                                           false,
-                                           true,
-                                           false,
-                                           false,
-                                           true,
-                                           columns,
-                                           DatabaseDescriptor.getPartitioner())
-                                   .params(createTableParamsFromRow(row))
-                                   .droppedColumns(droppedColumns);
+        WhereClause whereClause;
 
-            String rawSelect = View.buildSelectStatement(baseTableName, columns, whereClause);
-            SelectStatement.RawStatement rawStatement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(rawSelect);
+        try
+        {
+            whereClause = WhereClause.parse(whereClauseString);
+        }
+        catch (RecognitionException e)
+        {
+            throw new RuntimeException(format("Unexpected error while parsing materialized view's where clause for '%s' (got %s)", viewName, whereClauseString));
+        }
 
-            return new ViewDefinition(keyspaceName, viewName, baseTableId, baseTableName, includeAll, rawStatement, whereClause, cfm);
+        return new ViewMetadata(baseTableId, baseTableName, includeAll, whereClause, metadata);
     }
 
     private static Functions fetchFunctions(String keyspaceName, Types types)
     {
-        Functions udfs = fetchUDFs(keyspaceName, types);
-        Functions udas = fetchUDAs(keyspaceName, udfs, types);
+        Collection<UDFunction> udfs = fetchUDFs(keyspaceName, types);
+        Collection<UDAggregate> udas = fetchUDAs(keyspaceName, udfs, types);
 
-        return org.apache.cassandra.schema.Functions.builder()
-                                                    .add(udfs)
-                                                    .add(udas)
-                                                    .build();
+        return org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
     }
 
-    private static Functions fetchUDFs(String keyspaceName, Types types)
+    private static Collection<UDFunction> fetchUDFs(String keyspaceName, Types types)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, FUNCTIONS);
 
-        Functions.Builder functions = org.apache.cassandra.schema.Functions.builder();
+        Collection<UDFunction> functions = new ArrayList<>();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
             functions.add(createUDFFromRow(row, types));
-        return functions.build();
+        return functions;
     }
 
     private static UDFunction createUDFFromRow(UntypedResultSet.Row row, Types types)
@@ -1268,14 +1167,18 @@ public final class SchemaKeyspace
 
         List<AbstractType<?>> argTypes = new ArrayList<>();
         for (String type : row.getFrozenList("argument_types", UTF8Type.instance))
-            argTypes.add(parse(ksName, type, types));
+            argTypes.add(CQLTypeParser.parse(ksName, type, types));
 
-        AbstractType<?> returnType = parse(ksName, row.getString("return_type"), types);
+        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types);
 
         String language = row.getString("language");
         String body = row.getString("body");
         boolean calledOnNullInput = row.getBoolean("called_on_null_input");
 
+        /*
+         * TODO: find a way to get rid of Schema.instance dependency; evaluate if the opimisation below makes a difference
+         * in the first place. Remove if it isn't.
+         */
         org.apache.cassandra.cql3.functions.Function existing = Schema.instance.findFunction(name, argTypes).orElse(null);
         if (existing instanceof UDFunction)
         {
@@ -1284,7 +1187,8 @@ public final class SchemaKeyspace
             // statement, since CreateFunctionStatement needs to execute UDFunction.create but schema migration
             // also needs that (since it needs to handle its own change).
             UDFunction udf = (UDFunction) existing;
-            if (udf.argNames().equals(argNames) && // arg types checked in Functions.find call
+            if (udf.argNames().equals(argNames) &&
+                udf.argTypes().equals(argTypes) &&
                 udf.returnType().equals(returnType) &&
                 !udf.isAggregate() &&
                 udf.language().equals(language) &&
@@ -1307,17 +1211,16 @@ public final class SchemaKeyspace
         }
     }
 
-    private static Functions fetchUDAs(String keyspaceName, Functions udfs, Types types)
+    private static Collection<UDAggregate> fetchUDAs(String keyspaceName, Collection<UDFunction> udfs, Types types)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, AGGREGATES);
 
-        Functions.Builder aggregates = org.apache.cassandra.schema.Functions.builder();
-        for (UntypedResultSet.Row row : query(query, keyspaceName))
-            aggregates.add(createUDAFromRow(row, udfs, types));
-        return aggregates.build();
+        Collection<UDAggregate> aggregates = new ArrayList<>();
+        query(query, keyspaceName).forEach(row -> aggregates.add(createUDAFromRow(row, udfs, types)));
+        return aggregates;
     }
 
-    private static UDAggregate createUDAFromRow(UntypedResultSet.Row row, Functions functions, Types types)
+    private static UDAggregate createUDAFromRow(UntypedResultSet.Row row, Collection<UDFunction> functions, Types types)
     {
         String ksName = row.getString("keyspace_name");
         String functionName = row.getString("aggregate_name");
@@ -1326,24 +1229,18 @@ public final class SchemaKeyspace
         List<AbstractType<?>> argTypes =
             row.getFrozenList("argument_types", UTF8Type.instance)
                .stream()
-               .map(t -> parse(ksName, t, types))
+               .map(t -> CQLTypeParser.parse(ksName, t, types))
                .collect(toList());
 
-        AbstractType<?> returnType = parse(ksName, row.getString("return_type"), types);
+        AbstractType<?> returnType = CQLTypeParser.parse(ksName, row.getString("return_type"), types);
 
         FunctionName stateFunc = new FunctionName(ksName, (row.getString("state_func")));
+
         FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
-        AbstractType<?> stateType = row.has("state_type") ? parse(ksName, row.getString("state_type"), types) : null;
+        AbstractType<?> stateType = row.has("state_type") ? CQLTypeParser.parse(ksName, row.getString("state_type"), types) : null;
         ByteBuffer initcond = row.has("initcond") ? Terms.asBytes(ksName, row.getString("initcond"), stateType) : null;
 
-        try
-        {
-            return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
-        }
-        catch (InvalidRequestException reason)
-        {
-            return UDAggregate.createBroken(name, argTypes, returnType, initcond, reason);
-        }
+        return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
     }
 
     private static UntypedResultSet query(String query, Object... variables)
@@ -1355,180 +1252,36 @@ public final class SchemaKeyspace
      * Merging schema
      */
 
-    /*
-     * Reload schema from local disk. Useful if a user made changes to schema tables by hand, or has suspicion that
-     * in-memory representation got out of sync somehow with what's on disk.
-     */
-    public static synchronized void reloadSchemaAndAnnounceVersion()
-    {
-        Keyspaces before = Schema.instance.getReplicatedKeyspaces();
-        Keyspaces after = fetchNonSystemKeyspaces();
-        mergeSchema(before, after);
-        Schema.instance.updateVersionAndAnnounce();
-    }
-
     /**
-     * Merge remote schema in form of mutations with local and mutate ks/cf metadata objects
-     * (which also involves fs operations on add/drop ks/cf)
-     *
-     * @param mutations the schema changes to apply
-     *
-     * @throws ConfigurationException If one of metadata attributes has invalid value
+     * Computes the set of names of keyspaces affected by the provided schema mutations.
      */
-    public static synchronized void mergeSchemaAndAnnounceVersion(Collection<Mutation> mutations) throws ConfigurationException
-    {
-        mergeSchema(mutations);
-        Schema.instance.updateVersionAndAnnounce();
-    }
-
-    public static synchronized void mergeSchema(Collection<Mutation> mutations)
+    static Set<String> affectedKeyspaces(Collection<Mutation> mutations)
     {
         // only compare the keyspaces affected by this set of schema mutations
-        Set<String> affectedKeyspaces =
-        mutations.stream()
-                 .map(m -> UTF8Type.instance.compose(m.key().getKey()))
-                 .collect(Collectors.toSet());
+        return mutations.stream()
+                        .map(m -> UTF8Type.instance.compose(m.key().getKey()))
+                        .collect(toSet());
+    }
 
-        // fetch the current state of schema for the affected keyspaces only
-        Keyspaces before = Schema.instance.getKeyspaces(affectedKeyspaces);
-
-        // apply the schema mutations and flush
+    static void applyChanges(Collection<Mutation> mutations)
+    {
         mutations.forEach(Mutation::apply);
-        if (FLUSH_SCHEMA_TABLES)
-            flush();
-
-        // fetch the new state of schema from schema tables (not applied to Schema.instance yet)
-        Keyspaces after = fetchKeyspacesOnly(affectedKeyspaces);
-
-        mergeSchema(before, after);
+        if (SchemaKeyspace.FLUSH_SCHEMA_TABLES)
+            SchemaKeyspace.flush();
     }
 
-    private static synchronized void mergeSchema(Keyspaces before, Keyspaces after)
+    static Keyspaces fetchKeyspaces(Set<String> toFetch)
     {
-        MapDifference<String, KeyspaceMetadata> keyspacesDiff = before.diff(after);
+        /*
+         * We know the keyspace names we are going to query, but we still want to run the SELECT IN
+         * query, to filter out the keyspaces that had been dropped by the applied mutation set.
+         */
+        String query = format("SELECT keyspace_name FROM %s.%s WHERE keyspace_name IN ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
 
-        // dropped keyspaces
-        for (KeyspaceMetadata keyspace : keyspacesDiff.entriesOnlyOnLeft().values())
-        {
-            keyspace.functions.udas().forEach(Schema.instance::dropAggregate);
-            keyspace.functions.udfs().forEach(Schema.instance::dropFunction);
-            keyspace.views.forEach(v -> Schema.instance.dropView(v.ksName, v.viewName));
-            keyspace.tables.forEach(t -> Schema.instance.dropTable(t.ksName, t.cfName));
-            keyspace.types.forEach(Schema.instance::dropType);
-            Schema.instance.dropKeyspace(keyspace.name);
-        }
-
-        // new keyspaces
-        for (KeyspaceMetadata keyspace : keyspacesDiff.entriesOnlyOnRight().values())
-        {
-            Schema.instance.addKeyspace(KeyspaceMetadata.create(keyspace.name, keyspace.params));
-            keyspace.types.forEach(Schema.instance::addType);
-            keyspace.tables.forEach(Schema.instance::addTable);
-            keyspace.views.forEach(Schema.instance::addView);
-            keyspace.functions.udfs().forEach(Schema.instance::addFunction);
-            keyspace.functions.udas().forEach(Schema.instance::addAggregate);
-        }
-
-        // updated keyspaces
-        for (Map.Entry<String, MapDifference.ValueDifference<KeyspaceMetadata>> diff : keyspacesDiff.entriesDiffering().entrySet())
-            updateKeyspace(diff.getKey(), diff.getValue().leftValue(), diff.getValue().rightValue());
-    }
-
-    private static void updateKeyspace(String keyspaceName, KeyspaceMetadata keyspaceBefore, KeyspaceMetadata keyspaceAfter)
-    {
-        // calculate the deltas
-        MapDifference<String, CFMetaData> tablesDiff = keyspaceBefore.tables.diff(keyspaceAfter.tables);
-        MapDifference<String, ViewDefinition> viewsDiff = keyspaceBefore.views.diff(keyspaceAfter.views);
-        MapDifference<ByteBuffer, UserType> typesDiff = keyspaceBefore.types.diff(keyspaceAfter.types);
-
-        Map<Pair<FunctionName, List<String>>, UDFunction> udfsBefore = new HashMap<>();
-        keyspaceBefore.functions.udfs().forEach(f -> udfsBefore.put(Pair.create(f.name(), functionArgumentsList(f)), f));
-        Map<Pair<FunctionName, List<String>>, UDFunction> udfsAfter = new HashMap<>();
-        keyspaceAfter.functions.udfs().forEach(f -> udfsAfter.put(Pair.create(f.name(), functionArgumentsList(f)), f));
-        MapDifference<Pair<FunctionName, List<String>>, UDFunction> udfsDiff = Maps.difference(udfsBefore, udfsAfter);
-
-        Map<Pair<FunctionName, List<String>>, UDAggregate> udasBefore = new HashMap<>();
-        keyspaceBefore.functions.udas().forEach(f -> udasBefore.put(Pair.create(f.name(), functionArgumentsList(f)), f));
-        Map<Pair<FunctionName, List<String>>, UDAggregate> udasAfter = new HashMap<>();
-        keyspaceAfter.functions.udas().forEach(f -> udasAfter.put(Pair.create(f.name(), functionArgumentsList(f)), f));
-        MapDifference<Pair<FunctionName, List<String>>, UDAggregate> udasDiff = Maps.difference(udasBefore, udasAfter);
-
-        // update keyspace params, if changed
-        if (!keyspaceBefore.params.equals(keyspaceAfter.params))
-            Schema.instance.updateKeyspace(keyspaceName, keyspaceAfter.params);
-
-        // drop everything removed
-        udasDiff.entriesOnlyOnLeft().values().forEach(Schema.instance::dropAggregate);
-        udfsDiff.entriesOnlyOnLeft().values().forEach(Schema.instance::dropFunction);
-        viewsDiff.entriesOnlyOnLeft().values().forEach(v -> Schema.instance.dropView(v.ksName, v.viewName));
-        tablesDiff.entriesOnlyOnLeft().values().forEach(t -> Schema.instance.dropTable(t.ksName, t.cfName));
-        typesDiff.entriesOnlyOnLeft().values().forEach(Schema.instance::dropType);
-
-        // add everything created
-        typesDiff.entriesOnlyOnRight().values().forEach(Schema.instance::addType);
-        tablesDiff.entriesOnlyOnRight().values().forEach(Schema.instance::addTable);
-        viewsDiff.entriesOnlyOnRight().values().forEach(Schema.instance::addView);
-        udfsDiff.entriesOnlyOnRight().values().forEach(Schema.instance::addFunction);
-        udasDiff.entriesOnlyOnRight().values().forEach(Schema.instance::addAggregate);
-
-        // update everything altered
-        for (MapDifference.ValueDifference<UserType> diff : typesDiff.entriesDiffering().values())
-            Schema.instance.updateType(diff.rightValue());
-        for (MapDifference.ValueDifference<CFMetaData> diff : tablesDiff.entriesDiffering().values())
-            Schema.instance.updateTable(diff.rightValue());
-        for (MapDifference.ValueDifference<ViewDefinition> diff : viewsDiff.entriesDiffering().values())
-            Schema.instance.updateView(diff.rightValue());
-        for (MapDifference.ValueDifference<UDFunction> diff : udfsDiff.entriesDiffering().values())
-            Schema.instance.updateFunction(diff.rightValue());
-        for (MapDifference.ValueDifference<UDAggregate> diff : udasDiff.entriesDiffering().values())
-            Schema.instance.updateAggregate(diff.rightValue());
-    }
-
-    /*
-     * Type parsing and transformation
-     */
-
-    /*
-     * Recursively replaces any instances of UserType with an equivalent TupleType.
-     * We do it for dropped_columns, to allow safely dropping unused user types without retaining any references
-     * in dropped_columns.
-     */
-    @VisibleForTesting
-    public static AbstractType<?> expandUserTypes(AbstractType<?> original)
-    {
-        if (original instanceof UserType)
-            return new TupleType(expandUserTypes(((UserType) original).fieldTypes()));
-
-        if (original instanceof TupleType)
-            return new TupleType(expandUserTypes(((TupleType) original).allTypes()));
-
-        if (original instanceof ListType<?>)
-            return ListType.getInstance(expandUserTypes(((ListType<?>) original).getElementsType()), original.isMultiCell());
-
-        if (original instanceof MapType<?,?>)
-        {
-            MapType<?, ?> mt = (MapType<?, ?>) original;
-            return MapType.getInstance(expandUserTypes(mt.getKeysType()), expandUserTypes(mt.getValuesType()), mt.isMultiCell());
-        }
-
-        if (original instanceof SetType<?>)
-            return SetType.getInstance(expandUserTypes(((SetType<?>) original).getElementsType()), original.isMultiCell());
-
-        // this is very unlikely to ever happen, but it's better to be safe than sorry
-        if (original instanceof ReversedType<?>)
-            return ReversedType.getInstance(expandUserTypes(((ReversedType) original).baseType));
-
-        if (original instanceof CompositeType)
-            return CompositeType.getInstance(expandUserTypes(original.getComponents()));
-
-        return original;
-    }
-
-    private static List<AbstractType<?>> expandUserTypes(List<AbstractType<?>> types)
-    {
-        return types.stream()
-                    .map(SchemaKeyspace::expandUserTypes)
-                    .collect(toList());
+        Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
+        for (UntypedResultSet.Row row : query(query, new ArrayList<>(toFetch)))
+            keyspaces.add(fetchKeyspace(row.getString("keyspace_name")));
+        return keyspaces.build();
     }
 
     @VisibleForTesting
@@ -1538,5 +1291,12 @@ public final class SchemaKeyspace
         {
             super(message);
         }
+    }
+
+    private static ReadRepairStrategy getReadRepairStrategy(UntypedResultSet.Row row)
+    {
+        return row.has("read_repair")
+               ? ReadRepairStrategy.fromString(row.getString("read_repair"))
+               : ReadRepairStrategy.BLOCKING;
     }
 }

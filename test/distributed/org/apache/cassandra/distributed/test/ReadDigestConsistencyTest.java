@@ -23,13 +23,19 @@ import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.utils.Throwables;
 
 public class ReadDigestConsistencyTest extends TestBaseImpl
 {
+    private final static Logger logger = LoggerFactory.getLogger(ReadDigestConsistencyTest.class);
+
     public static final String TABLE_NAME = "tbl";
     public static final String CREATE_TABLE = String.format("CREATE TABLE %s.%s (" +
                                                             "   k int, " +
@@ -60,7 +66,28 @@ public class ReadDigestConsistencyTest extends TestBaseImpl
     public static void checkTraceForDigestMismatch(ICoordinator coordinator, String query, Object... boundValues)
     {
         UUID sessionId = UUID.randomUUID();
-        coordinator.executeWithTracing(sessionId, query, ConsistencyLevel.ALL, boundValues);
+        try
+        {
+            coordinator.executeWithTracing(sessionId, query, ConsistencyLevel.ALL, boundValues);
+        }
+        catch (RuntimeException ex)
+        {
+            if (Throwables.isCausedBy(ex, t -> t.getClass().getName().equals(SyntaxException.class.getName())))
+            {
+                if (coordinator.instance().getReleaseVersionString().startsWith("3.") && query.contains("["))
+                {
+                    logger.warn("Query {} is not supported on node {} version {}",
+                                query,
+                                coordinator.instance().broadcastAddress().getAddress().getHostAddress(),
+                                coordinator.instance().getReleaseVersionString());
+
+                    // we can forgive SyntaxException for C* < 4.0 if the query contains collection element selection
+                    return;
+                }
+            }
+            logger.error("Failing for coordinator {} and query {}", coordinator.instance().getReleaseVersionString(), query);
+            throw ex;
+        }
         Object[][] results = coordinator.execute(SELECT_TRACE,
                                                  ConsistencyLevel.ALL,
                                                  sessionId,
@@ -92,12 +119,18 @@ public class ReadDigestConsistencyTest extends TestBaseImpl
         "v1",
         "v2",
         "v1, s1",
-        "v1, s2"
+        "v1, s2",
+        "v2[3]",
+        "v2[2..4]",
+        "v1, s2[7]",
+        "v1, s2[6..8]"
         };
 
         String[] columnss2 = {
         "s1",
-        "s2"
+        "s2",
+        "s2[7]",
+        "s2[6..8]"
         };
 
         for (String columns : columnss1)

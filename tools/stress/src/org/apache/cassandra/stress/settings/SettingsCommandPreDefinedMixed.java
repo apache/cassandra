@@ -58,14 +58,9 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
         final SeedManager seeds = new SeedManager(settings);
         return new SampledOpDistributionFactory<Command>(ratios, clustering)
         {
-            protected List<? extends Operation> get(Timer timer, PartitionGenerator generator, Command key, boolean isWarmup)
+            protected List<? extends Operation> get(Timer timer, Command key, boolean isWarmup)
             {
-                return Collections.singletonList(PredefinedOperation.operation(key, timer, generator, seeds, settings, add));
-            }
-
-            protected PartitionGenerator newGenerator()
-            {
-                return SettingsCommandPreDefinedMixed.this.newGenerator(settings);
+                return Collections.singletonList(PredefinedOperation.operation(key, timer, SettingsCommandPreDefinedMixed.this.newGenerator(settings), seeds, settings, add));
             }
         };
     }

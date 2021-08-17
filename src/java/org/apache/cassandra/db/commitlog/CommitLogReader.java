@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.db.commitlog;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,17 +31,17 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadErrorReason;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.CommitLogReadException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.DeserializationHelper;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.RebufferingInputStream;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -53,7 +55,7 @@ public class CommitLogReader
     @VisibleForTesting
     public static final int ALL_MUTATIONS = -1;
     private final CRC32 checksum;
-    private final Map<UUID, AtomicInteger> invalidMutations;
+    private final Map<TableId, AtomicInteger> invalidMutations;
 
     private byte[] buffer;
 
@@ -64,7 +66,7 @@ public class CommitLogReader
         buffer = new byte[4096];
     }
 
-    public Set<Map.Entry<UUID, AtomicInteger>> getInvalidMutations()
+    public Set<Map.Entry<TableId, AtomicInteger>> getInvalidMutations()
     {
         return invalidMutations.entrySet();
     }
@@ -79,11 +81,6 @@ public class CommitLogReader
 
     private static boolean shouldSkip(File file) throws IOException, ConfigurationException
     {
-        CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
-        if (desc.version < CommitLogDescriptor.VERSION_21)
-        {
-            return false;
-        }
         try(RandomAccessReader reader = RandomAccessReader.open(file))
         {
             CommitLogDescriptor.readHeader(reader, DatabaseDescriptor.getEncryptionContext());
@@ -93,7 +90,7 @@ public class CommitLogReader
         }
     }
 
-    private static List<File> filterCommitLogFiles(File[] toFilter)
+    static List<File> filterCommitLogFiles(File[] toFilter)
     {
         List<File> filtered = new ArrayList<>(toFilter.length);
         for (File file: toFilter)
@@ -142,6 +139,14 @@ public class CommitLogReader
     }
 
     /**
+     * Reads all mutations from passed in file from minPosition
+     */
+    public void readCommitLogSegment(CommitLogReadHandler handler, File file, CommitLogPosition minPosition, boolean tolerateTruncation) throws IOException
+    {
+        readCommitLogSegment(handler, file, minPosition, ALL_MUTATIONS, tolerateTruncation);
+    }
+
+    /**
      * Reads passed in file fully, up to mutationLimit count
      */
     @VisibleForTesting
@@ -154,7 +159,7 @@ public class CommitLogReader
      * Reads mutations from file, handing them off to handler
      * @param handler Handler that will take action based on deserialized Mutations
      * @param file CommitLogSegment file to read
-     * @param minPosition Optional minimum CommitLogPosition - all segments with id > or matching w/greater position will be read
+     * @param minPosition Optional minimum CommitLogPosition - all segments with id larger or matching w/greater position will be read
      * @param mutationLimit Optional limit on # of mutations to replay. Local ALL_MUTATIONS serves as marker to play all.
      * @param tolerateTruncation Whether or not we should allow truncation of this file or throw if EOF found
      *
@@ -171,19 +176,6 @@ public class CommitLogReader
 
         try(RandomAccessReader reader = RandomAccessReader.open(file))
         {
-            if (desc.version < CommitLogDescriptor.VERSION_21)
-            {
-                if (!shouldSkipSegmentId(file, desc, minPosition))
-                {
-                    if (minPosition.segmentId == desc.id)
-                        reader.seek(minPosition.position);
-                    ReadStatusTracker statusTracker = new ReadStatusTracker(mutationLimit, tolerateTruncation);
-                    statusTracker.errorContext = desc.fileName();
-                    readSection(handler, reader, minPosition, (int) reader.length(), statusTracker, desc);
-                }
-                return;
-            }
-
             final long segmentIdFromFilename = desc.id;
             try
             {
@@ -198,7 +190,7 @@ public class CommitLogReader
             if (desc == null)
             {
                 // don't care about whether or not the handler thinks we can continue. We can't w/out descriptor.
-                // whether or not we continue with startup will depend on whether this is the last segment
+                // whether or not we can continue depends on whether this is the last segment
                 handler.handleUnrecoverableError(new CommitLogReadException(
                     String.format("Could not read commit log descriptor in file %s", file),
                     CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
@@ -261,7 +253,7 @@ public class CommitLogReader
                     throw (IOException) re.getCause();
                 throw re;
             }
-            logger.debug("Finished reading {}", file);
+            logger.info("Finished reading {}", file);
         }
     }
 
@@ -322,7 +314,7 @@ public class CommitLogReader
                 // read an EOF here
                 if(end - reader.getFilePointer() < 4)
                 {
-                    logger.trace("Not enough bytes left for another mutation in this CommitLog segment, continuing");
+                    logger.trace("Not enough bytes left for another mutation in this CommitLog section, continuing");
                     statusTracker.requestTermination();
                     return;
                 }
@@ -417,7 +409,7 @@ public class CommitLogReader
      * @param inputBuffer raw byte array w/Mutation data
      * @param size deserialized size of mutation
      * @param minPosition We need to suppress replay of mutations that are before the required minPosition
-     * @param entryLocation filePointer offset of mutation within CommitLogSegment
+     * @param entryLocation filePointer offset of end of mutation within CommitLogSegment
      * @param desc CommitLogDescriptor being worked on
      */
     @VisibleForTesting
@@ -437,20 +429,20 @@ public class CommitLogReader
         {
             mutation = Mutation.serializer.deserialize(bufIn,
                                                        desc.getMessagingVersion(),
-                                                       SerializationHelper.Flag.LOCAL);
+                                                       DeserializationHelper.Flag.LOCAL);
             // doublecheck that what we read is still] valid for the current schema
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
                 upd.validate();
         }
-        catch (UnknownColumnFamilyException ex)
+        catch (UnknownTableException ex)
         {
-            if (ex.cfId == null)
+            if (ex.id == null)
                 return;
-            AtomicInteger i = invalidMutations.get(ex.cfId);
+            AtomicInteger i = invalidMutations.get(ex.id);
             if (i == null)
             {
                 i = new AtomicInteger(1);
-                invalidMutations.put(ex.cfId, i);
+                invalidMutations.put(ex.id, i);
             }
             else
                 i.incrementAndGet();
@@ -459,9 +451,9 @@ public class CommitLogReader
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
-            File f = File.createTempFile("mutation", "dat");
+            Path p = Files.createTempFile("mutation", "dat");
 
-            try (DataOutputStream out = new DataOutputStream(new FileOutputStream(f)))
+            try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(p)))
             {
                 out.write(inputBuffer, 0, size);
             }
@@ -471,7 +463,7 @@ public class CommitLogReader
                 String.format(
                     "Unexpected error deserializing mutation; saved to %s.  " +
                     "This may be caused by replaying a mutation against a table with the same name but incompatible schema.  " +
-                    "Exception follows: %s", f.getAbsolutePath(), t),
+                    "Exception follows: %s", p.toString(), t),
                 CommitLogReadErrorReason.MUTATION_ERROR,
                 false));
             return;
@@ -492,42 +484,17 @@ public class CommitLogReader
     {
         public static long calculateClaimedChecksum(FileDataInput input, int commitLogVersion) throws IOException
         {
-            switch (commitLogVersion)
-            {
-                case CommitLogDescriptor.VERSION_12:
-                case CommitLogDescriptor.VERSION_20:
-                    return input.readLong();
-                // Changed format in 2.1
-                default:
-                    return input.readInt() & 0xffffffffL;
-            }
+            return input.readInt() & 0xffffffffL;
         }
 
         public static void updateChecksum(CRC32 checksum, int serializedSize, int commitLogVersion)
         {
-            switch (commitLogVersion)
-            {
-                case CommitLogDescriptor.VERSION_12:
-                    checksum.update(serializedSize);
-                    break;
-                // Changed format in 2.0
-                default:
-                    updateChecksumInt(checksum, serializedSize);
-                    break;
-            }
+            updateChecksumInt(checksum, serializedSize);
         }
 
         public static long calculateClaimedCRC32(FileDataInput input, int commitLogVersion) throws IOException
         {
-            switch (commitLogVersion)
-            {
-                case CommitLogDescriptor.VERSION_12:
-                case CommitLogDescriptor.VERSION_20:
-                    return input.readLong();
-                // Changed format in 2.1
-                default:
-                    return input.readInt() & 0xffffffffL;
-            }
+            return input.readInt() & 0xffffffffL;
         }
     }
 

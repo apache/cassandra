@@ -21,8 +21,6 @@ package org.apache.cassandra.stress.report;
  */
 
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
 import java.io.FileNotFoundException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -31,11 +29,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Queue;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
+import java.util.stream.Collectors;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import org.HdrHistogram.Histogram;
 import org.HdrHistogram.HistogramLogWriter;
@@ -45,11 +49,12 @@ import org.apache.cassandra.stress.StressAction.OpMeasurement;
 import org.apache.cassandra.stress.settings.SettingsLog.Level;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JmxCollector;
-import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.JmxCollector.GcStats;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.Uncertainty;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang3.time.DurationFormatUtils;
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class StressMetrics implements MeasurementSink
 {
@@ -105,7 +110,8 @@ public class StressMetrics implements MeasurementSink
         totalGcStats = new JmxCollector.GcStats(0);
         try
         {
-            gcStatsCollector = new JmxCollector(settings.node.resolveAllPermitted(settings), settings.port.jmxPort);
+            gcStatsCollector = new JmxCollector(toJmxNodes(settings.node.resolveAllPermitted(settings)),
+                                                settings.port.jmxPort);
         }
         catch (Throwable t)
         {
@@ -149,7 +155,6 @@ public class StressMetrics implements MeasurementSink
         thread.interrupt();
         stopped.await();
     }
-
 
     private void reportingLoop(final long logIntervalMillis)
     {
@@ -339,11 +344,17 @@ public class StressMetrics implements MeasurementSink
 
 
     // PRINT FORMATTING
+    public static final String HEADFORMAT = "%-50s%10s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%7s,%9s,%7s,%7s,%8s,%8s,%8s,%8s";
+    public static final String ROWFORMAT =  "%-50s%10d,%8.0f,%8.0f,%8.0f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%7.1f,%9.5f,%7d,%7.0f,%8.0f,%8.0f,%8.0f,%8.0f";
 
-    public static final String HEADFORMAT = "%-10s%10s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%8s,%7s,%9s,%7s,%7s,%8s,%8s,%8s,%8s";
-    public static final String ROWFORMAT =  "%-10s%10d,%8.0f,%8.0f,%8.0f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%8.1f,%7.1f,%9.5f,%7d,%7.0f,%8.0f,%8.0f,%8.0f,%8.0f";
     public static final String[] HEADMETRICS = new String[]{"type", "total ops","op/s","pk/s","row/s","mean","med",".95",".99",".999","max","time","stderr", "errors", "gc: #", "max ms", "sum ms", "sdv ms", "mb"};
     public static final String HEAD = String.format(HEADFORMAT, (Object[]) HEADMETRICS);
+
+    @VisibleForTesting
+    public static Set<String> toJmxNodes(Set<String> nodes)
+    {
+        return nodes.stream().map(n -> n.split(":")[0]).collect(Collectors.toSet());
+    }
 
     private static void printHeader(String prefix, ResultLogger output)
     {

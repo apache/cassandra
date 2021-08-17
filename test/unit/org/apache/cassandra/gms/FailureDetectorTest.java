@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.gms;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,9 +29,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 
@@ -45,8 +46,9 @@ public class FailureDetectorTest
     {
         // slow unit tests can cause problems with FailureDetector's GC pause handling
         System.setProperty("cassandra.max_local_pause_in_ms", "20000");
+
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.createAllDirectories();
+        CommitLog.instance.start();
     }
 
     @Test
@@ -60,7 +62,7 @@ public class FailureDetectorTest
 
         ArrayList<Token> endpointTokens = new ArrayList<>();
         ArrayList<Token> keyTokens = new ArrayList<>();
-        List<InetAddress> hosts = new ArrayList<>();
+        List<InetAddressAndPort> hosts = new ArrayList<>();
         List<UUID> hostIds = new ArrayList<>();
 
         // we want to convict if there is any heartbeat data present in the FD
@@ -69,12 +71,12 @@ public class FailureDetectorTest
         // create a ring of 2 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 3);
 
-        InetAddress leftHost = hosts.get(1);
+        InetAddressAndPort leftHost = hosts.get(1);
 
         FailureDetector.instance.report(leftHost);
 
         // trigger handleStateLeft in StorageService
-        ss.onChange(leftHost, ApplicationState.STATUS,
+        ss.onChange(leftHost, ApplicationState.STATUS_WITH_PORT,
                     valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.computeExpireTime()));
 
         // confirm that handleStateLeft was called and leftEndpoint was removed from TokenMetadata

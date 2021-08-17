@@ -18,14 +18,16 @@
 package org.apache.cassandra.db;
 
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
 public class ReadRepairVerbHandler implements IVerbHandler<Mutation>
 {
-    public void doVerb(MessageIn<Mutation> message, int id)
+    public static final ReadRepairVerbHandler instance = new ReadRepairVerbHandler();
+
+    public void doVerb(Message<Mutation> message)
     {
         message.payload.apply();
-        MessagingService.instance().sendReply(WriteResponse.createMessage(), id, message.from);
+        MessagingService.instance().send(message.emptyResponse(), message.from());
     }
 }

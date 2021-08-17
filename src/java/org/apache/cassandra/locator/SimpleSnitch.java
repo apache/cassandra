@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
-import java.util.List;
-
 /**
  * A simple endpoint snitch implementation that treats Strategy order as proximity,
  * allowing non-read-repaired reads to prefer a single endpoint, which improves
@@ -27,23 +24,28 @@ import java.util.List;
  */
 public class SimpleSnitch extends AbstractEndpointSnitch
 {
-    public String getRack(InetAddress endpoint)
+    public static final String DATA_CENTER_NAME = "datacenter1";
+    public static final String RACK_NAME = "rack1";
+
+    public String getRack(InetAddressAndPort endpoint)
     {
-        return "rack1";
+        return RACK_NAME;
     }
 
-    public String getDatacenter(InetAddress endpoint)
+    public String getDatacenter(InetAddressAndPort endpoint)
     {
-        return "datacenter1";
+        return DATA_CENTER_NAME;
     }
 
     @Override
-    public void sortByProximity(final InetAddress address, List<InetAddress> addresses)
+    public <C extends ReplicaCollection<? extends C>> C sortedByProximity(final InetAddressAndPort address, C unsortedAddress)
     {
         // Optimization to avoid walking the list
+        return unsortedAddress;
     }
 
-    public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+    @Override
+    public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2)
     {
         // Making all endpoints equal ensures we won't change the original ordering (since
         // Collections.sort is guaranteed to be stable)

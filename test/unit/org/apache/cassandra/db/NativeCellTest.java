@@ -29,7 +29,7 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -65,7 +65,7 @@ public class NativeCellTest
     {
         for (int run = 0 ; run < 1000 ; run++)
         {
-            Row.Builder builder = BTreeRow.unsortedBuilder(1);
+            Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(rndclustering());
             int count = 1 + rand.nextInt(10);
             for (int i = 0 ; i < count ; i++)
@@ -74,7 +74,7 @@ public class NativeCellTest
         }
     }
 
-    private static Clustering rndclustering()
+    private static Clustering<?> rndclustering()
     {
         int count = 1 + rand.nextInt(100);
         ByteBuffer[] values = new ByteBuffer[count];
@@ -96,7 +96,7 @@ public class NativeCellTest
 
     private static void rndcd(Row.Builder builder)
     {
-        ColumnDefinition col = rndcol();
+        ColumnMetadata col = rndcol();
         if (!col.isComplex())
         {
             builder.addCell(rndcell(col));
@@ -109,19 +109,19 @@ public class NativeCellTest
         }
     }
 
-    private static ColumnDefinition rndcol()
+    private static ColumnMetadata rndcol()
     {
         UUID uuid = new UUID(rand.nextLong(), rand.nextLong());
         boolean isComplex = rand.nextBoolean();
-        return new ColumnDefinition("",
-                                    "",
-                                    ColumnIdentifier.getInterned(uuid.toString(), false),
+        return new ColumnMetadata("",
+                                  "",
+                                  ColumnIdentifier.getInterned(uuid.toString(), false),
                                     isComplex ? new SetType<>(BytesType.instance, true) : BytesType.instance,
-                                    -1,
-                                    ColumnDefinition.Kind.REGULAR);
+                                  -1,
+                                  ColumnMetadata.Kind.REGULAR);
     }
 
-    private static Cell rndcell(ColumnDefinition col)
+    private static Cell<?> rndcell(ColumnMetadata col)
     {
         long timestamp = rand.nextLong();
         int ttl = rand.nextInt();

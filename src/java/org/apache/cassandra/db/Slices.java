@@ -21,10 +21,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -58,10 +61,10 @@ public abstract class Slices implements Iterable<Slice>
      */
     public static Slices with(ClusteringComparator comparator, Slice slice)
     {
-        if (slice.start() == ClusteringBound.BOTTOM && slice.end() == ClusteringBound.TOP)
+        if (slice.start().isBottom() && slice.end().isTop())
             return Slices.ALL;
 
-        assert comparator.compare(slice.start(), slice.end()) <= 0;
+        Preconditions.checkArgument(!slice.isEmpty(comparator));
         return new ArrayBackedSlices(comparator, new Slice[]{ slice });
     }
 
@@ -105,7 +108,7 @@ public abstract class Slices implements Iterable<Slice>
      *
      * @return new slices that select results coming after {@code lastReturned}.
      */
-    public abstract Slices forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive, boolean reversed);
+    public abstract Slices forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive, boolean reversed);
 
     /**
      * An object that allows to test whether rows are selected by this {@code Slices} objects assuming those rows
@@ -125,7 +128,7 @@ public abstract class Slices implements Iterable<Slice>
      *
      * @return whether a given clustering (row) is selected by this {@code Slices} object.
      */
-    public abstract boolean selects(Clustering clustering);
+    public abstract boolean selects(Clustering<?> clustering);
 
 
     /**
@@ -140,7 +143,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues);
 
-    public abstract String toCQLString(CFMetaData metadata);
+    public abstract String toCQLString(TableMetadata metadata, RowFilter rowFilter);
 
     /**
      * Checks if this <code>Slices</code> is empty.
@@ -158,7 +161,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public interface InOrderTester
     {
-        public boolean includes(Clustering value);
+        public boolean includes(Clustering<?> value);
         public boolean isDone();
     }
 
@@ -185,14 +188,14 @@ public abstract class Slices implements Iterable<Slice>
             this.slices = new ArrayList<>(initialSize);
         }
 
-        public Builder add(ClusteringBound start, ClusteringBound end)
+        public Builder add(ClusteringBound<?> start, ClusteringBound<?> end)
         {
             return add(Slice.make(start, end));
         }
 
         public Builder add(Slice slice)
         {
-            assert comparator.compare(slice.start(), slice.end()) <= 0;
+            Preconditions.checkArgument(!slice.isEmpty(comparator));
             if (slices.size() > 0 && comparator.compare(slices.get(slices.size()-1).end(), slice.start()) > 0)
                 needsNormalizing = true;
             slices.add(slice);
@@ -323,7 +326,7 @@ public abstract class Slices implements Iterable<Slice>
             return size;
         }
 
-        public Slices deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
+        public Slices deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             int size = (int)in.readUnsignedVInt();
 
@@ -334,7 +337,7 @@ public abstract class Slices implements Iterable<Slice>
             for (int i = 0; i < size; i++)
                 slices[i] = Slice.serializer.deserialize(in, version, metadata.comparator.subtypes());
 
-            if (size == 1 && slices[0].start() == ClusteringBound.BOTTOM && slices[0].end() == ClusteringBound.TOP)
+            if (size == 1 && slices[0].start().isBottom() && slices[0].end().isTop())
                 return ALL;
 
             return new ArrayBackedSlices(metadata.comparator, slices);
@@ -376,7 +379,7 @@ public abstract class Slices implements Iterable<Slice>
             return slices[i];
         }
 
-        public boolean selects(Clustering clustering)
+        public boolean selects(Clustering<?> clustering)
         {
             for (int i = 0; i < slices.length; i++)
             {
@@ -395,12 +398,12 @@ public abstract class Slices implements Iterable<Slice>
             return reversed ? new InReverseOrderTester() : new InForwardOrderTester();
         }
 
-        public Slices forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive, boolean reversed)
+        public Slices forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive, boolean reversed)
         {
             return reversed ? forReversePaging(comparator, lastReturned, inclusive) : forForwardPaging(comparator, lastReturned, inclusive);
         }
 
-        private Slices forForwardPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive)
+        private Slices forForwardPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive)
         {
             for (int i = 0; i < slices.length; i++)
             {
@@ -419,7 +422,7 @@ public abstract class Slices implements Iterable<Slice>
             return Slices.NONE;
         }
 
-        private Slices forReversePaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive)
+        private Slices forReversePaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive)
         {
             for (int i = slices.length - 1; i >= 0; i--)
             {
@@ -458,7 +461,7 @@ public abstract class Slices implements Iterable<Slice>
             private int idx;
             private boolean inSlice;
 
-            public boolean includes(Clustering value)
+            public boolean includes(Clustering<?> value)
             {
                 while (idx < slices.length)
                 {
@@ -501,7 +504,7 @@ public abstract class Slices implements Iterable<Slice>
                 this.idx = slices.length - 1;
             }
 
-            public boolean includes(Clustering value)
+            public boolean includes(Clustering<?> value)
             {
                 while (idx >= 0)
                 {
@@ -548,7 +551,8 @@ public abstract class Slices implements Iterable<Slice>
             return sb.append("}").toString();
         }
 
-        public String toCQLString(CFMetaData metadata)
+        @Override
+        public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
         {
             StringBuilder sb = new StringBuilder();
 
@@ -572,7 +576,7 @@ public abstract class Slices implements Iterable<Slice>
             boolean needAnd = false;
             for (int i = 0; i < clusteringSize; i++)
             {
-                ColumnDefinition column = metadata.clusteringColumns().get(i);
+                ColumnMetadata column = metadata.clusteringColumns().get(i);
                 List<ComponentOfSlice> componentInfo = columnComponents.get(i);
                 if (componentInfo.isEmpty())
                     break;
@@ -592,7 +596,7 @@ public abstract class Slices implements Iterable<Slice>
                         sb.append(" AND ");
                     needAnd = true;
 
-                    sb.append(column.name);
+                    sb.append(column.name.toCQLString());
 
                     Set<ByteBuffer> values = new LinkedHashSet<>();
                     for (int j = 0; j < componentInfo.size(); j++)
@@ -600,20 +604,25 @@ public abstract class Slices implements Iterable<Slice>
 
                     if (values.size() == 1)
                     {
-                        sb.append(" = ").append(column.type.getString(first.startValue));
+                        sb.append(" = ").append(column.type.toCQLString(first.startValue));
+                        rowFilter = rowFilter.without(column, Operator.EQ, first.startValue);
                     }
                     else
                     {
                         sb.append(" IN (");
                         int j = 0;
                         for (ByteBuffer value : values)
-                            sb.append(j++ == 0 ? "" : ", ").append(column.type.getString(value));
+                        {
+                            sb.append(j++ == 0 ? "" : ", ").append(column.type.toCQLString(value));
+                            rowFilter = rowFilter.without(column, Operator.EQ, value);
+                        }
                         sb.append(")");
                     }
                 }
                 else
                 {
                     boolean isReversed = column.isReversedType();
+                    Operator operator;
 
                     // As said above, we assume (without checking) that this means all ComponentOfSlice for this column
                     // are the same, so we only bother about the first.
@@ -622,31 +631,43 @@ public abstract class Slices implements Iterable<Slice>
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
-                        sb.append(column.name);
+                        sb.append(column.name.toCQLString());
                         if (isReversed)
-                            sb.append(first.startInclusive ? " <= " : " < ");
+                            operator = first.startInclusive ? Operator.LTE : Operator.LT;
                         else
-                            sb.append(first.startInclusive ? " >= " : " > ");
-                        sb.append(column.type.getString(first.startValue));
+                            operator = first.startInclusive ? Operator.GTE : Operator.GT;
+                        sb.append(' ').append(operator.toString()).append(' ')
+                          .append(column.type.toCQLString(first.startValue));
+                        rowFilter = rowFilter.without(column, operator, first.startValue);
                     }
                     if (first.endValue != null)
                     {
                         if (needAnd)
                             sb.append(" AND ");
                         needAnd = true;
-                        sb.append(column.name);
+                        sb.append(column.name.toCQLString());
                         if (isReversed)
-                            sb.append(first.endInclusive ? " >= " : " > ");
+                            operator = first.endInclusive ? Operator.GTE : Operator.GT;
                         else
-                            sb.append(first.endInclusive ? " <= " : " < ");
-                        sb.append(column.type.getString(first.endValue));
+                            operator = first.endInclusive ? Operator.LTE : Operator.LT;
+                        sb.append(' ').append(operator.toString()).append(' ')
+                          .append(column.type.toCQLString(first.endValue));
+                        rowFilter = rowFilter.without(column, operator, first.endValue);
                     }
                 }
             }
+
+            if (!rowFilter.isEmpty())
+            {
+                if (needAnd)
+                    sb.append(" AND ");
+                sb.append(rowFilter.toCQLString());
+            }
+
             return sb.toString();
         }
 
-        // An somewhat adhoc utility class only used by toCQLString
+        // An somewhat adhoc utility class only used by nameAsCQLString
         private static class ComponentOfSlice
         {
             public final boolean startInclusive;
@@ -664,8 +685,8 @@ public abstract class Slices implements Iterable<Slice>
 
             public static ComponentOfSlice fromSlice(int component, Slice slice)
             {
-                ClusteringBound start = slice.start();
-                ClusteringBound end = slice.end();
+                ClusteringBound<?> start = slice.start();
+                ClusteringBound<?> end = slice.end();
 
                 if (component >= start.size() && component >= end.size())
                     return null;
@@ -675,12 +696,12 @@ public abstract class Slices implements Iterable<Slice>
                 if (component < start.size())
                 {
                     startInclusive = start.isInclusive();
-                    startValue = start.get(component);
+                    startValue = start.bufferAt(component);
                 }
                 if (component < end.size())
                 {
                     endInclusive = end.isInclusive();
-                    endValue = end.get(component);
+                    endValue = end.bufferAt(component);
                 }
                 return new ComponentOfSlice(startInclusive, startValue, endInclusive, endValue);
             }
@@ -701,7 +722,7 @@ public abstract class Slices implements Iterable<Slice>
     {
         private static final InOrderTester trivialTester = new InOrderTester()
         {
-            public boolean includes(Clustering value)
+            public boolean includes(Clustering<?> value)
             {
                 return true;
             }
@@ -732,12 +753,12 @@ public abstract class Slices implements Iterable<Slice>
             return false;
         }
 
-        public boolean selects(Clustering clustering)
+        public boolean selects(Clustering<?> clustering)
         {
             return true;
         }
 
-        public Slices forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive, boolean reversed)
+        public Slices forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive, boolean reversed)
         {
             return new ArrayBackedSlices(comparator, new Slice[]{ Slice.ALL.forPaging(comparator, lastReturned, inclusive, reversed) });
         }
@@ -763,9 +784,10 @@ public abstract class Slices implements Iterable<Slice>
             return "ALL";
         }
 
-        public String toCQLString(CFMetaData metadata)
+        @Override
+        public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
         {
-            return "";
+            return rowFilter.toCQLString();
         }
     }
 
@@ -776,7 +798,7 @@ public abstract class Slices implements Iterable<Slice>
     {
         private static final InOrderTester trivialTester = new InOrderTester()
         {
-            public boolean includes(Clustering value)
+            public boolean includes(Clustering<?> value)
             {
                 return false;
             }
@@ -807,12 +829,12 @@ public abstract class Slices implements Iterable<Slice>
             return false;
         }
 
-        public Slices forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive, boolean reversed)
+        public Slices forPaging(ClusteringComparator comparator, Clustering<?> lastReturned, boolean inclusive, boolean reversed)
         {
             return this;
         }
 
-        public boolean selects(Clustering clustering)
+        public boolean selects(Clustering<?> clustering)
         {
             return false;
         }
@@ -838,7 +860,8 @@ public abstract class Slices implements Iterable<Slice>
             return "NONE";
         }
 
-        public String toCQLString(CFMetaData metadata)
+        @Override
+        public String toCQLString(TableMetadata metadata, RowFilter rowFilter)
         {
             return "";
         }

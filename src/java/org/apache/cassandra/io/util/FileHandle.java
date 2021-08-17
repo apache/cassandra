@@ -33,6 +33,7 @@ import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
 
 import static org.apache.cassandra.utils.Throwables.maybeFail;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * {@link FileHandle} provides access to a file for reading, including the ones written by various {@link SequentialWriter}
@@ -341,9 +342,11 @@ public class FileHandle extends SharedCloseableImpl
         @SuppressWarnings("resource")
         public FileHandle complete(long overrideLength)
         {
+            boolean channelOpened = false;
             if (channel == null)
             {
                 channel = new ChannelProxy(path);
+                channelOpened = true;
             }
 
             ChannelProxy channelCopy = channel.sharedCopy();
@@ -388,6 +391,12 @@ public class FileHandle extends SharedCloseableImpl
             catch (Throwable t)
             {
                 channelCopy.close();
+                if (channelOpened)
+                {
+                    ChannelProxy c = channel;
+                    channel = null;
+                    throw Throwables.cleaned(c.close(t));
+                }
                 throw t;
             }
         }
@@ -410,7 +419,7 @@ public class FileHandle extends SharedCloseableImpl
         private RebuffererFactory maybeCached(ChunkReader reader)
         {
             if (chunkCache != null && chunkCache.capacity() > 0)
-                return chunkCache.wrap(reader);
+                return chunkCache.maybeWrap(reader);
             return reader;
         }
 

@@ -73,6 +73,14 @@ final class ScriptBasedUDFunction extends UDFunction
     "jdk.internal.org.objectweb.asm.commons",
     "jdk.nashorn.internal.runtime",
     "jdk.nashorn.internal.runtime.linker",
+    // Nashorn / Java 11
+    "java.lang.ref",
+    "java.io",
+    "java.util.function",
+    "jdk.dynalink.linker",
+    "jdk.internal.org.objectweb.asm",
+    "jdk.internal.reflect",
+    "jdk.nashorn.internal.scripts",
     // following required by Java Driver
     "java.math",
     "java.nio",
@@ -81,8 +89,9 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.google.common.collect",
     "com.google.common.reflect",
     // following required by UDF
-    "com.datastax.driver.core",
-    "com.datastax.driver.core.utils"
+    "org.apache.cassandra.cql3.functions.types",
+    "org.apache.cassandra.cql3.functions.types.exceptions",
+    "org.apache.cassandra.cql3.functions.types.utils"
     };
 
     // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal

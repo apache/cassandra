@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.net;
 
-import java.net.InetAddress;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Predicate based on intercepted, outgoing messange and the message's destination address.
@@ -28,5 +28,5 @@ public interface Matcher<T>
      * @param obj intercepted outgoing message
      * @param to  destination address
      */
-    public boolean matches(MessageOut<T> obj, InetAddress to);
+    public boolean matches(Message<T> obj, InetAddressAndPort to);
 }

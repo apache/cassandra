@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertArrayEquals;
 
 
 public class YamlConfigurationLoaderTest
@@ -36,19 +35,19 @@ public class YamlConfigurationLoaderTest
         int storagePort = 123;
         Config.CommitLogSync commitLogSync = Config.CommitLogSync.batch;
         ParameterizedClass seedProvider = new ParameterizedClass("org.apache.cassandra.locator.SimpleSeedProvider", Collections.emptyMap());
-        EncryptionOptions encryptionOptions = new EncryptionOptions.ClientEncryptionOptions();
-        encryptionOptions.keystore = "myNewKeystore";
-        encryptionOptions.cipher_suites = new String[] {"SomeCipher"};
-
+        Map<String,Object> encryptionOptions = ImmutableMap.of("cipher_suites", Collections.singletonList("FakeCipher"),
+                                                               "optional", false,
+                                                               "enabled", true);
         Map<String,Object> map = ImmutableMap.of("storage_port", storagePort,
                                                  "commitlog_sync", commitLogSync,
                                                  "seed_provider", seedProvider,
                                                  "client_encryption_options", encryptionOptions);
+
         Config config = YamlConfigurationLoader.fromMap(map, Config.class);
         assertEquals(storagePort, config.storage_port); // Check a simple integer
         assertEquals(commitLogSync, config.commitlog_sync); // Check an enum
         assertEquals(seedProvider, config.seed_provider); // Check a parameterized class
-        assertEquals(encryptionOptions.keystore, config.client_encryption_options.keystore); // Check a nested object
-        assertArrayEquals(encryptionOptions.cipher_suites, config.client_encryption_options.cipher_suites);
+        assertEquals(false, config.client_encryption_options.optional); // Check a nested object
+        assertEquals(true, config.client_encryption_options.enabled); // Check a nested object
     }
 }

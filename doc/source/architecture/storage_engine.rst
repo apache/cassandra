@@ -127,3 +127,82 @@ hash of the partition key when the default partitioner, ``Murmur3Partition``, is
 stored in the order of their clustering keys.
 
 SSTables can be optionally compressed using block-based compression.
+
+SSTable Versions
+^^^^^^^^^^^^^^^^
+
+This section was created using the following
+`gist <https://gist.github.com/shyamsalimkumar/49a61e5bc6f403d20c55>`_
+which utilized this original
+`source <http://www.bajb.net/2013/03/cassandra-sstable-format-version-numbers/>`_.
+
+The version numbers, to date are:
+
+Version 0
+~~~~~~~~~
+
+* b (0.7.0): added version to sstable filenames
+* c (0.7.0): bloom filter component computes hashes over raw key bytes instead of strings
+* d (0.7.0): row size in data component becomes a long instead of int
+* e (0.7.0): stores undecorated keys in data and index components
+* f (0.7.0): switched bloom filter implementations in data component
+* g (0.8): tracks flushed-at context in metadata component
+
+Version 1
+~~~~~~~~~
+
+* h (1.0): tracks max client timestamp in metadata component
+* hb (1.0.3): records compression ration in metadata component
+* hc (1.0.4): records partitioner in metadata component
+* hd (1.0.10): includes row tombstones in maxtimestamp
+* he (1.1.3): includes ancestors generation in metadata component
+* hf (1.1.6): marker that replay position corresponds to 1.1.5+ millis-based id (see CASSANDRA-4782)
+* ia (1.2.0):
+
+  * column indexes are promoted to the index file
+  * records estimated histogram of deletion times in tombstones
+  * bloom filter (keys and columns) upgraded to Murmur3
+* ib (1.2.1): tracks min client timestamp in metadata component
+* ic (1.2.5): omits per-row bloom filter of column names
+
+Version 2
+~~~~~~~~~
+
+* ja (2.0.0):
+
+  * super columns are serialized as composites (note that there is no real format change, this is mostly a marker to know if we should expect super columns or not. We do need a major version bump however, because we should not allow streaming of super columns into this new format)
+  * tracks max local deletiontime in sstable metadata
+  * records bloom_filter_fp_chance in metadata component
+  * remove data size and column count from data file (CASSANDRA-4180)
+  * tracks max/min column values (according to comparator)
+* jb (2.0.1):
+
+  * switch from crc32 to adler32 for compression checksums
+  * checksum the compressed data
+* ka (2.1.0):
+
+  * new Statistics.db file format
+  * index summaries can be downsampled and the sampling level is persisted
+  * switch uncompressed checksums to adler32
+  * tracks presense of legacy (local and remote) counter shards
+* la (2.2.0): new file name format
+* lb (2.2.7): commit log lower bound included
+
+Version 3
+~~~~~~~~~
+
+* ma (3.0.0):
+
+  * swap bf hash order
+  * store rows natively
+* mb (3.0.7, 3.7): commit log lower bound included
+* mc (3.0.8, 3.9): commit log intervals included
+
+Example Code
+~~~~~~~~~~~~
+
+The following example is useful for finding all sstables that do not match the "ib" SSTable version
+
+.. code-block:: bash
+
+    find /var/lib/cassandra/data/ -type f | grep -v -- -ib- | grep -v "/snapshots"

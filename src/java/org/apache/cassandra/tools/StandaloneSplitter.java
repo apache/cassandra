@@ -22,10 +22,11 @@ import java.io.File;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.Directories;
@@ -35,7 +36,6 @@ import org.apache.cassandra.db.compaction.SSTableSplitter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
@@ -52,7 +52,10 @@ public class StandaloneSplitter
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        Util.initDatabaseDescriptor();
+        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+            DatabaseDescriptor.toolInitialization(false); //Necessary for testing
+        else
+            Util.initDatabaseDescriptor();
 
         try
         {
@@ -70,12 +73,11 @@ public class StandaloneSplitter
                     continue;
                 }
 
-                Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
-                if (pair == null) {
+                Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+                if (desc == null) {
                     System.out.println("Skipping non sstable file " + file);
                     continue;
                 }
-                Descriptor desc = pair.left;
 
                 if (ksName == null)
                     ksName = desc.ksname;

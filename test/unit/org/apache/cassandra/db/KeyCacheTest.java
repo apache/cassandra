@@ -269,8 +269,8 @@ public class KeyCacheTest
         Mutation rm;
 
         // inserts
-        new RowUpdateBuilder(cfs.metadata, 0, "key1").clustering("1").build().applyUnsafe();
-        new RowUpdateBuilder(cfs.metadata, 0, "key2").clustering("2").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1").clustering("1").build().applyUnsafe();
+        new RowUpdateBuilder(cfs.metadata(), 0, "key2").clustering("2").build().applyUnsafe();
 
         // to make sure we have SSTable
         cfs.forceBlockingFlush();
@@ -287,7 +287,7 @@ public class KeyCacheTest
             throw new IllegalStateException();
 
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
-        boolean noEarlyOpen = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() < 0;
+        boolean noEarlyOpen = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB() < 0;
 
         // after compaction cache should have entries for new SSTables,
         // but since we have kept a reference to the old sstables,

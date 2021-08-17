@@ -24,12 +24,12 @@ import java.util.UUID;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.service.MigrationCoordinator;
+import org.apache.cassandra.schema.MigrationCoordinator;
+import org.apache.cassandra.schema.Schema;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -119,4 +119,3 @@ public class MigrationCoordinatorTest extends TestBaseImpl
         }
     }
 }
-

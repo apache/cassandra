@@ -41,7 +41,7 @@ public class FieldIdentifier
      */
     public static FieldIdentifier forUnquoted(String text)
     {
-        return new FieldIdentifier(convert(text.toLowerCase(Locale.US)));
+        return new FieldIdentifier(convert(text == null ? null : text.toLowerCase(Locale.US)));
     }
 
     /**

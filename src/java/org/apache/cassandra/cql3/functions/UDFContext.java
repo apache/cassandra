@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.cql3.functions;
 
-import com.datastax.driver.core.TupleValue;
-import com.datastax.driver.core.UDTValue;
+import org.apache.cassandra.cql3.functions.types.TupleValue;
+import org.apache.cassandra.cql3.functions.types.UDTValue;
 
 /**
  * Provides context information for a particular user defined function.

@@ -17,7 +17,7 @@
 from os.path import join
 
 from .basecase import BaseTestCase, cassandra_dir
-from cqlshlib.cqlhandling import cql_keywords_reserved as cql_keywords_reserved
+from cqlshlib.cqlhandling import cql_keywords_reserved
 
 RESERVED_KEYWORDS_SOURCE = join(cassandra_dir, 'src', 'resources', 'org', 'apache', 'cassandra', 'cql3', 'reserved_keywords.txt')
 

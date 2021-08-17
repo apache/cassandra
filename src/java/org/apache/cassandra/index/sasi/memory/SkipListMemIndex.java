@@ -63,6 +63,7 @@ public class SkipListMemIndex extends MemIndex
         return overhead;
     }
 
+    @SuppressWarnings("resource")
     public RangeIterator<Long, Token> search(Expression expression)
     {
         ByteBuffer min = expression.lower == null ? null : expression.lower.value;
@@ -88,9 +89,12 @@ public class SkipListMemIndex extends MemIndex
         }
 
         RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
-        search.values().stream()
-                       .filter(keys -> !keys.isEmpty())
-                       .forEach(keys -> builder.add(new KeyRangeIterator(keys)));
+
+        for (ConcurrentSkipListSet<DecoratedKey> keys : search.values()) {
+            int size;
+            if ((size = keys.size()) > 0)
+                builder.add(new KeyRangeIterator(keys, size));
+        }
 
         return builder.build();
     }

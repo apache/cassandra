@@ -56,6 +56,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     private final CopyOnWriteArraySet<Host> liveReplicaHosts = new CopyOnWriteArraySet<>();
 
     private final Set<InetAddress> replicaAddresses = new HashSet<>();
+    private final Set<String> allowedDCs = new CopyOnWriteArraySet<>();
 
     public LimitedLocalNodeFirstLocalBalancingPolicy(String[] replicas)
     {
@@ -71,21 +72,29 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
                 logger.warn("Invalid replica host name: {}, skipping it", replica);
             }
         }
-        logger.trace("Created instance with the following replicas: {}", Arrays.asList(replicas));
+        if (logger.isTraceEnabled())
+            logger.trace("Created instance with the following replicas: {}", Arrays.asList(replicas));
     }
 
     @Override
     public void init(Cluster cluster, Collection<Host> hosts)
     {
-        List<Host> replicaHosts = new ArrayList<>();
+        // first find which DCs the user defined
+        Set<String> dcs = new HashSet<>();
         for (Host host : hosts)
         {
             if (replicaAddresses.contains(host.getAddress()))
-            {
+                dcs.add(host.getDatacenter());
+        }
+        // filter to all nodes within the targeted DCs
+        List<Host> replicaHosts = new ArrayList<>();
+        for (Host host : hosts)
+        {
+            if (dcs.contains(host.getDatacenter()))
                 replicaHosts.add(host);
-            }
         }
         liveReplicaHosts.addAll(replicaHosts);
+        allowedDCs.addAll(dcs);
         logger.trace("Initialized with replica hosts: {}", replicaHosts);
     }
 
@@ -135,7 +144,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     @Override
     public void onAdd(Host host)
     {
-        if (replicaAddresses.contains(host.getAddress()))
+        if (liveReplicaHosts.contains(host))
         {
             liveReplicaHosts.add(host);
             logger.trace("Added a new host {}", host);
@@ -145,7 +154,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     @Override
     public void onUp(Host host)
     {
-        if (replicaAddresses.contains(host.getAddress()))
+        if (liveReplicaHosts.contains(host))
         {
             liveReplicaHosts.add(host);
             logger.trace("The host {} is now up", host);

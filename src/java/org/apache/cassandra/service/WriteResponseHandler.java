@@ -17,18 +17,13 @@
  */
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.db.WriteType;
 
 /**
@@ -42,41 +37,32 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
     private static final AtomicIntegerFieldUpdater<WriteResponseHandler> responsesUpdater
             = AtomicIntegerFieldUpdater.newUpdater(WriteResponseHandler.class, "responses");
 
-    public WriteResponseHandler(Collection<InetAddress> writeEndpoints,
-                                Collection<InetAddress> pendingEndpoints,
-                                ConsistencyLevel consistencyLevel,
-                                Keyspace keyspace,
+    public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan,
                                 Runnable callback,
                                 WriteType writeType,
                                 long queryStartNanoTime)
     {
-        super(keyspace, writeEndpoints, pendingEndpoints, consistencyLevel, callback, writeType, queryStartNanoTime);
-        responses = totalBlockFor();
+        super(replicaPlan, callback, writeType, queryStartNanoTime);
+        responses = blockFor();
     }
 
-    public WriteResponseHandler(InetAddress endpoint, WriteType writeType, Runnable callback, long queryStartNanoTime)
+    public WriteResponseHandler(ReplicaPlan.ForTokenWrite replicaPlan, WriteType writeType, long queryStartNanoTime)
     {
-        this(Arrays.asList(endpoint), Collections.<InetAddress>emptyList(), ConsistencyLevel.ONE, null, callback, writeType, queryStartNanoTime);
+        this(replicaPlan, null, writeType, queryStartNanoTime);
     }
 
-    public WriteResponseHandler(InetAddress endpoint, WriteType writeType, long queryStartNanoTime)
-    {
-        this(endpoint, writeType, null, queryStartNanoTime);
-    }
-
-    public void response(MessageIn<T> m)
+    public void onResponse(Message<T> m)
     {
         if (responsesUpdater.decrementAndGet(this) == 0)
             signal();
+        //Must be last after all subclass processing
+        //The two current subclasses both assume logResponseToIdealCLDelegate is called
+        //here.
+        logResponseToIdealCLDelegate(m);
     }
 
     protected int ackCount()
     {
-        return totalBlockFor() - responses;
-    }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
+        return blockFor() - responses;
     }
 }

@@ -19,9 +19,11 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
 
+import org.apache.cassandra.audit.AuditLogContext;
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -29,6 +31,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class ListPermissionsStatement extends AuthorizationStatement
 {
@@ -76,7 +80,7 @@ public class ListPermissionsStatement extends AuthorizationStatement
             throw new InvalidRequestException(String.format("%s doesn't exist", grantee));
    }
 
-    public void checkAccess(ClientState state)
+    public void authorize(ClientState state)
     {
         // checked in validate
     }
@@ -118,7 +122,8 @@ public class ListPermissionsStatement extends AuthorizationStatement
         if (details.isEmpty())
             return new ResultMessage.Void();
 
-        ResultSet result = new ResultSet(metadata);
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata);
+        ResultSet result = new ResultSet(resultMetadata);
         for (PermissionDetails pd : details)
         {
             result.addColumnValue(UTF8Type.instance.decompose(pd.grantee));
@@ -127,5 +132,17 @@ public class ListPermissionsStatement extends AuthorizationStatement
             result.addColumnValue(UTF8Type.instance.decompose(pd.permission.toString()));
         }
         return new ResultMessage.Rows(result);
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.LIST_PERMISSIONS);
     }
 }

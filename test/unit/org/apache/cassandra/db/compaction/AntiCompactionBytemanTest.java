@@ -19,11 +19,11 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -32,13 +32,18 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -61,6 +66,7 @@ public class AntiCompactionBytemanTest extends CQLTester
         createTable("create table %s (id int primary key, i int)");
         execute("insert into %s (id, i) values (1, 1)");
         execute("insert into %s (id, i) values (2, 1)");
+        execute("insert into %s (id, i) values (3, 1)");
         getCurrentColumnFamilyStore().forceBlockingFlush();
         UntypedResultSet res = execute("select token(id) as tok from %s");
         Iterator<UntypedResultSet.Row> it = res.iterator();
@@ -75,6 +81,12 @@ public class AntiCompactionBytemanTest extends CQLTester
         long first = tokens.get(0) - 10;
         long last = tokens.get(0) + 10;
         Range<Token> toRepair = new Range<>(new Murmur3Partitioner.LongToken(first), new Murmur3Partitioner.LongToken(last));
+        first = tokens.get(1) - 10;
+        last = tokens.get(1) + 10;
+        Range<Token> pending = new Range<>(new Murmur3Partitioner.LongToken(first), new Murmur3Partitioner.LongToken(last));
+
+        RangesAtEndpoint ranges = new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort()).add(Replica.fullReplica(FBUtilities.getBroadcastAddressAndPort(), toRepair))
+                                                                                                        .add(Replica.transientReplica(InetAddressAndPort.getByName("127.0.0.1"), pending)).build();
 
         AtomicBoolean failed = new AtomicBoolean(false);
         AtomicBoolean finished = new AtomicBoolean(false);
@@ -100,7 +112,7 @@ public class AntiCompactionBytemanTest extends CQLTester
                     UntypedResultSet.Row r = rowIter.next();
                     ids.add(r.getInt("id"));
                 }
-                if (!Sets.newHashSet(1,2).equals(ids))
+                if (!Sets.newHashSet(1,2,3).equals(ids))
                 {
                     failed.set(true);
                     return;
@@ -114,12 +126,12 @@ public class AntiCompactionBytemanTest extends CQLTester
 
         try (LifecycleTransaction txn = getCurrentColumnFamilyStore().getTracker().tryModify(getCurrentColumnFamilyStore().getLiveSSTables(), OperationType.ANTICOMPACTION))
         {
-            CompactionManager.instance.antiCompactGroup(getCurrentColumnFamilyStore(), Collections.singleton(toRepair), txn, 123);
+            CompactionManager.instance.antiCompactGroup(getCurrentColumnFamilyStore(), ranges, txn, UUID.randomUUID(), () -> false);
         }
         finished.set(true);
         t.join();
         assertFalse(failed.get());
         assertFalse(getCurrentColumnFamilyStore().getLiveSSTables().contains(sstableBefore));
-        AntiCompactionTest.assertOnDiskState(getCurrentColumnFamilyStore(), 2);
+        Util.assertOnDiskState(getCurrentColumnFamilyStore(), 3);
     }
 }

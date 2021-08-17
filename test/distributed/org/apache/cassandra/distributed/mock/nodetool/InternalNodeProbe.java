@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.distributed.mock.nodetool;
 
-import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
 import java.util.Map;
-
 import javax.management.ListenerNotFoundException;
 
 import com.google.common.collect.Multimap;
@@ -30,17 +28,18 @@ import com.google.common.collect.Multimap;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.DynamicEndpointSnitchMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfo;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.CacheServiceMBean;
 import org.apache.cassandra.service.GCInspector;
@@ -67,7 +66,6 @@ public class InternalNodeProbe extends NodeProbe
         mbeanServerConn = null;
         jmxc = null;
 
-
         if (withNotifications)
         {
             ssProxy = StorageService.instance;
@@ -88,33 +86,36 @@ public class InternalNodeProbe extends NodeProbe
             }
             ssProxy = mock;
         }
-
-        ssProxy = StorageService.instance;
         msProxy = MessagingService.instance();
         streamProxy = StreamManager.instance;
         compactionProxy = CompactionManager.instance;
         fdProxy = (FailureDetectorMBean) FailureDetector.instance;
         cacheService = CacheService.instance;
         spProxy = StorageProxy.instance;
-        hhProxy = HintedHandOffManager.instance;
+        hsProxy = HintsService.instance;
+
         gcProxy = new GCInspector();
         gossProxy = Gossiper.instance;
         bmProxy = BatchlogManager.instance;
+        arsProxy = ActiveRepairService.instance;
         memProxy = ManagementFactory.getMemoryMXBean();
         runtimeProxy = ManagementFactory.getRuntimeMXBean();
     }
 
-    public void close() throws IOException
+    @Override
+    public void close()
     {
         // nothing to close. no-op
     }
 
+    @Override
     // overrides all the methods referenced mbeanServerConn/jmxc in super
     public EndpointSnitchInfoMBean getEndpointSnitchInfoProxy()
     {
         return new EndpointSnitchInfo();
     }
 
+	@Override
     public DynamicEndpointSnitchMBean getDynamicEndpointSnitchInfoProxy()
     {
         return (DynamicEndpointSnitchMBean) DatabaseDescriptor.createEndpointSnitch(true, DatabaseDescriptor.getRawConfig().endpoint_snitch);
@@ -125,57 +126,68 @@ public class InternalNodeProbe extends NodeProbe
         return cacheService;
     }
 
+    @Override
     public ColumnFamilyStoreMBean getCfsProxy(String ks, String cf)
     {
         return Keyspace.open(ks).getColumnFamilyStore(cf);
     }
 
     // The below methods are only used by the commands (i.e. Info, TableHistogram, TableStats, etc.) that display informations. Not useful for dtest, so disable it.
+    @Override
     public Object getCacheMetric(String cacheType, String metricName)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> getColumnFamilyStoreMBeanProxies()
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Multimap<String, String> getThreadPools()
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object getColumnFamilyMetric(String ks, String cf, String metricName)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public CassandraMetricsRegistry.JmxTimerMBean getProxyMetric(String scope)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public CassandraMetricsRegistry.JmxTimerMBean getMessagingQueueWaitMetrics(String verb)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object getCompactionMetric(String metricName)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object getClientMetric(String metricName)
     {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public long getStorageMetric(String metricName)
     {
         throw new UnsupportedOperationException();

@@ -26,7 +26,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -44,7 +44,6 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
  * Consisting of a top level Index interface and two sub-interfaces which handle read and write operations,
@@ -123,7 +122,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  *
  * The input is the map of index options supplied in the WITH clause of a CREATE INDEX statement.
  *
- * <pre>{@code public static Map<String, String> validateOptions(Map<String, String> options, CFMetaData cfm);}</pre>
+ * <pre>{@code public static Map<String, String> validateOptions(Map<String, String> options, TableMetadata metadata);}</pre>
  *
  * In this version, the base table's metadata is also supplied as an argument.
  * If both overloaded methods are provided, only the one including the base table's metadata will be invoked.
@@ -136,6 +135,23 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public interface Index
 {
+    /**
+     * Supported loads. An index could be badly initialized and support only reads i.e.
+     */
+    public enum LoadType
+    {
+        READ, WRITE, ALL, NOOP;
+
+        public boolean supportsWrites()
+        {
+            return this == ALL || this == WRITE;
+        }
+
+        public boolean supportsReads()
+        {
+            return this == ALL || this == READ;
+        }
+    }
 
     /*
      * Helpers for building indexes from SSTable data
@@ -156,9 +172,10 @@ public interface Index
      */
     public static class CollatedViewIndexBuildingSupport implements IndexBuildingSupport
     {
+        @SuppressWarnings("resource")
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables)
         {
-            return new CollatedViewIndexBuilder(cfs, indexes, new ReducingKeyIterator(sstables));
+            return new CollatedViewIndexBuilder(cfs, indexes, new ReducingKeyIterator(sstables), sstables);
         }
     }
 
@@ -179,12 +196,31 @@ public interface Index
      * single pass through the data. The singleton instance returned from the default method implementation builds
      * indexes using a {@code ReducingKeyIterator} to provide a collated view of the SSTable data.
      *
-     * @return an instance of the index build taski helper. Index implementations which return <b>the same instance</b>
+     * @return an instance of the index build task helper. Index implementations which return <b>the same instance</b>
      * will be built using a single task.
      */
     default IndexBuildingSupport getBuildTaskSupport()
     {
         return INDEX_BUILDER_SUPPORT;
+    }
+    
+    /**
+     * Same as {@code getBuildTaskSupport} but can be overloaded with a specific 'recover' logic different than the index building one
+     */
+    default IndexBuildingSupport getRecoveryTaskSupport()
+    {
+        return getBuildTaskSupport();
+    }
+    
+    /**
+     * Returns the type of operations supported by the index in case its building has failed and it's needing recovery.
+     *
+     * @param isInitialBuild {@code true} if the failure is for the initial build task on index creation, {@code false}
+     * if the failure is for a full rebuild or recovery.
+     */
+    default LoadType getSupportedLoadTypeOnFailure(boolean isInitialBuild)
+    {
+        return isInitialBuild ? LoadType.WRITE : LoadType.ALL;
     }
 
     /**
@@ -303,7 +339,7 @@ public interface Index
      * @return true if the index depends on the supplied column being present; false if the column may be
      *              safely dropped or modified without adversely affecting the index
      */
-    public boolean dependsOn(ColumnDefinition column);
+    public boolean dependsOn(ColumnMetadata column);
 
     /**
      * Called to determine whether this index can provide a searcher to execute a query on the
@@ -313,7 +349,7 @@ public interface Index
      * @param operator the operator of a search query predicate
      * @return true if this index is capable of supporting such expressions, false otherwise
      */
-    public boolean supportsExpression(ColumnDefinition column, Operator operator);
+    public boolean supportsExpression(ColumnMetadata column, Operator operator);
 
     /**
      * If the index supports custom search expressions using the
@@ -377,7 +413,7 @@ public interface Index
      * This can be empty as an update might only contain partition, range and row deletions, but
      * the indexer is guaranteed to not get any cells for a column that is not part of {@code columns}.
      * @param nowInSec current time of the update operation
-     * @param opGroup operation group spanning the update operation
+     * @param ctx WriteContext spanning the update operation
      * @param transactionType indicates what kind of update is being performed on the base data
      *                        i.e. a write time insert/update/delete or the result of compaction
      * @return the newly created indexer or {@code null} if the index is not interested by the update
@@ -385,9 +421,9 @@ public interface Index
      * that type of transaction, ...).
      */
     public Indexer indexerFor(DecoratedKey key,
-                              PartitionColumns columns,
+                              RegularAndStaticColumns columns,
                               int nowInSec,
-                              OpOrder.Group opGroup,
+                              WriteContext ctx,
                               IndexTransaction.Type transactionType);
 
     /**

@@ -25,26 +25,17 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
-import java.net.InetAddress;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.BeforeClass;
 
 public class ArrivalWindowTest
 {
-    @BeforeClass
-    public static void beforeClass()
-    {
-        DatabaseDescriptor.daemonInitialization();
-    }
-
     @Test
     public void testWithNanoTime()
     {
         final ArrivalWindow windowWithNano = new ArrivalWindow(4);
         final long toNano = 1000000L;
-        InetAddress ep = FBUtilities.getLocalAddress();
+        InetAddressAndPort ep = FBUtilities.getLocalAddressAndPort();
         windowWithNano.add(111 * toNano, ep);
         windowWithNano.add(222 * toNano, ep);
         windowWithNano.add(333 * toNano, ep);

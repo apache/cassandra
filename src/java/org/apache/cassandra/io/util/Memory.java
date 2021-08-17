@@ -28,7 +28,6 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import sun.misc.Unsafe;
-import sun.nio.ch.DirectBuffer;
 
 /**
  * An off-heap region of memory that must be manually free'd when no longer needed.
@@ -213,9 +212,9 @@ public class Memory implements AutoCloseable
         {
             setBytes(memoryOffset, buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        else if (buffer instanceof DirectBuffer)
+        else if (buffer.isDirect())
         {
-            unsafe.copyMemory(((DirectBuffer) buffer).address() + buffer.position(), peer + memoryOffset, buffer.remaining());
+            unsafe.copyMemory(MemoryUtil.getAddress(buffer) + buffer.position(), peer + memoryOffset, buffer.remaining());
         }
         else
             throw new IllegalStateException();
@@ -418,7 +417,7 @@ public class Memory implements AutoCloseable
     public void setByteBuffer(ByteBuffer buffer, long offset, int length)
     {
         checkBounds(offset, offset + length);
-        MemoryUtil.setByteBuffer(buffer, peer + offset, length);
+        MemoryUtil.setDirectByteBuffer(buffer, peer + offset, length);
     }
 
     public String toString()

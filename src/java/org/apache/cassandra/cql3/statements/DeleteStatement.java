@@ -19,15 +19,21 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.audit.AuditLogContext;
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.conditions.ColumnCondition;
+import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -37,20 +43,22 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
  */
 public class DeleteStatement extends ModificationStatement
 {
-    private DeleteStatement(int boundTerms,
-                            CFMetaData cfm,
+    private DeleteStatement(VariableSpecifications bindVariables,
+                            TableMetadata cfm,
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
                             Attributes attrs)
     {
-        super(StatementType.DELETE, boundTerms, cfm, operations, restrictions, conditions, attrs);
+        super(StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs);
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
     throws InvalidRequestException
     {
+        TableMetadata metadata = metadata();
+
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();
 
@@ -59,19 +67,19 @@ public class DeleteStatement extends ModificationStatement
             // We're not deleting any specific columns so it's either a full partition deletion ....
             if (clustering.size() == 0)
             {
-                update.addPartitionDeletion(params.deletionTime());
+                updateBuilder.addPartitionDeletion(params.deletionTime());
             }
             // ... or a row deletion ...
-            else if (clustering.size() == cfm.clusteringColumns().size())
+            else if (clustering.size() == metadata.clusteringColumns().size())
             {
                 params.newRow(clustering);
                 params.addRowDeletion();
-                update.add(params.buildRow());
+                updateBuilder.add(params.buildRow());
             }
             // ... or a range of rows deletion.
             else
             {
-                update.add(params.makeRangeTombstone(cfm.comparator, clustering));
+                updateBuilder.add(params.makeRangeTombstone(metadata.comparator, clustering));
             }
         }
         else
@@ -81,28 +89,28 @@ public class DeleteStatement extends ModificationStatement
                 // if the clustering size is zero but there are some clustering columns, it means that it's a
                 // range deletion (the full partition) in which case we need to throw an error as range deletion
                 // do not support specific columns
-                checkFalse(clustering.size() == 0 && cfm.clusteringColumns().size() != 0,
+                checkFalse(clustering.size() == 0 && metadata.clusteringColumns().size() != 0,
                            "Range deletions are not supported for specific columns");
 
                 params.newRow(clustering);
 
                 for (Operation op : regularDeletions)
-                    op.execute(update.partitionKey(), params);
-                update.add(params.buildRow());
+                    op.execute(updateBuilder.partitionKey(), params);
+                updateBuilder.add(params.buildRow());
             }
 
             if (!staticDeletions.isEmpty())
             {
                 params.newRow(Clustering.STATIC_CLUSTERING);
                 for (Operation op : staticDeletions)
-                    op.execute(update.partitionKey(), params);
-                update.add(params.buildRow());
+                    op.execute(updateBuilder.partitionKey(), params);
+                updateBuilder.add(params.buildRow());
             }
         }
     }
 
     @Override
-    public void addUpdateForKey(PartitionUpdate update, Slice slice, UpdateParameters params)
+    public void addUpdateForKey(PartitionUpdate.Builder update, Slice slice, UpdateParameters params)
     {
         List<Operation> regularDeletions = getRegularOperations();
         List<Operation> staticDeletions = getStaticOperations();
@@ -116,13 +124,13 @@ public class DeleteStatement extends ModificationStatement
     public static class Parsed extends ModificationStatement.Parsed
     {
         private final List<Operation.RawDeletion> deletions;
-        private WhereClause whereClause;
+        private final WhereClause whereClause;
 
-        public Parsed(CFName name,
+        public Parsed(QualifiedName name,
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
                       WhereClause whereClause,
-                      List<Pair<ColumnDefinition.Raw, ColumnCondition.Raw>> conditions,
+                      List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
                       boolean ifExists)
         {
             super(name, StatementType.DELETE, attrs, conditions, false, ifExists);
@@ -132,42 +140,36 @@ public class DeleteStatement extends ModificationStatement
 
 
         @Override
-        protected ModificationStatement prepareInternal(CFMetaData cfm,
-                                                        VariableSpecifications boundNames,
+        protected ModificationStatement prepareInternal(TableMetadata metadata,
+                                                        VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
+            checkFalse(metadata.isVirtual(), "Virtual tables don't support DELETE statements");
+
             Operations operations = new Operations(type);
 
-            if (cfm.isSuper() && cfm.isDense())
+            for (Operation.RawDeletion deletion : deletions)
             {
-                conditions = SuperColumnCompatibility.rebuildLWTColumnConditions(conditions, cfm, whereClause);
-                whereClause = SuperColumnCompatibility.prepareDeleteOperations(cfm, whereClause, boundNames, operations);
-            }
-            else
-            {
-                for (Operation.RawDeletion deletion : deletions)
-                {
-                    ColumnDefinition def = getColumnDefinition(cfm, deletion.affectedColumn());
+                ColumnMetadata def = metadata.getExistingColumn(deletion.affectedColumn());
 
-                    // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
-                    // list. However, we support having the value name for coherence with the static/sparse case
-                    checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
+                // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
+                // list. However, we support having the value name for coherence with the static/sparse case
+                checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
-                    Operation op = deletion.prepare(cfm.ksName, def, cfm);
-                    op.collectMarkerSpecification(boundNames);
-                    operations.add(op);
-                }
+                Operation op = deletion.prepare(metadata.keyspace, def, metadata);
+                op.collectMarkerSpecification(bindVariables);
+                operations.add(op);
             }
 
-            StatementRestrictions restrictions = newRestrictions(cfm,
-                                                                 boundNames,
+            StatementRestrictions restrictions = newRestrictions(metadata,
+                                                                 bindVariables,
                                                                  operations,
                                                                  whereClause,
                                                                  conditions);
 
-            DeleteStatement stmt = new DeleteStatement(boundNames.size(),
-                                                       cfm,
+            DeleteStatement stmt = new DeleteStatement(bindVariables,
+                                                       metadata,
                                                        operations,
                                                        restrictions,
                                                        conditions,
@@ -186,5 +188,16 @@ public class DeleteStatement extends ModificationStatement
 
             return stmt;
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.DELETE, keyspace(), columnFamily());
     }
 }

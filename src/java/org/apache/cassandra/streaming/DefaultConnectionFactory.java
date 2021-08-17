@@ -15,66 +15,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.OutboundTcpConnectionPool;
+import io.netty.channel.Channel;
+import io.netty.channel.EventLoop;
+import io.netty.util.concurrent.Future;
+import org.apache.cassandra.net.ConnectionCategory;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.OutboundConnectionInitiator.Result;
+import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSuccess;
+import org.apache.cassandra.net.OutboundConnectionSettings;
+
+import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateStreaming;
 
 public class DefaultConnectionFactory implements StreamConnectionFactory
 {
-    private static final Logger logger = LoggerFactory.getLogger(DefaultConnectionFactory.class);
+    @VisibleForTesting
+    public static int MAX_CONNECT_ATTEMPTS = 3;
 
-    private static final int MAX_CONNECT_ATTEMPTS = 3;
-
-    /**
-     * Connect to peer and start exchanging message.
-     * When connect attempt fails, this retries for maximum of MAX_CONNECT_ATTEMPTS times.
-     *
-     * @param peer the peer to connect to.
-     * @return the created socket.
-     *
-     * @throws IOException when connection failed.
-     */
-    public Socket createConnection(InetAddress peer) throws IOException
+    @Override
+    public Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException
     {
+        EventLoop eventLoop = MessagingService.instance().socketFactory.outboundStreamingGroup().next();
+
         int attempts = 0;
         while (true)
         {
-            Socket socket = null;
-            try
-            {
-                socket = OutboundTcpConnectionPool.newSocket(peer);
-                socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
-                socket.setKeepAlive(true);
-                return socket;
-            }
-            catch (IOException e)
-            {
-                if (socket != null)
-                {
-                    socket.close();
-                }
-                if (++attempts >= MAX_CONNECT_ATTEMPTS)
-                    throw e;
+            Future<Result<StreamingSuccess>> result = initiateStreaming(eventLoop, template.withDefaults(ConnectionCategory.STREAMING), messagingVersion);
+            result.awaitUninterruptibly(); // initiate has its own timeout, so this is "guaranteed" to return relatively promptly
+            if (result.isSuccess())
+                return result.getNow().success().channel;
 
-                long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt {} to connect to {}. Retrying in {} ms. ({})", attempts, peer, waitms, e);
-                try
-                {
-                    Thread.sleep(waitms);
-                }
-                catch (InterruptedException wtf)
-                {
-                    throw new IOException("interrupted", wtf);
-                }
-            }
+            if (++attempts == MAX_CONNECT_ATTEMPTS)
+                throw new IOException("failed to connect to " + template.to + " for streaming data", result.cause());
         }
     }
 }

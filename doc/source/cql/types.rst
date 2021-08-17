@@ -30,7 +30,6 @@ types <custom-types>`:
 .. productionlist::
    cql_type: `native_type` | `collection_type` | `user_defined_type` | `tuple_type` | `custom_type`
 
-
 .. _native-types:
 
 Native Types
@@ -152,6 +151,9 @@ specified for timestamps when feasible.
 The time of day may also be omitted (``'2011-02-03'`` or ``'2011-02-03+0000'``), in which case the time of day will
 default to 00:00:00 in the specified or default time zone. However, if only the date part is relevant, consider using
 the :ref:`date <dates>` type.
+
+Note: while Cassandra will parse and accept time literals with a greater number of digits, the value stored will be truncated to 
+millisecond precision.
 
 .. _dates:
 
@@ -307,7 +309,6 @@ inserted/updated elements. In other words::
 
 will only apply the TTL to the ``{ 'color' : 'green' }`` record, the rest of the map remaining unaffected.
 
-
 .. _sets:
 
 Sets
@@ -397,19 +398,44 @@ Further, lists support:
 
 Lastly, as for :ref:`maps <maps>`, TTLs when used only apply to the newly inserted values.
 
+.. _tuples:
+
+Tuples
+^^^^^^
+
+A tuple is a fixed-length set of values (fields) where each can be of a different data type. Tuple types and tuple
+literals are defined by:
+
+.. productionlist::
+   tuple_type: TUPLE '<' `cql_type` ( ',' `cql_type` )* '>'
+   tuple_literal: '(' `term` ( ',' `term` )* ')'
+
+and can be used thusly::
+
+    CREATE TABLE contacts (
+        user text,
+        phones tuple<text, text>,
+    )
+
+    INSERT INTO contacts (user, phones) VALUES ('John Doe', ('home', '(555) 555-1234'));
+
+Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>`. It is not possible to
+update only some elements of a tuple (without updating the whole tuple). A tuple literal must have the same number of
+items as its declaring type (some of those values can be null but they must be explicitly declared).
+
 .. _udts:
 
 User-Defined Types
 ^^^^^^^^^^^^^^^^^^
 
-CQL support the definition of user-defined types (UDT for short). Such a type can be created, modified and removed using
-the :token:`create_type_statement`, :token:`alter_type_statement` and :token:`drop_type_statement` described below. But
+A User Defined Type (UDT) is a set data fields where each field is named and typed. UDTs allow to store related
+information together within one colum. UDTs can be created, modified and removed using token
+:token:`create_type_statement`, :token:`alter_type_statement` and :token:`drop_type_statement` described below. But
 once created, a UDT is simply referred to by its name:
 
 .. productionlist::
    user_defined_type: `udt_name`
    udt_name: [ `keyspace_name` '.' ] `identifier`
-
 
 Creating a UDT
 ~~~~~~~~~~~~~~
@@ -448,7 +474,7 @@ Note that:
 - A type is intrinsically bound to the keyspace in which it is created, and can only be used in that keyspace. At
   creation, if the type name is prefixed by a keyspace name, it is created in that keyspace. Otherwise, it is created in
   the current keyspace.
-- As of Cassandra |version|, UDT have to be frozen in most cases, hence the ``frozen<address>`` in the table definition
+- As of Cassandra 3.7, UDT have to be frozen in most cases, hence the ``frozen<address>`` in the table definition
   above. Please see the section on :ref:`frozen <frozen>` for more details.
 
 UDT literals
@@ -512,31 +538,49 @@ still in use by another type, table or function will result in an error.
 If the type dropped does not exist, an error will be returned unless ``IF EXISTS`` is used, in which case the operation
 is a no-op.
 
-.. _tuples:
+.. _frozen:
 
-Tuples
-^^^^^^
+Frozen Types
+^^^^^^^^^^^^
 
-CQL also support tuples and tuple types (where the elements can be of different types). Functionally, tuples can be
-though as anonymous UDT with anonymous fields. Tuple types and tuple literals are defined by:
+The ``frozen`` keyword is used to change the way a collection or user-defined type column is serialized. For non-frozen
+collections or UDTs, each value is serialized independently from the other values. This allow update or delete
+operations on a sub-set of the collections or UDTs values. For frozen collections or UDTs all the value are serialized
+as one, disabling the ability to perform partial updates on the values.
 
-.. productionlist::
-   tuple_type: TUPLE '<' `cql_type` ( ',' `cql_type` )* '>'
-   tuple_literal: '(' `term` ( ',' `term` )* ')'
+To freeze a column, use the keyword, followed by the type in angle brackets, for instance::
 
-and can be used thusly::
+    CREATE TABLE posts (
+        id int PRIMARY KEY,
+        title text,
+        content text,
+        tags frozen<set<text>>
+    );
 
-    CREATE TABLE durations (
-        event text,
-        duration tuple<int, text>,
-    )
+To insert a frozen value, it's just like a non-frozen column::
 
-    INSERT INTO durations (event, duration) VALUES ('ev1', (3, 'hours'));
+    INSERT INTO posts (id, title, content, tags)
+            VALUES (1, 'Even Higher Availability with 5x Faster Streaming in Cassandra 4.0',
+                    'Streaming is a process...', {'cassandra', 'availability'});
 
-Unlike other "composed" types (collections and UDT), a tuple is always :ref:`frozen <frozen>` (without the need of the
-`frozen` keyword) and it is not possible to update only some elements of a tuple (without updating the whole tuple).
-Also, a tuple literal should always have the same number of value than declared in the type it is a tuple of (some of
-those values can be null but they need to be explicitly declared as so).
+Updating a frozen column
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+It's not possible to update an individual item of a collection::
+
+    UPDATE posts SET tags = tags - {'availability'} WHERE id = 1;
+
+The above command would result in the following error::
+
+    InvalidRequest: Error from server: code=2200 [Invalid query] message="Invalid operation (tags = tags -
+    {'availability'}) for frozen collection column tags"
+
+When there's a need to update, the full value must be provided::
+
+    UPDATE posts SET tags = {'cassandra'} WHERE id = 1;
+
+Note the whole value is being replaced, not just the unwanted item. The same is true for appending elements in a
+collection.
 
 .. _custom-types:
 

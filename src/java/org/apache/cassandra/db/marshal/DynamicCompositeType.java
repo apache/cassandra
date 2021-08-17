@@ -17,21 +17,25 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.nio.charset.CharacterCodingException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.cql3.Term;
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static com.google.common.collect.Iterables.any;
 
 /*
  * The encoding of a DynamicCompositeType column name should be:
@@ -59,22 +63,19 @@ public class DynamicCompositeType extends AbstractCompositeType
     private final Map<Byte, AbstractType<?>> aliases;
 
     // interning instances
-    private static final Map<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new HashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType>();
+    private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
 
-    public static synchronized DynamicCompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
+    public static DynamicCompositeType getInstance(TypeParser parser)
     {
         return getInstance(parser.getAliasParameters());
     }
 
-    public static synchronized DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
+    public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
         DynamicCompositeType dct = instances.get(aliases);
-        if (dct == null)
-        {
-            dct = new DynamicCompositeType(aliases);
-            instances.put(aliases, dct);
-        }
-        return dct;
+        return null == dct
+             ? instances.computeIfAbsent(aliases, DynamicCompositeType::new)
+             : dct;
     }
 
     private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
@@ -82,20 +83,39 @@ public class DynamicCompositeType extends AbstractCompositeType
         this.aliases = aliases;
     }
 
-    protected boolean readIsStatic(ByteBuffer bb)
+    protected <V> boolean readIsStatic(V value, ValueAccessor<V> accessor)
     {
         // We don't have the static nothing for DCT
         return false;
     }
 
-    private AbstractType<?> getComparator(ByteBuffer bb)
+    protected int startingOffset(boolean isStatic)
+    {
+        return 0;
+    }
+
+    protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset)
+    {
+        int header = accessor.getShort(value, offset);
+        if ((header & 0x8000) == 0)
+        {
+            return 2 + header;
+        }
+        else
+        {
+            return 2;
+        }
+    }
+
+    private <V> AbstractType<?> getComparator(V value, ValueAccessor<V> accessor, int offset)
     {
         try
         {
-            int header = ByteBufferUtil.readShortLength(bb);
+            int header = accessor.getShort(value, offset);
             if ((header & 0x8000) == 0)
             {
-                String name = ByteBufferUtil.string(ByteBufferUtil.readBytes(bb, header));
+
+                String name = accessor.toString(accessor.slice(value, offset + 2, header));
                 return TypeParser.parse(name);
             }
             else
@@ -109,22 +129,22 @@ public class DynamicCompositeType extends AbstractCompositeType
         }
     }
 
-    protected AbstractType<?> getComparator(int i, ByteBuffer bb)
+    protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> accessor, int offset)
     {
-        return getComparator(bb);
+        return getComparator(value, accessor, offset);
     }
 
-    protected AbstractType<?> getComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
+    protected <VL, VR> AbstractType<?> getComparator(int i, VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR, int offsetL, int offsetR)
     {
-        AbstractType<?> comp1 = getComparator(bb1);
-        AbstractType<?> comp2 = getComparator(bb2);
+        AbstractType<?> comp1 = getComparator(left, accessorL, offsetL);
+        AbstractType<?> comp2 = getComparator(right, accessorR, offsetR);
         AbstractType<?> rawComp = comp1;
 
         /*
          * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
          * incompatible comparisons being made.
          */
-        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType)) 
+        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType))
         {
             comp1 = ((ReversedType<?>) comp1).baseType;
             comp2 = ((ReversedType<?>) comp2).baseType;
@@ -154,14 +174,14 @@ public class DynamicCompositeType extends AbstractCompositeType
         return rawComp;
     }
 
-    protected AbstractType<?> getAndAppendComparator(int i, ByteBuffer bb, StringBuilder sb)
+    protected <V> AbstractType<?> getAndAppendComparator(int i, V value, ValueAccessor<V> accessor, StringBuilder sb, int offset)
     {
         try
         {
-            int header = ByteBufferUtil.readShortLength(bb);
+            int header = accessor.getShort(value, offset);
             if ((header & 0x8000) == 0)
             {
-                String name = ByteBufferUtil.string(ByteBufferUtil.readBytes(bb, header));
+                String name = accessor.toString(accessor.slice(value, offset + 2, header));
                 sb.append(name).append("@");
                 return TypeParser.parse(name);
             }
@@ -182,37 +202,36 @@ public class DynamicCompositeType extends AbstractCompositeType
         return new DynamicParsedComparator(part);
     }
 
-    protected AbstractType<?> validateComparator(int i, ByteBuffer bb) throws MarshalException
+    protected <V> AbstractType<?> validateComparator(int i, V input, ValueAccessor<V> accessor, int offset) throws MarshalException
     {
         AbstractType<?> comparator = null;
-        if (bb.remaining() < 2)
+        if (accessor.sizeFromOffset(input, offset) < 2)
             throw new MarshalException("Not enough bytes to header of the comparator part of component " + i);
-        int header = ByteBufferUtil.readShortLength(bb);
+        int header = accessor.getShort(input, offset);
+        offset += TypeSizes.SHORT_SIZE;
         if ((header & 0x8000) == 0)
         {
-            if (bb.remaining() < header)
+            if (accessor.sizeFromOffset(input, offset) < header)
                 throw new MarshalException("Not enough bytes to read comparator name of component " + i);
 
-            ByteBuffer value = ByteBufferUtil.readBytes(bb, header);
+            V value = accessor.slice(input, offset, header);
             String valueStr = null;
             try
             {
-                valueStr = ByteBufferUtil.string(value);
+                valueStr = accessor.toString(value);
                 comparator = TypeParser.parse(valueStr);
             }
-            catch (CharacterCodingException ce) 
+            catch (CharacterCodingException ce)
             {
-                // ByteBufferUtil.string failed. 
+                // ByteBufferUtil.string failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed with [{}] when decoding the byte buffer in ByteBufferUtil.string()", 
-                   ce.toString());
+                logger.error("Failed when decoding the byte buffer in ByteBufferUtil.string()", ce);
             }
             catch (Exception e)
             {
-                // parse failed. 
+                // parse failed.
                 // Log it here and we'll further throw an exception below since comparator == null
-                logger.error("Failed to parse value string \"{}\" with exception: [{}]", 
-                   valueStr, e.toString());
+                logger.error("Failed to parse value string \"{}\" with exception:", valueStr, e);
             }
         }
         else
@@ -256,6 +275,29 @@ public class DynamicCompositeType extends AbstractCompositeType
                 return false;
         }
         return true;
+    }
+
+    @Override
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
+    {
+        return any(aliases.values(), t -> t.referencesUserType(name, accessor));
+    }
+
+    @Override
+    public DynamicCompositeType withUpdatedUserType(UserType udt)
+    {
+        if (!referencesUserType(udt.name))
+            return this;
+
+        instances.remove(aliases);
+
+        return getInstance(Maps.transformValues(aliases, v -> v.withUpdatedUserType(udt)));
+    }
+
+    @Override
+    public AbstractType<?> expandUserTypes()
+    {
+        return getInstance(Maps.transformValues(aliases, v -> v.expandUserTypes()));
     }
 
     private class DynamicParsedComparator implements ParsedComparator
@@ -349,24 +391,23 @@ public class DynamicCompositeType extends AbstractCompositeType
             this.cmp = cmp;
         }
 
-        public int compareCustom(ByteBuffer v1, ByteBuffer v2)
+        public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
         {
             return cmp;
         }
 
         @Override
-        public Void compose(ByteBuffer bytes)
+        public <V> Void compose(V value, ValueAccessor<V> accessor)
         {
             throw new UnsupportedOperationException();
         }
 
-        @Override
         public ByteBuffer decompose(Void value)
         {
             throw new UnsupportedOperationException();
         }
 
-        public String getString(ByteBuffer bytes)
+        public <V> String getString(V value, ValueAccessor<V> accessor)
         {
             throw new UnsupportedOperationException();
         }

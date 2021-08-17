@@ -34,16 +34,16 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.MerkleTree.Hashable;
 import org.apache.cassandra.utils.MerkleTree.RowHash;
 import org.apache.cassandra.utils.MerkleTree.TreeRange;
 import org.apache.cassandra.utils.MerkleTrees.TreeRangeIterator;
 
+import static org.apache.cassandra.utils.MerkleTreeTest.digest;
 import static org.junit.Assert.*;
 
 public class MerkleTreesTest
 {
-    public static byte[] DUMMY = "blah".getBytes();
+    private static final byte[] DUMMY = digest("dummy");
 
     /**
      * If a test assumes that the tree is 8 units wide, then it should set this value
@@ -193,7 +193,7 @@ public class MerkleTreesTest
         Iterator<TreeRange> ranges;
 
         // (zero, zero]
-        ranges = mts.invalids();
+        ranges = mts.rangeIterator();
         assertEquals(new Range<>(tok(-1), tok(-1)), ranges.next());
         assertFalse(ranges.hasNext());
 
@@ -203,7 +203,7 @@ public class MerkleTreesTest
         mts.split(tok(6));
         mts.split(tok(3));
         mts.split(tok(5));
-        ranges = mts.invalids();
+        ranges = mts.rangeIterator();
         assertEquals(new Range<>(tok(6), tok(-1)), ranges.next());
         assertEquals(new Range<>(tok(-1), tok(2)), ranges.next());
         assertEquals(new Range<>(tok(2), tok(3)), ranges.next());
@@ -245,11 +245,6 @@ public class MerkleTreesTest
         // (zero,two] (two,four] (four, zero]
         mts.split(tok(4));
         mts.split(tok(2));
-        assertNull(mts.hash(left));
-        assertNull(mts.hash(partial));
-        assertNull(mts.hash(right));
-        assertNull(mts.hash(linvalid));
-        assertNull(mts.hash(rinvalid));
 
         // validate the range
         mts.get(tok(2)).hash(val);
@@ -280,10 +275,6 @@ public class MerkleTreesTest
         mts.split(tok(2));
         mts.split(tok(6));
         mts.split(tok(1));
-        assertNull(mts.hash(full));
-        assertNull(mts.hash(lchild));
-        assertNull(mts.hash(rchild));
-        assertNull(mts.hash(invalid));
 
         // validate the range
         mts.get(tok(1)).hash(val);
@@ -315,9 +306,6 @@ public class MerkleTreesTest
         mts.split(tok(4));
         mts.split(tok(2));
         mts.split(tok(1));
-        assertNull(mts.hash(full));
-        assertNull(mts.hash(childfull));
-        assertNull(mts.hash(invalid));
 
         // validate the range
         mts.get(tok(1)).hash(val);
@@ -349,7 +337,7 @@ public class MerkleTreesTest
         }
 
         // validate the tree
-        TreeRangeIterator ranges = mts.invalids();
+        TreeRangeIterator ranges = mts.rangeIterator();
         for (TreeRange range : ranges)
             range.addHash(new RowHash(range.right, new byte[0], 0));
 
@@ -378,13 +366,16 @@ public class MerkleTreesTest
         mts.split(tok(6));
         mts.split(tok(10));
 
-        ranges = mts.invalids();
-        ranges.next().addAll(new HIterator(2, 4)); // (-1,4]: depth 2
-        ranges.next().addAll(new HIterator(6)); // (4,6]
-        ranges.next().addAll(new HIterator(8)); // (6,8]
+        int seed = 123456789;
+
+        Random random1 = new Random(seed);
+        ranges = mts.rangeIterator();
+        ranges.next().addAll(new HIterator(random1, 2, 4)); // (-1,4]: depth 2
+        ranges.next().addAll(new HIterator(random1, 6)); // (4,6]
+        ranges.next().addAll(new HIterator(random1, 8)); // (6,8]
         ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (8,10]
-        ranges.next().addAll(new HIterator(12)); // (10,12]
-        ranges.next().addAll(new HIterator(14, -1)); // (12,-1]: depth 2
+        ranges.next().addAll(new HIterator(random1, 12)); // (10,12]
+        ranges.next().addAll(new HIterator(random1, 14, -1)); // (12,-1]: depth 2
 
 
         mts2.split(tok(8));
@@ -395,15 +386,16 @@ public class MerkleTreesTest
         mts2.split(tok(9));
         mts2.split(tok(11));
 
-        ranges = mts2.invalids();
-        ranges.next().addAll(new HIterator(2)); // (-1,2]
-        ranges.next().addAll(new HIterator(4)); // (2,4]
-        ranges.next().addAll(new HIterator(6, 8)); // (4,8]: depth 2
+        Random random2 = new Random(seed);
+        ranges = mts2.rangeIterator();
+        ranges.next().addAll(new HIterator(random2, 2)); // (-1,2]
+        ranges.next().addAll(new HIterator(random2, 4)); // (2,4]
+        ranges.next().addAll(new HIterator(random2, 6, 8)); // (4,8]: depth 2
         ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (8,9]
         ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (9,10]
         ranges.next().addAll(new HIterator(/*empty*/ new int[0])); // (10,11]: depth 4
-        ranges.next().addAll(new HIterator(12)); // (11,12]: depth 4
-        ranges.next().addAll(new HIterator(14, -1)); // (12,-1]: depth 2
+        ranges.next().addAll(new HIterator(random2, 12)); // (11,12]: depth 4
+        ranges.next().addAll(new HIterator(random2, 14, -1)); // (12,-1]: depth 2
 
         byte[] mthash = mts.hash(full);
         byte[] mt2hash = mts2.hash(full);
@@ -425,7 +417,7 @@ public class MerkleTreesTest
 
         // populate and validate the tree
         mts.init();
-        for (TreeRange range : mts.invalids())
+        for (TreeRange range : mts.rangeIterator())
             range.addAll(new HIterator(range.right));
 
         byte[] initialhash = mts.hash(first);
@@ -456,11 +448,15 @@ public class MerkleTreesTest
         mts.init();
         mts2.init();
 
+        int seed = 123456789;
         // add dummy hashes to both trees
-        for (TreeRange range : mts.invalids())
-            range.addAll(new HIterator(range.right));
-        for (TreeRange range : mts2.invalids())
-            range.addAll(new HIterator(range.right));
+        Random random1 = new Random(seed);
+        for (TreeRange range : mts.rangeIterator())
+            range.addAll(new HIterator(random1, range.right));
+
+        Random random2 = new Random(seed);
+        for (TreeRange range : mts2.rangeIterator())
+            range.addAll(new HIterator(random2, range.right));
 
         TreeRange leftmost = null;
         TreeRange middle = null;
@@ -468,14 +464,14 @@ public class MerkleTreesTest
         mts.maxsize(fullRange(), maxsize + 2); // give some room for splitting
 
         // split the leftmost
-        Iterator<TreeRange> ranges = mts.invalids();
+        Iterator<TreeRange> ranges = mts.rangeIterator();
         leftmost = ranges.next();
         mts.split(leftmost.right);
 
         // set the hashes for the leaf of the created split
         middle = mts.get(leftmost.right);
-        middle.hash("arbitrary!".getBytes());
-        mts.get(partitioner.midpoint(leftmost.left, leftmost.right)).hash("even more arbitrary!".getBytes());
+        middle.hash(digest("arbitrary!"));
+        mts.get(partitioner.midpoint(leftmost.left, leftmost.right)).hash(digest("even more arbitrary!"));
 
         // trees should disagree for (leftmost.left, middle.right]
         List<Range<Token>> diffs = MerkleTrees.difference(mts, mts2);
@@ -504,7 +500,7 @@ public class MerkleTreesTest
             while (depth.equals(dstack.peek()))
             {
                 // consume the stack
-                hash = Hashable.binaryHash(hstack.pop(), hash);
+                hash = MerkleTree.xor(hstack.pop(), hash);
                 depth = dstack.pop()-1;
             }
             dstack.push(depth);
@@ -514,27 +510,49 @@ public class MerkleTreesTest
         return hstack.pop();
     }
 
-    static class HIterator extends AbstractIterator<RowHash>
+    public static class HIterator extends AbstractIterator<RowHash>
     {
-        private Iterator<Token> tokens;
+        private final Random random;
+        private final Iterator<Token> tokens;
 
-        public HIterator(int... tokens)
+        HIterator(int... tokens)
         {
-            List<Token> tlist = new LinkedList<Token>();
+            this(new Random(), tokens);
+        }
+
+        HIterator(Random random, int... tokens)
+        {
+            List<Token> tlist = new ArrayList<>(tokens.length);
             for (int token : tokens)
                 tlist.add(tok(token));
             this.tokens = tlist.iterator();
+            this.random = random;
         }
 
         public HIterator(Token... tokens)
         {
-            this.tokens = Arrays.asList(tokens).iterator();
+            this(new Random(), tokens);
+        }
+
+        HIterator(Random random, Token... tokens)
+        {
+            this(random, Arrays.asList(tokens).iterator());
+        }
+
+        private HIterator(Random random, Iterator<Token> tokens)
+        {
+            this.random = random;
+            this.tokens = tokens;
         }
 
         public RowHash computeNext()
         {
             if (tokens.hasNext())
-                return new RowHash(tokens.next(), DUMMY, DUMMY.length);
+            {
+                byte[] digest = new byte[32];
+                random.nextBytes(digest);
+                return new RowHash(tokens.next(), digest, 12345L);
+            }
             return endOfData();
         }
     }

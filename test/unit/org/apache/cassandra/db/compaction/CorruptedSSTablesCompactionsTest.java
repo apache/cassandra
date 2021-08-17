@@ -94,7 +94,7 @@ public class CorruptedSSTablesCompactionsTest
     /**
      * Return a table metadata, we use types with fixed size to increase the chance of detecting corrupt data
      */
-    private static CFMetaData makeTable(String tableName)
+    private static TableMetadata.Builder makeTable(String tableName)
     {
         return SchemaLoader.standardCFMD(KEYSPACE1, tableName, 1, LongType.instance, LongType.instance, LongType.instance);
     }
@@ -135,7 +135,7 @@ public class CorruptedSSTablesCompactionsTest
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName);
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata().params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
         final int SSTABLES_TO_CORRUPT = 8;
 
         assertTrue(String.format("Not enough sstables (%d), expected at least %d sstables to corrupt", SSTABLES, SSTABLES_TO_CORRUPT),
@@ -154,7 +154,7 @@ public class CorruptedSSTablesCompactionsTest
             {
                 DecoratedKey key = Util.dk(String.valueOf(i), LongType.instance);
                 long timestamp = j * ROWS_PER_SSTABLE + i;
-                new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
+                new RowUpdateBuilder(cfs.metadata(), timestamp, key.getKey())
                         .clustering(Long.valueOf(i))
                         .add("val", Long.valueOf(i))
                         .build()

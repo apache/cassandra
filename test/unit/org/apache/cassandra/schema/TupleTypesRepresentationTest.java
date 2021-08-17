@@ -49,7 +49,6 @@ public class TupleTypesRepresentationTest
     static
     {
         DatabaseDescriptor.toolInitialization();
-        DatabaseDescriptor.applyAddressConfig();
     }
 
     private static final String keyspace = "ks";
@@ -378,7 +377,7 @@ public class TupleTypesRepresentationTest
             {
                 assertEquals(typeDef.toString() + "\n typeString vs type\n", typeDef.typeString, typeDef.type.toString());
                 assertEquals(typeDef.toString() + "\n typeString vs cqlType.getType()\n", typeDef.typeString, typeDef.cqlType.getType().toString());
-                AbstractType<?> expanded = SchemaKeyspace.expandUserTypes(typeDef.type);
+                AbstractType<?> expanded = typeDef.type.expandUserTypes();
                 CQL3Type expandedCQL = expanded.asCQL3Type();
                 // Note: cannot include this commented-out assertion, because the parsed CQL3Type instance for
                 // 'frozen<list<tuple<text, text>>>' returns 'frozen<list<frozen<tuple<text, text>>>>' via it's CQL3Type.toString()

@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.upgrade;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -28,14 +29,14 @@ import com.google.common.collect.ImmutableList;
 import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.Semver.SemverType;
 
-import com.google.common.collect.ImmutableList;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.UpgradeableCluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.distributed.api.IUpgradeableInstance;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 import org.apache.cassandra.distributed.shared.Versions;
@@ -44,6 +45,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.distributed.shared.Versions.Version;
 import static org.apache.cassandra.distributed.shared.Versions.find;
+
 
 
 public class UpgradeTestBase extends DistributedTestBase
@@ -80,11 +82,16 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v22 = new Semver("2.2.0-beta1", SemverType.LOOSE);
     public static final Semver v30 = new Semver("3.0.0-alpha1", SemverType.LOOSE);
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
+    public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
+    public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
 
     protected static final List<Pair<Semver,Semver>> SUPPORTED_UPGRADE_PATHS = ImmutableList.of(
         Pair.create(v22, v30),
         Pair.create(v22, v3X),
-        Pair.create(v30, v3X));
+        Pair.create(v30, v3X),
+        Pair.create(v30, v40),
+        Pair.create(v3X, v40),
+        Pair.create(v40, v41));
 
     // the last is always the current
     public static final Semver CURRENT = SUPPORTED_UPGRADE_PATHS.get(SUPPORTED_UPGRADE_PATHS.size() - 1).right;
@@ -110,8 +117,9 @@ public class UpgradeTestBase extends DistributedTestBase
         private RunOnClusterAndNode runBeforeNodeRestart;
         private RunOnClusterAndNode runAfterNodeUpgrade;
         private RunOnCluster runAfterClusterUpgrade;
-        private final Set<Integer> nodesToUpgrade = new HashSet<>();
+        private final Set<Integer> nodesToUpgrade = new LinkedHashSet<>();
         private Consumer<IInstanceConfig> configConsumer;
+        private Consumer<UpgradeableCluster.Builder> builderConsumer;
 
         public TestCase()
         {
@@ -185,6 +193,12 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
+        public TestCase withBuilder(Consumer<UpgradeableCluster.Builder> builder)
+        {
+            this.builderConsumer = builder;
+            return this;
+        }
+
         public void run() throws Throwable
         {
             if (setup == null)
@@ -206,7 +220,7 @@ public class UpgradeTestBase extends DistributedTestBase
             for (TestVersions upgrade : this.upgrade)
             {
                 System.out.printf("testing upgrade from %s to %s%n", upgrade.initial.version, upgrade.upgrade.version);
-                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer)))
+                try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);
 
@@ -221,10 +235,20 @@ public class UpgradeTestBase extends DistributedTestBase
 
                     runAfterClusterUpgrade.run(cluster);
                 }
-
             }
         }
         public TestCase nodesToUpgrade(int ... nodes)
+        {
+            Set<Integer> set = new HashSet<>(nodes.length);
+            for (int n : nodes)
+            {
+                set.add(n);
+            }
+            nodesToUpgrade.addAll(set);
+            return this;
+        }
+
+        public TestCase nodesToUpgradeOrdered(int ... nodes)
         {
             for (int n : nodes)
             {
@@ -241,4 +265,31 @@ public class UpgradeTestBase extends DistributedTestBase
                              .nodesToUpgrade(toUpgrade);
     }
 
+    protected static int primaryReplica(List<Long> initialTokens, Long token)
+    {
+        int primary = 1;
+
+        for (Long initialToken : initialTokens)
+        {
+            if (token <= initialToken)
+            {
+                break;
+            }
+
+            primary++;
+        }
+
+        return primary;
+    }
+
+    protected static Long tokenFrom(int key)
+    {
+        DecoratedKey dk = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(key));
+        return (Long) dk.getToken().getTokenValue();
+    }
+
+    protected static int nextNode(int current, int numNodes)
+    {
+        return current == numNodes ? 1 : current + 1;
+    }
 }

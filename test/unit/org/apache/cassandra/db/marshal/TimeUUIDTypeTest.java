@@ -21,7 +21,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.serializers.MarshalException;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;

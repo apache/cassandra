@@ -24,15 +24,19 @@ import java.util.Collection;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.*;
-
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistryListener;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -64,7 +68,7 @@ public class ColumnFamilyMetricTest
 
         for (int j = 0; j < 10; j++)
         {
-            applyMutation(cfs.metadata, String.valueOf(j), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros());
+            applyMutation(cfs.metadata(), String.valueOf(j), ByteBufferUtil.EMPTY_BYTE_BUFFER, FBUtilities.timestampMicros());
         }
         cfs.forceBlockingFlush();
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
@@ -96,13 +100,13 @@ public class ColumnFamilyMetricTest
         // This confirms another test/set up did not overflow the histogram
         store.metric.colUpdateTimeDeltaHistogram.cf.getSnapshot().get999thPercentile();
 
-        applyMutation(store.metadata, "4242", ByteBufferUtil.bytes("0"), 0);
+        applyMutation(store.metadata(), "4242", ByteBufferUtil.bytes("0"), 0);
 
         // The histogram should not have overflowed on the first write
         store.metric.colUpdateTimeDeltaHistogram.cf.getSnapshot().get999thPercentile();
 
         // smallest time delta that would overflow the histogram if unfiltered
-        applyMutation(store.metadata, "4242", ByteBufferUtil.bytes("1"), 18165375903307L);
+        applyMutation(store.metadata(), "4242", ByteBufferUtil.bytes("1"), 18165375903307L);
 
         // CASSANDRA-11117 - update with large timestamp delta should not overflow the histogram
         store.metric.colUpdateTimeDeltaHistogram.cf.getSnapshot().get999thPercentile();
@@ -144,8 +148,8 @@ public class ColumnFamilyMetricTest
 
             assertArrayEquals(new long[0], store.metric.estimatedColumnCountHistogram.getValue());
 
-            applyMutation(store.metadata, "0", bytes(0), FBUtilities.timestampMicros());
-            applyMutation(store.metadata, "1", bytes(1), FBUtilities.timestampMicros());
+            applyMutation(store.metadata(), "0", bytes(0), FBUtilities.timestampMicros());
+            applyMutation(store.metadata(), "1", bytes(1), FBUtilities.timestampMicros());
 
             // Flushing first SSTable
             store.forceBlockingFlush();
@@ -158,7 +162,7 @@ public class ColumnFamilyMetricTest
             // Due to the timestamps we cannot guaranty the size of the row. So we can only check the number of histogram updates.
             assertEquals(sumValues(estimatedRowSizeHistogram), 2);
 
-            applyMutation(store.metadata, "2", bytes(2), FBUtilities.timestampMicros());
+            applyMutation(store.metadata(), "2", bytes(2), FBUtilities.timestampMicros());
 
             // Flushing second SSTable
             store.forceBlockingFlush();
@@ -204,7 +208,7 @@ public class ColumnFamilyMetricTest
         assertArrayEquals(new long[]{10, 11, 9, 1}, result);
     }
 
-    private static void applyMutation(CFMetaData metadata, Object pk, ByteBuffer value, long timestamp)
+    private static void applyMutation(TableMetadata metadata, Object pk, ByteBuffer value, long timestamp)
     {
         new RowUpdateBuilder(metadata, timestamp, pk).clustering("0")
                                                      .add("val", value)

@@ -23,7 +23,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -33,6 +33,8 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.TriggerMetadata;
+import org.apache.cassandra.schema.Triggers;
+import org.apache.cassandra.triggers.TriggerExecutorTest.SameKeySameCfTrigger;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -51,7 +53,7 @@ public class TriggerExecutorTest
     @Test
     public void sameKeySameCfColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
         // origin column 'c1' = "v1", augment extra column 'c2' = "trigger"
         PartitionUpdate mutated = TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
 
@@ -65,7 +67,7 @@ public class TriggerExecutorTest
         // only 1 row
         assertEquals(1, rows.size());
 
-        List<Cell> cells = new ArrayList<>();
+        List<Cell<?>> cells = new ArrayList<>();
         rows.get(0).cells().forEach(cells::add);
 
         // 2 columns
@@ -80,21 +82,21 @@ public class TriggerExecutorTest
     @Test(expected = InvalidRequestException.class)
     public void sameKeyDifferentCfColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentCfTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentCfTrigger.class.getName()));
         TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
     }
 
     @Test(expected = InvalidRequestException.class)
     public void differentKeyColumnFamilies() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
         TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
     }
 
     @Test
     public void noTriggerMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", NoOpTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", NoOpTrigger.class.getName()));
         Mutation rm = new Mutation(makeCf(metadata, "k1", "v1", null));
         assertNull(TriggerExecutor.instance.execute(Collections.singletonList(rm)));
     }
@@ -102,11 +104,11 @@ public class TriggerExecutorTest
     @Test
     public void sameKeySameCfRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
-        Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
-        Mutation rm2 = new Mutation("ks1", cf2.partitionKey()).add(cf2);
+        Mutation rm1 = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
+        Mutation rm2 = new Mutation.PartitionUpdateCollector("ks1", cf2.partitionKey()).add(cf2).build();
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(2, tmutations.size());
@@ -115,24 +117,24 @@ public class TriggerExecutorTest
         List<PartitionUpdate> mutatedCFs = new ArrayList<>(tmutations.get(0).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         Row row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("k1v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+        assertEquals(bytes("k1v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
 
         mutatedCFs = new ArrayList<>(tmutations.get(1).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("k2v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+        assertEquals(bytes("k2v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
     }
 
     @Test
     public void sameKeySameCfPartialRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfPartialTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfPartialTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
-        Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
-        Mutation rm2 = new Mutation("ks1", cf2.partitionKey()).add(cf2);
+        Mutation rm1 = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
+        Mutation rm2 = new Mutation.PartitionUpdateCollector("ks1", cf2.partitionKey()).add(cf2).build();
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(2, tmutations.size());
@@ -141,24 +143,24 @@ public class TriggerExecutorTest
         List<PartitionUpdate> mutatedCFs = new ArrayList<>(tmutations.get(0).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         Row row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("k1v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c2"))));
+        assertEquals(bytes("k1v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c2"))));
 
         mutatedCFs = new ArrayList<>(tmutations.get(1).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("k2v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+        assertEquals(bytes("k2v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
     }
 
     @Test
     public void sameKeyDifferentCfRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentCfTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentCfTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
-        Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
-        Mutation rm2 = new Mutation("ks1", cf2.partitionKey()).add(cf2);
+        Mutation rm1 = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
+        Mutation rm2 = new Mutation.PartitionUpdateCollector("ks1", cf2.partitionKey()).add(cf2).build();
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(2, tmutations.size());
@@ -168,17 +170,17 @@ public class TriggerExecutorTest
         assertEquals(2, mutatedCFs.size());
         for (PartitionUpdate update : mutatedCFs)
         {
-            if (update.metadata().cfName.equals("cf1"))
+            if (update.metadata().name.equals("cf1"))
             {
                 Row row = update.iterator().next();
-                assertEquals(bytes("k1v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-                assertNull(row.getCell(metadata.getColumnDefinition(bytes("c2"))));
+                assertEquals(bytes("k1v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+                assertNull(row.getCell(metadata.getColumn(bytes("c2"))));
             }
             else
             {
                 Row row = update.iterator().next();
-                assertNull(row.getCell(metadata.getColumnDefinition(bytes("c1"))));
-                assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+                assertNull(row.getCell(metadata.getColumn(bytes("c1"))));
+                assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
             }
         }
 
@@ -187,17 +189,17 @@ public class TriggerExecutorTest
 
         for (PartitionUpdate update : mutatedCFs)
         {
-            if (update.metadata().cfName.equals("cf1"))
+            if (update.metadata().name.equals("cf1"))
             {
                 Row row = update.iterator().next();
-                assertEquals(bytes("k2v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-                assertNull(row.getCell(metadata.getColumnDefinition(bytes("c2"))));
+                assertEquals(bytes("k2v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+                assertNull(row.getCell(metadata.getColumn(bytes("c2"))));
             }
             else
             {
                 Row row = update.iterator().next();
-                assertNull(row.getCell(metadata.getColumnDefinition(bytes("c1"))));
-                assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+                assertNull(row.getCell(metadata.getColumn(bytes("c1"))));
+                assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
             }
         }
     }
@@ -205,11 +207,11 @@ public class TriggerExecutorTest
     @Test
     public void sameKeyDifferentKsRowMutations() throws ConfigurationException, InvalidRequestException
     {
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentKsTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", SameKeyDifferentKsTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "k1v1", null);
         PartitionUpdate cf2 = makeCf(metadata, "k2", "k2v1", null);
-        Mutation rm1 = new Mutation("ks1", cf1.partitionKey()).add(cf1);
-        Mutation rm2 = new Mutation("ks1", cf2.partitionKey()).add(cf2);
+        Mutation rm1 = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
+        Mutation rm2 = new Mutation.PartitionUpdateCollector("ks1", cf2.partitionKey()).add(cf2).build();
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm1, rm2)));
         assertEquals(4, tmutations.size());
@@ -218,35 +220,35 @@ public class TriggerExecutorTest
         List<PartitionUpdate> mutatedCFs = new ArrayList<>(tmutations.get(0).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         Row row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("k1v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c2"))));
+        assertEquals(bytes("k1v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c2"))));
 
         mutatedCFs = new ArrayList<>(tmutations.get(1).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("k2v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c2"))));
+        assertEquals(bytes("k2v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c2"))));
 
         mutatedCFs = new ArrayList<>(tmutations.get(2).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         row = mutatedCFs.get(0).iterator().next();
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c1"))));
-        assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c1"))));
+        assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
 
         mutatedCFs = new ArrayList<>(tmutations.get(3).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         row = mutatedCFs.get(0).iterator().next();
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c1"))));
-        assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c1"))));
+        assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
     }
 
     @Test
     public void differentKeyRowMutations() throws ConfigurationException, InvalidRequestException
     {
 
-        CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
+        TableMetadata metadata = makeTableMetadata("ks1", "cf1", TriggerMetadata.create("test", DifferentKeyTrigger.class.getName()));
         PartitionUpdate cf1 = makeCf(metadata, "k1", "v1", null);
-        Mutation rm = new Mutation("ks1", cf1.partitionKey()).add(cf1);
+        Mutation rm = new Mutation.PartitionUpdateCollector("ks1", cf1.partitionKey()).add(cf1).build();
 
         List<? extends IMutation> tmutations = new ArrayList<>(TriggerExecutor.instance.execute(Arrays.asList(rm)));
         assertEquals(2, tmutations.size());
@@ -258,46 +260,39 @@ public class TriggerExecutorTest
         List<PartitionUpdate> mutatedCFs = new ArrayList<>(tmutations.get(0).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         Row row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("v1"), row.getCell(metadata.getColumnDefinition(bytes("c1"))).value());
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c2"))));
+        assertEquals(bytes("v1"), row.getCell(metadata.getColumn(bytes("c1"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c2"))));
 
         mutatedCFs = new ArrayList<>(tmutations.get(1).getPartitionUpdates());
         assertEquals(1, mutatedCFs.size());
         row = mutatedCFs.get(0).iterator().next();
-        assertEquals(bytes("trigger"), row.getCell(metadata.getColumnDefinition(bytes("c2"))).value());
-        assertNull(row.getCell(metadata.getColumnDefinition(bytes("c1"))));
+        assertEquals(bytes("trigger"), row.getCell(metadata.getColumn(bytes("c2"))).value());
+        assertNull(row.getCell(metadata.getColumn(bytes("c1"))));
     }
 
-    private static CFMetaData makeCfMetaData(String ks, String cf, TriggerMetadata trigger)
+    private static TableMetadata makeTableMetadata(String ks, String cf, TriggerMetadata trigger)
     {
-        CFMetaData metadata = CFMetaData.Builder.create(ks, cf)
-                .addPartitionKey("pkey", UTF8Type.instance)
-                .addRegularColumn("c1", UTF8Type.instance)
-                .addRegularColumn("c2", UTF8Type.instance)
-                .build();
+        TableMetadata.Builder builder =
+            TableMetadata.builder(ks, cf)
+                         .addPartitionKeyColumn("pkey", UTF8Type.instance)
+                         .addRegularColumn("c1", UTF8Type.instance)
+                         .addRegularColumn("c2", UTF8Type.instance);
 
-        try
-        {
-            if (trigger != null)
-                metadata.triggers(metadata.getTriggers().with(trigger));
-        }
-        catch (InvalidRequestException e)
-        {
-            throw new AssertionError(e);
-        }
+        if (trigger != null)
+            builder.triggers(Triggers.of(trigger));
 
-        return metadata;
+        return builder.build();
     }
 
-    private static PartitionUpdate makeCf(CFMetaData metadata, String key, String columnValue1, String columnValue2)
+    private static PartitionUpdate makeCf(TableMetadata metadata, String key, String columnValue1, String columnValue2)
     {
-        Row.Builder builder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
+        Row.Builder builder = BTreeRow.unsortedBuilder();
         builder.newRow(Clustering.EMPTY);
         long ts = FBUtilities.timestampMicros();
         if (columnValue1 != null)
-            builder.addCell(BufferCell.live(metadata.getColumnDefinition(bytes("c1")), ts, bytes(columnValue1)));
+            builder.addCell(BufferCell.live(metadata.getColumn(bytes("c1")), ts, bytes(columnValue1)));
         if (columnValue2 != null)
-            builder.addCell(BufferCell.live(metadata.getColumnDefinition(bytes("c2")), ts, bytes(columnValue2)));
+            builder.addCell(BufferCell.live(metadata.getColumn(bytes("c2")), ts, bytes(columnValue2)));
 
         return PartitionUpdate.singleRowUpdate(metadata, Util.dk(key), builder.build());
     }
@@ -337,7 +332,7 @@ public class TriggerExecutorTest
     {
         public Collection<Mutation> augment(Partition partition)
         {
-            RowUpdateBuilder builder = new RowUpdateBuilder(makeCfMetaData(partition.metadata().ksName, "otherCf", null), FBUtilities.timestampMicros(), partition.partitionKey().getKey());
+            RowUpdateBuilder builder = new RowUpdateBuilder(makeTableMetadata(partition.metadata().keyspace, "otherCf", null), FBUtilities.timestampMicros(), partition.partitionKey().getKey());
             builder.add("c2", bytes("trigger"));
             return Collections.singletonList(builder.build());
         }
@@ -347,7 +342,7 @@ public class TriggerExecutorTest
     {
         public Collection<Mutation> augment(Partition partition)
         {
-            RowUpdateBuilder builder = new RowUpdateBuilder(makeCfMetaData("otherKs", "otherCf", null), FBUtilities.timestampMicros(), partition.partitionKey().getKey());
+            RowUpdateBuilder builder = new RowUpdateBuilder(makeTableMetadata("otherKs", "otherCf", null), FBUtilities.timestampMicros(), partition.partitionKey().getKey());
             builder.add("c2", bytes("trigger"));
             return Collections.singletonList(builder.build());
         }
@@ -357,7 +352,7 @@ public class TriggerExecutorTest
     {
         public Collection<Mutation> augment(Partition partition)
         {
-            RowUpdateBuilder builder = new RowUpdateBuilder(makeCfMetaData("otherKs", "otherCf", null), FBUtilities.timestampMicros(), "otherKey");
+            RowUpdateBuilder builder = new RowUpdateBuilder(makeTableMetadata("otherKs", "otherCf", null), FBUtilities.timestampMicros(), "otherKey");
             builder.add("c2", bytes("trigger"));
             return Collections.singletonList(builder.build());
         }

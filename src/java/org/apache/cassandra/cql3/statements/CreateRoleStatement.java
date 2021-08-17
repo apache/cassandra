@@ -17,27 +17,33 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.audit.AuditLogContext;
+import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 public class CreateRoleStatement extends AuthenticationStatement
 {
     private final RoleResource role;
     private final RoleOptions opts;
+    final DCPermissions dcPermissions;
     private final boolean ifNotExists;
 
-    public CreateRoleStatement(RoleName name, RoleOptions options, boolean ifNotExists)
+    public CreateRoleStatement(RoleName name, RoleOptions options, DCPermissions dcPermissions, boolean ifNotExists)
     {
         this.role = RoleResource.role(name.getName());
         this.opts = options;
+        this.dcPermissions = dcPermissions;
         this.ifNotExists = ifNotExists;
     }
 
-    public void checkAccess(ClientState state) throws UnauthorizedException
+    public void authorize(ClientState state) throws UnauthorizedException
     {
         super.checkPermission(state, Permission.CREATE, RoleResource.root());
         if (opts.getSuperuser().isPresent())
@@ -51,10 +57,15 @@ public class CreateRoleStatement extends AuthenticationStatement
     {
         opts.validate();
 
+        if (dcPermissions != null)
+        {
+            dcPermissions.validate();
+        }
+
         if (role.getRoleName().isEmpty())
             throw new InvalidRequestException("Role name can't be an empty string");
 
-        // validate login here before checkAccess to avoid leaking role existence to anonymous users.
+        // validate login here before authorize to avoid leaking role existence to anonymous users.
         state.ensureNotAnonymous();
 
         if (!ifNotExists && DatabaseDescriptor.getRoleManager().isExistingRole(role))
@@ -68,13 +79,17 @@ public class CreateRoleStatement extends AuthenticationStatement
             return null;
 
         DatabaseDescriptor.getRoleManager().createRole(state.getUser(), role, opts);
+        if (DatabaseDescriptor.getNetworkAuthorizer().requireAuthorization())
+        {
+            DatabaseDescriptor.getNetworkAuthorizer().setRoleDatacenters(role, dcPermissions);
+        }
         grantPermissionsToCreator(state);
         return null;
     }
 
     /**
      * Grant all applicable permissions on the newly created role to the user performing the request
-     * see also: SchemaAlteringStatement#grantPermissionsToCreator and the overridden implementations
+     * see also: AlterTableStatement#createdResources() and the overridden implementations
      * of it in subclasses CreateKeyspaceStatement & CreateTableStatement.
      * @param state
      */
@@ -98,5 +113,16 @@ public class CreateRoleStatement extends AuthenticationStatement
                 // not a problem, grant is an optional method on IAuthorizer
             }
         }
+    }
+    
+    @Override
+    public String toString()
+    {
+        return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+    @Override
+    public AuditLogContext getAuditLogContext()
+    {
+        return new AuditLogContext(AuditLogEntryType.CREATE_ROLE);
     }
 }

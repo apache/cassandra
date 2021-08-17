@@ -18,6 +18,9 @@
 package org.apache.cassandra.db.marshal;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
@@ -30,9 +33,13 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class DecimalType extends AbstractType<BigDecimal>
+public class DecimalType extends NumberType<BigDecimal>
 {
     public static final DecimalType instance = new DecimalType();
+    private static final int MIN_SCALE = 32;
+    private static final int MIN_SIGNIFICANT_DIGITS = MIN_SCALE;
+    private static final int MAX_SCALE = 1000;
+    private static final MathContext MAX_PRECISION = new MathContext(10000);
 
     DecimalType() {super(ComparisonType.CUSTOM);} // singleton
 
@@ -41,12 +48,15 @@ public class DecimalType extends AbstractType<BigDecimal>
         return true;
     }
 
-    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
+    @Override
+    public boolean isFloatingPoint()
     {
-        if (!o1.hasRemaining() || !o2.hasRemaining())
-            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
+        return true;
+    }
 
-        return compose(o1).compareTo(compose(o2));
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
+    {
+        return compareComposed(left, accessorL, right, accessorR, this);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -95,5 +105,85 @@ public class DecimalType extends AbstractType<BigDecimal>
     public TypeSerializer<BigDecimal> getSerializer()
     {
         return DecimalSerializer.instance;
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected float toFloat(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected long toLong(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected double toDouble(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected BigInteger toBigInteger(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected BigDecimal toBigDecimal(ByteBuffer value)
+    {
+        return compose(value);
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigDecimal(left).add(rightType.toBigDecimal(right), MAX_PRECISION));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigDecimal(left).subtract(rightType.toBigDecimal(right), MAX_PRECISION));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigDecimal(left).multiply(rightType.toBigDecimal(right), MAX_PRECISION));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        BigDecimal leftOperand = leftType.toBigDecimal(left);
+        BigDecimal rightOperand = rightType.toBigDecimal(right);
+
+        // Predict position of first significant digit in the quotient.
+        // Note: it is possible to improve prediction accuracy by comparing first significant digits in operands
+        // but it requires additional computations so this step is omitted
+        int quotientFirstDigitPos = (leftOperand.precision() - leftOperand.scale()) - (rightOperand.precision() - rightOperand.scale());
+
+        int scale = MIN_SIGNIFICANT_DIGITS - quotientFirstDigitPos;
+        scale = Math.max(scale, leftOperand.scale());
+        scale = Math.max(scale, rightOperand.scale());
+        scale = Math.max(scale, MIN_SCALE);
+        scale = Math.min(scale, MAX_SCALE);
+
+        return decompose(leftOperand.divide(rightOperand, scale, RoundingMode.HALF_UP).stripTrailingZeros());
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigDecimal(left).remainder(rightType.toBigDecimal(right)));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return decompose(toBigDecimal(input).negate());
     }
 }

@@ -43,7 +43,7 @@ abstract class BaseIterator<V, I extends CloseableIterator<? extends V>, O exten
     // Signals that the current child iterator has been signalled to stop.
     Stop stopChild;
 
-    // Multiple calls to close can have some side effects on the Transformations. By consequence if the iterator is
+    // Multiple call to close can have some side effects on the Transformations. By consequence if the iterator is
     // already closed we want to ignore extra calls to close.
     private boolean closed;
 
@@ -92,11 +92,10 @@ abstract class BaseIterator<V, I extends CloseableIterator<? extends V>, O exten
             return;
 
         closed = true;
-
         Throwable fail = runOnClose(length);
         if (next instanceof AutoCloseable)
         {
-            try
+            try 
             {
                 ((AutoCloseable) next).close();
             }

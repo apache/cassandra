@@ -62,7 +62,8 @@ public class RegisterMessage extends Message.Request
         this.eventTypes = eventTypes;
     }
 
-    public Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         assert connection instanceof ServerConnection;
         Connection.Tracker tracker = connection.getTracker();

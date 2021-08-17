@@ -19,21 +19,38 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-import java.util.regex.Pattern;
+import java.util.Iterator;
+import java.util.Random;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Joiner;
-
+import org.junit.BeforeClass;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.distributed.impl.IsolatedExecutor;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class RangeTombstoneListTest
 {
     private static final ClusteringComparator cmp = new ClusteringComparator(Int32Type.instance);
+
+    @BeforeClass
+    public static void beforeClass()
+    {
+        // Needed to initialize initial_range_tombstone_allocation_size and range_tombstone_resize_factor
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void sortedAdditionTest()
@@ -539,6 +556,72 @@ public class RangeTombstoneListTest
         assertEquals(6, l.searchDeletionTime(clustering(1000)).markedForDeleteAt());
     }
 
+    @Test
+    public void testSetResizeFactor()
+    {
+        double original = DatabaseDescriptor.getRangeTombstoneListGrowthFactor();
+        final StorageService storageService = StorageService.instance;
+        final Consumer<Throwable> expectIllegalStateExceptio = exception -> {
+            assertSame(IllegalStateException.class, exception.getClass());
+            assertEquals("Not updating range_tombstone_resize_factor as growth factor must be in the range [1.2, 5.0] inclusive" , exception.getMessage());
+        };
+        try
+        {
+            // prevent bad ones
+            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(-1), expectIllegalStateExceptio);
+            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(0), expectIllegalStateExceptio);
+            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(1.1), expectIllegalStateExceptio);
+            assertHasException(() -> storageService.setRangeTombstoneListResizeGrowthFactor(5.1), expectIllegalStateExceptio);
+
+            // accept good ones
+            storageService.setRangeTombstoneListResizeGrowthFactor(1.2);
+            storageService.setRangeTombstoneListResizeGrowthFactor(2.0);
+            storageService.setRangeTombstoneListResizeGrowthFactor(5.0);
+        }
+        finally
+        {
+            storageService.setRangeTombstoneListResizeGrowthFactor(original);
+        }
+    }
+
+    @Test
+    public void testSetInitialAllocationSize()
+    {
+        int original = DatabaseDescriptor.getInitialRangeTombstoneListAllocationSize();
+        final StorageService storageService = StorageService.instance;
+        final Consumer<Throwable> expectIllegalStateExceptio = exception -> {
+            assertSame(String.format("The actual exception message:<%s>", exception.getMessage()), IllegalStateException.class, exception.getClass());
+            assertEquals("Not updating initial_range_tombstone_allocation_size as it must be in the range [0, 1024] inclusive" , exception.getMessage());
+        };
+        try
+        {
+            // prevent bad ones
+            assertHasException(() -> storageService.setInitialRangeTombstoneListAllocationSize(-1), expectIllegalStateExceptio);
+            assertHasException(() -> storageService.setInitialRangeTombstoneListAllocationSize(1025), expectIllegalStateExceptio);
+
+            // accept good ones
+            storageService.setInitialRangeTombstoneListAllocationSize(1);
+            storageService.setInitialRangeTombstoneListAllocationSize(1024);
+        }
+        finally
+        {
+            storageService.setInitialRangeTombstoneListAllocationSize(original);
+        }
+    }
+
+    private void assertHasException(IsolatedExecutor.ThrowingRunnable block, Consumer<Throwable> verifier)
+    {
+        try
+        {
+            block.run();
+            fail("Expect the code block to throw but not");
+        }
+        catch (Throwable throwable)
+        {
+            verifier.accept(throwable);
+        }
+    }
+
     private static void assertRT(RangeTombstone expected, RangeTombstone actual)
     {
         assertTrue(String.format("%s != %s", toString(expected), toString(actual)), cmp.compare(expected.deletedSlice().start(), actual.deletedSlice().start()) == 0);
@@ -603,7 +686,7 @@ public class RangeTombstoneListTest
     }
 
 
-    private static Clustering clustering(int i)
+    private static Clustering<?> clustering(int i)
     {
         return Clustering.make(bb(i));
     }
@@ -625,7 +708,7 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rt(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.inclusiveStartOf(bb(start)), ClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone rtei(int start, int end, long tstamp)
@@ -635,7 +718,7 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtei(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.exclusiveStartOf(bb(start)), ClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone rtie(int start, int end, long tstamp)
@@ -645,26 +728,26 @@ public class RangeTombstoneListTest
 
     private static RangeTombstone rtie(int start, int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.inclusiveStartOf(bb(start)), ClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone atLeast(int start, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.inclusiveStartOf(bb(start)), ClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.inclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone atMost(int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.BOTTOM, ClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone lessThan(int end, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.BOTTOM, ClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.BOTTOM, BufferClusteringBound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
     }
 
     private static RangeTombstone greaterThan(int start, long tstamp, int delTime)
     {
-        return new RangeTombstone(Slice.make(ClusteringBound.exclusiveStartOf(bb(start)), ClusteringBound.TOP), new DeletionTime(tstamp, delTime));
+        return new RangeTombstone(Slice.make(BufferClusteringBound.exclusiveStartOf(bb(start)), BufferClusteringBound.TOP), new DeletionTime(tstamp, delTime));
     }
 }

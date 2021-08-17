@@ -43,10 +43,9 @@ public class SSTableIterator extends AbstractSSTableIterator
                            RowIndexEntry indexEntry,
                            Slices slices,
                            ColumnFilter columns,
-                           boolean isForThrift,
                            FileHandle ifile)
     {
-        super(sstable, file, key, indexEntry, slices, columns, isForThrift, ifile);
+        super(sstable, file, key, indexEntry, slices, columns, ifile);
     }
 
     protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
@@ -76,9 +75,9 @@ public class SSTableIterator extends AbstractSSTableIterator
     private class ForwardReader extends Reader
     {
         // The start of the current slice. This will be null as soon as we know we've passed that bound.
-        protected ClusteringBound start;
+        protected ClusteringBound<?> start;
         // The end of the current slice. Will never be null.
-        protected ClusteringBound end = ClusteringBound.TOP;
+        protected ClusteringBound<?> end = BufferClusteringBound.TOP;
 
         protected Unfiltered next; // the next element to return: this is computed by hasNextInternal().
 
@@ -92,7 +91,7 @@ public class SSTableIterator extends AbstractSSTableIterator
 
         public void setForSlice(Slice slice) throws IOException
         {
-            start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
+            start = slice.start().isBottom() ? null : slice.start();
             end = slice.end();
 
             sliceDone = false;
@@ -120,7 +119,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                     updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
             }
 
-            ClusteringBound sliceStart = start;
+            ClusteringBound<?> sliceStart = start;
             start = null;
 
             // We've reached the beginning of our queried slice. If we have an open marker
@@ -151,6 +150,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                     return null;
 
                 Unfiltered next = deserializer.readNext();
+                UnfilteredValidation.maybeValidateUnfiltered(next, metadata(), key, sstable);
                 // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
                 if (next.isEmpty())
                     continue;
@@ -214,7 +214,7 @@ public class SSTableIterator extends AbstractSSTableIterator
         private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
-            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, false, ifile);
+            this.indexState = new IndexState(this, metadata.comparator, indexEntry, false, ifile);
             this.lastBlockIdx = indexState.blocksCount(); // if we never call setForSlice, that's where we want to stop
         }
 
@@ -271,12 +271,10 @@ public class SSTableIterator extends AbstractSSTableIterator
             // so if currentIdx == lastBlockIdx and slice.end < indexes[currentIdx].firstName, we're guaranteed that the
             // whole slice is between the previous block end and this block start, and thus has no corresponding
             // data. One exception is if the previous block ends with an openMarker as it will cover our slice
-            // and we need to return it (we also don't skip the slice for the old format because we didn't have the openMarker
-            // info in that case and can't rely on this optimization).
+            // and we need to return it.
             if (indexState.currentBlockIdx() == lastBlockIdx
                 && metadata().comparator.compare(slice.end(), indexState.currentIndex().firstName) < 0
-                && openMarker == null
-                && sstable.descriptor.version.storeRows())
+                && openMarker == null)
             {
                 sliceDone = true;
             }
@@ -302,6 +300,7 @@ public class SSTableIterator extends AbstractSSTableIterator
 
 
                 Unfiltered next = deserializer.readNext();
+                UnfilteredValidation.maybeValidateUnfiltered(next, metadata(), key, sstable);
                 // We may get empty row for the same reason expressed on UnfilteredSerializer.deserializeOne.
                 if (next.isEmpty())
                     continue;

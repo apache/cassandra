@@ -23,6 +23,8 @@ package org.apache.cassandra.schema;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -49,8 +51,7 @@ public class IndexMetadataTest {
     @Test
     public void testGetDefaultIndexName()
     {
-        Assert.assertEquals("aB4__idx", IndexMetadata.getDefaultIndexName("a B-4@!_+", null));
-        Assert.assertEquals("34_Ddd_F6_idx", IndexMetadata.getDefaultIndexName("34_()Ddd", "#F%6*"));
-        
+        Assert.assertEquals("aB4__idx", IndexMetadata.generateDefaultIndexName("a B-4@!_+"));
+        Assert.assertEquals("34_Ddd_F6_idx", IndexMetadata.generateDefaultIndexName("34_()Ddd", new ColumnIdentifier("#F%6*", true)));
     }
 }

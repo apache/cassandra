@@ -29,6 +29,16 @@ public class ReadRepairMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("ReadRepair");
 
     public static final Meter repairedBlocking = Metrics.meter(factory.createMetricName("RepairedBlocking"));
+    public static final Meter reconcileRead = Metrics.meter(factory.createMetricName("ReconcileRead"));
+
+    @Deprecated
     public static final Meter repairedBackground = Metrics.meter(factory.createMetricName("RepairedBackground"));
+    @Deprecated
     public static final Meter attempted = Metrics.meter(factory.createMetricName("Attempted"));
+
+    // Incremented when additional requests were sent during blocking read repair due to unavailable or slow nodes
+    public static final Meter speculatedRead = Metrics.meter(factory.createMetricName("SpeculatedRead"));
+    public static final Meter speculatedWrite = Metrics.meter(factory.createMetricName("SpeculatedWrite"));
+
+    public static void init() {}
 }

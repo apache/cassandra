@@ -22,7 +22,6 @@ import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.makeRow;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.rows;
 import static org.junit.Assert.*;
 
-import java.net.InetAddress;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,7 +32,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -45,11 +43,12 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.net.IMessageSink;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -62,7 +61,7 @@ public class CompactionIteratorTest extends CQLTester
     private static final String CFNAME = "Integer1";
 
     static final DecoratedKey kk;
-    static final CFMetaData metadata;
+    static final TableMetadata metadata;
     private static final int RANGE = 1000;
     private static final int COUNT = 100;
 
@@ -81,7 +80,7 @@ public class CompactionIteratorTest extends CQLTester
                                                                          1,
                                                                          UTF8Type.instance,
                                                                          Int32Type.instance,
-                                                                         Int32Type.instance));
+                                                                         Int32Type.instance).build());
     }
 
     // See org.apache.cassandra.db.rows.UnfilteredRowsGenerator.parse for the syntax used in these tests.
@@ -321,6 +320,67 @@ public class CompactionIteratorTest extends CQLTester
         }
     }
 
+    @Test
+    public void transformTest()
+    {
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(metadata.comparator, false);
+        List<List<Unfiltered>> inputLists = parse(new String[] {"10[100] 11[100] 12[100]"}, generator);
+        List<List<Unfiltered>> tombstoneLists = parse(new String[] {}, generator);
+        List<Iterable<UnfilteredRowIterator>> content = ImmutableList.copyOf(Iterables.transform(inputLists, list -> ImmutableList.of(listToIterator(list, kk))));
+        Map<DecoratedKey, Iterable<UnfilteredRowIterator>> transformedSources = new TreeMap<>();
+        transformedSources.put(kk, Iterables.transform(tombstoneLists, list -> listToIterator(list, kk)));
+        try (CompactionController controller = new Controller(Keyspace.openAndGetStore(metadata), transformedSources, GC_BEFORE);
+             CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
+                                                              Lists.transform(content, x -> new Scanner(x)),
+                                                              controller, NOW, null))
+        {
+            assertTrue(iter.hasNext());
+            UnfilteredRowIterator rows = iter.next();
+            assertTrue(rows.hasNext());
+            assertNotNull(rows.next());
+
+            iter.stop();
+            try
+            {
+                // Will call Transformation#applyToRow
+                rows.hasNext();
+                fail("Should have thrown CompactionInterruptedException");
+            }
+            catch (CompactionInterruptedException e)
+            {
+                // ignore
+            }
+        }
+    }
+
+    @Test
+    public void transformPartitionTest()
+    {
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(metadata.comparator, false);
+        List<List<Unfiltered>> inputLists = parse(new String[] {"10[100] 11[100] 12[100]"}, generator);
+        List<List<Unfiltered>> tombstoneLists = parse(new String[] {}, generator);
+        List<Iterable<UnfilteredRowIterator>> content = ImmutableList.copyOf(Iterables.transform(inputLists, list -> ImmutableList.of(listToIterator(list, kk))));
+        Map<DecoratedKey, Iterable<UnfilteredRowIterator>> transformedSources = new TreeMap<>();
+        transformedSources.put(kk, Iterables.transform(tombstoneLists, list -> listToIterator(list, kk)));
+        try (CompactionController controller = new Controller(Keyspace.openAndGetStore(metadata), transformedSources, GC_BEFORE);
+             CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
+                                                              Lists.transform(content, x -> new Scanner(x)),
+                                                              controller, NOW, null))
+        {
+            iter.stop();
+            try
+            {
+                // Will call Transformation#applyToPartition
+                iter.hasNext();
+                fail("Should have thrown CompactionInterruptedException");
+            }
+            catch (CompactionInterruptedException e)
+            {
+                // ignore
+            }
+        }
+    }
+
     class Controller extends CompactionController
     {
         private final Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources;
@@ -349,13 +409,7 @@ public class CompactionIteratorTest extends CQLTester
         }
 
         @Override
-        public boolean isForThrift()
-        {
-            return false;
-        }
-
-        @Override
-        public CFMetaData metadata()
+        public TableMetadata metadata()
         {
             return metadata;
         }
@@ -397,9 +451,9 @@ public class CompactionIteratorTest extends CQLTester
         }
 
         @Override
-        public String getBackingFiles()
+        public Set<SSTableReader> getBackingSSTables()
         {
-            return null;
+            return ImmutableSet.of();
         }
     }
 
@@ -412,26 +466,13 @@ public class CompactionIteratorTest extends CQLTester
         createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY (pk, ck1, ck2))");
         for (int i = 0; i < 10; i++)
             execute("insert into %s (pk, ck1, ck2, v) values (?, ?, ?, ?)", "key", i, i, i);
-        flush();
+        getCurrentColumnFamilyStore().forceBlockingFlush();
 
         DatabaseDescriptor.setSnapshotOnDuplicateRowDetection(true);
-        CFMetaData metadata = getCurrentColumnFamilyStore().metadata;
+        TableMetadata metadata = getCurrentColumnFamilyStore().metadata();
 
-        final HashMap<InetAddress, MessageOut> sentMessages = new HashMap<>();
-        IMessageSink sink = new IMessageSink()
-        {
-            public boolean allowOutgoingMessage(MessageOut message, int id, InetAddress to)
-            {
-                sentMessages.put(to, message);
-                return false;
-            }
-
-            public boolean allowIncomingMessage(MessageIn message, int id)
-            {
-                return false;
-            }
-        };
-        MessagingService.instance().addMessageSink(sink);
+        final HashMap<InetAddressAndPort, Message<?>> sentMessages = new HashMap<>();
+        MessagingService.instance().outboundSink.add((message, to) -> { sentMessages.put(to, message); return false;});
 
         // no duplicates
         sentMessages.clear();
@@ -451,9 +492,9 @@ public class CompactionIteratorTest extends CQLTester
     private void iterate(Unfiltered...unfiltereds)
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-        DecoratedKey key = cfs.metadata.partitioner.decorateKey(ByteBufferUtil.bytes("key"));
+        DecoratedKey key = cfs.getPartitioner().decorateKey(ByteBufferUtil.bytes("key"));
         try (CompactionController controller = new CompactionController(cfs, Integer.MAX_VALUE);
-             UnfilteredRowIterator rows = rows(cfs.metadata, key, false, unfiltereds);
+             UnfilteredRowIterator rows = rows(cfs.metadata(), key, false, unfiltereds);
              ISSTableScanner scanner = new Scanner(Collections.singletonList(rows));
              CompactionIterator iter = new CompactionIterator(OperationType.COMPACTION,
                                                               Collections.singletonList(scanner),

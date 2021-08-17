@@ -18,9 +18,9 @@
 */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionColumns;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.utils.CloseableIterator;
 
 /**
@@ -32,7 +32,7 @@ public interface BaseRowIterator<U extends Unfiltered> extends CloseableIterator
     /**
      * The metadata for the table this iterator on.
      */
-    public CFMetaData metadata();
+    public TableMetadata metadata();
 
     /**
      * Whether or not the rows returned by this iterator are in reversed
@@ -44,7 +44,7 @@ public interface BaseRowIterator<U extends Unfiltered> extends CloseableIterator
      * A subset of the columns for the (static and regular) rows returned by this iterator.
      * Every row returned by this iterator must guarantee that it has only those columns.
      */
-    public PartitionColumns columns();
+    public RegularAndStaticColumns columns();
 
     /**
      * The partition key of the partition this in an iterator over.

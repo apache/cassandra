@@ -36,16 +36,17 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
+import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -65,10 +66,18 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.AsyncOneResponse;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
+
 
 public class FBUtilities
 {
+    static
+    {
+        preventIllegalAccessWarnings();
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
 
     private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
@@ -84,7 +93,10 @@ public class FBUtilities
 
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
-    private static volatile InetAddress broadcastRpcAddress;
+    private static volatile InetAddress broadcastNativeAddress;
+    private static volatile InetAddressAndPort broadcastNativeAddressAndPort;
+    private static volatile InetAddressAndPort broadcastInetAddressAndPort;
+    private static volatile InetAddressAndPort localInetAddressAndPort;
 
     private static volatile String previousReleaseVersionString;
 
@@ -97,23 +109,7 @@ public class FBUtilities
             return Runtime.getRuntime().availableProcessors();
     }
 
-    private static final FastThreadLocal<MessageDigest> localMD5Digest = new FastThreadLocal<MessageDigest>()
-    {
-        @Override
-        protected MessageDigest initialValue()
-        {
-            return newMessageDigest("MD5");
-        }
-    };
-
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
-
-    public static MessageDigest threadLocalMD5Digest()
-    {
-        MessageDigest md = localMD5Digest.get();
-        md.reset();
-        return md;
-    }
 
     public static MessageDigest newMessageDigest(String algorithm)
     {
@@ -128,68 +124,142 @@ public class FBUtilities
     }
 
     /**
-     * Please use getBroadcastAddress instead. You need this only when you have to listen/connect.
+     * Please use getJustBroadcastAddress instead. You need this only when you have to listen/connect. It's also missing
+     * the port you should be using. 99% of code doesn't want this.
      */
-    public static InetAddress getLocalAddress()
+    public static InetAddress getJustLocalAddress()
     {
         if (localInetAddress == null)
-            try
+        {
+            if (DatabaseDescriptor.getListenAddress() == null)
             {
-                localInetAddress = DatabaseDescriptor.getListenAddress() == null
-                                    ? InetAddress.getLocalHost()
-                                    : DatabaseDescriptor.getListenAddress();
+                try
+                {
+                    localInetAddress = InetAddress.getLocalHost();
+                    logger.info("InetAddress.getLocalHost() was used to resolve listen_address to {}, double check this is "
+                                + "correct. Please check your node's config and set the listen_address in cassandra.yaml accordingly if applicable.",
+                                localInetAddress);
+                }
+                catch(UnknownHostException e)
+                {
+                    logger.info("InetAddress.getLocalHost() could not resolve the address for the hostname ({}), please "
+                                + "check your node's config and set the listen_address in cassandra.yaml. Falling back to {}",
+                                e,
+                                InetAddress.getLoopbackAddress());
+                    // CASSANDRA-15901 fallback for misconfigured nodes
+                    localInetAddress = InetAddress.getLoopbackAddress();
+                }
             }
-            catch (UnknownHostException e)
-            {
-                throw new RuntimeException(e);
-            }
+            else
+                localInetAddress = DatabaseDescriptor.getListenAddress();
+        }
         return localInetAddress;
     }
 
-    public static InetAddress getBroadcastAddress()
+    /**
+     * The address and port to listen on for intra-cluster storage traffic (not client). Use this to get the correct
+     * stuff to listen on for intra-cluster communication.
+     */
+    public static InetAddressAndPort getLocalAddressAndPort()
+    {
+        if (localInetAddressAndPort == null)
+        {
+            if(DatabaseDescriptor.getRawConfig() == null)
+            {
+                localInetAddressAndPort = InetAddressAndPort.getByAddress(getJustLocalAddress());
+            }
+            else
+            {
+                localInetAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(getJustLocalAddress(),
+                                                                                          DatabaseDescriptor.getStoragePort());
+            }
+        }
+        return localInetAddressAndPort;
+    }
+
+    /**
+     * Retrieve just the broadcast address but not the port. This is almost always the wrong thing to be using because
+     * it's ambiguous since you need the address and port to identify a node. You want getBroadcastAddressAndPort
+     */
+    public static InetAddress getJustBroadcastAddress()
     {
         if (broadcastInetAddress == null)
             broadcastInetAddress = DatabaseDescriptor.getBroadcastAddress() == null
-                                 ? getLocalAddress()
+                                 ? getJustLocalAddress()
                                  : DatabaseDescriptor.getBroadcastAddress();
         return broadcastInetAddress;
     }
 
     /**
+     * Get the broadcast address and port for intra-cluster storage traffic. This the address to advertise that uniquely
+     * identifies the node and is reachable from everywhere. This is the one you want unless you are trying to connect
+     * to the local address specifically.
+     */
+    public static InetAddressAndPort getBroadcastAddressAndPort()
+    {
+        if (broadcastInetAddressAndPort == null)
+        {
+            if(DatabaseDescriptor.getRawConfig() == null)
+            {
+                broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastAddress());
+            }
+            else
+            {
+                broadcastInetAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(getJustBroadcastAddress(),
+                                                                                              DatabaseDescriptor.getStoragePort());
+            }
+        }
+        return broadcastInetAddressAndPort;
+    }
+
+    /**
      * <b>THIS IS FOR TESTING ONLY!!</b>
      */
-    @VisibleForTesting
     public static void setBroadcastInetAddress(InetAddress addr)
     {
         broadcastInetAddress = addr;
+        broadcastInetAddressAndPort = InetAddressAndPort.getByAddress(broadcastInetAddress);
     }
 
-    public static InetAddress getBroadcastRpcAddress()
+    /**
+     * <b>THIS IS FOR TESTING ONLY!!</b>
+     */
+    public static void setBroadcastInetAddressAndPort(InetAddressAndPort addr)
     {
-        if (broadcastRpcAddress == null)
-            broadcastRpcAddress = DatabaseDescriptor.getBroadcastRpcAddress() == null
+        broadcastInetAddress = addr.address;
+        broadcastInetAddressAndPort = addr;
+    }
+
+    /**
+     * This returns the address that is bound to for the native protocol for communicating with clients. This is ambiguous
+     * because it doesn't include the port and it's almost always the wrong thing to be using you want getBroadcastNativeAddressAndPort
+     */
+    public static InetAddress getJustBroadcastNativeAddress()
+    {
+        if (broadcastNativeAddress == null)
+            broadcastNativeAddress = DatabaseDescriptor.getBroadcastRpcAddress() == null
                                    ? DatabaseDescriptor.getRpcAddress()
                                    : DatabaseDescriptor.getBroadcastRpcAddress();
-        return broadcastRpcAddress;
+        return broadcastNativeAddress;
     }
 
-    public static Collection<InetAddress> getAllLocalAddresses()
+    /**
+     * This returns the address that is bound to for the native protocol for communicating with clients. This is almost
+     * always what you need to identify a node and how to connect to it as a client.
+     */
+    public static InetAddressAndPort getBroadcastNativeAddressAndPort()
     {
-        Set<InetAddress> localAddresses = new HashSet<InetAddress>();
-        try
-        {
-            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
-            if (nets != null)
+        if (broadcastNativeAddressAndPort == null)
+            if(DatabaseDescriptor.getRawConfig() == null)
             {
-                while (nets.hasMoreElements())
-                    localAddresses.addAll(Collections.list(nets.nextElement().getInetAddresses()));
+                broadcastNativeAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastNativeAddress());
             }
-        }
-        catch (SocketException e)
-        {
-            throw new AssertionError(e);
-        }
-        return localAddresses;
+            else
+            {
+                broadcastNativeAddressAndPort = InetAddressAndPort.getByAddressOverrideDefaults(getJustBroadcastNativeAddress(),
+                                                                                                DatabaseDescriptor.getNativeTransportPort());
+            }
+        return broadcastNativeAddressAndPort;
     }
 
     public static String getNetworkInterface(InetAddress localAddress)
@@ -251,30 +321,6 @@ public class FBUtilities
     public static int compareUnsigned(byte[] bytes1, byte[] bytes2)
     {
         return compareUnsigned(bytes1, bytes2, 0, 0, bytes1.length, bytes2.length);
-    }
-
-    /**
-     * @return The bitwise XOR of the inputs. The output will be the same length as the
-     * longer input, but if either input is null, the output will be null.
-     */
-    public static byte[] xor(byte[] left, byte[] right)
-    {
-        if (left == null || right == null)
-            return null;
-        if (left.length > right.length)
-        {
-            byte[] swap = left;
-            left = right;
-            right = swap;
-        }
-
-        // left.length is now <= right.length
-        byte[] out = Arrays.copyOf(right, right.length);
-        for (int i = 0; i < left.length; i++)
-        {
-            out[i] = (byte)((left[i] & 0xFF) ^ (right[i] & 0xFF));
-        }
-        return out;
     }
 
     public static void sortSampledKeys(List<DecoratedKey> keys, Range<Token> range)
@@ -447,12 +493,6 @@ public class FBUtilities
         }
     }
 
-    public static void waitOnFutures(List<AsyncOneResponse<?>> results, long ms) throws TimeoutException
-    {
-        for (AsyncOneResponse<?> result : results)
-            result.get(ms, TimeUnit.MILLISECONDS);
-    }
-
     public static <T> Future<? extends T> waitOnFirstFuture(Iterable<? extends Future<? extends T>> futures)
     {
         return waitOnFirstFuture(futures, 100);
@@ -488,6 +528,81 @@ public class FBUtilities
             Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
         }
     }
+
+    /**
+     * Returns a new {@link Future} wrapping the given list of futures and returning a list of their results.
+     */
+    public static Future<List> allOf(Collection<Future> futures)
+    {
+        if (futures.isEmpty())
+            return CompletableFuture.completedFuture(null);
+
+        return new Future<List>()
+        {
+            @Override
+            @SuppressWarnings("unchecked")
+            public List get() throws InterruptedException, ExecutionException
+            {
+                List result = new ArrayList<>(futures.size());
+                for (Future current : futures)
+                {
+                    result.add(current.get());
+                }
+                return result;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public List get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
+            {
+                List result = new ArrayList<>(futures.size());
+                long deadline = System.nanoTime() + TimeUnit.NANOSECONDS.convert(timeout, unit);
+                for (Future current : futures)
+                {
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0)
+                        throw new TimeoutException();
+
+                    result.add(current.get(remaining, TimeUnit.NANOSECONDS));
+                }
+                return result;
+            }
+
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning)
+            {
+                for (Future current : futures)
+                {
+                    if (!current.cancel(mayInterruptIfRunning))
+                        return false;
+                }
+                return true;
+            }
+
+            @Override
+            public boolean isCancelled()
+            {
+                for (Future current : futures)
+                {
+                    if (!current.isCancelled())
+                        return false;
+                }
+                return true;
+            }
+
+            @Override
+            public boolean isDone()
+            {
+                for (Future current : futures)
+                {
+                    if (!current.isDone())
+                        return false;
+                }
+                return true;
+            }
+        };
+    }
+
     /**
      * Create a new instance of a partitioner defined in an SSTable Descriptor
      * @param desc Descriptor of an sstable
@@ -541,6 +656,51 @@ public class FBUtilities
         if (!className.contains("."))
             className = "org.apache.cassandra.auth." + className;
         return FBUtilities.construct(className, "role manager");
+    }
+
+    public static INetworkAuthorizer newNetworkAuthorizer(String className)
+    {
+        if (className == null)
+        {
+            return new AllowAllNetworkAuthorizer();
+        }
+        if (!className.contains("."))
+        {
+            className = "org.apache.cassandra.auth." + className;
+        }
+        return FBUtilities.construct(className, "network authorizer");
+    }
+    
+    public static IAuditLogger newAuditLogger(String className, Map<String, String> parameters) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.audit." + className;
+
+        try
+        {
+            Class<?> auditLoggerClass = Class.forName(className);
+            return (IAuditLogger) auditLoggerClass.getConstructor(Map.class).newInstance(parameters);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IAuditLogger.", ex);
+        }
+    }
+
+    public static boolean isAuditLoggerClassExists(String className)
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.audit." + className;
+
+        try
+        {
+            FBUtilities.classForName(className, "Audit logger");
+        }
+        catch (ConfigurationException e)
+        {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -752,19 +912,19 @@ public class FBUtilities
             int errCode = p.waitFor();
             if (errCode != 0)
             {
-            	try (BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
                      BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream())))
                 {
-            		String lineSep = System.getProperty("line.separator");
-	                StringBuilder sb = new StringBuilder();
-	                String str;
-	                while ((str = in.readLine()) != null)
-	                    sb.append(str).append(lineSep);
-	                while ((str = err.readLine()) != null)
-	                    sb.append(str).append(lineSep);
-	                throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
-	                                      ", command error Code: " + errCode +
-	                                      ", command output: "+ sb.toString());
+                    String lineSep = LINE_SEPARATOR.getString();
+                    StringBuilder sb = new StringBuilder();
+                    String str;
+                    while ((str = in.readLine()) != null)
+                        sb.append(str).append(lineSep);
+                    while ((str = err.readLine()) != null)
+                        sb.append(str).append(lineSep);
+                    throw new IOException("Exception while executing the command: "+ StringUtils.join(pb.command(), " ") +
+                                          ", command error Code: " + errCode +
+                                          ", command output: "+ sb.toString());
                 }
             }
         }
@@ -876,45 +1036,9 @@ public class FBUtilities
 
     public static File getToolsOutputDirectory()
     {
-        File historyDir = new File(System.getProperty("user.home"), ".cassandra");
+        File historyDir = new File(USER_HOME.getString(), ".cassandra");
         FileUtils.createDirectory(historyDir);
         return historyDir;
-    }
-
-    public static void updateWithShort(MessageDigest digest, int val)
-    {
-        digest.update((byte) ((val >> 8) & 0xFF));
-        digest.update((byte) (val & 0xFF));
-    }
-
-    public static void updateWithByte(MessageDigest digest, int val)
-    {
-        digest.update((byte) (val & 0xFF));
-    }
-
-    public static void updateWithInt(MessageDigest digest, int val)
-    {
-        digest.update((byte) ((val >>> 24) & 0xFF));
-        digest.update((byte) ((val >>> 16) & 0xFF));
-        digest.update((byte) ((val >>>  8) & 0xFF));
-        digest.update((byte) ((val >>> 0) & 0xFF));
-    }
-
-    public static void updateWithLong(MessageDigest digest, long val)
-    {
-        digest.update((byte) ((val >>> 56) & 0xFF));
-        digest.update((byte) ((val >>> 48) & 0xFF));
-        digest.update((byte) ((val >>> 40) & 0xFF));
-        digest.update((byte) ((val >>> 32) & 0xFF));
-        digest.update((byte) ((val >>> 24) & 0xFF));
-        digest.update((byte) ((val >>> 16) & 0xFF));
-        digest.update((byte) ((val >>>  8) & 0xFF));
-        digest.update((byte)  ((val >>> 0) & 0xFF));
-    }
-
-    public static void updateWithBoolean(MessageDigest digest, boolean val)
-    {
-        updateWithByte(digest, val ? 0 : 1);
     }
 
     public static void closeAll(Collection<? extends AutoCloseable> l) throws Exception
@@ -972,10 +1096,36 @@ public class FBUtilities
     }
 
     @VisibleForTesting
-    protected static void reset()
+    public static void reset()
     {
         localInetAddress = null;
+        localInetAddressAndPort = null;
         broadcastInetAddress = null;
-        broadcastRpcAddress = null;
+        broadcastInetAddressAndPort = null;
+        broadcastNativeAddress = null;
+    }
+
+    /**
+     * Hack to prevent the ugly "illegal access" warnings in Java 11+ like the following.
+     */
+    public static void preventIllegalAccessWarnings()
+    {
+        // Example "annoying" trace:
+        //        WARNING: An illegal reflective access operation has occurred
+        //        WARNING: Illegal reflective access by io.netty.util.internal.ReflectionUtil (file:...)
+        //        WARNING: Please consider reporting this to the maintainers of io.netty.util.internal.ReflectionUtil
+        //        WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+        //        WARNING: All illegal access operations will be denied in a future release
+        try
+        {
+            Class<?> c = Class.forName("jdk.internal.module.IllegalAccessLogger");
+            Field f = c.getDeclaredField("logger");
+            f.setAccessible(true);
+            f.set(null, null);
+        }
+        catch (Exception e)
+        {
+            // ignore
+        }
     }
 }

@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.security.MessageDigest;
 
 import com.google.common.base.Objects;
 
@@ -27,7 +26,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 
 /**
@@ -80,12 +78,21 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return markedForDeleteAt() == Long.MIN_VALUE && localDeletionTime() == Integer.MAX_VALUE;
     }
 
-    public void digest(MessageDigest digest)
+    public void digest(Digest digest)
     {
         // localDeletionTime is basically a metadata of the deletion time that tells us when it's ok to purge it.
         // It's thus intrinsically a local information and shouldn't be part of the digest (which exists for
         // cross-nodes comparisons).
-        FBUtilities.updateWithLong(digest, markedForDeleteAt());
+        digest.updateWithLong(markedForDeleteAt());
+    }
+
+    /**
+     * check if this deletion time is valid - localDeletionTime can never be negative
+     * @return true if it is valid
+     */
+    public boolean validate()
+    {
+        return localDeletionTime >= 0;
     }
 
     @Override
@@ -133,7 +140,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         return deletes(info.timestamp());
     }
 
-    public boolean deletes(Cell cell)
+    public boolean deletes(Cell<?> cell)
     {
         return deletes(cell.timestamp());
     }
@@ -150,6 +157,9 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public long unsharedHeapSize()
     {
+        if (this == LIVE)
+            return 0;
+
         return EMPTY_SIZE;
     }
 

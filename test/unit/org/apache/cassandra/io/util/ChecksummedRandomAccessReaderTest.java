@@ -42,8 +42,8 @@ public class ChecksummedRandomAccessReaderTest
     @Test
     public void readFully() throws IOException
     {
-        final File data = File.createTempFile("testReadFully", "data");
-        final File crc = File.createTempFile("testReadFully", "crc");
+        final File data = FileUtils.createTempFile("testReadFully", "data");
+        final File crc = FileUtils.createTempFile("testReadFully", "crc");
 
         final byte[] expected = new byte[70 * 1024];   // bit more than crc chunk size, so we can test rebuffering.
         ThreadLocalRandom.current().nextBytes(expected);
@@ -70,8 +70,8 @@ public class ChecksummedRandomAccessReaderTest
     @Test
     public void seek() throws IOException
     {
-        final File data = File.createTempFile("testSeek", "data");
-        final File crc = File.createTempFile("testSeek", "crc");
+        final File data = FileUtils.createTempFile("testSeek", "data");
+        final File crc = FileUtils.createTempFile("testSeek", "crc");
 
         final byte[] dataBytes = new byte[70 * 1024];   // bit more than crc chunk size
         ThreadLocalRandom.current().nextBytes(dataBytes);
@@ -104,8 +104,8 @@ public class ChecksummedRandomAccessReaderTest
     @Test(expected = CorruptFileException.class)
     public void corruptionDetection() throws IOException
     {
-        final File data = File.createTempFile("corruptionDetection", "data");
-        final File crc = File.createTempFile("corruptionDetection", "crc");
+        final File data = FileUtils.createTempFile("corruptionDetection", "data");
+        final File crc = FileUtils.createTempFile("corruptionDetection", "crc");
 
         final byte[] expected = new byte[5 * 1024];
         Arrays.fill(expected, (byte) 0);

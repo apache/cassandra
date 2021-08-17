@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 
 
+import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Map;
 
@@ -30,47 +31,69 @@ public interface MessagingServiceMBean
     /**
      * Pending tasks for large message TCP Connections
      */
+    @Deprecated
     public Map<String, Integer> getLargeMessagePendingTasks();
+    public Map<String, Integer> getLargeMessagePendingTasksWithPort();
 
     /**
      * Completed tasks for large message) TCP Connections
      */
+    @Deprecated
     public Map<String, Long> getLargeMessageCompletedTasks();
+    public Map<String, Long> getLargeMessageCompletedTasksWithPort();
 
     /**
      * Dropped tasks for large message TCP Connections
      */
+    @Deprecated
     public Map<String, Long> getLargeMessageDroppedTasks();
+    public Map<String, Long> getLargeMessageDroppedTasksWithPort();
+
 
     /**
      * Pending tasks for small message TCP Connections
      */
+    @Deprecated
     public Map<String, Integer> getSmallMessagePendingTasks();
+    public Map<String, Integer> getSmallMessagePendingTasksWithPort();
+
 
     /**
      * Completed tasks for small message TCP Connections
      */
+    @Deprecated
     public Map<String, Long> getSmallMessageCompletedTasks();
+    public Map<String, Long> getSmallMessageCompletedTasksWithPort();
+
 
     /**
      * Dropped tasks for small message TCP Connections
      */
+    @Deprecated
     public Map<String, Long> getSmallMessageDroppedTasks();
+    public Map<String, Long> getSmallMessageDroppedTasksWithPort();
+
 
     /**
      * Pending tasks for gossip message TCP Connections
      */
+    @Deprecated
     public Map<String, Integer> getGossipMessagePendingTasks();
+    public Map<String, Integer> getGossipMessagePendingTasksWithPort();
 
     /**
      * Completed tasks for gossip message TCP Connections
      */
+    @Deprecated
     public Map<String, Long> getGossipMessageCompletedTasks();
+    public Map<String, Long> getGossipMessageCompletedTasksWithPort();
 
     /**
      * Dropped tasks for gossip message TCP Connections
      */
+    @Deprecated
     public Map<String, Long> getGossipMessageDroppedTasks();
+    public Map<String, Long> getGossipMessageDroppedTasksWithPort();
 
     /**
      * dropped message counts for server lifetime
@@ -85,22 +108,29 @@ public interface MessagingServiceMBean
     /**
      * Number of timeouts per host
      */
+    @Deprecated
     public Map<String, Long> getTimeoutsPerHost();
+    public Map<String, Long> getTimeoutsPerHostWithPort();
 
     /**
      * Back-pressure rate limiting per host
      */
+    @Deprecated
     public Map<String, Double> getBackPressurePerHost();
 
     /**
      * Enable/Disable back-pressure
      */
+    @Deprecated
     public void setBackPressureEnabled(boolean enabled);
 
     /**
      * Get back-pressure enabled state
      */
+    @Deprecated
     public boolean isBackPressureEnabled();
 
     public int getVersion(String address) throws UnknownHostException;
+
+    void reloadSslCertificates() throws IOException;
 }

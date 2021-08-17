@@ -21,12 +21,15 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.commons.lang3.text.StrBuilder;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
@@ -70,7 +73,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 if (tmpMapping.getMappings().get(resultsColumn).isEmpty())
                     // add a null mapping for cases where there are no
                     // further selectors, such as no-arg functions and count
-                    mapping.addMapping(resultsColumn, (ColumnDefinition)null);
+                    mapping.addMapping(resultsColumn, (ColumnMetadata)null);
                 else
                     // collate the mapped columns from the child factories & add those
                     mapping.addMapping(resultsColumn, tmpMapping.getMappings().values());
@@ -102,6 +105,19 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             {
                 return fun.isAggregate() || factories.doesAggregation();
             }
+
+            @Override
+            public boolean areAllFetchedColumnsKnown()
+            {
+                return Iterables.all(factories, f -> f.areAllFetchedColumnsKnown());
+            }
+
+            @Override
+            public void addFetchedColumns(ColumnFilter.Builder builder)
+            {
+                for (Selector.Factory factory : factories)
+                    factory.addFetchedColumns(builder);
+            }
         };
     }
 
@@ -110,6 +126,13 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         this.fun = fun;
         this.argSelectors = argSelectors;
         this.args = Arrays.asList(new ByteBuffer[argSelectors.size()]);
+    }
+
+    @Override
+    public void addFetchedColumns(ColumnFilter.Builder builder)
+    {
+        for (Selector selector : argSelectors)
+            selector.addFetchedColumns(builder);
     }
 
     // Sets a given arg value. We should use that instead of directly setting the args list for the

@@ -21,26 +21,37 @@ package org.apache.cassandra;
 
 import java.io.Closeable;
 import java.io.EOFException;
+import java.io.File;
 import java.io.IOError;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
+import org.apache.cassandra.db.compaction.CompactionTasks;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
@@ -67,10 +78,13 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.FilterFactory;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -110,16 +124,14 @@ public class Util
         return PartitionPosition.ForKey.get(ByteBufferUtil.bytes(key), partitioner);
     }
 
-    public static Cell getRegularCell(CFMetaData metadata, Row row, String name)
-    {
-        ColumnDefinition column = metadata.getColumnDefinition(ByteBufferUtil.bytes(name));
-        assert column != null;
-        return row.getCell(column);
-    }
-
-    public static Clustering clustering(ClusteringComparator comparator, Object... o)
+    public static Clustering<?> clustering(ClusteringComparator comparator, Object... o)
     {
         return comparator.make(o);
+    }
+
+    public static Token token(int key)
+    {
+        return testPartitioner().getToken(ByteBufferUtil.bytes(key));
     }
 
     public static Token token(String key)
@@ -179,12 +191,12 @@ public class Util
     {
         IMutation first = mutations.get(0);
         String keyspaceName = first.getKeyspaceName();
-        UUID cfid = first.getColumnFamilyIds().iterator().next();
+        TableId tableId = first.getTableIds().iterator().next();
 
         for (Mutation rm : mutations)
             rm.applyUnsafe();
 
-        ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(cfid);
+        ColumnFamilyStore store = Keyspace.open(keyspaceName).getColumnFamilyStore(tableId);
         store.forceBlockingFlush();
         return store;
     }
@@ -198,7 +210,7 @@ public class Util
      * Creates initial set of nodes and tokens. Nodes are added to StorageService as 'normal'
      */
     public static void createInitialRing(StorageService ss, IPartitioner partitioner, List<Token> endpointTokens,
-                                   List<Token> keyTokens, List<InetAddress> hosts, List<UUID> hostIds, int howMany)
+                                         List<Token> keyTokens, List<InetAddressAndPort> hosts, List<UUID> hostIds, int howMany)
         throws UnknownHostException
     {
         // Expand pool of host IDs as necessary
@@ -216,9 +228,12 @@ public class Util
 
         for (int i=0; i<endpointTokens.size(); i++)
         {
-            InetAddress ep = InetAddress.getByName("127.0.0." + String.valueOf(i + 1));
-            Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), 1);
+            InetAddressAndPort ep = InetAddressAndPort.getByName("127.0.0." + String.valueOf(i + 1));
+            Gossiper.instance.initializeNodeUnsafe(ep, hostIds.get(i), MessagingService.current_version, 1);
             Gossiper.instance.injectApplicationState(ep, ApplicationState.TOKENS, new VersionedValue.VersionedValueFactory(partitioner).tokens(Collections.singleton(endpointTokens.get(i))));
+            ss.onChange(ep,
+                        ApplicationState.STATUS_WITH_PORT,
+                        new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
             ss.onChange(ep,
                         ApplicationState.STATUS,
                         new VersionedValue.VersionedValueFactory(partitioner).normal(Collections.singleton(endpointTokens.get(i))));
@@ -241,9 +256,11 @@ public class Util
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
         int gcBefore = cfs.gcBefore(FBUtilities.nowInSeconds());
-        List<AbstractCompactionTask> tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore);
-        for (AbstractCompactionTask task : tasks)
-            task.execute(null);
+        try (CompactionTasks tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore))
+        {
+            for (AbstractCompactionTask task : tasks)
+                task.execute(ActiveCompactionsTracker.NOOP);
+        }
     }
 
     public static void expectEOF(Callable<?> callable)
@@ -270,7 +287,7 @@ public class Util
 
     public static AbstractReadCommandBuilder.SinglePartitionBuilder cmd(ColumnFamilyStore cfs, Object... partitionKey)
     {
-        return new AbstractReadCommandBuilder.SinglePartitionBuilder(cfs, makeKey(cfs.metadata, partitionKey));
+        return new AbstractReadCommandBuilder.SinglePartitionBuilder(cfs, makeKey(cfs.metadata(), partitionKey));
     }
 
     public static AbstractReadCommandBuilder.PartitionRangeBuilder cmd(ColumnFamilyStore cfs)
@@ -278,13 +295,13 @@ public class Util
         return new AbstractReadCommandBuilder.PartitionRangeBuilder(cfs);
     }
 
-    static DecoratedKey makeKey(CFMetaData metadata, Object... partitionKey)
+    static DecoratedKey makeKey(TableMetadata metadata, Object... partitionKey)
     {
         if (partitionKey.length == 1 && partitionKey[0] instanceof DecoratedKey)
             return (DecoratedKey)partitionKey[0];
 
-        ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-        return metadata.decorateKey(key);
+        ByteBuffer key = metadata.partitionKeyAsClusteringComparator().make(partitionKey).serializeAsPartitionKey();
+        return metadata.partitioner.decorateKey(key);
     }
 
     public static void assertEmptyUnfiltered(ReadCommand command)
@@ -296,7 +313,7 @@ public class Util
             {
                 try (UnfilteredRowIterator partition = iterator.next())
                 {
-                    throw new AssertionError("Expected no results for query " + command.toCQLString() + " but got key " + command.metadata().getKeyValidator().getString(partition.partitionKey().getKey()));
+                    throw new AssertionError("Expected no results for query " + command.toCQLString() + " but got key " + command.metadata().partitionKeyType.getString(partition.partitionKey().getKey()));
                 }
             }
         }
@@ -311,7 +328,7 @@ public class Util
             {
                 try (RowIterator partition = iterator.next())
                 {
-                    throw new AssertionError("Expected no results for query " + command.toCQLString() + " but got key " + command.metadata().getKeyValidator().getString(partition.partitionKey().getKey()));
+                    throw new AssertionError("Expected no results for query " + command.toCQLString() + " but got key " + command.metadata().partitionKeyType.getString(partition.partitionKey().getKey()));
                 }
             }
         }
@@ -421,9 +438,9 @@ public class Util
         return mutation.getPartitionUpdates().iterator().next().unfilteredIterator();
     }
 
-    public static Cell cell(ColumnFamilyStore cfs, Row row, String columnName)
+    public static Cell<?> cell(ColumnFamilyStore cfs, Row row, String columnName)
     {
-        ColumnDefinition def = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes(columnName));
+        ColumnMetadata def = cfs.metadata().getColumn(ByteBufferUtil.bytes(columnName));
         assert def != null;
         return row.getCell(def);
     }
@@ -435,9 +452,9 @@ public class Util
 
     public static void assertCellValue(Object value, ColumnFamilyStore cfs, Row row, String columnName)
     {
-        Cell cell = cell(cfs, row, columnName);
-        assert cell != null : "Row " + row.toString(cfs.metadata) + " has no cell for " + columnName;
-        assertEquals(value, cell.column().type.compose(cell.value()));
+        Cell<?> cell = cell(cfs, row, columnName);
+        assert cell != null : "Row " + row.toString(cfs.metadata()) + " has no cell for " + columnName;
+        assertEquals(value, Cells.composeValue(cell, cell.column().type));
     }
 
     public static void consume(UnfilteredRowIterator iter)
@@ -446,6 +463,14 @@ public class Util
         {
             while (iter.hasNext())
                 iter.next();
+        }
+    }
+
+    public static void consume(UnfilteredPartitionIterator iterator)
+    {
+        while (iterator.hasNext())
+        {
+            consume(iterator.next());
         }
     }
 
@@ -458,15 +483,6 @@ public class Util
             iter.next().close();
         }
         return size;
-    }
-
-    public static CBuilder getCBuilderForCFM(CFMetaData cfm)
-    {
-        List<ColumnDefinition> clusteringColumns = cfm.clusteringColumns();
-        List<AbstractType<?>> types = new ArrayList<>(clusteringColumns.size());
-        for (ColumnDefinition def : clusteringColumns)
-            types.add(def.type);
-        return CBuilder.create(new ClusteringComparator(types));
     }
 
     public static boolean equal(UnfilteredRowIterator a, UnfilteredRowIterator b)
@@ -490,14 +506,23 @@ public class Util
             && Iterators.elementsEqual(a, b);
     }
 
+    public static boolean sameContent(RowIterator a, RowIterator b)
+    {
+        return Objects.equals(a.metadata(), b.metadata())
+               && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
+               && Objects.equals(a.partitionKey(), b.partitionKey())
+               && Objects.equals(a.staticRow(), b.staticRow())
+               && Iterators.elementsEqual(a, b);
+    }
+
     public static boolean sameContent(Mutation a, Mutation b)
     {
-        if (!a.key().equals(b.key()) || !a.getColumnFamilyIds().equals(b.getColumnFamilyIds()))
+        if (!a.key().equals(b.key()) || !a.getTableIds().equals(b.getTableIds()))
             return false;
 
-        for (UUID cfId : a.getColumnFamilyIds())
+        for (PartitionUpdate update : a.getPartitionUpdates())
         {
-            if (!sameContent(a.getPartitionUpdate(cfId).unfilteredIterator(), b.getPartitionUpdate(cfId).unfilteredIterator()))
+            if (!sameContent(update.unfilteredIterator(), b.getPartitionUpdate(update.metadata()).unfilteredIterator()))
                 return false;
         }
         return true;
@@ -506,10 +531,10 @@ public class Util
     // moved & refactored from KeyspaceTest in < 3.0
     public static void assertColumns(Row row, String... expectedColumnNames)
     {
-        Iterator<Cell> cells = row == null ? Collections.emptyIterator() : row.cells().iterator();
-        String[] actual = Iterators.toArray(Iterators.transform(cells, new Function<Cell, String>()
+        Iterator<Cell<?>> cells = row == null ? Collections.emptyIterator() : row.cells().iterator();
+        String[] actual = Iterators.toArray(Iterators.transform(cells, new Function<Cell<?>, String>()
         {
-            public String apply(Cell cell)
+            public String apply(Cell<?> cell)
             {
                 return cell.column().name.toString();
             }
@@ -521,20 +546,20 @@ public class Util
                         StringUtils.join(expectedColumnNames, ","));
     }
 
-    public static void assertColumn(CFMetaData cfm, Row row, String name, String value, long timestamp)
+    public static void assertColumn(TableMetadata cfm, Row row, String name, String value, long timestamp)
     {
-        Cell cell = row.getCell(cfm.getColumnDefinition(new ColumnIdentifier(name, true)));
+        Cell<?> cell = row.getCell(cfm.getColumn(new ColumnIdentifier(name, true)));
         assertColumn(cell, value, timestamp);
     }
 
-    public static void assertColumn(Cell cell, String value, long timestamp)
+    public static void assertColumn(Cell<?> cell, String value, long timestamp)
     {
         assertNotNull(cell);
-        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.value(), ByteBufferUtil.bytes(value)));
+        assertEquals(0, ByteBufferUtil.compareUnsigned(cell.buffer(), ByteBufferUtil.bytes(value)));
         assertEquals(timestamp, cell.timestamp());
     }
 
-    public static void assertClustering(CFMetaData cfm, Row row, Object... clusteringValue)
+    public static void assertClustering(TableMetadata cfm, Row row, Object... clusteringValue)
     {
         assertEquals(row.clustering().size(), clusteringValue.length);
         assertEquals(0, cfm.comparator.compare(row.clustering(), cfm.comparator.make(clusteringValue)));
@@ -563,16 +588,24 @@ public class Util
         }
     }
 
-    public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
+    public static void spinAssertEquals(Object expected, Supplier<Object> actualSupplier, int timeoutInSeconds)
     {
-        long start = System.currentTimeMillis();
-        while (System.currentTimeMillis() < start + (1000 * timeoutInSeconds))
+        spinAssertEquals(null, expected, actualSupplier, timeoutInSeconds, TimeUnit.SECONDS);
+    }
+
+    public static <T> void spinAssertEquals(String message, T expected, Supplier<? extends T> actualSupplier, long timeout, TimeUnit timeUnit)
+    {
+        long startNano = System.nanoTime();
+        long expireAtNano = startNano + timeUnit.toNanos(timeout);
+        T actual = null;
+        while (System.nanoTime() < expireAtNano)
         {
-            if (s.get().equals(expected))
+            actual = actualSupplier.get();
+            if (actual.equals(expected))
                 break;
             Thread.yield();
         }
-        assertEquals(expected, s.get());
+        assertEquals(message, expected, actual);
     }
 
     public static void joinThread(Thread thread) throws InterruptedException
@@ -647,12 +680,12 @@ public class Util
     {
         Iterator<Unfiltered> content;
 
-        public UnfilteredSource(CFMetaData cfm, DecoratedKey partitionKey, Row staticRow, Iterator<Unfiltered> content)
+        public UnfilteredSource(TableMetadata metadata, DecoratedKey partitionKey, Row staticRow, Iterator<Unfiltered> content)
         {
-            super(cfm,
+            super(metadata,
                   partitionKey,
                   DeletionTime.LIVE,
-                  cfm.partitionColumns(),
+                  metadata.regularAndStaticColumns(),
                   staticRow != null ? staticRow : Rows.EMPTY_STATIC_ROW,
                   false,
                   EncodingStats.NO_STATS);
@@ -697,19 +730,100 @@ public class Util
 
     public static PagingState makeSomePagingState(ProtocolVersion protocolVersion, int remainingInPartition)
     {
-        CFMetaData metadata = CFMetaData.Builder.create("ks", "tbl")
-                                                .addPartitionKey("k", AsciiType.instance)
-                                                .addClusteringColumn("c1", AsciiType.instance)
-                                                .addClusteringColumn("c1", Int32Type.instance)
-                                                .addRegularColumn("myCol", AsciiType.instance)
-                                                .build();
+        TableMetadata metadata =
+            TableMetadata.builder("ks", "tbl")
+                         .addPartitionKeyColumn("k", AsciiType.instance)
+                         .addClusteringColumn("c1", AsciiType.instance)
+                         .addClusteringColumn("c2", Int32Type.instance)
+                         .addRegularColumn("myCol", AsciiType.instance)
+                         .build();
 
         ByteBuffer pk = ByteBufferUtil.bytes("someKey");
 
-        ColumnDefinition def = metadata.getColumnDefinition(new ColumnIdentifier("myCol", false));
-        Clustering c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
+        ColumnMetadata def = metadata.getColumn(new ColumnIdentifier("myCol", false));
+        Clustering<?> c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
         return new PagingState(pk, mark, 10, remainingInPartition);
+    }
+
+    public static void assertRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
+    {
+        assertTrue(a + " not equal to " + b, Iterables.elementsEqual(a, b));
+    }
+
+    public static void assertNotRCEquals(ReplicaCollection<?> a, ReplicaCollection<?> b)
+    {
+        assertFalse(a + " equal to " + b, Iterables.elementsEqual(a, b));
+    }
+
+    /**
+     * Makes sure that the sstables on disk are the same ones as the cfs live sstables (that they have the same generation)
+     */
+    public static void assertOnDiskState(ColumnFamilyStore cfs, int expectedSSTableCount)
+    {
+        LifecycleTransaction.waitForDeletions();
+        assertEquals(expectedSSTableCount, cfs.getLiveSSTables().size());
+        Set<Integer> liveGenerations = cfs.getLiveSSTables().stream().map(sstable -> sstable.descriptor.generation).collect(Collectors.toSet());
+        int fileCount = 0;
+        for (File f : cfs.getDirectories().getCFDirectories())
+        {
+            for (File sst : f.listFiles())
+            {
+                if (sst.getName().contains("Data"))
+                {
+                    Descriptor d = Descriptor.fromFilename(sst.getAbsolutePath());
+                    assertTrue(liveGenerations.contains(d.generation));
+                    fileCount++;
+                }
+            }
+        }
+        assertEquals(expectedSSTableCount, fileCount);
+    }
+
+    /**
+     * Disable bloom filter on all sstables of given table
+     */
+    public static void disableBloomFilter(ColumnFamilyStore cfs)
+    {
+        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
+        {
+            for (SSTableReader sstable : sstables)
+            {
+                sstable = sstable.cloneAndReplace(FilterFactory.AlwaysPresent);
+                txn.update(sstable, true);
+                txn.checkpoint();
+            }
+            txn.finish();
+        }
+
+        for (SSTableReader reader : cfs.getLiveSSTables())
+            assertEquals(FilterFactory.AlwaysPresent, reader.getBloomFilter());
+    }
+
+    /**
+     * Setups Gossiper to mimic the upgrade behaviour when {@link Gossiper#isUpgradingFromVersionLowerThan(CassandraVersion)}
+     * or {@link Gossiper#hasMajorVersion3Nodes()} is called.
+     */
+    public static void setUpgradeFromVersion(String version)
+    {
+        int v = Optional.ofNullable(Gossiper.instance.getEndpointStateForEndpoint(FBUtilities.getBroadcastAddressAndPort()))
+                        .map(ep -> ep.getApplicationState(ApplicationState.RELEASE_VERSION))
+                        .map(rv -> rv.version)
+                        .orElse(0);
+
+        Gossiper.instance.addLocalApplicationState(ApplicationState.RELEASE_VERSION,
+                                                   VersionedValue.unsafeMakeVersionedValue(version, v + 1));
+        try
+        {
+            // add dummy host to avoid returning early in Gossiper.instance.upgradeFromVersionSupplier
+            Gossiper.instance.initializeNodeUnsafe(InetAddressAndPort.getByName("127.0.0.2"), UUID.randomUUID(), 1);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+        Gossiper.instance.expireUpgradeFromVersion();
     }
 }

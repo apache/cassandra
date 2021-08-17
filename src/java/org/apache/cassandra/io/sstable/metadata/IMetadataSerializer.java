@@ -20,8 +20,11 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.UnaryOperator;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -61,7 +64,23 @@ public interface IMetadataSerializer
     MetadataComponent deserialize(Descriptor descriptor, MetadataType type) throws IOException;
 
     /**
+     * Mutate SSTable Metadata
+     *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
+     * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
+     *
+     * @param descriptor SSTable descriptor
+     * @param description on changed attributions
+     * @param transform function to mutate sstable metadata
+     * @throws IOException
+     */
+    public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException;
+
+    /**
      * Mutate SSTable level
+     *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
+     * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
      *
      * @param descriptor SSTable descriptor
      * @param newLevel new SSTable level
@@ -70,9 +89,12 @@ public interface IMetadataSerializer
     void mutateLevel(Descriptor descriptor, int newLevel) throws IOException;
 
     /**
-     * Mutate repairedAt time
+     * Mutate the repairedAt time, pendingRepair ID, and transient status.
+     *
+     * NOTE: mutating stats metadata of a live sstable will race with entire-sstable-streaming, please use
+     * {@link SSTableReader#mutateLevelAndReload} instead on live sstable.
      */
-    void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException;
+    public void mutateRepairMetadata(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair, boolean isTransient) throws IOException;
 
     /**
      * Replace the sstable metadata file ({@code -Statistics.db}) with the given components.

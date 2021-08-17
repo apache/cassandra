@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.marshal;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -30,20 +31,20 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public final class IntegerType extends AbstractType<BigInteger>
+public final class IntegerType extends NumberType<BigInteger>
 {
     public static final IntegerType instance = new IntegerType();
 
-    private static int findMostSignificantByte(ByteBuffer bytes)
+    private static <V> int findMostSignificantByte(V value, ValueAccessor<V> accessor)
     {
-        int len = bytes.remaining() - 1;
+        int len = accessor.size(value) - 1;
         int i = 0;
         for (; i < len; i++)
         {
-            byte b0 = bytes.get(bytes.position() + i);
+            byte b0 = accessor.getByte(value, i);
             if (b0 != 0 && b0 != -1)
                 break;
-            byte b1 = bytes.get(bytes.position() + i + 1);
+            byte b1 = accessor.getByte(value, i + 1);
             if (b0 == 0 && b1 != 0)
             {
                 if (b1 > 0)
@@ -67,30 +68,30 @@ public final class IntegerType extends AbstractType<BigInteger>
         return true;
     }
 
-    public int compareCustom(ByteBuffer lhs, ByteBuffer rhs)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        return IntegerType.compareIntegers(lhs, rhs);
+        return IntegerType.compareIntegers(left, accessorL, right, accessorR);
     }
 
-    public static int compareIntegers(ByteBuffer lhs, ByteBuffer rhs)
+    public static <VL, VR> int compareIntegers(VL lhs, ValueAccessor<VL> accessorL, VR rhs, ValueAccessor<VR> accessorR)
     {
-        int lhsLen = lhs.remaining();
-        int rhsLen = rhs.remaining();
+        int lhsLen = accessorL.size(lhs);
+        int rhsLen = accessorR.size(rhs);
 
         if (lhsLen == 0)
             return rhsLen == 0 ? 0 : -1;
         if (rhsLen == 0)
             return 1;
 
-        int lhsMsbIdx = findMostSignificantByte(lhs);
-        int rhsMsbIdx = findMostSignificantByte(rhs);
+        int lhsMsbIdx = findMostSignificantByte(lhs, accessorL);
+        int rhsMsbIdx = findMostSignificantByte(rhs, accessorR);
 
         //diffs contain number of "meaningful" bytes (i.e. ignore padding)
         int lhsLenDiff = lhsLen - lhsMsbIdx;
         int rhsLenDiff = rhsLen - rhsMsbIdx;
 
-        byte lhsMsb = lhs.get(lhs.position() + lhsMsbIdx);
-        byte rhsMsb = rhs.get(rhs.position() + rhsMsbIdx);
+        byte lhsMsb = accessorL.getByte(lhs, lhsMsbIdx);
+        byte rhsMsb = accessorR.getByte(rhs, rhsMsbIdx);
 
         /*         +    -
          *      -----------
@@ -120,8 +121,8 @@ public final class IntegerType extends AbstractType<BigInteger>
         // remaining bytes are compared unsigned
         while (lhsMsbIdx < lhsLen)
         {
-            lhsMsb = lhs.get(lhs.position() + lhsMsbIdx++);
-            rhsMsb = rhs.get(rhs.position() + rhsMsbIdx++);
+            lhsMsb = accessorL.getByte(lhs, lhsMsbIdx++);
+            rhsMsb = accessorR.getByte(rhs, rhsMsbIdx++);
 
             if (lhsMsb != rhsMsb)
                 return (lhsMsb & 0xFF) - (rhsMsb & 0xFF);
@@ -184,5 +185,71 @@ public final class IntegerType extends AbstractType<BigInteger>
     public TypeSerializer<BigInteger> getSerializer()
     {
         return IntegerSerializer.instance;
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected float toFloat(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected long toLong(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected double toDouble(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected BigInteger toBigInteger(ByteBuffer value)
+    {
+        return compose(value);
+    }
+
+    @Override
+    protected BigDecimal toBigDecimal(ByteBuffer value)
+    {
+        return new BigDecimal(compose(value));
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).add(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).subtract(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).multiply(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).divide(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return decompose(leftType.toBigInteger(left).remainder(rightType.toBigInteger(right)));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return decompose(toBigInteger(input).negate());
     }
 }

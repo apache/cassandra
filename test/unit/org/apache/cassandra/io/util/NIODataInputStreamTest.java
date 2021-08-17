@@ -222,7 +222,7 @@ public class NIODataInputStreamTest
         is.read(new byte[10]);
         assertEquals(8190 - 10 - 4096, is.available());
 
-        File f = File.createTempFile("foo", "bar");
+        File f = FileUtils.createTempFile("foo", "bar");
         RandomAccessFile fos = new RandomAccessFile(f, "rw");
         fos.write(new byte[10]);
         fos.seek(0);

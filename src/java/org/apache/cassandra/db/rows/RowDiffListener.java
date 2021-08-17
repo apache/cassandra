@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 
 /**
@@ -39,7 +39,7 @@ public interface RowDiffListener
      * @param original the primary key liveness info of input {@code i}. May be {@code null} if input {@code i}
      * has not primary key liveness info (i.e. it has {@code LivenessInfo.NONE}) but the merged result has.
      */
-    public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original);
+    public void onPrimaryKeyLivenessInfo(int i, Clustering<?> clustering, LivenessInfo merged, LivenessInfo original);
 
     /**
      * Called for the row deletion of input {@code i}.
@@ -50,7 +50,7 @@ public interface RowDiffListener
      * but the merged result doesn't (i.e. the deletion has been shadowed).
      * @param original the deletion of input {@code i}. May be {@code null} if input {@code i} had no deletion but the merged row has.
      */
-    public void onDeletion(int i, Clustering clustering, Row.Deletion merged, Row.Deletion original);
+    public void onDeletion(int i, Clustering<?> clustering, Row.Deletion merged, Row.Deletion original);
 
     /**
      * Called for every (non-live) complex deletion of any complex column present in either the merged row of input {@code i}.
@@ -63,7 +63,7 @@ public interface RowDiffListener
      * @param original the complex deletion of input {@code i} for column {@code column}. May be {@code null} if input {@code i}
      * had no complex deletion but the merged row has.
      */
-    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original);
+    public void onComplexDeletion(int i, Clustering<?> clustering, ColumnMetadata column, DeletionTime merged, DeletionTime original);
 
     /**
      * Called for any cell that is either in the merged row or in input {@code i}.
@@ -74,5 +74,5 @@ public interface RowDiffListener
      * in the merged result (it has been deleted/shadowed).
      * @param original the cell of input {@code i}. May be {@code null} if input {@code i} had cell corresponding to {@code merged}.
      */
-    public void onCell(int i, Clustering clustering, Cell merged, Cell original);
+    public void onCell(int i, Clustering<?> clustering, Cell<?> merged, Cell<?> original);
 }

@@ -23,14 +23,17 @@ import java.nio.ByteBuffer;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.hints.ChecksummedDataInput.Position;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 public final class CompressedChecksummedDataInput extends ChecksummedDataInput
 {
+    private static final BufferPool bufferPool = BufferPools.forChunkCache();
+
     private final ICompressor compressor;
     private volatile long filePosition = 0;     // Current position in file, advanced when reading chunk.
     private volatile long sourcePosition = 0;   // Current position in file to report, advanced after consuming chunk.
@@ -117,9 +120,9 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
             int bufferSize = compressedSize + (compressedSize / 20);  // allocate +5% to cover variability in compressed size
             if (compressedBuffer != null)
             {
-                BufferPool.put(compressedBuffer);
+                bufferPool.put(compressedBuffer);
             }
-            compressedBuffer = BufferPool.get(bufferSize, compressor.preferredBufferType());
+            compressedBuffer = bufferPool.get(bufferSize, compressor.preferredBufferType());
         }
 
         compressedBuffer.clear();
@@ -131,8 +134,8 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         if (buffer.capacity() < uncompressedSize)
         {
             int bufferSize = uncompressedSize + (uncompressedSize / 20);
-            BufferPool.put(buffer);
-            buffer = BufferPool.get(bufferSize, compressor.preferredBufferType());
+            bufferPool.put(buffer);
+            buffer = bufferPool.get(bufferSize, compressor.preferredBufferType());
         }
 
         buffer.clear();
@@ -151,7 +154,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
     @Override
     public void close()
     {
-        BufferPool.put(compressedBuffer);
+        bufferPool.put(compressedBuffer);
         super.close();
     }
 
@@ -161,7 +164,15 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
-        return new CompressedChecksummedDataInput(new ChannelProxy(input.getPath()), compressor, position);
+        ChannelProxy channel = new ChannelProxy(input.getPath());
+        try
+        {
+            return new CompressedChecksummedDataInput(channel, compressor, position);
+        }
+        catch (Throwable t)
+        {
+            throw Throwables.cleaned(channel.close(t));
+        }
     }
 
     @VisibleForTesting

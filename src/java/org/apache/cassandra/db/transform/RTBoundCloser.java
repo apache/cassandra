@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.transform;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -64,7 +63,7 @@ public final class RTBoundCloser extends Transformation<UnfilteredRowIterator>
     {
         private final UnfilteredRowIterator partition;
 
-        private Clustering lastRowClustering;
+        private Clustering<?> lastRowClustering;
         private DeletionTime openMarkerDeletionTime;
 
         private RowsTransformation(UnfilteredRowIterator partition)
@@ -103,15 +102,13 @@ public final class RTBoundCloser extends Transformation<UnfilteredRowIterator>
              */
             if (null == lastRowClustering)
             {
-                CFMetaData metadata = partition.metadata();
-                String message =
-                    String.format("UnfilteredRowIterator for %s.%s has an open RT bound as its last item", metadata.ksName, metadata.cfName);
+                String message = String.format("UnfilteredRowIterator for %s has an open RT bound as its last item", partition.metadata());
                 throw new IllegalStateException(message);
             }
 
             // create an artificial inclusive closing RT bound with bound matching last seen row's clustering
             RangeTombstoneBoundMarker closingBound =
-                RangeTombstoneBoundMarker.inclusiveClose(partition.isReverseOrder(), lastRowClustering.getRawValues(), openMarkerDeletionTime);
+                RangeTombstoneBoundMarker.inclusiveClose(partition.isReverseOrder(), lastRowClustering, openMarkerDeletionTime);
 
             return UnfilteredRowIterators.singleton(closingBound,
                                                     partition.metadata(),

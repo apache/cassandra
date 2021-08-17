@@ -25,6 +25,7 @@ import java.util.Random;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 
@@ -35,6 +36,11 @@ abstract class TokenAllocatorTestBase
 {
     protected static final int TARGET_CLUSTER_SIZE = 250;
     protected static final int MAX_VNODE_COUNT = 64;
+
+    public TokenAllocatorTestBase()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
 
     interface TestReplicationStrategy extends ReplicationStrategy<Unit>
     {
@@ -124,19 +130,34 @@ abstract class TokenAllocatorTestBase
     class Summary
     {
         double min = 1;
+        int minAt = -1;
         double max = 1;
+        int maxAt = - 1;
         double stddev = 0;
+        int stddevAt = -1;
 
-        void update(SummaryStatistics stat)
+        void update(SummaryStatistics stat, int point)
         {
-            min = Math.min(min, stat.getMin());
-            max = Math.max(max, stat.getMax());
-            stddev = Math.max(stddev, stat.getStandardDeviation());
+            if (stat.getMin() <= min)
+            {
+                min = Math.min(min, stat.getMin());
+                minAt = point;
+            }
+            if (stat.getMax() >= max)
+            {
+                max = Math.max(max, stat.getMax());
+                maxAt = point;
+            }
+            if (stat.getStandardDeviation() >= stddev)
+            {
+                stddev = Math.max(stddev, stat.getStandardDeviation());
+                stddevAt = point;
+            }
         }
 
         public String toString()
         {
-            return String.format("max %.2f min %.2f stddev %.4f", max, min, stddev);
+            return String.format("max %.4f @%d min %.4f @%d stddev %.4f @%d", max, maxAt, min, minAt, stddev, stddevAt);
         }
     }
 

@@ -15,14 +15,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.io.sstable;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -31,6 +29,8 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadataRef;
 
 public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 {
@@ -80,9 +80,9 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         return writer.getFilePointer();
     }
 
-    public UUID getCfId()
+    public TableId getTableId()
     {
-        return writer.metadata.cfId;
+        return writer.metadata().id;
     }
 
     public Throwable commit(Throwable accumulate)
@@ -110,13 +110,15 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,
-                                            CFMetaData cfm,
+                                            UUID pendingRepair,
+                                            boolean isTransient,
+                                            TableMetadataRef metadata,
                                             MetadataCollector metadataCollector,
                                             SerializationHeader header,
                                             Collection<Index> indexes,
                                             LifecycleNewTracker lifecycleNewTracker)
     {
-        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, cfm, metadataCollector, header, indexes, lifecycleNewTracker);
+        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, indexes, lifecycleNewTracker);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }
 }

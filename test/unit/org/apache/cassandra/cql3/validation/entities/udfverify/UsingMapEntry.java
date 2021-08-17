@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.datastax.driver.core.TypeCodec;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.JavaUDF;
 import org.apache.cassandra.cql3.functions.UDFContext;
 import org.apache.cassandra.transport.ProtocolVersion;

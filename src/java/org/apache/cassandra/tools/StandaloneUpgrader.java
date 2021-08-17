@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.cli.*;
 
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
@@ -33,6 +33,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
@@ -48,14 +49,17 @@ public class StandaloneUpgrader
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        Util.initDatabaseDescriptor();
+        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+            DatabaseDescriptor.toolInitialization(false); //Necessary for testing
+        else
+            Util.initDatabaseDescriptor();
 
         try
         {
             // load keyspace descriptions.
             Schema.instance.loadFromDisk(false);
 
-            if (Schema.instance.getCFMetaData(options.keyspace, options.cf) == null)
+            if (Schema.instance.getTableMetadataRef(options.keyspace, options.cf) == null)
                 throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
                                                                  options.keyspace,
                                                                  options.cf));

@@ -20,12 +20,14 @@ package org.apache.cassandra.io.compress;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +65,10 @@ public class LZ4Compressor implements ICompressor
         {
             if (compressorType.equals(LZ4_FAST_COMPRESSOR) && args.get(LZ4_HIGH_COMPRESSION_LEVEL) != null)
                 logger.warn("'{}' parameter is ignored when '{}' is '{}'", LZ4_HIGH_COMPRESSION_LEVEL, LZ4_COMPRESSOR_TYPE, LZ4_FAST_COMPRESSOR);
+            if (compressorType.equals(LZ4_HIGH_COMPRESSOR))
+                logger.info("The ZstdCompressor may be preferable to LZ4 in 'high' mode. Zstd will typically " +
+                            "compress much faster while achieving better ratio, but it may decompress more slowly,");
+
             instance = new LZ4Compressor(compressorType, compressionLevel);
             LZ4Compressor instanceFromMap = instances.putIfAbsent(compressorTypeAndLevel, instance);
             if(instanceFromMap != null)
@@ -72,11 +78,12 @@ public class LZ4Compressor implements ICompressor
     }
 
     private final net.jpountz.lz4.LZ4Compressor compressor;
-    private final net.jpountz.lz4.LZ4FastDecompressor decompressor;
+    private final net.jpountz.lz4.LZ4SafeDecompressor decompressor;
     @VisibleForTesting
     final String compressorType;
     @VisibleForTesting
     final Integer compressionLevel;
+    private final Set<Uses> recommendedUses;
 
     private LZ4Compressor(String type, Integer compressionLevel)
     {
@@ -88,16 +95,19 @@ public class LZ4Compressor implements ICompressor
             case LZ4_HIGH_COMPRESSOR:
             {
                 compressor = lz4Factory.highCompressor(compressionLevel);
+                // LZ4HC can be _extremely_ slow to compress, up to 10x slower
+                this.recommendedUses = ImmutableSet.of(Uses.GENERAL);
                 break;
             }
             case LZ4_FAST_COMPRESSOR:
             default:
             {
                 compressor = lz4Factory.fastCompressor();
+                this.recommendedUses = ImmutableSet.copyOf(EnumSet.allOf(Uses.class));
             }
         }
 
-        decompressor = lz4Factory.fastDecompressor();
+        decompressor = lz4Factory.safeDecompressor();
     }
 
     public int initialCompressedBufferLength(int chunkLength)
@@ -131,20 +141,24 @@ public class LZ4Compressor implements ICompressor
                 | ((input[inputOffset + 2] & 0xFF) << 16)
                 | ((input[inputOffset + 3] & 0xFF) << 24);
 
-        final int compressedLength;
+        final int writtenLength;
         try
         {
-            compressedLength = decompressor.decompress(input, inputOffset + INTEGER_BYTES,
-                                                       output, outputOffset, decompressedLength);
+            writtenLength = decompressor.decompress(input,
+                                                    inputOffset + INTEGER_BYTES,
+                                                    inputLength - INTEGER_BYTES,
+                                                    output,
+                                                    outputOffset,
+                                                    decompressedLength);
         }
         catch (LZ4Exception e)
         {
             throw new IOException(e);
         }
 
-        if (compressedLength != inputLength - INTEGER_BYTES)
+        if (writtenLength != decompressedLength)
         {
-            throw new IOException("Compressed lengths mismatch");
+            throw new IOException("Decompressed lengths mismatch");
         }
 
         return decompressedLength;
@@ -159,7 +173,8 @@ public class LZ4Compressor implements ICompressor
 
         try
         {
-            int compressedLength = decompressor.decompress(input, input.position(), output, output.position(), decompressedLength);
+            int compressedLength = input.remaining();
+            decompressor.decompress(input, input.position(), input.remaining(), output, output.position(), decompressedLength);
             input.position(input.position() + compressedLength);
             output.position(output.position() + decompressedLength);
         }
@@ -230,5 +245,11 @@ public class LZ4Compressor implements ICompressor
     public boolean supports(BufferType bufferType)
     {
         return true;
+    }
+
+    @Override
+    public Set<Uses> recommendedUses()
+    {
+        return recommendedUses;
     }
 }

@@ -29,27 +29,27 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
-import org.apache.commons.io.FileUtils;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
+import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
-import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
-import com.datastax.driver.core.TypeCodec;
-import com.datastax.driver.core.UDTValue;
-import com.datastax.driver.core.UserType;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -62,38 +62,33 @@ public class CQLSSTableWriterTest
     private String table;
     private String qualifiedTable;
     private File dataDir;
-    private File tempDir;
 
     static
     {
         DatabaseDescriptor.daemonInitialization();
     }
 
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
+
     @BeforeClass
     public static void setup() throws Exception
     {
+        CommitLog.instance.start();
         SchemaLoader.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
         StorageService.instance.initServer();
     }
 
     @Before
-    public void perTestSetup()
+    public void perTestSetup() throws IOException
     {
-        tempDir = Files.createTempDir();
         keyspace = "cql_keyspace" + idGen.incrementAndGet();
         table = "table" + idGen.incrementAndGet();
         qualifiedTable = keyspace + '.' + table;
-        dataDir = new File(tempDir.getAbsolutePath() + File.separator + keyspace + File.separator + table);
+        dataDir = new File(tempFolder.newFolder().getAbsolutePath() + File.separator + keyspace + File.separator + table);
         assert dataDir.mkdirs();
     }
-
-    @After
-    public void cleanup() throws IOException
-    {
-        FileUtils.deleteDirectory(tempDir);
-    }
-
 
     @Test
     public void testUnsortedWriter() throws Exception
@@ -346,7 +341,7 @@ public class CQLSSTableWriterTest
         loadSSTables(dataDir, keyspace);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
-        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.frozenList(tuple2Type));
+        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.list(tuple2Type));
         TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
 
         assertEquals(resultSet.size(), 100);
@@ -355,13 +350,13 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             List<UDTValue> values = (List<UDTValue>) collectionCodec.deserialize(row.getBytes("v1"),
-                                                                                 ProtocolVersion.NEWEST_SUPPORTED);
+                                                                                 ProtocolVersion.CURRENT);
             assertEquals(values.get(0).getInt("a"), cnt * 10);
             assertEquals(values.get(0).getInt("b"), cnt * 20);
             assertEquals(values.get(1).getInt("a"), cnt * 30);
             assertEquals(values.get(1).getInt("b"), cnt * 40);
 
-            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.NEWEST_SUPPORTED);
+            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.CURRENT);
 
             assertEquals(v2.getInt("a"), cnt * 100);
             assertEquals(v2.getInt("b"), cnt * 200);
@@ -417,7 +412,7 @@ public class CQLSSTableWriterTest
             assertEquals(cnt,
                          row.getInt("k"));
             UDTValue nestedTpl = (UDTValue) nestedTupleCodec.deserialize(row.getBytes("v1"),
-                                                                         ProtocolVersion.NEWEST_SUPPORTED);
+                                                                         ProtocolVersion.CURRENT);
             assertEquals(nestedTpl.getInt("c"), cnt * 100);
             UDTValue tpl = nestedTpl.getUDTValue("tpl");
             assertEquals(tpl.getInt("a"), cnt * 200);
@@ -648,13 +643,13 @@ public class CQLSSTableWriterTest
             public void init(String keyspace)
             {
                 this.keyspace = keyspace;
-                for (Range<Token> range : StorageService.instance.getLocalRanges(ks))
-                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
+                for (Range<Token> range : StorageService.instance.getLocalReplicas(ks).ranges())
+                    addRangeForEndpoint(range, FBUtilities.getBroadcastAddressAndPort());
             }
 
-            public CFMetaData getTableMetadata(String cfName)
+            public TableMetadataRef getTableMetadata(String cfName)
             {
-                return Schema.instance.getCFMetaData(keyspace, cfName);
+                return Schema.instance.getTableMetadataRef(keyspace, cfName);
             }
         }, new OutputHandler.SystemOutput(false, false));
 

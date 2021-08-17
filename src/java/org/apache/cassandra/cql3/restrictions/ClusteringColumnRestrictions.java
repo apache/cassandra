@@ -19,14 +19,14 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -47,14 +47,14 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     private final boolean allowFiltering;
 
-    public ClusteringColumnRestrictions(CFMetaData cfm)
+    public ClusteringColumnRestrictions(TableMetadata table)
     {
-        this(cfm, false);
+        this(table, false);
     }
 
-    public ClusteringColumnRestrictions(CFMetaData cfm, boolean allowFiltering)
+    public ClusteringColumnRestrictions(TableMetadata table, boolean allowFiltering)
     {
-        this(cfm.comparator, new RestrictionSet(), allowFiltering);
+        this(table.comparator, new RestrictionSet(), allowFiltering);
     }
 
     private ClusteringColumnRestrictions(ClusteringComparator comparator,
@@ -74,8 +74,8 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         if (!isEmpty() && !allowFiltering)
         {
             SingleRestriction lastRestriction = restrictions.lastRestriction();
-            ColumnDefinition lastRestrictionStart = lastRestriction.getFirstColumn();
-            ColumnDefinition newRestrictionStart = restriction.getFirstColumn();
+            ColumnMetadata lastRestrictionStart = lastRestriction.getFirstColumn();
+            ColumnMetadata newRestrictionStart = restriction.getFirstColumn();
 
             checkFalse(lastRestriction.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position(),
                        "Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
@@ -101,7 +101,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return false;
     }
 
-    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
+    public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
         for (SingleRestriction r : restrictions)
@@ -113,7 +113,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return builder.build();
     }
 
-    public NavigableSet<ClusteringBound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
+    public NavigableSet<ClusteringBound<?>> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN() || hasMultiColumnSlice());
         int keyPosition = 0;
@@ -199,7 +199,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     @Override
     public void addRowFilterTo(RowFilter filter,
-                               SecondaryIndexManager indexManager,
+                               IndexRegistry indexRegistry,
                                QueryOptions options) throws InvalidRequestException
     {
         int position = 0;
@@ -207,9 +207,9 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         for (SingleRestriction restriction : restrictions)
         {
             // We ignore all the clustering columns that can be handled by slices.
-            if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexManager))
+            if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexRegistry))
             {
-                restriction.addRowFilterTo(filter, indexManager, options);
+                restriction.addRowFilterTo(filter, indexRegistry, options);
                 continue;
             }
 
@@ -223,8 +223,4 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return restriction.isContains() || restriction.isLIKE() || index != restriction.getFirstColumn().position();
     }
 
-    public Iterator<SingleRestriction> iterator()
-    {
-        return restrictions.iterator();
-    }
 }

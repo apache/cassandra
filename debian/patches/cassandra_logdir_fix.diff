@@ -1,0 +1,22 @@
+--- a/bin/cassandra
++++ b/bin/cassandra
+@@ -109,7 +109,7 @@
+ fi
+
+ if [ -z "$CASSANDRA_LOG_DIR" ]; then
+-  CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
++  CASSANDRA_LOG_DIR=/var/log/cassandra
+ fi
+
+ # Special-case path variables.
+--- a/conf/cassandra-env.sh
++++ b/conf/cassandra-env.sh
+@@ -88,7 +88,7 @@ calculate_heap_sizes()
+
+ # Sets the path where logback and GC logs are written.
+ if [ "x$CASSANDRA_LOG_DIR" = "x" ] ; then
+-    CASSANDRA_LOG_DIR="$CASSANDRA_HOME/logs"
++    CASSANDRA_LOG_DIR=/var/log/cassandra
+ fi
+
+ #GC log path has to be defined here because it needs to access CASSANDRA_HOME

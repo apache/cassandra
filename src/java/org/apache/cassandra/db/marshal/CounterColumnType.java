@@ -22,13 +22,13 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.CounterSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class CounterColumnType extends AbstractType<Long>
+public class CounterColumnType extends NumberType<Long>
 {
     public static final CounterColumnType instance = new CounterColumnType();
 
@@ -44,10 +44,9 @@ public class CounterColumnType extends AbstractType<Long>
         return true;
     }
 
-    @Override
-    public Long compose(ByteBuffer bytes)
+    public <V> Long compose(V value, ValueAccessor<V> accessor)
     {
-        return CounterContext.instance().total(bytes);
+        return CounterContext.instance().total(value, accessor);
     }
 
     @Override
@@ -57,14 +56,14 @@ public class CounterColumnType extends AbstractType<Long>
     }
 
     @Override
-    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    public <V> void validateCellValue(V cellValue, ValueAccessor<V> accessor) throws MarshalException
     {
-        CounterContext.instance().validateContext(cellValue);
+        CounterContext.instance().validateContext(cellValue, accessor);
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
-        return ByteBufferUtil.bytesToHex(bytes);
+        return accessor.toHex(value);
     }
 
     public ByteBuffer fromString(String source)
@@ -92,5 +91,41 @@ public class CounterColumnType extends AbstractType<Long>
     public TypeSerializer<Long> getSerializer()
     {
         return CounterSerializer.instance;
+    }
+
+    @Override
+    protected long toLong(ByteBuffer value)
+    {
+        return ByteBufferUtil.toLong(value);
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) + rightType.toLong(right));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) - rightType.toLong(right));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) * rightType.toLong(right));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) / rightType.toLong(right));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) % rightType.toLong(right));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes(-toLong(input));
     }
 }

@@ -20,7 +20,7 @@ package org.apache.cassandra.service.pager;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.aggregation.GroupingState;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -146,7 +146,7 @@ public final class AggregationQueryPager implements QueryPager
         /**
          * The clustering of the last row processed
          */
-        private Clustering lastClustering;
+        private Clustering<?> lastClustering;
 
         /**
          * The initial amount of row remaining
@@ -260,7 +260,7 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering lastClustering)
+                                              Clustering<?> lastClustering)
         {
             GroupingState state = new GroupingState(lastPartitionKey, lastClustering);
             DataLimits newLimits = limits.forGroupByInternalPaging(state);
@@ -319,7 +319,7 @@ public final class AggregationQueryPager implements QueryPager
                 this.rowIterator = delegate;
             }
 
-            public CFMetaData metadata()
+            public TableMetadata metadata()
             {
                 return rowIterator.metadata();
             }
@@ -329,7 +329,7 @@ public final class AggregationQueryPager implements QueryPager
                 return rowIterator.isReverseOrder();
             }
 
-            public PartitionColumns columns()
+            public RegularAndStaticColumns columns()
             {
                 return rowIterator.columns();
             }
@@ -417,7 +417,7 @@ public final class AggregationQueryPager implements QueryPager
         protected QueryPager updatePagerLimit(QueryPager pager,
                                               DataLimits limits,
                                               ByteBuffer lastPartitionKey,
-                                              Clustering lastClustering)
+                                              Clustering<?> lastClustering)
         {
             return pager;
         }

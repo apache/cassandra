@@ -29,10 +29,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.sun.jna.LastErrorException;
-import sun.nio.ch.FileChannelImpl;
 
 import org.apache.cassandra.io.FSWriteError;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.WINDOWS;
@@ -51,7 +52,7 @@ public final class NativeLibrary
         OTHER;
     }
 
-    private static final OSType osType;
+    public static final OSType osType;
 
     private static final int MCL_CURRENT;
     private static final int MCL_FUTURE;
@@ -80,7 +81,14 @@ public final class NativeLibrary
     static
     {
         FILE_DESCRIPTOR_FD_FIELD = FBUtilities.getProtectedField(FileDescriptor.class, "fd");
-        FILE_CHANNEL_FD_FIELD = FBUtilities.getProtectedField(FileChannelImpl.class, "fd");
+        try
+        {
+            FILE_CHANNEL_FD_FIELD = FBUtilities.getProtectedField(Class.forName("sun.nio.ch.FileChannelImpl"), "fd");
+        }
+        catch (ClassNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
 
         // detect the OS type the JVM is running on and then set the CLibraryWrapper
         // instance to a compatable implementation of CLibraryWrapper for that OS type
@@ -95,7 +103,7 @@ public final class NativeLibrary
             default: wrappedLibrary = new NativeLibraryLinux();
         }
 
-        if (System.getProperty("os.arch").toLowerCase().contains("ppc"))
+        if (OS_ARCH.getString().toLowerCase().contains("ppc"))
         {
             if (osType == LINUX)
             {
@@ -127,12 +135,16 @@ public final class NativeLibrary
      */
     private static OSType getOsType()
     {
-        String osName = System.getProperty("os.name").toLowerCase();
-        if (osName.contains("mac"))
+        String osName = OS_NAME.getString().toLowerCase();
+        if  (osName.contains("linux"))
+            return LINUX;
+        else if (osName.contains("mac"))
             return MAC;
         else if (osName.contains("windows"))
             return WINDOWS;
-        else if (osName.contains("aix"))
+
+        logger.warn("the current operating system, {}, is unsupported by cassandra", osName);
+        if (osName.contains("aix"))
             return AIX;
         else
             // fall back to the Linux impl for all unknown OS types until otherwise implicitly supported as needed
@@ -188,7 +200,7 @@ public final class NativeLibrary
             {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
-                        + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
+                        + " Increase RLIMIT_MEMLOCK.");
             }
             else if (osType != MAC)
             {
@@ -327,7 +339,7 @@ public final class NativeLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            String errMsg = String.format("fsync(%s) failed, errno %s", fd, errno(e));
+            String errMsg = String.format("fsync(%s) failed, errno (%s) %s", fd, errno(e), e.getMessage());
             logger.warn(errMsg);
             throw new FSWriteError(e, errMsg);
         }

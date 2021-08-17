@@ -17,67 +17,31 @@
  */
 package org.apache.cassandra.net;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import com.google.common.annotations.VisibleForTesting;
+
+import io.netty.util.concurrent.ImmediateEventExecutor;
 
 /**
  * A callback specialized for returning a value from a single target; that is, this is for messages
  * that we only send to one recipient.
  */
-public class AsyncOneResponse<T> implements IAsyncCallback<T>
+public class AsyncOneResponse<T> extends AsyncPromise<T> implements RequestCallback<T>
 {
-    private T result;
-    private boolean done;
-    private final long start = System.nanoTime();
-
-    public T get(long timeout, TimeUnit tu) throws TimeoutException
+    public AsyncOneResponse()
     {
-        timeout = tu.toNanos(timeout);
-        boolean interrupted = false;
-        try
-        {
-            synchronized (this)
-            {
-                while (!done)
-                {
-                    try
-                    {
-                        long overallTimeout = timeout - (System.nanoTime() - start);
-                        if (overallTimeout <= 0)
-                        {
-                            throw new TimeoutException("Operation timed out.");
-                        }
-                        TimeUnit.NANOSECONDS.timedWait(this, overallTimeout);
-                    }
-                    catch (InterruptedException e)
-                    {
-                        interrupted = true;
-                    }
-                }
-            }
-        }
-        finally
-        {
-            if (interrupted)
-            {
-                Thread.currentThread().interrupt();
-            }
-        }
-        return result;
+        super(ImmediateEventExecutor.INSTANCE);
     }
 
-    public synchronized void response(MessageIn<T> response)
+    public void onResponse(Message<T> response)
     {
-        if (!done)
-        {
-            result = response.payload;
-            done = true;
-            this.notifyAll();
-        }
+        setSuccess(response.payload);
     }
 
-    public boolean isLatencyForSnitch()
+    @VisibleForTesting
+    public static <T> AsyncOneResponse<T> immediate(T value)
     {
-        return false;
+        AsyncOneResponse<T> response = new AsyncOneResponse<>();
+        response.setSuccess(value);
+        return response;
     }
 }

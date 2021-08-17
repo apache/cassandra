@@ -19,69 +19,66 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
-import java.util.Objects;
 import java.util.UUID;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 // Fake serializer for dtests. Located in hints package to avoid publishing package-private fields.
-public class DTestSerializer implements IVersionedSerializer<HintMessage>
+public class DTestSerializer implements IVersionedAsymmetricSerializer<SerializableHintMessage, HintMessage>
 {
-    public long serializedSize(HintMessage message, int version)
+    public void serialize(SerializableHintMessage obj, DataOutputPlus out, int version) throws IOException
     {
-        if (message.hint != null)
-            return HintMessage.serializer.serializedSize(message, version);
-
-        long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
-        size += TypeSizes.sizeofUnsignedVInt(0);
-        size += UUIDSerializer.serializer.serializedSize(message.unknownTableID, version);
-        return size;
-    }
-
-    public void serialize(HintMessage message, DataOutputPlus out, int version) throws IOException
-    {
-        if (message.hint != null)
+        HintMessage message;
+        if (!(obj instanceof HintMessage) || (message = (HintMessage) obj).hint != null)
         {
-            HintMessage.serializer.serialize(message, out, version);
+            HintMessage.serializer.serialize(obj, out, version);
             return;
         }
 
         UUIDSerializer.serializer.serialize(message.hostId, out, version);
         out.writeUnsignedVInt(0);
-        UUIDSerializer.serializer.serialize(message.unknownTableID, out, version);
+        message.unknownTableID.serialize(out);
     }
 
-    /*
-     * It's not an exceptional scenario to have a hints file streamed that have partition updates for tables
-     * that don't exist anymore. We want to handle that case gracefully instead of dropping the connection for every
-     * one of them.
-     */
     public HintMessage deserialize(DataInputPlus in, int version) throws IOException
     {
         UUID hostId = UUIDSerializer.serializer.deserialize(in, version);
 
         long hintSize = in.readUnsignedVInt();
         TrackedDataInputPlus countingIn = new TrackedDataInputPlus(in);
-
         if (hintSize == 0)
-            return new HintMessage(hostId, UUIDSerializer.serializer.deserialize(in, version));
+            return new HintMessage(hostId, TableId.deserialize(countingIn));
 
         try
         {
             return new HintMessage(hostId, Hint.serializer.deserialize(countingIn, version));
         }
-        catch (UnknownColumnFamilyException e)
+        catch (UnknownTableException e)
         {
             in.skipBytes(Ints.checkedCast(hintSize - countingIn.getBytesRead()));
-            return new HintMessage(hostId, e.cfId);
+            return new HintMessage(hostId, e.id);
         }
+    }
+
+    public long serializedSize(SerializableHintMessage obj, int version)
+    {
+        HintMessage message;
+        if (!(obj instanceof HintMessage) || (message = (HintMessage) obj).hint != null)
+            return HintMessage.serializer.serializedSize(obj, version);
+
+        long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
+        size += TypeSizes.sizeofUnsignedVInt(0);
+        size += UUIDSerializer.serializer.serializedSize(message.unknownTableID.asUUID(), version);
+        return size;
     }
 }

@@ -19,18 +19,117 @@ package org.apache.cassandra.utils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import com.google.common.base.Splitter;
+
+import org.apache.commons.lang3.ArrayUtils;
+
+import org.junit.Assert;
 import org.junit.Test;
+
+import com.datastax.driver.core.VersionNumber;
+import org.assertj.core.api.Assertions;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.Generate;
+import org.quicktheories.generators.SourceDSL;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.matchers.JUnitMatchers.containsString;
+import static org.quicktheories.QuickTheory.qt;
 
 public class CassandraVersionTest
 {
+    @Test
+    public void toStringParses()
+    {
+        qt().forAll(versionGen()).checkAssert(version -> {
+            Assertions.assertThat(new CassandraVersion(version.toString()))
+                      .isEqualTo(version)
+                      .hasSameHashCodeAs(version)
+                      .isEqualByComparingTo(version);
+
+        });
+    }
+
+    @Test
+    public void clientCanParse()
+    {
+        qt().forAll(versionGen()).checkAssert(version -> {
+            Assertions.assertThat(VersionNumber.parse(version.toString())).isNotNull();
+        });
+    }
+
+    private static Gen<CassandraVersion> versionGen()
+    {
+        Gen<Integer> positive = SourceDSL.integers().allPositive();
+        Gen<Integer> hotfixGen = positive.mix(Generate.constant(CassandraVersion.NO_HOTFIX));
+        Gen<Integer> smallSizes = SourceDSL.integers().between(0, 5);
+        Gen<String> word = Generators.regexWord(SourceDSL.integers().between(1, 100)); // empty isn't allowed while parsing since \w+ is used, so must be at least 1
+        return td -> {
+            int major = positive.generate(td);
+            int minor = positive.generate(td);
+            int patch = positive.generate(td);
+
+            int hotfix = hotfixGen.generate(td);
+
+            int numPreRelease = smallSizes.generate(td);
+            String[] preRelease = numPreRelease == 0 ? null : new String[numPreRelease];
+            for (int i = 0; i < numPreRelease; i++)
+                preRelease[i] = word.generate(td);
+
+            int numBuild = smallSizes.generate(td);
+            String[] build = numBuild == 0 ? null : new String[numBuild];
+            for (int i = 0; i < numBuild; i++)
+                build[i] = word.generate(td);
+            return new CassandraVersion(major, minor, patch, hotfix, preRelease, build);
+        };
+    }
+
+    @Test
+    public void multiplePreRelease()
+    {
+        for (String version : Arrays.asList("4.0-alpha1-SNAPSHOT",
+                                            "4.0.1-alpha1-SNAPSHOT",
+                                            "4.0.1.1-alpha1-SNAPSHOT",
+                                            "4.0.0.0-a-b-c-d-e-f-g"))
+        {
+            CassandraVersion cassandra = new CassandraVersion(version);
+            VersionNumber client = VersionNumber.parse(version);
+            Assert.assertEquals(cassandra.major, client.getMajor());
+            Assert.assertEquals(cassandra.minor, client.getMinor());
+            Assert.assertEquals(cassandra.patch, client.getPatch());
+            Assert.assertEquals(cassandra.hotfix, client.getDSEPatch());
+            Assert.assertEquals(cassandra.getPreRelease(), client.getPreReleaseLabels());
+        }
+    }
+
+    @Test
+    public void multipleBuild()
+    {
+        for (String version : Arrays.asList("4.0+alpha1.SNAPSHOT",
+                                            "4.0.1+alpha1.SNAPSHOT",
+                                            "4.0.1.1+alpha1.SNAPSHOT",
+                                            "4.0.0.0+a.b.c.d.e.f.g"))
+        {
+            CassandraVersion cassandra = new CassandraVersion(version);
+            VersionNumber client = VersionNumber.parse(version);
+            Assert.assertEquals(cassandra.major, client.getMajor());
+            Assert.assertEquals(cassandra.minor, client.getMinor());
+            Assert.assertEquals(cassandra.patch, client.getPatch());
+            Assert.assertEquals(cassandra.hotfix, client.getDSEPatch());
+            Assert.assertEquals(cassandra.getBuild(), Splitter.on(".").splitToList(client.getBuildLabel()));
+        }
+    }
+
     @Test
     public void testParsing()
     {
@@ -52,13 +151,13 @@ public class CassandraVersionTest
     }
 
     @Test
-    public void testComparison()
+    public void testCompareTo()
     {
         CassandraVersion v1, v2;
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.4");
-        assertTrue(v1.compareTo(v2) == -1);
+        assertTrue(v1.compareTo(v2) < 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3");
@@ -66,69 +165,94 @@ public class CassandraVersionTest
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("2.0.0");
-        assertTrue(v1.compareTo(v2) == -1);
-        assertTrue(v2.compareTo(v1) == 1);
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3-alpha");
-        assertTrue(v1.compareTo(v2) == 1);
+        assertTrue(v1.compareTo(v2) > 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3+foo");
-        assertTrue(v1.compareTo(v2) == -1);
+        assertTrue(v1.compareTo(v2) < 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3-alpha+foo");
-        assertTrue(v1.compareTo(v2) == 1);
+        assertTrue(v1.compareTo(v2) > 0);
 
         v1 = new CassandraVersion("1.2.3-alpha+1");
         v2 = new CassandraVersion("1.2.3-alpha+2");
-        assertTrue(v1.compareTo(v2) == -1);
-    }
+        assertTrue(v1.compareTo(v2) < 0);
 
-    @Test
-    public void testIsSupportedBy()
-    {
-        CassandraVersion v1, v2;
+        v1 = new CassandraVersion("4.0-rc2");
+        v2 = new CassandraVersion("4.0-rc1");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
 
-        v1 = new CassandraVersion("3.0.2");
-        assertTrue(v1.isSupportedBy(v1));
+        v1 = new CassandraVersion("4.0-rc2");
+        v2 = new CassandraVersion("4.0-rc1");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
 
-        v1 = new CassandraVersion("1.2.3");
-        v2 = new CassandraVersion("1.2.4");
-        assertTrue(v1.isSupportedBy(v2));
-        assertTrue(!v2.isSupportedBy(v1));
+        v1 = new CassandraVersion("4.0.0");
+        v2 = new CassandraVersion("4.0-rc2");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
 
-        v1 = new CassandraVersion("1.2.3");
-        v2 = new CassandraVersion("1.3.3");
-        assertTrue(v1.isSupportedBy(v2));
-        assertTrue(!v2.isSupportedBy(v1));
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3-alpha");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
 
-        v1 = new CassandraVersion("2.2.3");
-        v2 = new CassandraVersion("1.3.3");
-        assertTrue(!v1.isSupportedBy(v2));
-        assertTrue(!v2.isSupportedBy(v1));
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3-alpha-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
 
-        v1 = new CassandraVersion("3.1.0");
-        v2 = new CassandraVersion("3.0.1");
-        assertTrue(!v1.isSupportedBy(v2));
-        assertTrue(v2.isSupportedBy(v1));
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
 
-        v1 = new CassandraVersion("3.7");
-        v2 = new CassandraVersion("3.8");
-        assertTrue(v1.isSupportedBy(v2));
-        assertTrue(!v2.isSupportedBy(v1));
+        v1 = new CassandraVersion("1.2-SNAPSHOT");
+        v2 = new CassandraVersion("1.2.3");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
 
-        v1 = new CassandraVersion("3.0.8");
-        v2 = new CassandraVersion("3.8");
-        assertTrue(v1.isSupportedBy(v2));
-        assertTrue(!v2.isSupportedBy(v1));
-        assertTrue(v2.isSupportedBy(v2));
+        v1 = new CassandraVersion("1.2.3-SNAPSHOT");
+        v2 = new CassandraVersion("1.2");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
 
-        v1 = new CassandraVersion("3.8");
-        v2 = new CassandraVersion("3.8-SNAPSHOT");
-        assertTrue(v1.isSupportedBy(v2));
-        assertTrue(v2.isSupportedBy(v1));
+        v1 = new CassandraVersion("1.2-rc2");
+        v2 = new CassandraVersion("1.2.3-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
+
+        v1 = new CassandraVersion("1.2.3-rc2");
+        v2 = new CassandraVersion("1.2-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) > 0);
+        assertTrue(v2.compareTo(v1) < 0);
+
+        v1 = CassandraVersion.CASSANDRA_4_0;
+        v2 = new CassandraVersion("4.0.0-SNAPSHOT");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
+
+        v1 = new CassandraVersion("4.0");
+        v2 = new CassandraVersion("4.0.0");
+        assertTrue(v1.compareTo(v2) == 0);
+        assertTrue(v2.compareTo(v1) == 0);
+
+        v1 = new CassandraVersion("4.0").familyLowerBound.get();
+        v2 = new CassandraVersion("4.0.0");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
+
+        v1 = new CassandraVersion("4.0").familyLowerBound.get();
+        v2 = new CassandraVersion("4.0");
+        assertTrue(v1.compareTo(v2) < 0);
+        assertTrue(v2.compareTo(v1) > 0);
     }
 
     @Test
@@ -140,41 +264,74 @@ public class CassandraVersionTest
     }
 
     @Test
-    public void testSnapshot()
+    public void testEquals()
     {
-        CassandraVersion prev, next;
+        assertEquals(new CassandraVersion("3.0"), new CassandraVersion("3.0.0"));
+        assertNotEquals(new CassandraVersion("3.0"), new CassandraVersion("3.0").familyLowerBound.get());
+        assertNotEquals(new CassandraVersion("3.0.0"), new CassandraVersion("3.0.0").familyLowerBound.get());
+        assertNotEquals(new CassandraVersion("3.0.0"), new CassandraVersion("3.0").familyLowerBound.get());
+    }
 
-        prev = new CassandraVersion("2.1.5");
-        next = new CassandraVersion("2.1.5.123");
-        assertTrue(prev.compareTo(next) < 0);
+    @Test
+    public void testFamilyLowerBound()
+    {
+        CassandraVersion expected = new CassandraVersion(3, 0, 0, CassandraVersion.NO_HOTFIX, ArrayUtils.EMPTY_STRING_ARRAY, null);
+        assertEquals(expected, new CassandraVersion("3.0.0-alpha1-SNAPSHOT").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.0-alpha1").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.0-rc1-SNAPSHOT").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.0-rc1").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.0-SNAPSHOT").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.0").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.1-SNAPSHOT").familyLowerBound.get());
+        assertEquals(expected, new CassandraVersion("3.0.1").familyLowerBound.get());
+    }
 
-        prev = next;
-        next = new CassandraVersion("2.2.0-beta1-SNAPSHOT");
-        assertTrue(prev.compareTo(next) < 0);
+    @Test
+    public void testOrderWithSnapshotsAndFamilyLowerBound()
+    {
+        List<CassandraVersion> expected = Arrays.asList(new CassandraVersion("2.0").familyLowerBound.get(),
+                                                        new CassandraVersion("2.1.5"),
+                                                        new CassandraVersion("2.1.5.123"),
+                                                        new CassandraVersion("2.2").familyLowerBound.get(),
+                                                        new CassandraVersion("2.2.0-beta1-snapshot"),
+                                                        new CassandraVersion("2.2.0-beta1"),
+                                                        new CassandraVersion("2.2.0-beta2-SNAPSHOT"),
+                                                        new CassandraVersion("2.2.0-beta2"),
+                                                        new CassandraVersion("2.2.0-rc1-snapshot"),
+                                                        new CassandraVersion("2.2.0-rc1"),
+                                                        new CassandraVersion("2.2.0-SNAPSHOT"),
+                                                        new CassandraVersion("2.2.0"),
+                                                        new CassandraVersion("3.0").familyLowerBound.get(),
+                                                        new CassandraVersion("3.0-alpha1"),
+                                                        new CassandraVersion("3.0-alpha2-SNAPSHOT"),
+                                                        new CassandraVersion("3.0-alpha2"),
+                                                        new CassandraVersion("3.0-beta1"),
+                                                        new CassandraVersion("3.0-beta2-SNAPSHOT"),
+                                                        new CassandraVersion("3.0-beta2"),
+                                                        new CassandraVersion("3.0-RC1-SNAPSHOT"),
+                                                        new CassandraVersion("3.0-RC1"),
+                                                        new CassandraVersion("3.0-RC2-SNAPSHOT"),
+                                                        new CassandraVersion("3.0-RC2"),
+                                                        new CassandraVersion("3.0-SNAPSHOT"),
+                                                        new CassandraVersion("3.0.0"),
+                                                        new CassandraVersion("3.0.1-SNAPSHOT"),
+                                                        new CassandraVersion("3.0.1"),
+                                                        new CassandraVersion("3.2").familyLowerBound.get(),
+                                                        new CassandraVersion("3.2-SNAPSHOT"),
+                                                        new CassandraVersion("3.2"));
 
-        prev = new CassandraVersion("2.2.0-beta1");
-        next = new CassandraVersion("2.2.0-rc1-SNAPSHOT");
-        assertTrue(prev.compareTo(next) < 0);
+        for (int i = 0; i < 100; i++)
+        {
+            List<CassandraVersion> shuffled = new ArrayList<>(expected);
+            Collections.shuffle(shuffled);
 
-        prev = next;
-        next = new CassandraVersion("2.2.0");
-        assertTrue(prev.compareTo(next) < 0);
-
-        prev = next;
-        next = new CassandraVersion("3.1");
-        assertTrue(prev.compareTo(next) < 0);
-
-        prev = next;
-        next = new CassandraVersion("3.1.1");
-        assertTrue(prev.compareTo(next) < 0);
-
-        prev = next;
-        next = new CassandraVersion("3.2-rc1-SNAPSHOT");
-        assertTrue(prev.compareTo(next) < 0);
-
-        prev = next;
-        next = new CassandraVersion("3.2");
-        assertTrue(prev.compareTo(next) < 0);
+            List<CassandraVersion> sorted = new ArrayList<>(shuffled);
+            Collections.sort(sorted);
+            if (!expected.equals(sorted))
+            {
+                fail("Expecting " + shuffled + " to be sorted into " + expected + " but was sorted into " + sorted);
+            }
+        }
     }
 
     private static void assertThrows(String str)
@@ -209,6 +366,27 @@ public class CassandraVersionTest
             assertThat(e.getMessage(), containsString(version));
         }
     }
+
+    @Test
+    public void testExtraOrdering()
+    {
+        List<CassandraVersion> versions = Arrays.asList(version("4.0.0"),
+                                                        version("4.0.0-SNAPSHOT"),
+                                                        version("4.0.0.0"),
+                                                        version("4.0.0.0-SNAPSHOT"));
+        List<CassandraVersion> expected = Arrays.asList(version("4.0.0-SNAPSHOT"),
+                                                        version("4.0.0"),
+                                                        version("4.0.0.0-SNAPSHOT"),
+                                                        version("4.0.0.0"));
+        Collections.sort(versions);
+        Assertions.assertThat(versions).isEqualTo(expected);
+    }
+
+    private static CassandraVersion version(String str)
+    {
+        return new CassandraVersion(str);
+    }
+
     private static String[] parseIdentifiers(String version, String str) throws Throwable
     {
         String name = "parseIdentifiers";

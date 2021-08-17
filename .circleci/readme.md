@@ -26,8 +26,8 @@ between them by copying the correct file to config.yml and committing the result
 
 `cp .circleci/config.yml.HIGHRES .circleci/config.yml`
 
-config.yml.LOWRES is the default config. MIDRES and HIGHRES are custom configs for those who
-have access to premium CircleCI resources.
+config.yml.LOWRES is the default config.
+MIDRES and HIGHRES are custom configs for those who have access to premium CircleCI resources.
 
 Make sure you never edit the config.yml manually.
 

@@ -19,10 +19,8 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.Closeable;
-import java.net.InetAddress;
-import java.util.ArrayList;
+import java.net.InetSocketAddress;
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
@@ -42,6 +40,7 @@ import org.apache.cassandra.distributed.api.*;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
@@ -52,18 +51,17 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getLocalToken;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.runAndWaitForLogs;
 import static org.junit.Assert.assertEquals;
 
 public class GossipTest extends TestBaseImpl
 {
-
     @Test
     public void nodeDownDuringMove() throws Throwable
     {
         int liveCount = 1;
-        System.setProperty("cassandra.ring_delay_ms", "5000"); // down from 30s default
-        System.setProperty("cassandra.consistent.rangemovement", "false");
-        System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
         try (Cluster cluster = Cluster.build(2 + liveCount)
                                       .withConfig(config -> config.with(NETWORK).with(GOSSIP))
                                       .createWithoutStarting())
@@ -73,55 +71,65 @@ public class GossipTest extends TestBaseImpl
             for (int i = 1 ; i <= liveCount ; ++i)
                 cluster.get(i).startup();
             cluster.get(fail).startup();
-            Collection<String> expectTokens = cluster.get(fail).callsOnInstance(() ->
-                StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddress())
-                                       .stream().map(Object::toString).collect(Collectors.toList())
-            ).call();
+            Collection<String> expectTokens =
+                cluster.get(fail)
+                       .callsOnInstance(() -> StorageService.instance.getTokenMetadata()
+                                                                     .getTokens(FBUtilities.getBroadcastAddressAndPort())
+                                                                     .stream()
+                                                                     .map(Object::toString)
+                                                                     .collect(Collectors.toList()))
+                       .call();
 
-            InetAddress failAddress = cluster.get(fail).broadcastAddress().getAddress();
+            InetSocketAddress failAddress = cluster.get(fail).broadcastAddress();
             // wait for NORMAL state
             for (int i = 1 ; i <= liveCount ; ++i)
             {
-                cluster.get(i).acceptsOnInstance((InetAddress endpoint) -> {
+                cluster.get(i).acceptsOnInstance((InetSocketAddress address) -> {
                     EndpointState ep;
+                    InetAddressAndPort endpoint = toCassandraInetAddressAndPort(address);
                     while (null == (ep = Gossiper.instance.getEndpointStateForEndpoint(endpoint))
-                           || ep.getApplicationState(ApplicationState.STATUS) == null
-                           || !ep.getApplicationState(ApplicationState.STATUS).value.startsWith("NORMAL"))
+                           || ep.getApplicationState(ApplicationState.STATUS_WITH_PORT) == null
+                           || !ep.getApplicationState(ApplicationState.STATUS_WITH_PORT).value.startsWith("NORMAL"))
                         LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
                 }).accept(failAddress);
             }
 
             // set ourselves to MOVING, and wait for it to propagate
             cluster.get(fail).runOnInstance(() -> {
-
-                Token token = Iterables.getFirst(StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddress()), null);
-                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.moving(token));
+                Token token = Iterables.getFirst(StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddressAndPort()), null);
+                Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.moving(token));
             });
-
             for (int i = 1 ; i <= liveCount ; ++i)
             {
-                cluster.get(i).acceptsOnInstance((InetAddress endpoint) -> {
+                cluster.get(i).acceptsOnInstance((InetSocketAddress address) -> {
                     EndpointState ep;
+                    InetAddressAndPort endpoint = toCassandraInetAddressAndPort(address);
                     while (null == (ep = Gossiper.instance.getEndpointStateForEndpoint(endpoint))
-                           || (ep.getApplicationState(ApplicationState.STATUS) == null
-                               || !ep.getApplicationState(ApplicationState.STATUS).value.startsWith("MOVING")))
-                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
+                           || (ep.getApplicationState(ApplicationState.STATUS_WITH_PORT) == null
+                           || !ep.getApplicationState(ApplicationState.STATUS_WITH_PORT).value.startsWith("MOVING")))
+                        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100L));
                 }).accept(failAddress);
             }
 
             cluster.get(fail).shutdown(false).get();
             cluster.get(late).startup();
-            cluster.get(late).acceptsOnInstance((InetAddress endpoint) -> {
+            cluster.get(late).acceptsOnInstance((InetSocketAddress address) -> {
                 EndpointState ep;
+                InetAddressAndPort endpoint = toCassandraInetAddressAndPort(address);
                 while (null == (ep = Gossiper.instance.getEndpointStateForEndpoint(endpoint))
-                       || !ep.getApplicationState(ApplicationState.STATUS).value.startsWith("MOVING"))
-                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
+                       || !ep.getApplicationState(ApplicationState.STATUS_WITH_PORT).value.startsWith("MOVING"))
+                    LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(100L));
             }).accept(failAddress);
 
-            Collection<String> tokens = cluster.get(late).appliesOnInstance((InetAddress endpoint) ->
-                StorageService.instance.getTokenMetadata().getTokens(failAddress)
-                                       .stream().map(Object::toString).collect(Collectors.toList())
-            ).apply(failAddress);
+            Collection<String> tokens =
+                cluster.get(late)
+                       .appliesOnInstance((InetSocketAddress address) ->
+                                          StorageService.instance.getTokenMetadata()
+                                                                 .getTokens(toCassandraInetAddressAndPort(address))
+                                                                 .stream()
+                                                                 .map(Object::toString)
+                                                                 .collect(Collectors.toList()))
+                       .apply(failAddress);
 
             Assert.assertEquals(expectTokens, tokens);
         }
@@ -136,13 +144,13 @@ public class GossipTest extends TestBaseImpl
             if (nodeNumber != 2)
                 return;
             new ByteBuddy().rebase(StorageService.class)
-                           .method(named("bootstrap").and(takesArguments(1)))
+                           .method(named("bootstrap").and(takesArguments(2)))
                            .intercept(MethodDelegation.to(BBBootstrapInterceptor.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static boolean bootstrap(Collection<Token> tokens) throws Exception
+        public static boolean bootstrap(Collection<Token> tokens, long bootstrapTimeoutMillis)
         {
             bootstrapStart.countDown();
             Uninterruptibles.awaitUninterruptibly(bootstrapReady);
@@ -248,19 +256,19 @@ public class GossipTest extends TestBaseImpl
             long t2 = Long.parseLong(getLocalToken(node2));
             long t3 = Long.parseLong(getLocalToken(node3));
             long moveTo = t2 + ((t3 - t2)/2);
-            String logMsg = "Node " + node2.broadcastAddress().getAddress() + " state moving, new token " + moveTo;
+            String logMsg = "Node " + node2.broadcastAddress() + " state moving, new token " + moveTo;
             runAndWaitForLogs(() -> node2.nodetoolResult("move", "--", Long.toString(moveTo)).asserts().failure(),
                               logMsg,
                               cluster);
 
-            InetAddress movingAddress = node2.broadcastAddress().getAddress();
+            InetSocketAddress movingAddress = node2.broadcastAddress();
             // node1 & node3 should now consider some ranges pending for node2
             assertPendingRangesForPeer(true, movingAddress, cluster);
 
             // A controlled shutdown causes peers to replace the MOVING status to be with SHUTDOWN, but prior to
             // CASSANDRA-16796 this doesn't update TokenMetadata, so they maintain pending ranges for the down node
             // indefinitely, even after it has been removed from the ring.
-            logMsg = "Marked " + node2.broadcastAddress().getAddress() + " as shutdown";
+            logMsg = "Marked " + node2.broadcastAddress() + " as shutdown";
             runAndWaitForLogs(() -> Futures.getUnchecked(node2.shutdown()),
                               logMsg,
                               node1, node3);
@@ -269,11 +277,12 @@ public class GossipTest extends TestBaseImpl
         }
     }
 
-    void assertPendingRangesForPeer(final boolean expectPending, final InetAddress movingAddress, final Cluster cluster)
+    void assertPendingRangesForPeer(final boolean expectPending, final InetSocketAddress movingAddress, final Cluster cluster)
     {
         for (IInvokableInstance inst : new IInvokableInstance[]{ cluster.get(1), cluster.get(3)})
         {
-            boolean hasPending = inst.appliesOnInstance((InetAddress peer) -> {
+            boolean hasPending = inst.appliesOnInstance((InetSocketAddress address) -> {
+                InetAddressAndPort peer = toCassandraInetAddressAndPort(address);
 
                 PendingRangeCalculatorService.instance.blockUntilFinished();
 
@@ -293,33 +302,6 @@ public class GossipTest extends TestBaseImpl
                                        movingAddress),
                          hasPending, expectPending);
         }
-    }
-
-    private String getLocalToken(IInvokableInstance inst)
-    {
-        return inst.callOnInstance(() -> {
-            List<String> tokens = new ArrayList<>();
-            for (Token t : StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddress()))
-                tokens.add(t.getTokenValue().toString());
-
-            assert tokens.size() == 1 : "getLocalToken assumes a single token, but multiple tokens found";
-            return tokens.get(0);
-        });
-    }
-
-    public static void runAndWaitForLogs(Runnable r, String waitString, Cluster cluster) throws TimeoutException
-    {
-        runAndWaitForLogs(r, waitString, cluster.stream().toArray(IInstance[]::new));
-    }
-
-    public static void runAndWaitForLogs(Runnable r, String waitString, IInstance...instances) throws TimeoutException
-    {
-        long [] marks = new long[instances.length];
-        for (int i = 0; i < instances.length; i++)
-            marks[i] = instances[i].logs().mark();
-        r.run();
-        for (int i = 0; i < instances.length; i++)
-            instances[i].logs().watchFor(marks[i], waitString);
     }
 
     static void populate(Cluster cluster)

@@ -41,7 +41,6 @@ commented_re = re.compile(r"^# ?(.*)")
 # that these can be commented out (making it useless to use a yaml parser).
 COMPLEX_OPTIONS = (
     'seed_provider',
-    'request_scheduler_options',
     'data_file_directories',
     'commitlog_compression',
     'hints_compression',

@@ -17,22 +17,27 @@
  */
 package org.apache.cassandra.service;
 
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SnapshotCommand;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 
 public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
 {
+    public static final SnapshotVerbHandler instance = new SnapshotVerbHandler();
     private static final Logger logger = LoggerFactory.getLogger(SnapshotVerbHandler.class);
 
-    public void doVerb(MessageIn<SnapshotCommand> message, int id)
+    public void doVerb(Message<SnapshotCommand> message)
     {
         SnapshotCommand command = message.payload;
         if (command.clear_snapshot)
@@ -41,11 +46,14 @@ public class SnapshotVerbHandler implements IVerbHandler<SnapshotCommand>
         }
         else if (DiagnosticSnapshotService.isDiagnosticSnapshotRequest(command))
         {
-            DiagnosticSnapshotService.snapshot(command, message.from);
+            DiagnosticSnapshotService.snapshot(command, message.from());
         }
         else
+        {
             Keyspace.open(command.keyspace).getColumnFamilyStore(command.column_family).snapshot(command.snapshot_name);
-        logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from);
-        MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
+        }
+
+        logger.debug("Enqueuing response to snapshot request {} to {}", command.snapshot_name, message.from());
+        MessagingService.instance().send(message.emptyResponse(), message.from());
     }
 }

@@ -9,8 +9,9 @@ data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
 doc/build/
-pylib/src/
 lib/
+pylib/src/
+!lib/cassandra-driver-internal-only-*.zip
 
 # C* debs
 build-stamp
@@ -46,7 +47,7 @@ cscope.*
 # NetBeans
 nbbuild/
 nbdist/
-nbproject/
+ide/nbproject/private
 nb-configuration.xml
 nbactions.xml
 
@@ -69,10 +70,11 @@ Thumbs.db
 
 # Generated files from the documentation
 doc/source/configuration/cassandra_config_file.rst
+doc/source/tools/nodetool
 
 # Python virtual environment
 venv/
 
-# build-scripts will put cassandra-builds and cassandra-dtest into the directory
+# build-scripts will put cassandra-builds into the directory
 cassandra-builds/
 cassandra-dtest/

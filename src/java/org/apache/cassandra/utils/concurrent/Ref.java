@@ -51,7 +51,6 @@ import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.util.Collections.emptyList;
-import org.apache.cassandra.concurrent.InfiniteLoopExecutor.InterruptibleRunnable;
 
 import static org.apache.cassandra.utils.ExecutorUtils.awaitTermination;
 import static org.apache.cassandra.utils.ExecutorUtils.shutdownNow;
@@ -685,7 +684,7 @@ public final class Ref<T> implements RefCounted<T>
             this.candidates.retainAll(candidates);
             if (!this.candidates.isEmpty())
             {
-                List<String> names = new ArrayList<>();
+                List<String> names = new ArrayList<>(this.candidates.size());
                 for (Tidy tidy : this.candidates)
                     names.add(tidy.name());
                 logger.warn("Strong reference leak candidates detected: {}", names);

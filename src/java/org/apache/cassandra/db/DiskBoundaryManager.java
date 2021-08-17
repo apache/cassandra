@@ -19,8 +19,9 @@
 package org.apache.cassandra.db;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
@@ -68,7 +70,7 @@ public class DiskBoundaryManager
 
     private static DiskBoundaries getDiskBoundaryValue(ColumnFamilyStore cfs)
     {
-        Collection<Range<Token>> localRanges;
+        RangesAtEndpoint localRanges;
 
         long ringVersion;
         TokenMetadata tmd;
@@ -80,14 +82,14 @@ public class DiskBoundaryManager
                 && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
             {
                 PendingRangeCalculatorService.instance.blockUntilFinished();
-                localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddress());
+                localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddressAndPort());
             }
             else
             {
                 // Reason we use use the future settled TMD is that if we decommission a node, we want to stream
                 // from that node to the correct location on disk, if we didn't, we would put new files in the wrong places.
                 // We do this to minimize the amount of data we need to move in rebalancedisks once everything settled
-                localRanges = cfs.keyspace.getReplicationStrategy().getAddressRanges(tmd.cloneAfterAllSettled()).get(FBUtilities.getBroadcastAddress());
+                localRanges = cfs.keyspace.getReplicationStrategy().getAddressReplicas(tmd.cloneAfterAllSettled(), FBUtilities.getBroadcastAddressAndPort());
             }
             logger.debug("Got local ranges {} (ringVersion = {})", localRanges, ringVersion);
         }
@@ -106,9 +108,8 @@ public class DiskBoundaryManager
         if (localRanges == null || localRanges.isEmpty())
             return new DiskBoundaries(cfs, dirs, null, ringVersion, directoriesVersion);
 
-        List<Range<Token>> sortedLocalRanges = Range.sort(localRanges);
+        List<PartitionPosition> positions = getDiskBoundaries(localRanges, cfs.getPartitioner(), dirs);
 
-        List<PartitionPosition> positions = getDiskBoundaries(sortedLocalRanges, cfs.getPartitioner(), dirs);
         return new DiskBoundaries(cfs, dirs, positions, ringVersion, directoriesVersion);
     }
 
@@ -121,15 +122,27 @@ public class DiskBoundaryManager
      *
      * The final entry in the returned list will always be the partitioner maximum tokens upper key bound
      */
-    private static List<PartitionPosition> getDiskBoundaries(List<Range<Token>> sortedLocalRanges, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
+    private static List<PartitionPosition> getDiskBoundaries(RangesAtEndpoint replicas, IPartitioner partitioner, Directories.DataDirectory[] dataDirectories)
     {
         assert partitioner.splitter().isPresent();
+
         Splitter splitter = partitioner.splitter().get();
         boolean dontSplitRanges = DatabaseDescriptor.getNumTokens() > 1;
-        List<Token> boundaries = splitter.splitOwnedRanges(dataDirectories.length, sortedLocalRanges, dontSplitRanges);
+
+        List<Splitter.WeightedRange> weightedRanges = new ArrayList<>(replicas.size());
+        // note that Range.sort unwraps any wraparound ranges, so we need to sort them here
+        for (Range<Token> r : Range.sort(replicas.onlyFull().ranges()))
+            weightedRanges.add(new Splitter.WeightedRange(1.0, r));
+
+        for (Range<Token> r : Range.sort(replicas.onlyTransient().ranges()))
+            weightedRanges.add(new Splitter.WeightedRange(0.1, r));
+
+        weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));
+
+        List<Token> boundaries = splitter.splitOwnedRanges(dataDirectories.length, weightedRanges, dontSplitRanges);
         // If we can't split by ranges, split evenly to ensure utilisation of all disks
         if (dontSplitRanges && boundaries.size() < dataDirectories.length)
-            boundaries = splitter.splitOwnedRanges(dataDirectories.length, sortedLocalRanges, false);
+            boundaries = splitter.splitOwnedRanges(dataDirectories.length, weightedRanges, false);
 
         List<PartitionPosition> diskBoundaries = new ArrayList<>();
         for (int i = 0; i < boundaries.size() - 1; i++)

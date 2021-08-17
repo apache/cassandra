@@ -21,7 +21,6 @@ package org.apache.cassandra.utils;
 import java.net.InetAddress;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -31,10 +30,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
+import org.hsqldb.Table;
 
 /**
  * Provides a means to take snapshots when triggered by anomalous events or when the breaking of invariants is
@@ -63,6 +66,7 @@ public class DiagnosticSnapshotService
     public static final DiagnosticSnapshotService instance =
         new DiagnosticSnapshotService(Executors.newSingleThreadExecutor(new NamedThreadFactory("DiagnosticSnapshot")));
 
+    public static final String REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX = "RepairedDataMismatch-";
     public static final String DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX = "DuplicateRows-";
 
     private final Executor executor;
@@ -78,19 +82,25 @@ public class DiagnosticSnapshotService
     // Overridable via system property for testing.
     private static final long SNAPSHOT_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
-    private final ConcurrentHashMap<UUID, AtomicLong> lastSnapshotTimes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<TableId, AtomicLong> lastSnapshotTimes = new ConcurrentHashMap<>();
 
-    public static void duplicateRows(CFMetaData metadata, Iterable<InetAddress> replicas)
+    public static void duplicateRows(TableMetadata metadata, Iterable<InetAddressAndPort> replicas)
     {
         instance.maybeTriggerSnapshot(metadata, DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX, replicas);
     }
 
-    public static boolean isDiagnosticSnapshotRequest(SnapshotCommand command)
+    public static void repairedDataMismatch(TableMetadata metadata, Iterable<InetAddressAndPort> replicas)
     {
-        return command.snapshot_name.startsWith(DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX);
+        instance.maybeTriggerSnapshot(metadata, REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX, replicas);
     }
 
-    public static void snapshot(SnapshotCommand command, InetAddress initiator)
+    public static boolean isDiagnosticSnapshotRequest(SnapshotCommand command)
+    {
+        return command.snapshot_name.startsWith(REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX)
+            || command.snapshot_name.startsWith(DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX);
+    }
+
+    public static void snapshot(SnapshotCommand command, InetAddressAndPort initiator)
     {
         Preconditions.checkArgument(isDiagnosticSnapshotRequest(command));
         instance.maybeSnapshot(command, initiator);
@@ -107,20 +117,21 @@ public class DiagnosticSnapshotService
         ExecutorUtils.shutdownNowAndWait(timeout, unit, executor);
     }
 
-    private void maybeTriggerSnapshot(CFMetaData metadata, String prefix, Iterable<InetAddress> endpoints)
+    private void maybeTriggerSnapshot(TableMetadata metadata, String prefix, Iterable<InetAddressAndPort> endpoints)
     {
         long now = System.nanoTime();
-        AtomicLong cached = lastSnapshotTimes.computeIfAbsent(metadata.cfId, u -> new AtomicLong(0));
+        AtomicLong cached = lastSnapshotTimes.computeIfAbsent(metadata.id, u -> new AtomicLong(0));
         long last = cached.get();
         long interval = Long.getLong("cassandra.diagnostic_snapshot_interval_nanos", SNAPSHOT_INTERVAL_NANOS);
         if (now - last > interval && cached.compareAndSet(last, now))
         {
-            MessageOut<?> msg = new SnapshotCommand(metadata.ksName,
-                                                    metadata.cfName,
-                                                    getSnapshotName(prefix),
-                                                    false).createMessage();
-            for (InetAddress replica : endpoints)
-                MessagingService.instance().sendOneWay(msg, replica);
+            Message<SnapshotCommand> msg = Message.out(Verb.SNAPSHOT_REQ,
+                                                       new SnapshotCommand(metadata.keyspace,
+                                                                           metadata.name,
+                                                                           getSnapshotName(prefix),
+                                                                           false));
+            for (InetAddressAndPort replica : endpoints)
+                MessagingService.instance().send(msg, replica);
         }
         else
         {
@@ -128,7 +139,7 @@ public class DiagnosticSnapshotService
         }
     }
 
-    private void maybeSnapshot(SnapshotCommand command, InetAddress initiator)
+    private void maybeSnapshot(SnapshotCommand command, InetAddressAndPort initiator)
     {
         executor.execute(new DiagnosticSnapshotTask(command, initiator));
     }
@@ -136,9 +147,9 @@ public class DiagnosticSnapshotService
     private static class DiagnosticSnapshotTask implements Runnable
     {
         final SnapshotCommand command;
-        final InetAddress from;
+        final InetAddressAndPort from;
 
-        DiagnosticSnapshotTask(SnapshotCommand command, InetAddress from)
+        DiagnosticSnapshotTask(SnapshotCommand command, InetAddressAndPort from)
         {
             this.command = command;
             this.from = from;

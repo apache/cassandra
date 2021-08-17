@@ -25,17 +25,15 @@ import java.util.Collection;
 import java.util.concurrent.*;
 
 import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -73,7 +71,6 @@ public class MutationBench
     static String keyspace = "keyspace1";
 
     private Mutation mutation;
-    private MessageOut<Mutation> messageOut;
 
     private ByteBuffer buffer;
     private DataOutputBuffer outputBuffer;
@@ -83,7 +80,7 @@ public class MutationBench
     @State(Scope.Thread)
     public static class ThreadState
     {
-        MessageIn<Mutation> in;
+        Mutation in;
         int counter = 0;
     }
 
@@ -91,31 +88,30 @@ public class MutationBench
     public void setup() throws IOException
     {
         Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
-        CFMetaData metadata = CFMetaData.compile("CREATE TABLE userpics " +
-                                                   "( userid bigint," +
-                                                   "picid bigint," +
-                                                   "commentid bigint, " +
-                                                   "PRIMARY KEY(userid, picid))", keyspace);
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
+        TableMetadata metadata =
+            CreateTableStatement.parse("CREATE TABLE userpics " +
+                                       "( userid bigint," +
+                                       "picid bigint," +
+                                       "commentid bigint, " +
+                                       "PRIMARY KEY(userid, picid))", keyspace)
+                                .build();
 
-        Schema.instance.load(metadata);
-        Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(metadata)));
-
+        Schema.instance.load(ksm.withSwapped(ksm.tables.with(metadata)));
 
         mutation = (Mutation)UpdateBuilder.create(metadata, 1L).newRow(1L).add("commentid", 32L).makeMutation();
-        messageOut = mutation.createMessage();
-        buffer = ByteBuffer.allocate(messageOut.serializedSize(MessagingService.current_version));
+        buffer = ByteBuffer.allocate(mutation.serializedSize(MessagingService.current_version));
         outputBuffer = new DataOutputBufferFixed(buffer);
         inputBuffer = new DataInputBuffer(buffer, false);
 
-        messageOut.serialize(outputBuffer, MessagingService.current_version);
+        Mutation.serializer.serialize(mutation, outputBuffer, MessagingService.current_version);
     }
 
     @Benchmark
     public void serialize(ThreadState state) throws IOException
     {
         buffer.rewind();
-        messageOut.serialize(outputBuffer, MessagingService.current_version);
+        Mutation.serializer.serialize(mutation, outputBuffer, MessagingService.current_version);
         state.counter++;
     }
 
@@ -123,7 +119,7 @@ public class MutationBench
     public void deserialize(ThreadState state) throws IOException
     {
         buffer.rewind();
-        state.in = MessageIn.read(inputBuffer, MessagingService.current_version, 0);
+        state.in = Mutation.serializer.deserialize(inputBuffer, MessagingService.current_version);
         state.counter++;
     }
 

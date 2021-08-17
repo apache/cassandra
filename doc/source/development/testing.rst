@@ -15,6 +15,7 @@
 .. limitations under the License.
 
 .. highlight:: none
+..  _testing:
 
 Testing
 *******
@@ -47,9 +48,17 @@ Unit tests can be run from the command line using the ``ant test`` command, ``an
 
     ant test -Dtest.name=SimpleQueryTest
 
-To run only the ``testStaticCompactTables()`` test method from that class, you would run::
+To run only the ``testTableWithOneClustering()`` test method from that class, you would run::
 
-    ant testsome -Dtest.name=org.apache.cassandra.cql3.SimpleQueryTest -Dtest.methods=testStaticCompactTables
+    ant testsome -Dtest.name=org.apache.cassandra.cql3.SimpleQueryTest -Dtest.methods=testTableWithOneClustering
+
+If you see an error like this::
+
+    Throws: cassandra-trunk/build.xml:1134: taskdef A class needed by class org.krummas.junit.JStackJUnitTask cannot be found:
+    org/apache/tools/ant/taskdefs/optional/junit/JUnitTask  using the classloader
+    AntClassLoader[/.../cassandra-trunk/lib/jstackjunit-0.0.1.jar]
+
+You will need to install the ant-optional package since it contains the ``JUnitTask`` class.
 
 Long running tests
 ------------------
@@ -64,9 +73,9 @@ If a test failure is difficult to reproduce you can always use a shell loop, cir
 DTests
 ======
 
-One way of doing integration or system testing at larger scale is by using `dtest <https://github.com/riptano/cassandra-dtest>`_, which stands for “Cassandra Distributed Tests”. The idea is to automatically setup Cassandra clusters using various configurations and simulate certain use cases you want to test. This is done using Python scripts and ``ccmlib`` from the `ccm <https://github.com/pcmanus/ccm>`_ project. Dtests will setup clusters using this library just as you do running ad-hoc ``ccm`` commands on your local machine. Afterwards dtests will use the `Python driver <http://datastax.github.io/python-driver/installation.html>`_ to interact with the nodes, manipulate the file system, analyze logs or mess with individual nodes.
+One way of doing integration or system testing at larger scale is by using `dtest <https://github.com/apache/cassandra-dtest>`_, which stands for “Cassandra Distributed Tests”. The idea is to automatically setup Cassandra clusters using various configurations and simulate certain use cases you want to test. This is done using Python scripts and ``ccmlib`` from the `ccm <https://github.com/pcmanus/ccm>`_ project. Dtests will setup clusters using this library just as you do running ad-hoc ``ccm`` commands on your local machine. Afterwards dtests will use the `Python driver <http://datastax.github.io/python-driver/installation.html>`_ to interact with the nodes, manipulate the file system, analyze logs or mess with individual nodes.
 
-Using dtests helps us to prevent regression bugs by continually executing tests on the `CI server <http://cassci.datastax.com/>`_ against new patches. For frequent contributors, this Jenkins is set up to build branches from their GitHub repositories. It is likely that your reviewer will use this Jenkins instance to run tests for your patch. Read more on the motivation behind the CI server `here <http://www.datastax.com/dev/blog/cassandra-testing-improvements-for-developer-convenience-and-confidence>`_.
+Using dtests helps us to prevent regression bugs by continually executing tests on the `CI server <https://builds.apache.org/>`_ against new patches. Committers will be able to set up build branches there and your reviewer may use the CI environment to run tests for your patch.
 
 The best way to learn how to write dtests is probably by reading the introduction "`How to Write a Dtest <http://www.datastax.com/dev/blog/how-to-write-a-dtest>`_" and by looking at existing, recently updated tests in the project. New tests must follow certain `style conventions <https://github.com/apache/cassandra-dtest/blob/trunk/CONTRIBUTING.md>`_ that are being checked before accepting contributions. In contrast to Cassandra, dtest issues and pull-requests are managed on github, therefor you should make sure to link any created dtests in your Cassandra ticket and also refer to the ticket number in your dtest PR.
 
@@ -80,7 +89,7 @@ Performance tests for Cassandra are a special breed of tests that are not part o
 Cassandra Stress Tool
 ---------------------
 
-TODO: `CASSANDRA-12365 <https://issues.apache.org/jira/browse/CASSANDRA-12365>`_
+See :ref:`cassandra_stress`
 
 cstar_perf
 ----------

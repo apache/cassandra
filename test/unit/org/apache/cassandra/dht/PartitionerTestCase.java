@@ -29,6 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
@@ -47,6 +48,7 @@ public abstract class PartitionerTestCase
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     @Before

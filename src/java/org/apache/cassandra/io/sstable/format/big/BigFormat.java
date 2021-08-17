@@ -18,19 +18,18 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.util.Collection;
-import java.util.Set;
+import java.util.UUID;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.*;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.ChecksumType;
 
 /**
  * Legacy bigtable format
@@ -72,9 +71,9 @@ public class BigFormat implements SSTableFormat
     }
 
     @Override
-    public RowIndexEntry.IndexSerializer getIndexSerializer(CFMetaData metadata, Version version, SerializationHeader header)
+    public RowIndexEntry.IndexSerializer getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
     {
-        return new RowIndexEntry.Serializer(metadata, version, header);
+        return new RowIndexEntry.Serializer(version, header);
     }
 
     static class WriterFactory extends SSTableWriter.Factory
@@ -83,22 +82,25 @@ public class BigFormat implements SSTableFormat
         public SSTableWriter open(Descriptor descriptor,
                                   long keyCount,
                                   long repairedAt,
-                                  CFMetaData metadata,
+                                  UUID pendingRepair,
+                                  boolean isTransient,
+                                  TableMetadataRef metadata,
                                   MetadataCollector metadataCollector,
                                   SerializationHeader header,
                                   Collection<SSTableFlushObserver> observers,
                                   LifecycleNewTracker lifecycleNewTracker)
         {
-            return new BigTableWriter(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, observers, lifecycleNewTracker);
+            SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
+            return new BigTableWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, lifecycleNewTracker);
         }
     }
 
     static class ReaderFactory extends SSTableReader.Factory
     {
         @Override
-        public SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, Long maxDataAge, StatsMetadata sstableMetadata, SSTableReader.OpenReason openReason, SerializationHeader header)
+        public SSTableReader open(SSTableReaderBuilder builder)
         {
-            return new BigTableReader(descriptor, components, metadata, maxDataAge, sstableMetadata, openReason, header);
+            return new BigTableReader(builder);
         }
     }
 
@@ -110,150 +112,60 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "me";
-        public static final String earliest_supported_version = "jb";
+        public static final String current_version = "nb";
+        public static final String earliest_supported_version = "ma";
 
-        // jb (2.0.1): switch from crc32 to adler32 for compression checksums
-        //             checksum the compressed data
-        // ka (2.1.0): new Statistics.db file format
-        //             index summaries can be downsampled and the sampling level is persisted
-        //             switch uncompressed checksums to adler32
-        //             tracks presense of legacy (local and remote) counter shards
-        // la (2.2.0): new file name format
-        // lb (2.2.7): commit log lower bound included
         // ma (3.0.0): swap bf hash order
         //             store rows natively
         // mb (3.0.7, 3.7): commit log lower bound included
         // mc (3.0.8, 3.9): commit log intervals included
         // md (3.0.18, 3.11.4): corrected sstable min/max clustering
         // me (3.0.25, 3.11.11): added hostId of the node from which the sstable originated
+
+        // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
+        // nb (4.0.0): originating host id
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
-        private final boolean hasSamplingLevel;
-        private final boolean newStatsFile;
-        private final ChecksumType compressedChecksumType;
-        private final ChecksumType uncompressedChecksumType;
-        private final boolean hasRepairedAt;
-        private final boolean tracksLegacyCounterShards;
-        private final boolean newFileName;
-        public final boolean storeRows;
-        public final int correspondingMessagingVersion; // Only use by storage that 'storeRows' so far
-        public final boolean hasBoundaries;
-        /**
-         * CASSANDRA-8413: 3.0 bloom filter representation changed (two longs just swapped)
-         * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
-         */
-        private final boolean hasOldBfHashOrder;
+        public final int correspondingMessagingVersion;
         private final boolean hasCommitLogLowerBound;
         private final boolean hasCommitLogIntervals;
         private final boolean hasAccurateMinMax;
         private final boolean hasOriginatingHostId;
+        public final boolean hasMaxCompressedLength;
+        private final boolean hasPendingRepair;
+        private final boolean hasMetadataChecksum;
+        private final boolean hasIsTransient;
 
         /**
-         * CASSANDRA-7066: compaction ancerstors are no longer used and have been removed.
+         * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
+         * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
          */
-        private final boolean hasCompactionAncestors;
+        private final boolean hasOldBfFormat;
 
         BigVersion(String version)
         {
             super(instance, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
-            hasSamplingLevel = version.compareTo("ka") >= 0;
-            newStatsFile = version.compareTo("ka") >= 0;
+            correspondingMessagingVersion = MessagingService.VERSION_30;
 
-            //For a while Adler32 was in use, now the CRC32 instrinsic is very good especially after Haswell
-            //PureJavaCRC32 was always faster than Adler32. See CASSANDRA-8684
-            ChecksumType checksumType = ChecksumType.CRC32;
-            if (version.compareTo("ka") >= 0 && version.compareTo("ma") < 0)
-                checksumType = ChecksumType.Adler32;
-            this.uncompressedChecksumType = checksumType;
-
-            checksumType = ChecksumType.CRC32;
-            if (version.compareTo("jb") >= 0 && version.compareTo("ma") < 0)
-                checksumType = ChecksumType.Adler32;
-            this.compressedChecksumType = checksumType;
-
-            hasRepairedAt = version.compareTo("ka") >= 0;
-            tracksLegacyCounterShards = version.compareTo("ka") >= 0;
-
-            newFileName = version.compareTo("la") >= 0;
-
-            hasOldBfHashOrder = version.compareTo("ma") < 0;
-            hasCompactionAncestors = version.compareTo("ma") < 0;
-            storeRows = version.compareTo("ma") >= 0;
-            correspondingMessagingVersion = storeRows
-                                          ? MessagingService.VERSION_30
-                                          : MessagingService.VERSION_21;
-
-            hasBoundaries = version.compareTo("ma") < 0;
-            hasCommitLogLowerBound = (version.compareTo("lb") >= 0 && version.compareTo("ma") < 0)
-                                     || version.compareTo("mb") >= 0;
+            hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.compareTo("md") >= 0;
-            hasOriginatingHostId = version.matches("m[e-z]");
+            hasOriginatingHostId = version.matches("(m[e-z])|(n[b-z])");
+            hasMaxCompressedLength = version.compareTo("na") >= 0;
+            hasPendingRepair = version.compareTo("na") >= 0;
+            hasIsTransient = version.compareTo("na") >= 0;
+            hasMetadataChecksum = version.compareTo("na") >= 0;
+            hasOldBfFormat = version.compareTo("na") < 0;
         }
 
         @Override
         public boolean isLatestVersion()
         {
             return isLatestVersion;
-        }
-
-        @Override
-        public boolean hasSamplingLevel()
-        {
-            return hasSamplingLevel;
-        }
-
-        @Override
-        public boolean hasNewStatsFile()
-        {
-            return newStatsFile;
-        }
-
-        @Override
-        public ChecksumType compressedChecksumType()
-        {
-            return compressedChecksumType;
-        }
-
-        @Override
-        public ChecksumType uncompressedChecksumType()
-        {
-            return uncompressedChecksumType;
-        }
-
-        @Override
-        public boolean hasRepairedAt()
-        {
-            return hasRepairedAt;
-        }
-
-        @Override
-        public boolean tracksLegacyCounterShards()
-        {
-            return tracksLegacyCounterShards;
-        }
-
-        @Override
-        public boolean hasOldBfHashOrder()
-        {
-            return hasOldBfHashOrder;
-        }
-
-        @Override
-        public boolean hasCompactionAncestors()
-        {
-            return hasCompactionAncestors;
-        }
-
-        @Override
-        public boolean hasNewFileName()
-        {
-            return newFileName;
         }
 
         @Override
@@ -268,16 +180,15 @@ public class BigFormat implements SSTableFormat
             return hasCommitLogIntervals;
         }
 
-        @Override
-        public boolean hasAccurateMinMax()
+        public boolean hasPendingRepair()
         {
-            return hasAccurateMinMax;
+            return hasPendingRepair;
         }
 
         @Override
-        public boolean storeRows()
+        public boolean hasIsTransient()
         {
-            return storeRows;
+            return hasIsTransient;
         }
 
         @Override
@@ -287,12 +198,17 @@ public class BigFormat implements SSTableFormat
         }
 
         @Override
-        public boolean hasBoundaries()
+        public boolean hasMetadataChecksum()
         {
-            return hasBoundaries;
+            return hasMetadataChecksum;
         }
 
         @Override
+        public boolean hasAccurateMinMax()
+        {
+            return hasAccurateMinMax;
+        }
+
         public boolean isCompatible()
         {
             return version.compareTo(earliest_supported_version) >= 0 && version.charAt(0) <= current_version.charAt(0);
@@ -307,6 +223,18 @@ public class BigFormat implements SSTableFormat
         public boolean hasOriginatingHostId()
         {
             return hasOriginatingHostId;
+        }
+
+        @Override
+        public boolean hasMaxCompressedLength()
+        {
+            return hasMaxCompressedLength;
+        }
+
+        @Override
+        public boolean hasOldBfFormat()
+        {
+            return hasOldBfFormat;
         }
     }
 }

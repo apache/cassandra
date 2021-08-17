@@ -18,13 +18,20 @@
 package org.apache.cassandra.metrics;
 
 import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-
-import com.codahale.metrics.*;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import com.codahale.metrics.*;
+import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 /**
@@ -36,6 +43,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
 public class CassandraMetricsRegistry extends MetricRegistry
 {
     public static final CassandraMetricsRegistry Metrics = new CassandraMetricsRegistry();
+    private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
     private final MBeanWrapper mBeanServer = MBeanWrapper.instance;
 
@@ -91,17 +99,48 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Timer timer(MetricName name)
     {
-        Timer timer = register(name, new Timer(new DecayingEstimatedHistogramReservoir()));
+        return timer(name, TimeUnit.MICROSECONDS);
+    }
+
+    public Timer timer(MetricName name, MetricName alias)
+    {
+        return timer(name, alias, TimeUnit.MICROSECONDS);
+    }
+
+    public Timer timer(MetricName name, TimeUnit durationUnit)
+    {
+        Timer timer = register(name, new Timer(CassandraMetricsRegistry.createReservoir(TimeUnit.MICROSECONDS)));
         registerMBean(timer, name.getMBeanName());
 
         return timer;
     }
 
-    public Timer timer(MetricName name, MetricName alias)
+    public Timer timer(MetricName name, MetricName alias, TimeUnit durationUnit)
     {
-        Timer timer = timer(name);
+        Timer timer = timer(name, durationUnit);
         registerAlias(name, alias);
         return timer;
+    }
+
+    public static Reservoir createReservoir(TimeUnit durationUnit)
+    {
+        Reservoir reservoir;
+        if (durationUnit != TimeUnit.NANOSECONDS)
+        {
+            Reservoir underlying = new DecayingEstimatedHistogramReservoir(DecayingEstimatedHistogramReservoir.DEFAULT_ZERO_CONSIDERATION,
+                                                                           EstimatedHistogram.DEFAULT_BUCKET_COUNT,
+                                                                           DecayingEstimatedHistogramReservoir.DEFAULT_STRIPE_COUNT);
+            // less buckets (90) should suffice if timer is not based on nanos
+            reservoir = new ScalingReservoir(underlying,
+                                             // timer update values in nanos.
+                                             v -> durationUnit.convert(v, TimeUnit.NANOSECONDS));
+        }
+        else
+        {
+            // Use more buckets if timer is created with nanos resolution.
+            reservoir = new DecayingEstimatedHistogramReservoir();
+        }
+        return reservoir;
     }
 
     public <T extends Metric> T register(MetricName name, T metric)
@@ -119,6 +158,27 @@ public class CassandraMetricsRegistry extends MetricRegistry
         }
     }
 
+    public Collection<ThreadPoolMetrics> allThreadPoolMetrics()
+    {
+        return Collections.unmodifiableCollection(threadPoolMetrics.values());
+    }
+
+    public Optional<ThreadPoolMetrics> getThreadPoolMetrics(String poolName)
+    {
+        return Optional.ofNullable(threadPoolMetrics.get(poolName));
+    }
+
+    ThreadPoolMetrics register(ThreadPoolMetrics metrics)
+    {
+        threadPoolMetrics.put(metrics.poolName, metrics);
+        return metrics;
+    }
+
+    void remove(ThreadPoolMetrics metrics)
+    {
+        threadPoolMetrics.remove(metrics.poolName, metrics);
+    }
+
     public <T extends Metric> T register(MetricName name, MetricName aliasName, T metric)
     {
         T ret = register(name, metric);
@@ -126,23 +186,32 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return ret;
     }
 
+    public <T extends Metric> T register(MetricName name, T metric, MetricName... aliases)
+    {
+        T ret = register(name, metric);
+        for (MetricName aliasName : aliases)
+        {
+            registerAlias(name, aliasName);
+        }
+        return ret;
+    }
+
     public boolean remove(MetricName name)
     {
         boolean removed = remove(name.getMetricName());
 
-        try
-        {
-            mBeanServer.unregisterMBean(name.getMBeanName());
-        } catch (Exception ignore) {}
-
+        mBeanServer.unregisterMBean(name.getMBeanName(), MBeanWrapper.OnException.IGNORE);
         return removed;
     }
 
-    public boolean remove(MetricName name, MetricName alias)
+    public boolean remove(MetricName name, MetricName... aliases)
     {
         if (remove(name))
         {
-            removeAlias(alias);
+            for (MetricName alias : aliases)
+            {
+                removeAlias(alias);
+            }
             return true;
         }
         return false;
@@ -153,30 +222,20 @@ public class CassandraMetricsRegistry extends MetricRegistry
         AbstractBean mbean;
 
         if (metric instanceof Gauge)
-        {
             mbean = new JmxGauge((Gauge<?>) metric, name);
-        } else if (metric instanceof Counter)
-        {
+        else if (metric instanceof Counter)
             mbean = new JmxCounter((Counter) metric, name);
-        } else if (metric instanceof Histogram)
-        {
+        else if (metric instanceof Histogram)
             mbean = new JmxHistogram((Histogram) metric, name);
-        } else if (metric instanceof Meter)
-        {
-            mbean = new JmxMeter((Meter) metric, name, TimeUnit.SECONDS);
-        } else if (metric instanceof Timer)
-        {
+        else if (metric instanceof Timer)
             mbean = new JmxTimer((Timer) metric, name, TimeUnit.SECONDS, TimeUnit.MICROSECONDS);
-        } else
-        {
+        else if (metric instanceof Metered)
+            mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
+        else
             throw new IllegalArgumentException("Unknown metric type: " + metric.getClass());
-        }
 
-        try
-        {
-            mBeanServer.registerMBean(mbean, name);
-        }
-        catch (Exception ignored) {}
+        if (!mBeanServer.isRegistered(name))
+            mBeanServer.registerMBean(mbean, name, MBeanWrapper.OnException.LOG);
     }
 
     private void registerAlias(MetricName existingName, MetricName aliasName)
@@ -189,10 +248,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     private void removeAlias(MetricName name)
     {
-        try
-        {
-            MBeanWrapper.instance.unregisterMBean(name.getMBeanName());
-        } catch (Exception ignored) {}
+        if (mBeanServer.isRegistered(name.getMBeanName()))
+            MBeanWrapper.instance.unregisterMBean(name.getMBeanName(), MBeanWrapper.OnException.IGNORE);
     }
     
     /**
@@ -276,11 +333,14 @@ public class CassandraMetricsRegistry extends MetricRegistry
         double get999thPercentile();
 
         long[] values();
+
+        long[] getRecentValues();
     }
 
     private static class JmxHistogram extends AbstractBean implements JmxHistogramMBean
     {
         private final Histogram metric;
+        private long[] last = null;
 
         private JmxHistogram(Histogram metric, ObjectName objectName)
         {
@@ -358,6 +418,23 @@ public class CassandraMetricsRegistry extends MetricRegistry
         public long[] values()
         {
             return metric.getSnapshot().getValues();
+        }
+
+        /**
+         * Returns a histogram describing the values recorded since the last time this method was called.
+         *
+         * ex. If the counts are [0, 1, 2, 1] at the time the first caller arrives, but change to [1, 2, 3, 2] by the 
+         * time a second caller arrives, the second caller will receive [1, 1, 1, 1].
+         *
+         * @return a histogram whose bucket offsets are assumed to be in nanoseconds
+         */
+        @Override
+        public synchronized long[] getRecentValues()
+        {
+            long[] now = metric.getSnapshot().getValues();
+            long[] delta = delta(now, last);
+            last = now;
+            return delta;
         }
     }
 
@@ -479,14 +556,16 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
         long[] values();
 
+        long[] getRecentValues();
+
         String getDurationUnit();
     }
 
     static class JmxTimer extends JmxMeter implements JmxTimerMBean
     {
         private final Timer metric;
-        private final double durationFactor;
         private final String durationUnit;
+        private long[] last = null;
 
         private JmxTimer(Timer metric,
                          ObjectName objectName,
@@ -495,68 +574,67 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             super(metric, objectName, rateUnit);
             this.metric = metric;
-            this.durationFactor = 1.0 / durationUnit.toNanos(1);
             this.durationUnit = durationUnit.toString().toLowerCase(Locale.US);
         }
 
         @Override
         public double get50thPercentile()
         {
-            return metric.getSnapshot().getMedian() * durationFactor;
+            return metric.getSnapshot().getMedian();
         }
 
         @Override
         public double getMin()
         {
-            return metric.getSnapshot().getMin() * durationFactor;
+            return metric.getSnapshot().getMin();
         }
 
         @Override
         public double getMax()
         {
-            return metric.getSnapshot().getMax() * durationFactor;
+            return metric.getSnapshot().getMax();
         }
 
         @Override
         public double getMean()
         {
-            return metric.getSnapshot().getMean() * durationFactor;
+            return metric.getSnapshot().getMean();
         }
 
         @Override
         public double getStdDev()
         {
-            return metric.getSnapshot().getStdDev() * durationFactor;
+            return metric.getSnapshot().getStdDev();
         }
 
         @Override
         public double get75thPercentile()
         {
-            return metric.getSnapshot().get75thPercentile() * durationFactor;
+            return metric.getSnapshot().get75thPercentile();
         }
 
         @Override
         public double get95thPercentile()
         {
-            return metric.getSnapshot().get95thPercentile() * durationFactor;
+            return metric.getSnapshot().get95thPercentile();
         }
 
         @Override
         public double get98thPercentile()
         {
-            return metric.getSnapshot().get98thPercentile() * durationFactor;
+            return metric.getSnapshot().get98thPercentile();
         }
 
         @Override
         public double get99thPercentile()
         {
-            return metric.getSnapshot().get99thPercentile() * durationFactor;
+            return metric.getSnapshot().get99thPercentile();
         }
 
         @Override
         public double get999thPercentile()
         {
-            return metric.getSnapshot().get999thPercentile() * durationFactor;
+            return metric.getSnapshot().get999thPercentile();
         }
 
         @Override
@@ -565,11 +643,50 @@ public class CassandraMetricsRegistry extends MetricRegistry
             return metric.getSnapshot().getValues();
         }
 
+        /**
+         * Returns a histogram describing the values recorded since the last time this method was called.
+         * 
+         * ex. If the counts are [0, 1, 2, 1] at the time the first caller arrives, but change to [1, 2, 3, 2] by the 
+         * time a second caller arrives, the second caller will receive [1, 1, 1, 1].
+         * 
+         * @return a histogram whose bucket offsets are assumed to be in nanoseconds
+         */
+        @Override
+        public synchronized long[] getRecentValues()
+        {
+            long[] now = metric.getSnapshot().getValues();
+            long[] delta = delta(now, last);
+            last = now;
+            return delta;
+        }
+
         @Override
         public String getDurationUnit()
         {
             return durationUnit;
         }
+    }
+
+    /**
+     * Used to determine the changes in a histogram since the last time checked.
+     *
+     * @param now The current histogram
+     * @param last The previous value of the histogram
+     * @return the difference between <i>now</> and <i>last</i>
+     */
+    @VisibleForTesting
+    static long[] delta(long[] now, long[] last)
+    {
+        long[] delta = new long[now.length];
+        if (last == null)
+        {
+            last = new long[now.length];
+        }
+        for(int i = 0; i< now.length; i++)
+        {
+            delta[i] = now[i] - (i < last.length? last[i] : 0);
+        }
+        return delta;
     }
 
     /**

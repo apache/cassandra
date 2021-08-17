@@ -20,7 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 import java.io.Serializable;
-import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,7 +36,8 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
@@ -79,8 +80,8 @@ public class GossipShutdownTest extends TestBaseImpl
                 waitForShutdown.signalAll();
             });
 
-            cluster.filters().outbound().from(2).to(1).verbs(MessagingService.Verb.GOSSIP_DIGEST_SYN.ordinal()).messagesMatching((from, to, message) -> true).drop();
-            cluster.filters().outbound().from(2).to(1).verbs(MessagingService.Verb.GOSSIP_DIGEST_ACK.ordinal()).messagesMatching((from, to, message) ->
+            cluster.filters().outbound().from(2).to(1).verbs(Verb.GOSSIP_DIGEST_SYN.id).messagesMatching((from, to, message) -> true).drop();
+            cluster.filters().outbound().from(2).to(1).verbs(Verb.GOSSIP_DIGEST_ACK.id).messagesMatching((from, to, message) ->
                                                                                                          {
                                                                                                              if (signalled.compareAndSet(false, true))
                                                                                                              {
@@ -115,21 +116,21 @@ public class GossipShutdownTest extends TestBaseImpl
     private static class EPChanges implements IEndpointStateChangeSubscriber, Serializable
     {
         private volatile boolean wasDead = false;
-        public void onAlive(InetAddress endpoint, EndpointState state)
+        public void onAlive(InetAddressAndPort endpoint, EndpointState state)
         {
             if (wasDead)
                 throw new RuntimeException("Node should not go live after it has been dead.");
         }
-        public void onDead(InetAddress endpoint, EndpointState state)
+        public void onDead(InetAddressAndPort endpoint, EndpointState state)
         {
             wasDead = true;
         }
 
-        public void onRemove(InetAddress endpoint) {}
-        public void onRestart(InetAddress endpoint, EndpointState state) {}
-        public void onJoin(InetAddress endpoint, EndpointState epState) {}
-        public void beforeChange(InetAddress endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
-        public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value) {}
+        public void onRemove(InetAddressAndPort endpoint) {}
+        public void onRestart(InetAddressAndPort endpoint, EndpointState state) {}
+        public void onJoin(InetAddressAndPort endpoint, EndpointState epState) {}
+        public void beforeChange(InetAddressAndPort endpoint, EndpointState currentState, ApplicationState newStateKey, VersionedValue newValue) {}
+        public void onChange(InetAddressAndPort endpoint, ApplicationState state, VersionedValue value) {}
 
     };
 }

@@ -31,8 +31,8 @@ public final class KeyspaceParams
     public static final boolean DEFAULT_DURABLE_WRITES = true;
 
     /**
-     * This determines durable writes for the {@link org.apache.cassandra.config.SchemaConstants#SCHEMA_KEYSPACE_NAME}
-     * and {@link org.apache.cassandra.config.SchemaConstants#SYSTEM_KEYSPACE_NAME} keyspaces,
+     * This determines durable writes for the {@link org.apache.cassandra.schema.SchemaConstants#SCHEMA_KEYSPACE_NAME}
+     * and {@link org.apache.cassandra.schema.SchemaConstants#SYSTEM_KEYSPACE_NAME} keyspaces,
      * the only reason it is not final is for commitlog unit tests. It should only be changed for testing purposes.
      */
     @VisibleForTesting
@@ -70,6 +70,11 @@ public final class KeyspaceParams
     }
 
     public static KeyspaceParams simple(int replicationFactor)
+    {
+        return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor));
+    }
+
+    public static KeyspaceParams simple(String replicationFactor)
     {
         return new KeyspaceParams(true, ReplicationParams.simple(replicationFactor));
     }

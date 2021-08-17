@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.tracing;
 
-import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.base.Stopwatch;
 import org.slf4j.helpers.MessageFormatter;
 
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 public abstract class TraceState implements ProgressEventNotifier
 {
     public final UUID sessionId;
-    public final InetAddress coordinator;
+    public final InetAddressAndPort coordinator;
     public final Stopwatch watch;
     public final ByteBuffer sessionIdBytes;
     public final Tracing.TraceType traceType;
@@ -63,7 +63,7 @@ public abstract class TraceState implements ProgressEventNotifier
     // See CASSANDRA-7626 for more details.
     private final AtomicInteger references = new AtomicInteger(1);
 
-    protected TraceState(InetAddress coordinator, UUID sessionId, Tracing.TraceType traceType)
+    protected TraceState(InetAddressAndPort coordinator, UUID sessionId, Tracing.TraceType traceType)
     {
         assert coordinator != null;
         assert sessionId != null;
@@ -161,7 +161,7 @@ public abstract class TraceState implements ProgressEventNotifier
         trace(MessageFormatter.format(format, arg1, arg2).getMessage());
     }
 
-    public void trace(String format, Object[] args)
+    public void trace(String format, Object... args)
     {
         trace(MessageFormatter.arrayFormat(format, args).getMessage());
     }

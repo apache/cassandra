@@ -66,7 +66,7 @@ final class LogFile implements AutoCloseable
     private final LogReplicaSet replicas = new LogReplicaSet();
 
     // The transaction records, this set must be ORDER PRESERVING
-    private final LinkedHashSet<LogRecord> records = new LinkedHashSet<>();
+    private final Set<LogRecord> records = Collections.synchronizedSet(new LinkedHashSet<>()); // TODO: Hack until we fix CASSANDRA-14554
 
     // The type of the transaction
     private final OperationType type;

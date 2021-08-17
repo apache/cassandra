@@ -87,7 +87,7 @@ public class AccumulatorTest
 
         assertEquals("0", accu.get(3));
 
-        Iterator<String> iter = accu.iterator();
+        Iterator<String> iter = accu.snapshot().iterator();
 
         assertEquals("3", iter.next());
         assertEquals("2", iter.next());
@@ -108,7 +108,7 @@ public class AccumulatorTest
         accu.clearUnsafe(1);
 
         assertEquals(3, accu.size());
-        assertTrue(accu.iterator().hasNext());
+        assertTrue(accu.snapshot().iterator().hasNext());
 
         accu.add("4");
         accu.add("5");
@@ -119,7 +119,7 @@ public class AccumulatorTest
         assertEquals("5", accu.get(4));
         assertOutOfBonds(accu, 5);
 
-        Iterator<String> iter = accu.iterator();
+        Iterator<String> iter = accu.snapshot().iterator();
         assertTrue(iter.hasNext());
         assertEquals("1", iter.next());
         assertNull(iter.next());

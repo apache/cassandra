@@ -30,7 +30,7 @@ public class NativeLibraryTest
     @Test
     public void testSkipCache()
     {
-        File file = FileUtils.createTempFile("testSkipCache", "1");
+        File file = FileUtils.createDeletableTempFile("testSkipCache", "1");
 
         NativeLibrary.trySkipCache(file.getPath(), 0, 0);
     }

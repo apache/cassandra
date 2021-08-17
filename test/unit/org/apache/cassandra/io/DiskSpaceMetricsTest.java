@@ -19,10 +19,8 @@
 package org.apache.cassandra.io;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.ImmutableMap;
@@ -39,6 +37,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class DiskSpaceMetricsTest extends CQLTester
@@ -120,10 +119,10 @@ public class DiskSpaceMetricsTest extends CQLTester
     {
         List<SSTableReader> sstables = Lists.newArrayList(cfs.getSSTables(SSTableSet.CANONICAL));
         LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
-        Map<UUID, LifecycleTransaction> txns = ImmutableMap.of(cfs.metadata.cfId, txn);
+        Map<TableId, LifecycleTransaction> txns = ImmutableMap.of(cfs.metadata.id, txn);
         // fail on the last file (* 3 because we call isStopRequested 3 times for each sstable, and we should fail on the last)
         AtomicInteger countdown = new AtomicInteger(3 * sstables.size() - 1);
-        IndexSummaryRedistribution redistribution = new IndexSummaryRedistribution(Collections.emptyList(), txns, 0) {
+        IndexSummaryRedistribution redistribution = new IndexSummaryRedistribution(txns, 0, 0) {
             public boolean isStopRequested()
             {
                 return countdown.decrementAndGet() == 0;

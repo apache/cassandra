@@ -20,11 +20,14 @@ package org.apache.cassandra.utils.vint;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.IOException;
 
+import io.netty.buffer.Unpooled;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 public class VIntCodingTest
 {
@@ -81,5 +84,17 @@ public class VIntCodingTest
         dob.writeUnsignedVInt(biggestOneByte);
         Assert.assertEquals( 1, dob.buffer().remaining());
         dob.close();
+    }
+
+    @Test
+    public void testByteBufWithNegativeNumber() throws IOException
+    {
+        int i = -1231238694;
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            VIntCoding.writeUnsignedVInt(i, out);
+            long result = VIntCoding.getUnsignedVInt(out.buffer(), 0);
+            Assert.assertEquals(i, result);
+        }
     }
 }

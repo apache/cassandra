@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.concurrent;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
@@ -110,15 +110,19 @@ public class SharedExecutorPool
 
     public synchronized LocalAwareExecutorService newExecutor(int maxConcurrency, String jmxPath, String name)
     {
-        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, jmxPath, name);
+        return newExecutor(maxConcurrency, i -> {}, jmxPath, name);
+    }
+
+    public LocalAwareExecutorService newExecutor(int maxConcurrency, LocalAwareExecutorService.MaximumPoolSizeListener maximumPoolSizeListener, String jmxPath, String name)
+    {
+        SEPExecutor executor = new SEPExecutor(this, maxConcurrency, maximumPoolSizeListener, jmxPath, name);
         executors.add(executor);
         return executor;
     }
 
-    public synchronized void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException
+    public synchronized void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         shuttingDown = true;
-        List<SEPExecutor> executors = new ArrayList<>(this.executors);
         for (SEPExecutor executor : executors)
             executor.shutdownNow();
 
@@ -126,10 +130,14 @@ public class SharedExecutorPool
 
         long until = System.nanoTime() + unit.toNanos(timeout);
         for (SEPExecutor executor : executors)
+        {
             executor.shutdown.await(until - System.nanoTime(), TimeUnit.NANOSECONDS);
+            if (!executor.isTerminated())
+                throw new TimeoutException(executor.name + " not terminated");
+        }
     }
 
-    private void terminateWorkers()
+    void terminateWorkers()
     {
         assert shuttingDown;
 

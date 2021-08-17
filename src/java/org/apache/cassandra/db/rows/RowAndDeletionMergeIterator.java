@@ -20,7 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 
@@ -51,7 +51,7 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
     // The currently open tombstone. Note that unless this is null, there is no point in checking nextRange.
     private RangeTombstone openRange;
 
-    public RowAndDeletionMergeIterator(CFMetaData metadata,
+    public RowAndDeletionMergeIterator(TableMetadata metadata,
                                        DecoratedKey partitionKey,
                                        DeletionTime partitionLevelDeletion,
                                        ColumnFilter selection,
@@ -161,7 +161,9 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
         while (nextRange == null && ranges.hasNext())
         {
             nextRange = ranges.next();
-            if ((removeShadowedData && partitionLevelDeletion().supersedes(nextRange.deletionTime()))
+            // partition deletion will shadow range tombstone if partition deletion time is greater to equal to range
+            // tombstone time.
+            if ((removeShadowedData && !nextRange.deletionTime().supersedes(partitionLevelDeletion()))
                 || nextRange.deletedSlice().isEmpty(metadata.comparator))
                 nextRange = null;
         }
@@ -192,12 +194,12 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
         return range;
     }
 
-    private ClusteringBound openBound(RangeTombstone range)
+    private ClusteringBound<?> openBound(RangeTombstone range)
     {
         return range.deletedSlice().open(isReverseOrder());
     }
 
-    private ClusteringBound closeBound(RangeTombstone range)
+    private ClusteringBound<?> closeBound(RangeTombstone range)
     {
         return range.deletedSlice().close(isReverseOrder());
     }

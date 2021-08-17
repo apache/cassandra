@@ -39,7 +39,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 /**
  * The abstract validator that is the base for maps, sets and lists (both frozen and non-frozen).
  *
- * Please note that this comparator shouldn't be used "manually" (through thrift for instance).
+ * Please note that this comparator shouldn't be used "manually" (as a custom
+ * type for instance).
  */
 public abstract class CollectionType<T> extends AbstractType<T>
 {
@@ -83,7 +84,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public abstract AbstractType<?> nameComparator();
     public abstract AbstractType<?> valueComparator();
 
-    protected abstract List<ByteBuffer> serializedValues(Iterator<Cell> cells);
+    protected abstract List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells);
 
     @Override
     public abstract CollectionSerializer<T> getSerializer();
@@ -93,9 +94,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return kind.makeCollectionReceiver(collection, isKey);
     }
 
-    public String getString(ByteBuffer bytes)
+    public <V> String getString(V value, ValueAccessor<V> accessor)
     {
-        return BytesType.instance.getString(bytes);
+        return BytesType.instance.getString(value, accessor);
     }
 
     public ByteBuffer fromString(String source)
@@ -116,12 +117,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
     }
 
     @Override
-    public void validateCellValue(ByteBuffer cellValue) throws MarshalException
+    public <V> void validateCellValue(V cellValue, ValueAccessor<V> accessor) throws MarshalException
     {
         if (isMultiCell())
-            valueComparator().validateCellValue(cellValue);
+            valueComparator().validateCellValue(cellValue, accessor);
         else
-            super.validateCellValue(cellValue);
+            super.validateCellValue(cellValue, accessor);
     }
 
     /**
@@ -145,12 +146,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return values.size();
     }
 
-    public ByteBuffer serializeForNativeProtocol(Iterator<Cell> cells, ProtocolVersion version)
+    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion version)
     {
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
         int size = collectionSize(values);
-        return CollectionSerializer.pack(values, size, version);
+        return CollectionSerializer.pack(values, ByteBufferAccessor.instance, size, version);
     }
 
     @Override
@@ -210,7 +211,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     }
 
     @Override
-    public boolean equals(Object o, boolean ignoreFreezing)
+    public boolean equals(Object o)
     {
         if (this == o)
             return true;
@@ -223,11 +224,10 @@ public abstract class CollectionType<T> extends AbstractType<T>
         if (kind != other.kind)
             return false;
 
-        if (!ignoreFreezing && isMultiCell() != other.isMultiCell())
+        if (isMultiCell() != other.isMultiCell())
             return false;
 
-        return nameComparator().equals(other.nameComparator(), ignoreFreezing) &&
-               valueComparator().equals(other.valueComparator(), ignoreFreezing);
+        return nameComparator().equals(other.nameComparator()) && valueComparator().equals(other.valueComparator());
     }
 
     @Override

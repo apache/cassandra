@@ -27,27 +27,26 @@ package org.apache.cassandra.gms;
  */
 public enum ApplicationState
 {
-    STATUS,
+    // never remove a state here, ordering matters.
+    @Deprecated STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
     LOAD,
     SCHEMA,
     DC,
     RACK,
     RELEASE_VERSION,
     REMOVAL_COORDINATOR,
-    INTERNAL_IP,
-    RPC_ADDRESS,
+    @Deprecated INTERNAL_IP, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+    @Deprecated RPC_ADDRESS, // ^ Same
     X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
     NET_VERSION,
     HOST_ID,
     TOKENS,
     RPC_READY,
-    // We added SSTABLE_VERSIONS in CASSANDRA-15897 in 3.0, and at the time, 3 more ApplicationState had been added
-    // to newer versions, so we skipped the first 3 of our original padding to ensure SSTABLE_VERSIONS can preserve
-    // its ordinal accross versions.
-    X1,
-    X2,
-    X3,
+    // pad to allow adding new states to existing cluster
+    INTERNAL_ADDRESS_AND_PORT, //Replacement for INTERNAL_IP with up to two ports
+    NATIVE_ADDRESS_AND_PORT, //Replacement for RPC_ADDRESS
+    STATUS_WITH_PORT, //Replacement for STATUS
     /**
      * The set of sstable versions on this node. This will usually be only the "current" sstable format (the one with
      * which new sstables are written), but may contain more on newly upgraded nodes before `upgradesstable` has been
@@ -57,7 +56,11 @@ public enum ApplicationState
      * a comma-separated list.
      **/
     SSTABLE_VERSIONS,
-    // pad to allow adding new states to existing cluster
+    // DO NOT EDIT OR REMOVE PADDING STATES BELOW - only add new states above.  See CASSANDRA-16484
+    X1,
+    X2,
+    X3,
+    X4,
     X5,
     X6,
     X7,

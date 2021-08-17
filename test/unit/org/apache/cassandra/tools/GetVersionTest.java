@@ -22,14 +22,16 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
-public class GetVersionTest extends ToolsTester
+public class GetVersionTest extends OfflineToolUtils
 {
     @Test
     public void testGetVersion()
     {
-        runTool(0, "org.apache.cassandra.tools.GetVersion");
+        ToolResult tool = ToolRunner.invokeClass(GetVersion.class);
+        tool.assertOnCleanExit();
         assertNoUnexpectedThreadsStarted(null, null);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();

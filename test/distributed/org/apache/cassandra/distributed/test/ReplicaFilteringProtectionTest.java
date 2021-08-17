@@ -40,7 +40,7 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Exercises the functionality of {@link org.apache.cassandra.service.ReplicaFilteringProtection}, the
+ * Exercises the functionality of {@link org.apache.cassandra.service.reads.ReplicaFilteringProtection}, the
  * mechanism that ensures distributed index and filtering queries at read consistency levels > ONE/LOCAL_ONE
  * avoid stale replica results.
  */
@@ -111,7 +111,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         }
         catch (RuntimeException e)
         {
-            assertEquals(e.getCause().getClass().getName(), OverloadedException.class.getName());
+            assertEquals(e.getClass().getName(), OverloadedException.class.getName());
         }
     }
 
@@ -129,7 +129,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         }
 
         long histogramSampleCount = rowsCachedPerQueryCount(cluster.get(1), tableName);
-        
+
         String query = "SELECT * FROM " + fullTableName + " WHERE v = ? LIMIT ? ALLOW FILTERING";
 
         Object[][] initialRows = cluster.coordinator(1).execute(query, ALL, "old", ROWS);
@@ -150,7 +150,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         // We should have made 3 row "completion" requests.
         assertEquals(ROWS, protectionQueryCount(cluster.get(1), tableName));
 
-        // In all cases above, the queries should be caching 1 row per partition per replica, but 
+        // In all cases above, the queries should be caching 1 row per partition per replica, but
         // 6 for the whole query, given every row is potentially stale.
         assertEquals(ROWS * REPLICAS, maxRowsCachedPerQuery(cluster.get(1), tableName));
 
@@ -158,16 +158,16 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         assertEquals(histogramSampleCount + 2, rowsCachedPerQueryCount(cluster.get(1), tableName));
 
         // Case 3: Observe the effects of blocking read-repair.
-        
+
         // The previous query peforms a blocking read-repair, which removes replica divergence. This
         // will only warn, therefore, if the warning threshold is actually below the number of replicas.
         // (i.e. The row cache counter is decremented/reset as each partition is consumed.)
         SimpleQueryResult newResult = cluster.coordinator(1).executeWithResult(query, ALL, "new", ROWS);
         Object[][] newRows = newResult.toObjectArrays();
         assertRows(newRows, row(1, "new"), row(0, "new"), row(2, "new"));
-        
+
         verifyWarningState(warnThreshold < REPLICAS, newResult);
-        
+
         // We still sould only have made 3 row "completion" requests, with no replica divergence in the last query.
         assertEquals(ROWS, protectionQueryCount(cluster.get(1), tableName));
 
@@ -178,27 +178,27 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
         assertEquals(histogramSampleCount + 3, rowsCachedPerQueryCount(cluster.get(1), tableName));
 
         // Case 4: Introduce another mismatch by updating all rows on only one replica.
-        
+
         updateAllRowsOn(1, fullTableName, "future");
 
         // Another mismatch is introduced, and we once again cache a version of each row during resolution.
         SimpleQueryResult futureResult = cluster.coordinator(1).executeWithResult(query, ALL, "future", ROWS);
         Object[][] futureRows = futureResult.toObjectArrays();
         assertRows(futureRows, row(1, "future"), row(0, "future"), row(2, "future"));
-        
+
         verifyWarningState(shouldWarn, futureResult);
 
         // We sould have made 3 more row "completion" requests.
         assertEquals(ROWS * 2, protectionQueryCount(cluster.get(1), tableName));
 
-        // In all cases above, the queries should be caching 1 row per partition, but 6 for the 
+        // In all cases above, the queries should be caching 1 row per partition, but 6 for the
         // whole query, given every row is potentially stale.
         assertEquals(ROWS * REPLICAS, maxRowsCachedPerQuery(cluster.get(1), tableName));
 
         // Make sure only one more sample was recorded for the query.
         assertEquals(histogramSampleCount + 4, rowsCachedPerQueryCount(cluster.get(1), tableName));
     }
-    
+
     private void updateAllRowsOn(int node, String table, String value)
     {
         for (int i = 0; i < ROWS; i++)
@@ -206,7 +206,7 @@ public class ReplicaFilteringProtectionTest extends TestBaseImpl
             cluster.get(node).executeInternal("UPDATE " + table + " SET v = ? WHERE k = ?", value, i);
         }
     }
-    
+
     private void verifyWarningState(boolean shouldWarn, SimpleQueryResult futureResult)
     {
         List<String> futureWarnings = futureResult.warnings();

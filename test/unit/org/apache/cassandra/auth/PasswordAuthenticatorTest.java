@@ -26,13 +26,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Authenticator;
+import com.datastax.driver.core.EndPoint;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.auth.CassandraRoleManager.*;
 import static org.apache.cassandra.auth.PasswordAuthenticator.*;
@@ -121,7 +122,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     {
         SaslNegotiator negotiator = authenticator.newSaslNegotiator(null);
         Authenticator clientAuthenticator = (new PlainTextAuthProvider(username, password))
-                                            .newAuthenticator(null, null);
+                                            .newAuthenticator((EndPoint) null, null);
 
         negotiator.evaluateResponse(clientAuthenticator.initialResponse());
         negotiator.getAuthenticatedUser();
@@ -132,7 +133,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     {
         SchemaLoader.createKeyspace(SchemaConstants.AUTH_KEYSPACE_NAME,
                                     KeyspaceParams.simple(1),
-                                    Iterables.toArray(AuthKeyspace.metadata().tables, CFMetaData.class));
+                                    Iterables.toArray(AuthKeyspace.metadata().tables, TableMetadata.class));
         authenticator.setup();
     }
 

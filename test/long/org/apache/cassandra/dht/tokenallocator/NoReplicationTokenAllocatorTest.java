@@ -20,7 +20,6 @@ package org.apache.cassandra.dht.tokenallocator;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.PriorityQueue;
 import java.util.Random;
@@ -29,7 +28,7 @@ import com.google.common.collect.Maps;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.junit.Test;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -184,7 +183,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
         {
             unitStat.addValue(wu.weight * size / t.tokensInUnits.get(wu.value.unit).size());
         }
-        su.update(unitStat);
+        su.update(unitStat, t.sortedUnits.size());
 
         SummaryStatistics tokenStat = new SummaryStatistics();
         for (PriorityQueue<TokenAllocatorBase.Weighted<TokenAllocatorBase.TokenInfo>> tokens : t.tokensInUnits.values())
@@ -194,7 +193,7 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
                 tokenStat.addValue(token.weight);
             }
         }
-        st.update(tokenStat);
+        st.update(tokenStat, t.sortedUnits.size());
 
         if (print)
         {

@@ -24,12 +24,13 @@
 # binary executable files in our 'noarch' package
 %define _binaries_in_noarch_packages_terminate_build   0
 
-# for python 2/3 support we rely on /usr/bin/python
-%define __python /usr/bin/python
+%define __python /usr/bin/python3
 
 %global username cassandra
 
-%define relname apache-cassandra-%{version}
+# input of ~alphaN, ~betaN, ~rcN package versions need to retain upstream '-alphaN, etc' version for sources
+%define upstream_version %(echo %{version} | sed -r 's/~/-/g')
+%define relname apache-cassandra-%{upstream_version}
 
 Name:          cassandra
 Version:       %{version}
@@ -46,7 +47,7 @@ BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
 Requires:      jre >= 1.8.0
-Requires:      python(abi) >= 2.7
+Requires:      python(abi) >= 3.6
 Requires(pre): user(cassandra)
 Requires(pre): group(cassandra)
 Requires(pre): shadow-utils
@@ -67,7 +68,7 @@ Cassandra is a distributed (peer-to-peer) system for the management and storage 
 %build
 export LANG=en_US.UTF-8
 export JAVA_TOOL_OPTIONS="-Dfile.encoding=UTF-8"
-ant clean jar -Dversion=%{version}
+ant clean jar -Dversion=%{upstream_version}
 
 %install
 %{__rm} -rf %{buildroot}
@@ -89,19 +90,15 @@ mkdir -p %{buildroot}/var/log/%{username}
 ( cd pylib && %{__python} setup.py install --no-compile --root %{buildroot}; )
 
 # patches for data and log paths
-patch -p1 < debian/patches/001cassandra_yaml_dirs.dpatch
-patch -p1 < debian/patches/002cassandra_logdir_fix.dpatch
+patch -p1 < debian/patches/cassandra_yaml_dirs.diff
+patch -p1 < debian/patches/cassandra_logdir_fix.diff
 # uncomment hints_directory path
 sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 
-# remove batch, powershell, and other files not being installed
-rm -f conf/*.ps1
-rm -f bin/*.bat
+# remove other files not being installed
 rm -f bin/*.orig
-rm -f bin/*.ps1
 rm -f bin/cassandra.in.sh
 rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
-rm -f tools/bin/*.bat
 rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
@@ -119,14 +116,16 @@ cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 # copy stress jar
 cp -p build/tools/lib/stress.jar %{buildroot}/usr/share/%{username}/
 
+# copy fqltool jar
+cp -p build/tools/lib/fqltool.jar %{buildroot}/usr/share/%{username}/
+
 # copy binaries
 mv bin/cassandra %{buildroot}/usr/sbin/
 cp -p bin/* %{buildroot}/usr/bin/
 cp -p tools/bin/* %{buildroot}/usr/bin/
 
-# copy cassandra, thrift jars
-cp build/apache-cassandra-%{version}.jar %{buildroot}/usr/share/%{username}/
-cp build/apache-cassandra-thrift-%{version}.jar %{buildroot}/usr/share/%{username}/
+# copy cassandra jar
+cp build/apache-cassandra-%{upstream_version}.jar %{buildroot}/usr/share/%{username}/
 
 %clean
 %{__rm} -rf %{buildroot}
@@ -140,10 +139,14 @@ exit 0
 %files
 %defattr(0644,root,root,0755)
 %doc CHANGES.txt LICENSE.txt README.asc NEWS.txt NOTICE.txt CASSANDRA-14092.txt
+%attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/jmxtool
 %attr(755,root,root) %{_bindir}/cassandra-stress
 %attr(755,root,root) %{_bindir}/cqlsh
 %attr(755,root,root) %{_bindir}/cqlsh.py
 %attr(755,root,root) %{_bindir}/debug-cql
+%attr(755,root,root) %{_bindir}/fqltool
+%attr(755,root,root) %{_bindir}/generatetokens
 %attr(755,root,root) %{_bindir}/nodetool
 %attr(755,root,root) %{_bindir}/sstableloader
 %attr(755,root,root) %{_bindir}/sstablescrub
@@ -195,6 +198,10 @@ This package contains extra tools for working with Cassandra clusters.
 %attr(755,root,root) %{_bindir}/sstableofflinerelevel
 %attr(755,root,root) %{_bindir}/sstablerepairedset
 %attr(755,root,root) %{_bindir}/sstablesplit
+%attr(755,root,root) %{_bindir}/auditlogviewer
+%attr(755,root,root) %{_bindir}/jmxtool
+%attr(755,root,root) %{_bindir}/fqltool
+%attr(755,root,root) %{_bindir}/generatetokens
 
 
 %changelog

@@ -30,6 +30,9 @@ import com.google.common.base.Preconditions;
 
 /**
  * Concurrent rate computation over a sliding time window.
+ *
+ * Currently not used in the Cassandra 4.0 code base. If you decide to use it, please check CASSANDRA-16713.
+ * There still might be a bug, flaky test to be fixed before using it again.
  */
 public class SlidingTimeRate
 {
@@ -42,9 +45,10 @@ public class SlidingTimeRate
 
     /**
      * Creates a sliding rate whose time window is of the given size, with the given precision and time unit.
-     * <br/>
+     * <p>
      * The precision defines how accurate the rate computation is, as it will be computed over window size +/-
      * precision.
+     * </p>
      */
     public SlidingTimeRate(TimeSource timeSource, long size, long precision, TimeUnit unit)
     {

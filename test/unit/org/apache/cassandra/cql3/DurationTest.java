@@ -18,6 +18,14 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.text.ParsePosition;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.TimeZone;
+
+import org.apache.commons.lang3.time.DateUtils;
+
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -99,11 +107,79 @@ public class DurationTest
         assertInvalidDuration("P0002-00-20", "Unable to convert 'P0002-00-20' to a duration");
     }
 
+    @Test
+    public void testAddTo()
+    {
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("0m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("10us").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T00:10:00"), Duration.from("10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T01:30:00"), Duration.from("90m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T02:10:00"), Duration.from("2h10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-23T00:10:00"), Duration.from("2d10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-24T01:00:00"), Duration.from("2d25h").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-10-21T00:00:00"), Duration.from("1mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2017-11-21T00:00:00"), Duration.from("14mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2017-02-28T00:00:00"), Duration.from("12mo").addTo(toMillis("2016-02-29T00:00:00")));
+    }
+
+    @Test
+    public void testAddToWithNegativeDurations()
+    {
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-0m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-10us").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-20T23:50:00"), Duration.from("-10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-20T22:30:00"), Duration.from("-90m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-20T21:50:00"), Duration.from("-2h10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-18T23:50:00"), Duration.from("-2d10m").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-17T23:00:00"), Duration.from("-2d25h").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-08-21T00:00:00"), Duration.from("-1mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2015-07-21T00:00:00"), Duration.from("-14mo").addTo(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2015-02-28T00:00:00"), Duration.from("-12mo").addTo(toMillis("2016-02-29T00:00:00")));
+    }
+
+    @Test
+    public void testSubstractFrom()
+    {
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("0m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("10us").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-20T23:50:00"), Duration.from("10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-20T22:30:00"), Duration.from("90m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-20T21:50:00"), Duration.from("2h10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-18T23:50:00"), Duration.from("2d10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-17T23:00:00"), Duration.from("2d25h").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-08-21T00:00:00"), Duration.from("1mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2015-07-21T00:00:00"), Duration.from("14mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2015-02-28T00:00:00"), Duration.from("12mo").substractFrom(toMillis("2016-02-29T00:00:00")));
+    }
+
+    @Test
+    public void testSubstractWithNegativeDurations()
+    {
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-0m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T00:00:00"), Duration.from("-10us").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T00:10:00"), Duration.from("-10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T01:30:00"), Duration.from("-90m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-21T02:10:00"), Duration.from("-2h10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-23T00:10:00"), Duration.from("-2d10m").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-09-24T01:00:00"), Duration.from("-2d25h").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2016-10-21T00:00:00"), Duration.from("-1mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2017-11-21T00:00:00"), Duration.from("-14mo").substractFrom(toMillis("2016-09-21T00:00:00")));
+        assertEquals(toMillis("2017-02-28T00:00:00"), Duration.from("-12mo").substractFrom(toMillis("2016-02-29T00:00:00")));
+    }
+
+    private long toMillis(String timeAsString)
+    {
+        SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+        parser.setTimeZone(TimeZone.getTimeZone("UTC"));
+        Date date = parser.parse(timeAsString, new ParsePosition(0));
+        return DateUtils.truncate(date, Calendar.SECOND).getTime();
+    }
+
     public void assertInvalidDuration(String duration, String expectedErrorMessage)
     {
         try
         {
-            System.out.println(Duration.from(duration));
+            Duration.from(duration);
             Assert.fail();
         }
         catch (InvalidRequestException e)

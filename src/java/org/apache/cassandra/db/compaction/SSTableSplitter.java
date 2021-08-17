@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.db.*;
@@ -30,8 +31,6 @@ public class SSTableSplitter
 {
     private final SplittingCompactionTask task;
 
-    private CompactionInfo.Holder info;
-
     public SSTableSplitter(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
     {
         this.task = new SplittingCompactionTask(cfs, transaction, sstableSizeInMB);
@@ -39,20 +38,7 @@ public class SSTableSplitter
 
     public void split()
     {
-        task.execute(new StatsCollector());
-    }
-
-    public class StatsCollector implements CompactionManager.CompactionExecutorStatsCollector
-    {
-        public void beginCompaction(CompactionInfo.Holder ci)
-        {
-            SSTableSplitter.this.info = ci;
-        }
-
-        public void finishCompaction(CompactionInfo.Holder ci)
-        {
-            // no-op
-        }
+        task.execute(ActiveCompactionsTracker.NOOP);
     }
 
     public static class SplittingCompactionTask extends CompactionTask
@@ -98,7 +84,7 @@ public class SSTableSplitter
         }
 
         @Override
-        public Predicate<Long> getPurgeEvaluator(DecoratedKey key)
+        public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
         }

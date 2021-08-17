@@ -17,11 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.util.Set;
-
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.Clusterable;
 
 /**
@@ -30,32 +28,29 @@ import org.apache.cassandra.db.Clusterable;
  * In practice, an Unfiltered is either a row or a range tombstone marker. Unfiltereds
  * are uniquely identified by their clustering information and can be sorted according
  * to those.
+ *
+ * We don't set the type parameter for Clusterable here because it doesn't make sense in
+ * the context of an Unfiltered. Merge iterators can produce rows containing clustering
+ * and cell values with multiple backing types. Also, by the time you're dealing with
+ * Unfiltered objects, the backing type should be considered opaque.
  */
 public interface Unfiltered extends Clusterable
 {
-    public enum Kind { ROW, RANGE_TOMBSTONE_MARKER };
+    public enum Kind { ROW, RANGE_TOMBSTONE_MARKER }
 
     /**
      * The kind of the atom: either row or range tombstone marker.
      */
     public Kind kind();
 
-    /**
-     * Digest the atom using the provided {@code MessageDigest}.
-     *
-     * @param digest the {@code MessageDigest} to use.
-     */
-    public void digest(MessageDigest digest);
+    ClusteringPrefix<?> clustering();
 
     /**
-     * Digest the atom using the provided {@code MessageDigest}.
-     * This method only exists in 3.11.
-     * Same like {@link #digest(MessageDigest)}, but excludes the given columns from digest calculation.
+     * Digest the atom using the provided {@link Digest}.
+     *
+     * @param digest the {@see Digest} to use.
      */
-    public default void digest(MessageDigest digest, Set<ByteBuffer> columnsToExclude)
-    {
-        throw new UnsupportedOperationException("no no no - don't use this one - use digest(MessageDigest) instead");
-    }
+    public void digest(Digest digest);
 
     /**
      * Validate the data of this atom.
@@ -65,13 +60,19 @@ public interface Unfiltered extends Clusterable
      * invalid (some value is invalid for its column type, or some field
      * is nonsensical).
      */
-    public void validateData(CFMetaData metadata);
+    public void validateData(TableMetadata metadata);
 
+    /**
+     * Do a quick validation of the deletions of the unfiltered (if any)
+     *
+     * @return true if any deletion is invalid
+     */
+    public boolean hasInvalidDeletions();
     public boolean isEmpty();
 
-    public String toString(CFMetaData metadata);
-    public String toString(CFMetaData metadata, boolean fullDetails);
-    public String toString(CFMetaData metadata, boolean includeClusterKeys, boolean fullDetails);
+    public String toString(TableMetadata metadata);
+    public String toString(TableMetadata metadata, boolean fullDetails);
+    public String toString(TableMetadata metadata, boolean includeClusterKeys, boolean fullDetails);
 
     default boolean isRow()
     {

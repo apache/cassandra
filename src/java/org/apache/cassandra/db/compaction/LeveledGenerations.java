@@ -155,8 +155,6 @@ class LeveledGenerations
             if (before != null && before.last.compareTo(sstable.first) >= 0 ||
                 after != null && after.first.compareTo(sstable.last) <= 0)
             {
-                if (strictLCSChecksTest) // we can only assert this in tests since this is normal when for example moving sstables from unrepaired to repaired
-                    throw new AssertionError("Got unexpected overlap in level "+sstable.getSSTableLevel());
                 sendToL0(sstable);
             }
             else
@@ -176,8 +174,7 @@ class LeveledGenerations
     {
         try
         {
-            sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 0);
-            sstable.reloadSSTableMetadata();
+            sstable.mutateLevelAndReload(0);
         }
         catch (IOException e)
         {
@@ -227,6 +224,14 @@ class LeveledGenerations
         for (int i = 0; i < levelCount(); i++)
             counts[i] = get(i).size();
         return counts;
+    }
+
+    long[] getAllLevelSizeBytes()
+    {
+        long[] sums = new long[levelCount()];
+        for (int i = 0; i < sums.length; i++)
+            sums[i] = get(i).stream().map(SSTableReader::onDiskLength).reduce(0L, Long::sum);
+        return sums;
     }
 
     Set<SSTableReader> allSSTables()
@@ -326,5 +331,16 @@ class LeveledGenerations
                 }
             }
         }
+    }
+
+    void newLevel(SSTableReader sstable, int oldLevel)
+    {
+        SSTableReader versionInManifest = allSSTables.remove(sstable);
+        boolean removed = false;
+        if (versionInManifest != null)
+            removed = get(oldLevel).remove(versionInManifest);
+        if (!removed)
+            logger.warn("Could not remove "+sstable+" from "+oldLevel);
+        addAll(Collections.singleton(sstable));
     }
 }

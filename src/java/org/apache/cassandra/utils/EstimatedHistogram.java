@@ -34,6 +34,8 @@ public class EstimatedHistogram
 {
     public static final EstimatedHistogramSerializer serializer = new EstimatedHistogramSerializer();
 
+    public static final int DEFAULT_BUCKET_COUNT = 90;
+
     /**
      * The series of values to which the counts in `buckets` correspond:
      * 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 17, 20, etc.
@@ -52,7 +54,7 @@ public class EstimatedHistogram
 
     public EstimatedHistogram()
     {
-        this(90);
+        this(DEFAULT_BUCKET_COUNT);
     }
 
     public EstimatedHistogram(int bucketCount)
@@ -113,11 +115,7 @@ public class EstimatedHistogram
         return bucketOffsets;
     }
 
-    /**
-     * Increments the count of the bucket closest to n, rounding UP.
-     * @param n
-     */
-    public void add(long n)
+    private int findIndex(long n)
     {
         int index = Arrays.binarySearch(bucketOffsets, n);
         if (index < 0)
@@ -125,8 +123,25 @@ public class EstimatedHistogram
             // inexact match, take the first bucket higher than n
             index = -index - 1;
         }
-        // else exact match; we're good
-        buckets.incrementAndGet(index);
+        return index;
+    }
+
+    /**
+     * Increments the count of the bucket closest to n, rounding UP.
+     * @param n
+     */
+    public void add(long n)
+    {
+        buckets.incrementAndGet(findIndex(n));
+    }
+
+    /**
+     * Increments the count of the bucket closest to n, rounding UP by delta
+     * @param n
+     */
+    public void add(long n, long delta)
+    {
+        buckets.addAndGet(findIndex(n), delta);
     }
 
     /**

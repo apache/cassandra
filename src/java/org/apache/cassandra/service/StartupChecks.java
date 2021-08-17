@@ -29,22 +29,23 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
+import net.jpountz.lz4.LZ4Factory;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -52,7 +53,13 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SigarLibrary;
+
+import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
 
 /**
  * Verifies that the system and environment is in a fit state to be started.
@@ -76,7 +83,6 @@ import org.apache.cassandra.utils.SigarLibrary;
 public class StartupChecks
 {
     private static final Logger logger = LoggerFactory.getLogger(StartupChecks.class);
-
     // List of checks to run before starting up. If any test reports failure, startup will be halted.
     private final List<StartupCheck> preFlightChecks = new ArrayList<>();
 
@@ -84,6 +90,7 @@ public class StartupChecks
     // always want the system keyspace check run last, as this actually loads the schema for that
     // keyspace. All other checks should not require any schema initialization.
     private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkJemalloc,
+                                                                      checkLz4Native,
                                                                       checkValidLaunchDate,
                                                                       checkJMXPorts,
                                                                       checkJMXProperties,
@@ -141,6 +148,17 @@ public class StartupChecks
         }
     };
 
+    public static final StartupCheck checkLz4Native = () -> {
+        try
+        {
+            LZ4Factory.nativeInstance(); // make sure native loads
+        }
+        catch (AssertionError | LinkageError e)
+        {
+            logger.warn("lz4-java was unable to load native libraries; this will lower the performance of lz4 (network/sstables/etc.): {}", Throwables.getRootCause(e).getMessage());
+        }
+    };
+
     public static final StartupCheck checkValidLaunchDate = new StartupCheck()
     {
         /**
@@ -182,7 +200,7 @@ public class StartupChecks
     {
         public void execute()
         {
-            if (System.getProperty("com.sun.management.jmxremote.port") != null)
+            if (COM_SUN_MANAGEMENT_JMXREMOTE_PORT.isPresent())
             {
                 logger.warn("Use of com.sun.management.jmxremote.port at startup is deprecated. " +
                             "Please use cassandra.jmx.remote.port instead.");
@@ -198,7 +216,7 @@ public class StartupChecks
             if (!DatabaseDescriptor.hasLargeAddressSpace())
                 logger.warn("32bit JVM detected.  It is recommended to run Cassandra on a 64bit JVM for better performance.");
 
-            String javaVmName = System.getProperty("java.vm.name");
+            String javaVmName = JAVA_VM_NAME.getString();
             if (!(javaVmName.contains("HotSpot") || javaVmName.contains("OpenJDK")))
             {
                 logger.warn("Non-Oracle JVM detected.  Some features, such as immediate unmap of compacted SSTables, may not work as intended");
@@ -214,7 +232,7 @@ public class StartupChecks
          */
         private void checkOutOfMemoryHandling()
         {
-            if (JavaUtils.supportExitOnOutOfMemory(System.getProperty("java.version")))
+            if (JavaUtils.supportExitOnOutOfMemory(JAVA_VERSION.getString()))
             {
                 if (!jvmOptionsContainsOneOf("-XX:OnOutOfMemoryError=", "-XX:+ExitOnOutOfMemoryError", "-XX:+CrashOnOutOfMemoryError"))
                     logger.warn("The JVM is not configured to stop on OutOfMemoryError which can cause data corruption."
@@ -321,6 +339,7 @@ public class StartupChecks
                                                  Arrays.asList(DatabaseDescriptor.getCommitLogLocation(),
                                                                DatabaseDescriptor.getSavedCachesLocation(),
                                                                DatabaseDescriptor.getHintsDirectory().getAbsolutePath()));
+
         for (String dataDir : dirs)
         {
             logger.debug("Checking directory {}", dataDir);
@@ -355,14 +374,15 @@ public class StartupChecks
 
             FileVisitor<Path> sstableVisitor = new SimpleFileVisitor<Path>()
             {
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                public FileVisitResult visitFile(Path path, BasicFileAttributes attrs)
                 {
-                    if (!Descriptor.isValidFile(file.getFileName().toString()))
+                    File file = path.toFile();
+                    if (!Descriptor.isValidFile(file))
                         return FileVisitResult.CONTINUE;
 
                     try
                     {
-                        if (!Descriptor.fromFilename(file.toString()).isCompatible())
+                        if (!Descriptor.fromFilename(file).isCompatible())
                             invalid.add(file.toString());
                     }
                     catch (Exception e)
@@ -414,7 +434,7 @@ public class StartupChecks
             // we do a one-off scrub of the system keyspace first; we can't load the list of the rest of the keyspaces,
             // until system keyspace is opened.
 
-            for (CFMetaData cfm : Schema.instance.getTablesAndViews(SchemaConstants.SYSTEM_KEYSPACE_NAME))
+            for (TableMetadata cfm : Schema.instance.getTablesAndViews(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 ColumnFamilyStore.scrubDataDirectories(cfm);
 
             try
@@ -423,7 +443,7 @@ public class StartupChecks
             }
             catch (ConfigurationException e)
             {
-                throw new StartupException(100, "Fatal exception during initialization", e);
+                throw new StartupException(StartupException.ERR_WRONG_CONFIG, "Fatal exception during initialization", e);
             }
         }
     };
@@ -437,7 +457,7 @@ public class StartupChecks
                 String storedDc = SystemKeyspace.getDatacenter();
                 if (storedDc != null)
                 {
-                    String currentDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+                    String currentDc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
                     if (!storedDc.equals(currentDc))
                     {
                         String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
@@ -459,7 +479,7 @@ public class StartupChecks
                 String storedRack = SystemKeyspace.getRack();
                 if (storedRack != null)
                 {
-                    String currentRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
+                    String currentRack = DatabaseDescriptor.getEndpointSnitch().getLocalRack();
                     if (!storedRack.equals(currentRack))
                     {
                         String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
@@ -472,14 +492,17 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkLegacyAuthTables = () -> checkLegacyAuthTablesMessage().ifPresent(logger::warn);
-
-    static final Set<String> LEGACY_AUTH_TABLES = ImmutableSet.of("credentials", "users", "permissions");
+    public static final StartupCheck checkLegacyAuthTables = () ->
+    {
+        Optional<String> errMsg = checkLegacyAuthTablesMessage();
+        if (errMsg.isPresent())
+            throw new StartupException(StartupException.ERR_WRONG_CONFIG, errMsg.get());
+    };
 
     @VisibleForTesting
     static Optional<String> checkLegacyAuthTablesMessage()
     {
-        List<String> existing = new ArrayList<>(LEGACY_AUTH_TABLES).stream().filter((legacyAuthTable) ->
+        List<String> existing = new ArrayList<>(SchemaConstants.LEGACY_AUTH_TABLES).stream().filter((legacyAuthTable) ->
             {
                 UntypedResultSet result = QueryProcessor.executeOnceInternal(String.format("SELECT table_name FROM %s.%s WHERE keyspace_name='%s' AND table_name='%s'",
                                                                                            SchemaConstants.SCHEMA_KEYSPACE_NAME,

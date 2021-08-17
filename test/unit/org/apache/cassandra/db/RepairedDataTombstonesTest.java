@@ -256,7 +256,7 @@ public class RepairedDataTombstonesTest extends CQLTester
                             for (int i = 0; i < row.clustering().size(); i++)
                             {
                                 foundRows++;
-                                int val = ByteBufferUtil.toInt(row.clustering().get(i));
+                                int val = ByteBufferUtil.toInt(row.clustering().bufferAt(i));
                                 assertTrue("val=" + val, val >= minVal && val < maxVal);
                             }
                         }
@@ -296,7 +296,7 @@ public class RepairedDataTombstonesTest extends CQLTester
                         for (int i = 0; i < row.clustering().size(); i++)
                         {
                             foundRows++;
-                            int val = ByteBufferUtil.toInt(row.clustering().get(i));
+                            int val = ByteBufferUtil.toInt(row.clustering().bufferAt(i));
                             assertTrue("val=" + val, val >= minVal && val < maxVal);
                         }
                     }
@@ -308,7 +308,7 @@ public class RepairedDataTombstonesTest extends CQLTester
 
     public static void repair(ColumnFamilyStore cfs, SSTableReader sstable) throws IOException
     {
-        sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, 1);
+        sstable.descriptor.getMetadataSerializer().mutateRepairMetadata(sstable.descriptor, 1, null, false);
         sstable.reloadSSTableMetadata();
         cfs.getTracker().notifySSTableRepairedStatusChanged(Collections.singleton(sstable));
     }

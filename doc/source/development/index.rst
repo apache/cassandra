@@ -14,12 +14,13 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Cassandra Development
-*********************
+Contributing to Cassandra
+*************************
 
 .. toctree::
    :maxdepth: 2
 
+   gettingstarted
    ide
    testing
    patches
@@ -27,3 +28,7 @@ Cassandra Development
    license_compliance
    how_to_review
    how_to_commit
+   documentation
+   ci
+   dependencies
+   release_process

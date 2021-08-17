@@ -48,9 +48,9 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
         super(baseCfs, indexDef);
     }
 
-    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix prefix,
-                                               CellPath path)
+    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                   ClusteringPrefix<T> prefix,
+                                                   CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);
@@ -58,7 +58,7 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
         // When indexing a static column, prefix will be empty but only the
         // partition key is needed at query time.
         for (int i = 0; i < prefix.size(); i++)
-            builder.add(prefix.get(i));
+            builder.add(prefix.get(i), prefix.accessor());
 
         return builder;
     }
@@ -66,24 +66,24 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
     public IndexEntry decodeEntry(DecoratedKey indexedValue,
                                   Row indexEntry)
     {
-        Clustering clustering = indexEntry.clustering();
+        Clustering<?> clustering = indexEntry.clustering();
 
-        Clustering indexedEntryClustering = null;
+        Clustering<?> indexedEntryClustering = null;
         if (getIndexedColumn().isStatic())
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;
         else
         {
-            int count = 1 + baseCfs.metadata.clusteringColumns().size();
+            int count = 1 + baseCfs.metadata().clusteringColumns().size();
             CBuilder builder = CBuilder.create(baseCfs.getComparator());
             for (int i = 0; i < count - 1; i++)
-                builder.add(clustering.get(i + 1));
+                builder.add(clustering, i + 1);
             indexedEntryClustering = builder.build();
         }
 
         return new IndexEntry(indexedValue,
                               clustering,
                               indexEntry.primaryKeyLivenessInfo().timestamp(),
-                              clustering.get(0),
+                              clustering.bufferAt(0),
                               indexedEntryClustering);
     }
 }

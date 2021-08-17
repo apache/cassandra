@@ -19,7 +19,6 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
@@ -39,8 +38,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -94,13 +94,13 @@ public class CleanupTest
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {
             @Override
-            public String getRack(InetAddress endpoint)
+            public String getRack(InetAddressAndPort endpoint)
             {
                 return "RC1";
             }
 
             @Override
-            public String getDatacenter(InetAddress endpoint)
+            public String getDatacenter(InetAddressAndPort endpoint)
             {
                 return "DC1";
             }
@@ -123,6 +123,7 @@ public class CleanupTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
 
+
         // insert data and verify we get it back w/ range query
         fillCF(cfs, "val", LOOPS);
 
@@ -130,6 +131,7 @@ public class CleanupTest
         List<Long> expectedMaxTimestamps = getMaxTimestampList(cfs);
 
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
+
         // with one token in the ring, owned by the local node, cleanup should be a no-op
         CompactionManager.instance.performCleanup(cfs, 2);
 
@@ -151,7 +153,7 @@ public class CleanupTest
         fillCF(cfs, "birthdate", LOOPS);
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
 
-        ColumnDefinition cdef = cfs.metadata.getColumnDefinition(COLUMN);
+        ColumnMetadata cdef = cfs.metadata().getColumn(COLUMN);
         String indexName = "birthdate_key_index";
         long start = System.nanoTime();
         while (!cfs.getBuiltIndexes().contains(indexName) && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10))
@@ -167,8 +169,8 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
 
         CompactionManager.instance.performCleanup(cfs, 2);
 
@@ -199,12 +201,13 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
         CompactionManager.instance.performCleanup(cfs, 2);
 
         assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
     }
+
     @Test
     public void testCleanupWithNoTokenRange() throws Exception
     {
@@ -222,9 +225,9 @@ public class CleanupTest
 
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.1"));
+        tmd.updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.1"));
         byte[] tk1 = {2};
-        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
 
 
         Keyspace keyspace = Keyspace.open(KEYSPACE2);
@@ -258,32 +261,35 @@ public class CleanupTest
         Keyspace keyspace = Keyspace.open(KEYSPACE3);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD3);
         cfs.disableAutoCompaction();
-        for (byte i = 0; i < 100; i++)
-        {
-            new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), ByteBuffer.wrap(new byte[] {i}))
-                .clustering(COLUMN)
-                .add("val", VALUE)
-                .build()
-                .applyUnsafe();
-            cfs.forceBlockingFlush();
-        }
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
         tmd.clearUnsafe();
-        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.1"));
-        tmd.updateNormalToken(token(new byte[] {50}), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(token(new byte[]{ 50 }), InetAddressAndPort.getByName("127.0.0.1"));
+
+        for (byte i = 0; i < 100; i++)
+        {
+            new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBuffer.wrap(new byte[]{ i }))
+            .clustering(COLUMN)
+            .add("val", VALUE)
+            .build()
+            .applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+
         Set<SSTableReader> beforeFirstCleanup = Sets.newHashSet(cfs.getLiveSSTables());
         // single token - 127.0.0.1 owns everything, cleanup should be noop
         cfs.forceCleanup(2);
         assertEquals(beforeFirstCleanup, cfs.getLiveSSTables());
-        tmd.updateNormalToken(token(new byte[] {120}), InetAddress.getByName("127.0.0.2"));
+        tmd.updateNormalToken(token(new byte[]{ 120 }), InetAddressAndPort.getByName("127.0.0.2"));
+
         cfs.forceCleanup(2);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             assertEquals(sstable.first, sstable.last); // single-token sstables
-            assertTrue(sstable.first.getToken().compareTo(token(new byte[]{50})) <= 0);
+            assertTrue(sstable.first.getToken().compareTo(token(new byte[]{ 50 })) <= 0);
             // with single-token sstables they should all either be skipped or dropped:
             assertTrue(beforeFirstCleanup.contains(sstable));
         }
+
     }
 
 
@@ -304,8 +310,8 @@ public class CleanupTest
         byte[] tk1 = new byte[1], tk2 = new byte[1];
         tk1[0] = 2;
         tk2[0] = 1;
-        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
 
         for(SSTableReader r: cfs.getLiveSSTables())
             CompactionManager.instance.forceUserDefinedCleanup(r.getFilename());
@@ -394,7 +400,7 @@ public class CleanupTest
         {
             String key = String.valueOf(i);
             // create a row and update the birthdate value, test that the index query fetches the new version
-            new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), ByteBufferUtil.bytes(key))
+            new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), ByteBufferUtil.bytes(key))
                     .clustering(COLUMN)
                     .add(colName, VALUE)
                     .build()

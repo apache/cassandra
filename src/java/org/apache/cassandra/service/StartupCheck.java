@@ -25,8 +25,7 @@ import org.apache.cassandra.exceptions.StartupException;
  * information or advice on tuning and non-fatal environmental issues (e.g. like
  * checking for and warning about suboptimal JVM settings).
  * Other checks may indicate that they system is not in a correct state to be started.
- * Examples include inability to load JNA when the cassandra.boot_without_jna option
- * is not set, missing or unaccessible data directories, unreadable sstables and
+ * Examples include missing or unaccessible data directories, unreadable sstables and
  * misconfiguration of cluster_name in cassandra.yaml.
  *
  * The StartupChecks class manages a collection of these tests, which it executes

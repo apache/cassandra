@@ -21,52 +21,11 @@ package org.apache.cassandra.cql3.validation.entities;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class CountersTest extends CQLTester
 {
-    /**
-     * Check for a table with counters,
-     * migrated from cql_tests.py:TestCQL.counters_test()
-     */
-    @Test
-    public void testCounters() throws Throwable
-    {
-        createTable("CREATE TABLE %s (userid int, url text, total counter, PRIMARY KEY (userid, url)) WITH COMPACT STORAGE");
-
-        execute("UPDATE %s SET total = total + 1 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(1L));
-
-        execute("UPDATE %s SET total = total - 4 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(-3L));
-
-        execute("UPDATE %s SET total = total+1 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(-2L));
-
-        execute("UPDATE %s SET total = total -2 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(-4L));
-
-        execute("UPDATE %s SET total += 6 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(2L));
-
-        execute("UPDATE %s SET total -= 1 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(1L));
-
-        execute("UPDATE %s SET total += -2 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(-1L));
-
-        execute("UPDATE %s SET total -= -2 WHERE userid = 1 AND url = 'http://foo.com'");
-        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
-                   row(1L));
-    }
-
     /**
      * Test for the validation bug of #4706,
      * migrated from cql_tests.py:TestCQL.validate_counter_regular_test()
@@ -77,6 +36,17 @@ public class CountersTest extends CQLTester
         assertInvalidThrowMessage("Cannot mix counter and non counter columns in the same table",
                                   InvalidRequestException.class,
                                   String.format("CREATE TABLE %s.%s (id bigint PRIMARY KEY, count counter, things set<text>)", KEYSPACE, createTableName()));
+    }
+
+    @Test
+    public void testCannotAlterWithNonCounterColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, c counter)");
+        assertInvalidThrowMessage("Cannot have a non counter column (\"t\") in a counter table",
+                ConfigurationException.class, formatQuery("ALTER TABLE %s ADD t text"));
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t text)");
+        assertInvalidThrowMessage("Cannot have a counter column (\"c\") in a non counter table",
+                                  ConfigurationException.class, formatQuery("ALTER TABLE %s ADD c counter"));
     }
 
     /**
@@ -131,75 +101,69 @@ public class CountersTest extends CQLTester
     @Test
     public void testCounterFiltering() throws Throwable
     {
-        for (String compactStorageClause : new String[]{ "", " WITH COMPACT STORAGE" })
-        {
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, a counter)" + compactStorageClause);
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a counter)");
 
-            for (int i = 0; i < 10; i++)
-                execute("UPDATE %s SET a = a + ? WHERE k = ?", (long) i, i);
+        for (int i = 0; i < 10; i++)
+            execute("UPDATE %s SET a = a + ? WHERE k = ?", (long) i, i);
 
-            execute("UPDATE %s SET a = a + ? WHERE k = ?", 6L, 10);
+        execute("UPDATE %s SET a = a + ? WHERE k = ?", 6L, 10);
 
-            // GT
-            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a > ? ALLOW FILTERING", 5L),
-                                    row(6, 6L),
-                                    row(7, 7L),
-                                    row(8, 8L),
-                                    row(9, 9L),
-                                    row(10, 6L));
+        // GT
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a > ? ALLOW FILTERING", 5L),
+                                row(6, 6L),
+                                row(7, 7L),
+                                row(8, 8L),
+                                row(9, 9L),
+                                row(10, 6L));
 
-            // GTE
-            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= ? ALLOW FILTERING", 6L),
-                                    row(6, 6L),
-                                    row(7, 7L),
-                                    row(8, 8L),
-                                    row(9, 9L),
-                                    row(10, 6L));
+        // GTE
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a >= ? ALLOW FILTERING", 6L),
+                                row(6, 6L),
+                                row(7, 7L),
+                                row(8, 8L),
+                                row(9, 9L),
+                                row(10, 6L));
 
-            // LT
-            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a < ? ALLOW FILTERING", 3L),
-                                    row(0, 0L),
-                                    row(1, 1L),
-                                    row(2, 2L));
+        // LT
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a < ? ALLOW FILTERING", 3L),
+                                row(0, 0L),
+                                row(1, 1L),
+                                row(2, 2L));
 
-            // LTE
-            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a <= ? ALLOW FILTERING", 3L),
-                                    row(0, 0L),
-                                    row(1, 1L),
-                                    row(2, 2L),
-                                    row(3, 3L));
+        // LTE
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a <= ? ALLOW FILTERING", 3L),
+                                row(0, 0L),
+                                row(1, 1L),
+                                row(2, 2L),
+                                row(3, 3L));
 
-            // EQ
-            assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a = ? ALLOW FILTERING", 6L),
-                                    row(6, 6L),
-                                    row(10, 6L));
-        }
+        // EQ
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE a = ? ALLOW FILTERING", 6L),
+                                row(6, 6L),
+                                row(10, 6L));
     }
 
     @Test
     public void testCounterFilteringWithNull() throws Throwable
     {
-        for (String compactStorageClause : new String[]{ "", " WITH COMPACT STORAGE" })
-        {
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, a counter, b counter)" + compactStorageClause);
-            execute("UPDATE %s SET a = a + ? WHERE k = ?", 1L, 1);
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, a counter, b counter)");
+        execute("UPDATE %s SET a = a + ? WHERE k = ?", 1L, 1);
 
-            assertRows(execute("SELECT * FROM %s WHERE a > ? ALLOW FILTERING", 0L),
-                       row(1, 1L, null));
-            // GT
-            assertEmpty(execute("SELECT * FROM %s WHERE b > ? ALLOW FILTERING", 1L));
-            // GTE
-            assertEmpty(execute("SELECT * FROM %s WHERE b >= ? ALLOW FILTERING", 1L));
-            // LT
-            assertEmpty(execute("SELECT * FROM %s WHERE b < ? ALLOW FILTERING", 1L));
-            // LTE
-            assertEmpty(execute("SELECT * FROM %s WHERE b <= ? ALLOW FILTERING", 1L));
-            // EQ
-            assertEmpty(execute("SELECT * FROM %s WHERE b = ? ALLOW FILTERING", 1L));
-            // with null
-            assertInvalidMessage("Invalid null value for counter increment/decrement",
-                                 "SELECT * FROM %s WHERE b = null ALLOW FILTERING");
-        }
+        assertRows(execute("SELECT * FROM %s WHERE a > ? ALLOW FILTERING", 0L),
+                   row(1, 1L, null));
+        // GT
+        assertEmpty(execute("SELECT * FROM %s WHERE b > ? ALLOW FILTERING", 1L));
+        // GTE
+        assertEmpty(execute("SELECT * FROM %s WHERE b >= ? ALLOW FILTERING", 1L));
+        // LT
+        assertEmpty(execute("SELECT * FROM %s WHERE b < ? ALLOW FILTERING", 1L));
+        // LTE
+        assertEmpty(execute("SELECT * FROM %s WHERE b <= ? ALLOW FILTERING", 1L));
+        // EQ
+        assertEmpty(execute("SELECT * FROM %s WHERE b = ? ALLOW FILTERING", 1L));
+        // with null
+        assertInvalidMessage("Invalid null value for counter increment/decrement",
+                             "SELECT * FROM %s WHERE b = null ALLOW FILTERING");
     }
 
     /**
@@ -208,34 +172,74 @@ public class CountersTest extends CQLTester
     @Test
     public void testProhibitReversedCounterAsPartOfPrimaryKey() throws Throwable
     {
-        assertInvalidThrowMessage("counter type is not supported for PRIMARY KEY part a",
+        assertInvalidThrowMessage("counter type is not supported for PRIMARY KEY column 'a'",
                                   InvalidRequestException.class, String.format("CREATE TABLE %s.%s (a counter, b int, PRIMARY KEY (b, a)) WITH CLUSTERING ORDER BY (a desc);", KEYSPACE, createTableName()));
     }
 
     /**
-     * Test for the bug of #11726.
+     * Check that a counter batch works as intended
      */
     @Test
-    public void testCounterAndColumnSelection() throws Throwable
+    public void testCounterBatch() throws Throwable
     {
-        for (String compactStorageClause : new String[]{ "", " WITH COMPACT STORAGE" })
-        {
-            createTable("CREATE TABLE %s (k int PRIMARY KEY, c counter)" + compactStorageClause);
+        createTable("CREATE TABLE %s (userid int, url text, total counter, PRIMARY KEY (userid, url))");
 
-            // Flush 2 updates in different sstable so that the following select does a merge, which is what triggers
-            // the problem from #11726
+        // Ensure we handle updates to the same CQL row in the same partition properly
+        execute("BEGIN UNLOGGED BATCH " +
+                "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
+                "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
+                "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
+                "APPLY BATCH; ");
+        assertRows(execute("SELECT total FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
+                row(3L));
 
-            execute("UPDATE %s SET c = c + ? WHERE k = ?", 1L, 0);
+        // Ensure we handle different CQL rows in the same partition properly
+        execute("BEGIN UNLOGGED BATCH " +
+                "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://bar.com'; " +
+                "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://baz.com'; " +
+                "UPDATE %1$s SET total = total + 1 WHERE userid = 1 AND url = 'http://bad.com'; " +
+                "APPLY BATCH; ");
+        assertRows(execute("SELECT url, total FROM %s WHERE userid = 1"),
+                row("http://bad.com", 1L),
+                row("http://bar.com", 1L),
+                row("http://baz.com", 1L),
+                row("http://foo.com", 3L)); // from previous batch
 
-            flush();
+        // Different counters in the same CQL Row
+        createTable("CREATE TABLE %s (userid int, url text, first counter, second counter, third counter, PRIMARY KEY (userid, url))");
+        execute("BEGIN UNLOGGED BATCH " +
+                "UPDATE %1$s SET first = first + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
+                "UPDATE %1$s SET first = first + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
+                "UPDATE %1$s SET second = second + 1 WHERE userid = 1 AND url = 'http://foo.com'; " +
+                "APPLY BATCH; ");
+        assertRows(execute("SELECT first, second, third FROM %s WHERE userid = 1 AND url = 'http://foo.com'"),
+                row(2L, 1L, null));
 
-            execute("UPDATE %s SET c = c + ? WHERE k = ?", 1L, 0);
+        // Different counters in different CQL Rows
+        execute("BEGIN UNLOGGED BATCH " +
+                "UPDATE %1$s SET first = first + 1 WHERE userid = 1 AND url = 'http://bad.com'; " +
+                "UPDATE %1$s SET first = first + 1, second = second + 1 WHERE userid = 1 AND url = 'http://bar.com'; " +
+                "UPDATE %1$s SET first = first - 1, second = second - 1 WHERE userid = 1 AND url = 'http://bar.com'; " +
+                "UPDATE %1$s SET second = second + 1 WHERE userid = 1 AND url = 'http://baz.com'; " +
+                "APPLY BATCH; ");
+        assertRows(execute("SELECT url, first, second, third FROM %s WHERE userid = 1"),
+                row("http://bad.com", 1L, null, null),
+                row("http://bar.com", 0L, 0L, null),
+                row("http://baz.com", null, 1L, null),
+                row("http://foo.com", 2L, 1L, null)); // from previous batch
 
-            flush();
 
-            // Querying, but not including the counter. Pre-CASSANDRA-11726, this made us query the counter but include
-            // it's value, which broke at merge (post-CASSANDRA-11726 are special cases to never skip values).
-            assertRows(execute("SELECT k FROM %s"), row(0));
-        }
+        // Different counters in different partitions
+        execute("BEGIN UNLOGGED BATCH " +
+                "UPDATE %1$s SET first = first + 1 WHERE userid = 2 AND url = 'http://bad.com'; " +
+                "UPDATE %1$s SET first = first + 1, second = second + 1 WHERE userid = 3 AND url = 'http://bar.com'; " +
+                "UPDATE %1$s SET first = first - 1, second = second - 1 WHERE userid = 4 AND url = 'http://bar.com'; " +
+                "UPDATE %1$s SET second = second + 1 WHERE userid = 5 AND url = 'http://baz.com'; " +
+                "APPLY BATCH; ");
+        assertRowsIgnoringOrder(execute("SELECT userid, url, first, second, third FROM %s WHERE userid IN (2, 3, 4, 5)"),
+                row(2, "http://bad.com", 1L, null, null),
+                row(3, "http://bar.com", 1L, 1L, null),
+                row(4, "http://bar.com", -1L, -1L, null),
+                row(5, "http://baz.com", null, 1L, null));
     }
 }

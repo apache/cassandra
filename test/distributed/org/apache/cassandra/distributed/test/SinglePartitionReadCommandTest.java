@@ -33,15 +33,11 @@ public class SinglePartitionReadCommandTest extends TestBaseImpl
     {
         try (Cluster cluster = init(builder().withNodes(2).start()))
         {
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH dclocal_read_repair_chance=0"));
-            cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 1000 SET v1 = 1, v2 = 2 WHERE pk = 1 AND ck = '1'"));
-            cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 1001 SET v1 = 1, v2 = 2 WHERE pk = 2 AND ck = '1'"));
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck text, v1 int, v2 int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
+            cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 2000 SET v1 = 1, v2 = 2 WHERE pk = 1 AND ck = '1'"));
             cluster.get(1).flush(KEYSPACE);
 
-            cluster.get(2).executeInternal(withKeyspace("DELETE v1 FROM %s.tbl USING TIMESTAMP 2000 WHERE pk=1 AND ck='1'"));
-            cluster.get(2).executeInternal(withKeyspace("DELETE v1 FROM %s.tbl USING TIMESTAMP 2001 WHERE pk=2 AND ck='1'"));
-            cluster.get(2).flush(KEYSPACE);
-            cluster.get(2).executeInternal(withKeyspace("DELETE v2 FROM %s.tbl USING TIMESTAMP 3000 WHERE pk=2 AND ck='1'"));
+            cluster.get(2).executeInternal(withKeyspace("DELETE v1 FROM %s.tbl USING TIMESTAMP 3000 WHERE pk=1 AND ck='1'"));
             cluster.get(2).flush(KEYSPACE);
 
             assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL),
@@ -51,9 +47,12 @@ public class SinglePartitionReadCommandTest extends TestBaseImpl
             assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v2 FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL),
                        row((Integer) 2));
 
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=2 AND ck='1'"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v1 FROM %s.tbl WHERE pk=2 AND ck='1'"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v2 FROM %s.tbl WHERE pk=2 AND ck='1'"), ConsistencyLevel.ALL));
+            cluster.get(2).executeInternal(withKeyspace("DELETE v2 FROM %s.tbl USING TIMESTAMP 4000 WHERE pk=1 AND ck='1'"));
+            cluster.get(2).flush(KEYSPACE);
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v1 FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT v2 FROM %s.tbl WHERE pk=1 AND ck='1'"), ConsistencyLevel.ALL));
         }
     }
 
@@ -108,19 +107,13 @@ public class SinglePartitionReadCommandTest extends TestBaseImpl
     {
         try (Cluster cluster = init(builder().withNodes(2).start()))
         {
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, s1 int static, s2 int static, v int, PRIMARY KEY (pk, ck)) WITH dclocal_read_repair_chance=0"));
-
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck int, s1 int static, s2 int static, v int, PRIMARY KEY (pk, ck)) WITH read_repair='NONE'"));
             cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, s1, s2) VALUES (1, 1, 1) USING TIMESTAMP 1000"));
-            cluster.get(1).executeInternal(withKeyspace("INSERT INTO %s.tbl (pk, s1, s2) VALUES (2, 1, 1) USING TIMESTAMP 1001"));
             cluster.get(1).flush(KEYSPACE);
             cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 2000 SET s1 = 2 WHERE pk = 1"));
-            cluster.get(1).executeInternal(withKeyspace("UPDATE %s.tbl USING TIMESTAMP 2001 SET s1 = 2 WHERE pk = 2"));
             cluster.get(1).flush(KEYSPACE);
 
             cluster.get(2).executeInternal(withKeyspace("DELETE s1 FROM %s.tbl USING TIMESTAMP 3000 WHERE pk = 1"));
-            cluster.get(2).executeInternal(withKeyspace("DELETE s1 FROM %s.tbl USING TIMESTAMP 3001 WHERE pk = 2"));
-            cluster.get(2).flush(KEYSPACE);
-            cluster.get(2).executeInternal(withKeyspace("DELETE s2 FROM %s.tbl USING TIMESTAMP 4000 WHERE pk = 2"));
             cluster.get(2).flush(KEYSPACE);
 
             assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL),
@@ -136,12 +129,15 @@ public class SinglePartitionReadCommandTest extends TestBaseImpl
             assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT DISTINCT s1 FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL),
                        row((Integer) null));
 
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=2"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT s1, s2 FROM %s.tbl WHERE pk=2"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT DISTINCT s1, s2 FROM %s.tbl WHERE pk=2"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT ck FROM %s.tbl WHERE pk=2"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT s1 FROM %s.tbl WHERE pk=2"), ConsistencyLevel.ALL));
-            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT DISTINCT s1 FROM %s.tbl WHERE pk=2"), ConsistencyLevel.ALL));
+            cluster.get(2).executeInternal(withKeyspace("DELETE s2 FROM %s.tbl USING TIMESTAMP 4000 WHERE pk = 1"));
+            cluster.get(2).flush(KEYSPACE);
+
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT s1, s2 FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT DISTINCT s1, s2 FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT ck FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT s1 FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL));
+            assertRows(cluster.coordinator(2).execute(withKeyspace("SELECT DISTINCT s1 FROM %s.tbl WHERE pk=1"), ConsistencyLevel.ALL));
         }
     }
 

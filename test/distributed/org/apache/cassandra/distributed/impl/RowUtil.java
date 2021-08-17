@@ -43,7 +43,7 @@ public class RowUtil
         {
             ResultMessage.Rows rows = (ResultMessage.Rows) res;
             String[] names = getColumnNames(rows.result.metadata.names);
-            Object[][] results = RowUtil.toObjects(rows);
+            Object[][] results = toObjects(rows);
             
             // Warnings may be null here, due to ClientWarn#getWarnings() handling of empty warning lists.
             List<String> warnings = res.getWarnings();
@@ -66,19 +66,6 @@ public class RowUtil
         return toObjects(rows.result.metadata.names, rows.result.rows);
     }
 
-    public static Iterator<Object[]> toObjects(ResultSet rs)
-    {
-        return Iterators.transform(rs.iterator(), (Row row) -> {
-            final int numColumns = rs.getColumnDefinitions().size();
-            Object[] objectRow = new Object[numColumns];
-            for (int i = 0; i < numColumns; i++)
-            {
-                objectRow[i] = row.getObject(i);
-            }
-            return objectRow;
-        });
-    }
-
     public static Object[][] toObjects(List<ColumnSpecification> specs, List<List<ByteBuffer>> rows)
     {
         Object[][] result = new Object[rows.size()][];
@@ -97,6 +84,19 @@ public class RowUtil
         return result;
     }
 
+    public static Iterator<Object[]> toObjects(ResultSet rs)
+    {
+        return Iterators.transform(rs.iterator(), (Row row) -> {
+            final int numColumns = rs.getColumnDefinitions().size();
+            Object[] objectRow = new Object[numColumns];
+            for (int i = 0; i < numColumns; i++)
+            {
+                objectRow[i] = row.getObject(i);
+            }
+            return objectRow;
+        });
+    }
+
     public static Iterator<Object[]> toIter(UntypedResultSet rs)
     {
         return toIter(rs.metadata(), rs.iterator());
@@ -110,15 +110,15 @@ public class RowUtil
     public static Iterator<Object[]> toIter(List<ColumnSpecification> columnSpecs, Iterator<UntypedResultSet.Row> rs)
     {
         Iterator<List<ByteBuffer>> iter = Iterators.transform(rs,
-                                                              (row) -> {
-                                                                  List<ByteBuffer> bbs = new ArrayList<>(columnSpecs.size());
-                                                                  for (int i = 0; i < columnSpecs.size(); i++)
-                                                                  {
-                                                                      ColumnSpecification columnSpec = columnSpecs.get(i);
-                                                                      bbs.add(row.getBytes(columnSpec.name.toString()));
-                                                                  }
-                                                                  return bbs;
-                                                              });
+                                                          (row) -> {
+                                                              List<ByteBuffer> bbs = new ArrayList<>(columnSpecs.size());
+                                                              for (int i = 0; i < columnSpecs.size(); i++)
+                                                              {
+                                                                  ColumnSpecification columnSpec = columnSpecs.get(i);
+                                                                  bbs.add(row.getBytes(columnSpec.name.toString()));
+                                                              }
+                                                              return bbs;
+                                                          });
         return toIterInternal(columnSpecs, Lists.newArrayList(iter));
     }
 

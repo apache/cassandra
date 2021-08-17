@@ -29,7 +29,6 @@ import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -59,7 +58,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
 
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, long smallestSSTable)
     {
-        super(cfs, directories, txn, nonExpiredSSTables, false, false);
+        super(cfs, directories, txn, nonExpiredSSTables, false);
         this.allSSTables = txn.originals();
         totalSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
         double[] potentialRatios = new double[20];
@@ -104,12 +103,14 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         this.location = location;
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
         @SuppressWarnings("resource")
-        SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(getDirectories().getLocationForDisk(location))),
+        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location)),
                                                     currentPartitionsToWrite,
                                                     minRepairedAt,
+                                                    pendingRepair,
+                                                    isTransient,
                                                     cfs.metadata,
-                                                    new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
-                                                    SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
+                                                    new MetadataCollector(allSSTables, cfs.metadata().comparator, 0),
+                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
                                                     cfs.indexManager.listIndexes(),
                                                     txn);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);

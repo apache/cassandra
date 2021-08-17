@@ -17,25 +17,18 @@
  */
 package org.apache.cassandra.db;
 
-import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
-import com.google.common.collect.Iterables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.CFMetaData;
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ReadRepairDecision;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.transport.ProtocolException;
+
+import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
+import static org.apache.cassandra.locator.Replicas.countInOurDc;
 
 public enum ConsistencyLevel
 {
@@ -49,9 +42,8 @@ public enum ConsistencyLevel
     EACH_QUORUM (7),
     SERIAL      (8),
     LOCAL_SERIAL(9),
-    LOCAL_ONE   (10, true);
-
-    private static final Logger logger = LoggerFactory.getLogger(ConsistencyLevel.class);
+    LOCAL_ONE   (10, true),
+    NODE_LOCAL  (11, true);
 
     // Used by the binary protocol
     public final int code;
@@ -89,19 +81,49 @@ public enum ConsistencyLevel
         return codeIdx[code];
     }
 
-    private int quorumFor(Keyspace keyspace)
+    public static int quorumFor(AbstractReplicationStrategy replicationStrategy)
     {
-        return (keyspace.getReplicationStrategy().getReplicationFactor() / 2) + 1;
+        return (replicationStrategy.getReplicationFactor().allReplicas / 2) + 1;
     }
 
-    private int localQuorumFor(Keyspace keyspace, String dc)
+    public static int localQuorumFor(AbstractReplicationStrategy replicationStrategy, String dc)
     {
-        return (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-             ? (((NetworkTopologyStrategy) keyspace.getReplicationStrategy()).getReplicationFactor(dc) / 2) + 1
-             : quorumFor(keyspace);
+        return (replicationStrategy instanceof NetworkTopologyStrategy)
+             ? (((NetworkTopologyStrategy) replicationStrategy).getReplicationFactor(dc).allReplicas / 2) + 1
+             : quorumFor(replicationStrategy);
     }
 
-    public int blockFor(Keyspace keyspace)
+    public static int localQuorumForOurDc(AbstractReplicationStrategy replicationStrategy)
+    {
+        return localQuorumFor(replicationStrategy, DatabaseDescriptor.getLocalDataCenter());
+    }
+
+    public static ObjectIntHashMap<String> eachQuorumForRead(AbstractReplicationStrategy replicationStrategy)
+    {
+        if (replicationStrategy instanceof NetworkTopologyStrategy)
+        {
+            NetworkTopologyStrategy npStrategy = (NetworkTopologyStrategy) replicationStrategy;
+            ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(((npStrategy.getDatacenters().size() + 1) * 4) / 3);
+            for (String dc : npStrategy.getDatacenters())
+                perDc.put(dc, ConsistencyLevel.localQuorumFor(replicationStrategy, dc));
+            return perDc;
+        }
+        else
+        {
+            ObjectIntHashMap<String> perDc = new ObjectIntHashMap<>(1);
+            perDc.put(DatabaseDescriptor.getLocalDataCenter(), quorumFor(replicationStrategy));
+            return perDc;
+        }
+    }
+
+    public static ObjectIntHashMap<String> eachQuorumForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pendingWithDown)
+    {
+        ObjectIntHashMap<String> perDc = eachQuorumForRead(replicationStrategy);
+        addToCountPerDc(perDc, pendingWithDown, 1);
+        return perDc;
+    }
+
+    public int blockFor(AbstractReplicationStrategy replicationStrategy)
     {
         switch (this)
         {
@@ -116,28 +138,59 @@ public enum ConsistencyLevel
                 return 3;
             case QUORUM:
             case SERIAL:
-                return quorumFor(keyspace);
+                return quorumFor(replicationStrategy);
             case ALL:
-                return keyspace.getReplicationStrategy().getReplicationFactor();
+                return replicationStrategy.getReplicationFactor().allReplicas;
             case LOCAL_QUORUM:
             case LOCAL_SERIAL:
-                return localQuorumFor(keyspace, DatabaseDescriptor.getLocalDataCenter());
+                return localQuorumForOurDc(replicationStrategy);
             case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
+                if (replicationStrategy instanceof NetworkTopologyStrategy)
                 {
-                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
+                    NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) replicationStrategy;
                     int n = 0;
                     for (String dc : strategy.getDatacenters())
-                        n += localQuorumFor(keyspace, dc);
+                        n += localQuorumFor(replicationStrategy, dc);
                     return n;
                 }
                 else
                 {
-                    return quorumFor(keyspace);
+                    return quorumFor(replicationStrategy);
                 }
             default:
                 throw new UnsupportedOperationException("Invalid consistency level: " + toString());
         }
+    }
+
+    public int blockForWrite(AbstractReplicationStrategy replicationStrategy, Endpoints<?> pending)
+    {
+        assert pending != null;
+
+        int blockFor = blockFor(replicationStrategy);
+        switch (this)
+        {
+            case ANY:
+                break;
+            case LOCAL_ONE: case LOCAL_QUORUM: case LOCAL_SERIAL:
+                // we will only count local replicas towards our response count, as these queries only care about local guarantees
+                blockFor += countInOurDc(pending).allReplicas();
+                break;
+            case ONE: case TWO: case THREE:
+            case QUORUM: case EACH_QUORUM:
+            case SERIAL:
+            case ALL:
+                blockFor += pending.size();
+        }
+        return blockFor;
+    }
+
+    /**
+     * Determine if this consistency level meets or exceeds the consistency requirements of the given cl for the given keyspace
+     * WARNING: this is not locality aware; you cannot safely use this with mixed locality consistency levels (e.g. LOCAL_QUORUM and QUORUM)
+     */
+    public boolean satisfies(ConsistencyLevel other, AbstractReplicationStrategy replicationStrategy)
+    {
+        return blockFor(replicationStrategy) >= other.blockFor(replicationStrategy);
     }
 
     public boolean isDatacenterLocal()
@@ -145,199 +198,7 @@ public enum ConsistencyLevel
         return isDCLocal;
     }
 
-    public boolean isLocal(InetAddress endpoint)
-    {
-        return DatabaseDescriptor.getLocalDataCenter().equals(DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint));
-    }
-
-    public int countLocalEndpoints(Iterable<InetAddress> liveEndpoints)
-    {
-        int count = 0;
-        for (InetAddress endpoint : liveEndpoints)
-            if (isLocal(endpoint))
-                count++;
-        return count;
-    }
-
-    private Map<String, Integer> countPerDCEndpoints(Keyspace keyspace, Iterable<InetAddress> liveEndpoints)
-    {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-
-        Map<String, Integer> dcEndpoints = new HashMap<String, Integer>();
-        for (String dc: strategy.getDatacenters())
-            dcEndpoints.put(dc, 0);
-
-        for (InetAddress endpoint : liveEndpoints)
-        {
-            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(endpoint);
-            dcEndpoints.put(dc, dcEndpoints.get(dc) + 1);
-        }
-        return dcEndpoints;
-    }
-
-    public List<InetAddress> filterForQuery(Keyspace keyspace, List<InetAddress> liveEndpoints)
-    {
-        return filterForQuery(keyspace, liveEndpoints, ReadRepairDecision.NONE);
-    }
-
-    public List<InetAddress> filterForQuery(Keyspace keyspace, List<InetAddress> liveEndpoints, ReadRepairDecision readRepair)
-    {
-        /*
-         * If we are doing an each quorum query, we have to make sure that the endpoints we select
-         * provide a quorum for each data center. If we are not using a NetworkTopologyStrategy,
-         * we should fall through and grab a quorum in the replication strategy.
-         */
-        if (this == EACH_QUORUM && keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-            return filterForEachQuorum(keyspace, liveEndpoints, readRepair);
-
-        /*
-         * Endpoints are expected to be restricted to live replicas, sorted by snitch preference.
-         * For LOCAL_QUORUM, move local-DC replicas in front first as we need them there whether
-         * we do read repair (since the first replica gets the data read) or not (since we'll take
-         * the blockFor first ones).
-         */
-        if (isDCLocal)
-            Collections.sort(liveEndpoints, DatabaseDescriptor.getLocalComparator());
-
-        switch (readRepair)
-        {
-            case NONE:
-                return liveEndpoints.subList(0, Math.min(liveEndpoints.size(), blockFor(keyspace)));
-            case GLOBAL:
-                return liveEndpoints;
-            case DC_LOCAL:
-                List<InetAddress> local = new ArrayList<InetAddress>();
-                List<InetAddress> other = new ArrayList<InetAddress>();
-                for (InetAddress add : liveEndpoints)
-                {
-                    if (isLocal(add))
-                        local.add(add);
-                    else
-                        other.add(add);
-                }
-                // check if blockfor more than we have localep's
-                int blockFor = blockFor(keyspace);
-                if (local.size() < blockFor)
-                    local.addAll(other.subList(0, Math.min(blockFor - local.size(), other.size())));
-                return local;
-            default:
-                throw new AssertionError();
-        }
-    }
-
-    private List<InetAddress> filterForEachQuorum(Keyspace keyspace, List<InetAddress> liveEndpoints, ReadRepairDecision readRepair)
-    {
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
-
-        // quickly drop out if read repair is GLOBAL, since we just use all of the live endpoints
-        if (readRepair == ReadRepairDecision.GLOBAL)
-            return liveEndpoints;
-
-        Map<String, List<InetAddress>> dcsEndpoints = new HashMap<>();
-        for (String dc: strategy.getDatacenters())
-            dcsEndpoints.put(dc, new ArrayList<>());
-
-        for (InetAddress add : liveEndpoints)
-        {
-            String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(add);
-            dcsEndpoints.get(dc).add(add);
-        }
-
-        List<InetAddress> waitSet = new ArrayList<>();
-        for (Map.Entry<String, List<InetAddress>> dcEndpoints : dcsEndpoints.entrySet())
-        {
-            List<InetAddress> dcEndpoint = dcEndpoints.getValue();
-            if (readRepair == ReadRepairDecision.DC_LOCAL && dcEndpoints.getKey().equals(DatabaseDescriptor.getLocalDataCenter()))
-                waitSet.addAll(dcEndpoint);
-            else
-                waitSet.addAll(dcEndpoint.subList(0, Math.min(localQuorumFor(keyspace, dcEndpoints.getKey()), dcEndpoint.size())));
-        }
-
-        return waitSet;
-    }
-
-    public boolean isSufficientLiveNodes(Keyspace keyspace, Iterable<InetAddress> liveEndpoints)
-    {
-        switch (this)
-        {
-            case ANY:
-                // local hint is acceptable, and local node is always live
-                return true;
-            case LOCAL_ONE:
-                return countLocalEndpoints(liveEndpoints) >= 1;
-            case LOCAL_QUORUM:
-                return countLocalEndpoints(liveEndpoints) >= blockFor(keyspace);
-            case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-                {
-                    for (Map.Entry<String, Integer> entry : countPerDCEndpoints(keyspace, liveEndpoints).entrySet())
-                    {
-                        if (entry.getValue() < localQuorumFor(keyspace, entry.getKey()))
-                            return false;
-                    }
-                    return true;
-                }
-                // Fallthough on purpose for SimpleStrategy
-            default:
-                return Iterables.size(liveEndpoints) >= blockFor(keyspace);
-        }
-    }
-
-    public void assureSufficientLiveNodes(Keyspace keyspace, Iterable<InetAddress> liveEndpoints) throws UnavailableException
-    {
-        int blockFor = blockFor(keyspace);
-        switch (this)
-        {
-            case ANY:
-                // local hint is acceptable, and local node is always live
-                break;
-            case LOCAL_ONE:
-                if (countLocalEndpoints(liveEndpoints) == 0)
-                    throw new UnavailableException(this, 1, 0);
-                break;
-            case LOCAL_QUORUM:
-                int localLive = countLocalEndpoints(liveEndpoints);
-                if (localLive < blockFor)
-                {
-                    if (logger.isTraceEnabled())
-                    {
-                        StringBuilder builder = new StringBuilder("Local replicas [");
-                        for (InetAddress endpoint : liveEndpoints)
-                        {
-                            if (isLocal(endpoint))
-                                builder.append(endpoint).append(",");
-                        }
-                        builder.append("] are insufficient to satisfy LOCAL_QUORUM requirement of ").append(blockFor).append(" live nodes in '").append(DatabaseDescriptor.getLocalDataCenter()).append("'");
-                        logger.trace(builder.toString());
-                    }
-                    throw new UnavailableException(this, blockFor, localLive);
-                }
-                break;
-            case EACH_QUORUM:
-                if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
-                {
-                    for (Map.Entry<String, Integer> entry : countPerDCEndpoints(keyspace, liveEndpoints).entrySet())
-                    {
-                        int dcBlockFor = localQuorumFor(keyspace, entry.getKey());
-                        int dcLive = entry.getValue();
-                        if (dcLive < dcBlockFor)
-                            throw new UnavailableException(this, entry.getKey(), dcBlockFor, dcLive);
-                    }
-                    break;
-                }
-                // Fallthough on purpose for SimpleStrategy
-            default:
-                int live = Iterables.size(liveEndpoints);
-                if (live < blockFor)
-                {
-                    logger.trace("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
-                    throw new UnavailableException(this, blockFor, live);
-                }
-                break;
-        }
-    }
-
-    public void validateForRead(String keyspaceName) throws InvalidRequestException
+    public void validateForRead() throws InvalidRequestException
     {
         switch (this)
         {
@@ -346,7 +207,7 @@ public enum ConsistencyLevel
         }
     }
 
-    public void validateForWrite(String keyspaceName) throws InvalidRequestException
+    public void validateForWrite() throws InvalidRequestException
     {
         switch (this)
         {
@@ -357,12 +218,12 @@ public enum ConsistencyLevel
     }
 
     // This is the same than validateForWrite really, but we include a slightly different error message for SERIAL/LOCAL_SERIAL
-    public void validateForCasCommit(String keyspaceName) throws InvalidRequestException
+    public void validateForCasCommit(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException
     {
         switch (this)
         {
             case EACH_QUORUM:
-                requireNetworkTopologyStrategy(keyspaceName);
+                requireNetworkTopologyStrategy(replicationStrategy);
                 break;
             case SERIAL:
             case LOCAL_SERIAL:
@@ -381,19 +242,19 @@ public enum ConsistencyLevel
         return this == SERIAL || this == LOCAL_SERIAL;
     }
 
-    public void validateCounterForWrite(CFMetaData metadata) throws InvalidRequestException
+    public void validateCounterForWrite(TableMetadata metadata) throws InvalidRequestException
     {
         if (this == ConsistencyLevel.ANY)
-            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter table " + metadata.cfName);
+            throw new InvalidRequestException("Consistency level ANY is not yet supported for counter table " + metadata.name);
 
         if (isSerialConsistency())
             throw new InvalidRequestException("Counter operations are inherently non-serializable");
     }
 
-    private void requireNetworkTopologyStrategy(String keyspaceName) throws InvalidRequestException
+    private void requireNetworkTopologyStrategy(AbstractReplicationStrategy replicationStrategy) throws InvalidRequestException
     {
-        AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
-        if (!(strategy instanceof NetworkTopologyStrategy))
-            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)", this, strategy.getClass().getName()));
+        if (!(replicationStrategy instanceof NetworkTopologyStrategy))
+            throw new InvalidRequestException(String.format("consistency level %s not compatible with replication strategy (%s)",
+                                                            this, replicationStrategy.getClass().getName()));
     }
 }

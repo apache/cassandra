@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.impl;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -41,7 +40,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     private static final Map<InetAddressAndPort, InetSocketAddress> cache = new ConcurrentHashMap<>();
     private static final Map<InetSocketAddress, InetAddressAndPort> cacheInverse = new ConcurrentHashMap<>();
 
-    static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
+    public static InetAddressAndPort toCassandraInetAddressAndPort(InetSocketAddress addressAndPort)
     {
         InetAddressAndPort m = cacheInverse.get(addressAndPort);
         if (m == null)
@@ -52,7 +51,7 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         return m;
     }
 
-    static InetSocketAddress fromCassandraInetAddressAndPort(InetAddressAndPort addressAndPort)
+    public static InetSocketAddress fromCassandraInetAddressAndPort(InetAddressAndPort addressAndPort)
     {
         InetSocketAddress m = cache.get(addressAndPort);
         if (m == null)
@@ -98,19 +97,11 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
         if (current != null)
             return current;
 
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint.address);
+        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (epState == null || epState.getApplicationState(state) == null)
         {
             if (savedEndpoints == null)
-            {
-                savedEndpoints = new HashMap<>();
-                int storage_port = Config.getOverrideLoadConfig().get().storage_port;
-                for (Map.Entry<InetAddress, Map<String, String>> entry : SystemKeyspace.loadDcRackInfo().entrySet())
-                {
-                    savedEndpoints.put(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.address, storage_port),
-                                       entry.getValue());
-                }
-            }
+                savedEndpoints = SystemKeyspace.loadDcRackInfo();
             if (savedEndpoints.containsKey(endpoint))
                 return savedEndpoints.get(endpoint).get("data_center");
 
@@ -129,8 +120,9 @@ public class DistributedTestSnitch extends AbstractNetworkTopologySnitch
     {
         super.gossiperStarting();
 
-
+        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT,
+                                                   StorageService.instance.valueFactory.internalAddressAndPort(FBUtilities.getLocalAddressAndPort()));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP,
-                                                   StorageService.instance.valueFactory.internalIP(FBUtilities.getLocalAddress().getHostAddress()));
+                                                   StorageService.instance.valueFactory.internalIP(FBUtilities.getJustLocalAddress()));
     }
 }

@@ -23,7 +23,6 @@ package org.apache.cassandra.triggers;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.io.IOError;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -34,6 +33,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.io.Files;
+
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.FileUtils;
 
 /**
  * Custom class loader will load the classes from the class path, CCL will load
@@ -76,23 +78,23 @@ public class CustomClassLoader extends URLClassLoader
         };
         for (File inputJar : dir.listFiles(filter))
         {
-            File lib = new File(System.getProperty("java.io.tmpdir"), "lib");
+            File lib = new File(FileUtils.getTempDir(), "lib");
             if (!lib.exists())
             {
                 lib.mkdir();
                 lib.deleteOnExit();
             }
+            File out = FileUtils.createTempFile("cassandra-", ".jar", lib);
+            out.deleteOnExit();
+            logger.info("Loading new jar {}", inputJar.getAbsolutePath());
             try
             {
-                File out = File.createTempFile("cassandra-", ".jar", lib);
-                out.deleteOnExit();
-                logger.info("Loading new jar {}", inputJar.getAbsolutePath());
                 Files.copy(inputJar, out);
                 addURL(out.toURI().toURL());
             }
             catch (IOException ex)
             {
-                throw new IOError(ex);
+                throw new FSWriteError(ex, out);
             }
         }
     }

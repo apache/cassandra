@@ -33,17 +33,19 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.UnknownColumnFamilyException;
+import org.apache.cassandra.db.marshal.ValueAccessors;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MigrationManager;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
@@ -69,7 +71,7 @@ public class HintsReaderTest
 
     private static Mutation createMutation(int index, long timestamp, String ks, String tb)
     {
-        CFMetaData table = Schema.instance.getCFMetaData(ks, tb);
+        TableMetadata table = Schema.instance.getTableMetadata(ks, tb);
         return new RowUpdateBuilder(table, timestamp, bytes(index))
                .clustering(bytes(index))
                .add("val", bytes(index))
@@ -136,12 +138,13 @@ public class HintsReaderTest
 
         Row row = mutation.getPartitionUpdates().iterator().next().iterator().next();
         assertEquals(1, Iterables.size(row.cells()));
-        assertEquals(bytes(i), row.clustering().get(0));
-        Cell cell = row.cells().iterator().next();
+        ValueAccessors.assertDataEquals(bytes(i), row.clustering().get(0));
+        Cell<?> cell = row.cells().iterator().next();
         assertNotNull(cell);
-        assertEquals(bytes(i), cell.value());
+        ValueAccessors.assertDataEquals(bytes(i), cell.buffer());
         assertEquals(timestamp * 1000, cell.timestamp());
     }
+
 
     private Iterator<Hint> deserializePageBuffers(HintsReader.Page page)
     {
@@ -160,15 +163,15 @@ public class HintsReaderTest
                     return Hint.serializer.deserialize(new DataInputBuffer(buffers.next(), false),
                                                        descriptor.messagingVersion());
                 }
-                catch (UnknownColumnFamilyException e)
+                catch (UnknownTableException e)
                 {
-                    return null;  // ignore
+                    return null; // ignore
                 }
                 catch (IOException e)
                 {
                     throw new RuntimeException("Unexpected error deserializing hint", e);
                 }
-            };
+            }
         };
     }
 
@@ -236,11 +239,12 @@ public class HintsReaderTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(ks, CF_STANDARD2));
+
         directory = Files.createTempDirectory(null).toFile();
         try
         {
             generateHints(3, ks);
-            Schema.instance.dropTable(ks, CF_STANDARD1);
+            MigrationManager.announceTableDrop(ks, CF_STANDARD1, true);
             readHints(3, 1);
         }
         finally

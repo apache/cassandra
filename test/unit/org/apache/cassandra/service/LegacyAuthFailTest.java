@@ -25,8 +25,8 @@ import java.util.Optional;
 import com.google.common.base.Joiner;
 import org.junit.Test;
 
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -39,7 +39,7 @@ public class LegacyAuthFailTest extends CQLTester
     {
         createKeyspace();
 
-        List<String> legacyTables = new ArrayList<>(StartupChecks.LEGACY_AUTH_TABLES);
+        List<String> legacyTables = new ArrayList<>(SchemaConstants.LEGACY_AUTH_TABLES);
 
         // test reporting for individual tables
         for (String legacyTable : legacyTables)

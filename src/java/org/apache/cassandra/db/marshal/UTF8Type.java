@@ -19,7 +19,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Json;
@@ -43,7 +43,6 @@ public class UTF8Type extends AbstractType<String>
         return decompose(source);
     }
 
-
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
@@ -63,7 +62,7 @@ public class UTF8Type extends AbstractType<String>
     {
         try
         {
-            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, Charset.forName("UTF-8"))) + '"';
+            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.UTF_8)) + '"';
         }
         catch (CharacterCodingException exc)
         {

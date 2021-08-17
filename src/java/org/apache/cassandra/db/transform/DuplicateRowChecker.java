@@ -18,20 +18,20 @@
 
 package org.apache.cassandra.db.transform;
 
-import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -39,21 +39,21 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
 {
     private static final Logger logger = LoggerFactory.getLogger(DuplicateRowChecker.class);
 
-    Clustering previous = null;
+    Clustering<?> previous = null;
     int duplicatesDetected = 0;
     boolean hadNonEqualDuplicates = false;
 
     final String stage;
-    final List<InetAddress> replicas;
-    final CFMetaData metadata;
+    final List<InetAddressAndPort> replicas;
+    final TableMetadata metadata;
     final DecoratedKey key;
     final boolean snapshotOnDuplicate;
 
     DuplicateRowChecker(final DecoratedKey key,
-                        final CFMetaData metadata,
+                        final TableMetadata metadata,
                         final String stage,
                         final boolean snapshotOnDuplicate,
-                        final List<InetAddress> replicas)
+                        final List<InetAddressAndPort> replicas)
     {
         this.key = key;
         this.metadata = metadata;
@@ -95,10 +95,9 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
         {
             logger.warn("Detected {} duplicate rows for {} during {}.{}",
                         duplicatesDetected,
-                        metadata.getKeyValidator().getString(key.getKey()),
+                        metadata.partitionKeyType.getString(key.getKey()),
                         stage,
                         hadNonEqualDuplicates ? " Some duplicates had different byte representation." : "");
-
             if (snapshotOnDuplicate)
                 DiagnosticSnapshotService.duplicateRows(metadata, replicas);
         }
@@ -111,7 +110,7 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
     {
         if (!DatabaseDescriptor.checkForDuplicateRowsDuringCompaction())
             return iterator;
-        final List<InetAddress> address = Collections.singletonList(FBUtilities.getBroadcastAddress());
+        final List<InetAddressAndPort> address = Collections.singletonList(FBUtilities.getBroadcastAddressAndPort());
         final boolean snapshot = DatabaseDescriptor.snapshotOnDuplicateRowDetection();
         return Transformation.apply(iterator, new Transformation<UnfilteredRowIterator>()
         {
@@ -126,7 +125,7 @@ public class DuplicateRowChecker extends Transformation<BaseRowIterator<?>>
         });
     }
 
-    public static PartitionIterator duringRead(final PartitionIterator iterator, final List<InetAddress> replicas)
+    public static PartitionIterator duringRead(final PartitionIterator iterator, final List<InetAddressAndPort> replicas)
     {
         if (!DatabaseDescriptor.checkForDuplicateRowsDuringReads())
             return iterator;

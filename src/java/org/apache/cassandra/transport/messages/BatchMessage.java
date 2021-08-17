@@ -20,24 +20,31 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
-import io.netty.buffer.ByteBuf;
 
-import org.apache.cassandra.cql3.*;
+import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.BatchQueryOptions;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryEvents;
+import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class BatchMessage extends Message.Request
 {
@@ -147,52 +154,44 @@ public class BatchMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected boolean isTraceable()
     {
+        return true;
+    }
+
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    {
+        List<QueryHandler.Prepared> prepared = null;
         try
         {
-            UUID tracingId = null;
-            if (isTracingRequested())
-            {
-                tracingId = UUIDGen.getTimeUUID();
-                state.prepareTracingSession(tracingId);
-            }
-
-            if (state.traceNextQuery())
-            {
-                state.createTracingSession(getCustomPayload());
-
-                ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-                if(options.getConsistency() != null)
-                    builder.put("consistency_level", options.getConsistency().name());
-                if(options.getSerialConsistency() != null)
-                    builder.put("serial_consistency_level", options.getSerialConsistency().name());
-
-                // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-                Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), builder.build());
-            }
+            if (traceRequest)
+                traceQuery(state);
 
             QueryHandler handler = ClientState.getCQLQueryHandler();
-            List<ParsedStatement.Prepared> prepared = new ArrayList<>(queryOrIdList.size());
+            prepared = new ArrayList<>(queryOrIdList.size());
             for (int i = 0; i < queryOrIdList.size(); i++)
             {
                 Object query = queryOrIdList.get(i);
-                ParsedStatement.Prepared p;
+                CQLStatement statement;
+                QueryHandler.Prepared p;
                 if (query instanceof String)
                 {
-                    p = QueryProcessor.parseStatement((String)query, state);
+                    statement = QueryProcessor.parseStatement((String)query, state.getClientState().cloneWithKeyspaceIfSet(options.getKeyspace()));
+                    p = new QueryHandler.Prepared(statement, (String) query);
                 }
                 else
                 {
                     p = handler.getPrepared((MD5Digest)query);
-                    if (p == null)
+                    if (null == p)
                         throw new PreparedQueryNotFoundException((MD5Digest)query);
                 }
 
                 List<ByteBuffer> queryValues = values.get(i);
-                if (queryValues.size() != p.statement.getBoundTerms())
+                if (queryValues.size() != p.statement.getBindVariables().size())
                     throw new InvalidRequestException(String.format("There were %d markers(?) in CQL but %d bound variables",
-                                                                    p.statement.getBoundTerms(),
+                                                                    p.statement.getBindVariables().size(),
                                                                     queryValues.size()));
 
                 prepared.add(p);
@@ -200,36 +199,48 @@ public class BatchMessage extends Message.Request
 
             BatchQueryOptions batchOptions = BatchQueryOptions.withPerStatementVariables(options, values, queryOrIdList);
             List<ModificationStatement> statements = new ArrayList<>(prepared.size());
+            List<String> queries = QueryEvents.instance.hasListeners() ? new ArrayList<>(prepared.size()) : null;
             for (int i = 0; i < prepared.size(); i++)
             {
-                ParsedStatement.Prepared p = prepared.get(i);
-                batchOptions.prepareStatement(i, p.boundNames);
+                CQLStatement statement = prepared.get(i).statement;
+                if (queries != null)
+                    queries.add(prepared.get(i).rawCQLStatement);
+                batchOptions.prepareStatement(i, statement.getBindVariables());
 
-                if (!(p.statement instanceof ModificationStatement))
+                if (!(statement instanceof ModificationStatement))
                     throw new InvalidRequestException("Invalid statement in batch: only UPDATE, INSERT and DELETE statements are allowed.");
 
-                statements.add((ModificationStatement)p.statement);
+                statements.add((ModificationStatement) statement);
             }
 
             // Note: It's ok at this point to pass a bogus value for the number of bound terms in the BatchState ctor
             // (and no value would be really correct, so we prefer passing a clearly wrong one).
-            BatchStatement batch = new BatchStatement(-1, batchType, statements, Attributes.none());
+            BatchStatement batch = new BatchStatement(batchType, VariableSpecifications.empty(), statements, Attributes.none());
+
+            long queryTime = System.currentTimeMillis();
             Message.Response response = handler.processBatch(batch, state, batchOptions, getCustomPayload(), queryStartNanoTime);
-
-            if (tracingId != null)
-                response.setTracingId(tracingId);
-
+            if (queries != null)
+                QueryEvents.instance.notifyBatchSuccess(batchType, statements, queries, values, options, state, queryTime, response);
             return response;
         }
         catch (Exception e)
         {
+            QueryEvents.instance.notifyBatchFailure(prepared, batchType, queryOrIdList, values, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
-        finally
-        {
-            Tracing.instance.stopSession();
-        }
+    }
+
+    private void traceQuery(QueryState state)
+    {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        if (options.getConsistency() != null)
+            builder.put("consistency_level", options.getConsistency().name());
+        if (options.getSerialConsistency() != null)
+            builder.put("serial_consistency_level", options.getSerialConsistency().name());
+
+        // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
+        Tracing.instance.begin("Execute batch of CQL3 queries", state.getClientAddress(), builder.build());
     }
 
     @Override

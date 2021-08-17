@@ -18,18 +18,30 @@
 package org.apache.cassandra.utils;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
 import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * The goods are here: www.ietf.org/rfc/rfc4122.txt.
@@ -39,6 +51,8 @@ public class UUIDGen
     // A grand day! millis at 00:00:00.000 15 Oct 1582.
     private static final long START_EPOCH = -12219292800000L;
     private static final long clockSeqAndNode = makeClockSeqAndNode();
+
+    public static final int UUID_LEN = 16;
 
     /*
      * The min and max possible lsb for a UUID.
@@ -106,10 +120,10 @@ public class UUIDGen
     }
 
     /**
-     * Similar to {@link getTimeUUIDFromMicros}, but randomize (using SecureRandom) the clock and sequence.
+     * Similar to {@link #getTimeUUIDFromMicros}, but randomize (using SecureRandom) the clock and sequence.
      * <p>
      * If you can guarantee that the {@code whenInMicros} argument is unique (for this JVM instance) for
-     * every call, then you should prefer {@link getTimeUUIDFromMicros} which is faster. If you can't
+     * every call, then you should prefer {@link #getTimeUUIDFromMicros} which is faster. If you can't
      * guarantee this however, this method will ensure the returned UUID are still unique (accross calls)
      * through randomization.
      *
@@ -143,7 +157,7 @@ public class UUIDGen
 
     public static ByteBuffer toByteBuffer(UUID uuid)
     {
-        ByteBuffer buffer = ByteBuffer.allocate(16);
+        ByteBuffer buffer = ByteBuffer.allocate(UUID_LEN);
         buffer.putLong(uuid.getMostSignificantBits());
         buffer.putLong(uuid.getLeastSignificantBits());
         buffer.flip();
@@ -354,12 +368,12 @@ public class UUIDGen
         * The spec says that one option is to take as many source that identify
         * this node as possible and hash them together. That's what we do here by
         * gathering all the ip of this host.
-        * Note that FBUtilities.getBroadcastAddress() should be enough to uniquely
+        * Note that FBUtilities.getJustBroadcastAddress() should be enough to uniquely
         * identify the node *in the cluster* but it triggers DatabaseDescriptor
         * instanciation and the UUID generator is used in Stress for instance,
         * where we don't want to require the yaml.
         */
-        Collection<InetAddress> localAddresses = FBUtilities.getAllLocalAddresses();
+        Collection<InetAddressAndPort> localAddresses = getAllLocalAddresses();
         if (localAddresses.isEmpty())
             throw new RuntimeException("Cannot generate the node component of the UUID because cannot retrieve any IP addresses.");
 
@@ -375,32 +389,83 @@ public class UUIDGen
         return node | 0x0000010000000000L;
     }
 
-    private static byte[] hash(Collection<InetAddress> data)
+    private static byte[] hash(Collection<InetAddressAndPort> data)
     {
+        // Identify the host.
+        Hasher hasher = Hashing.md5().newHasher();
+        for(InetAddressAndPort addr : data)
+        {
+            hasher.putBytes(addr.addressBytes);
+            hasher.putInt(addr.port);
+        }
+
+        // Identify the process on the load: we use both the PID and class loader hash.
+        long pid = NativeLibrary.getProcessID();
+        if (pid < 0)
+            pid = new Random(System.currentTimeMillis()).nextLong();
+        updateWithLong(hasher, pid);
+
+        ClassLoader loader = UUIDGen.class.getClassLoader();
+        int loaderId = loader != null ? System.identityHashCode(loader) : 0;
+        updateWithInt(hasher, loaderId);
+
+        return hasher.hash().asBytes();
+    }
+
+    private static void updateWithInt(Hasher hasher, int val)
+    {
+        hasher.putByte((byte) ((val >>> 24) & 0xFF));
+        hasher.putByte((byte) ((val >>> 16) & 0xFF));
+        hasher.putByte((byte) ((val >>>  8) & 0xFF));
+        hasher.putByte((byte) ((val >>> 0) & 0xFF));
+    }
+
+    public static void updateWithLong(Hasher hasher, long val)
+    {
+        hasher.putByte((byte) ((val >>> 56) & 0xFF));
+        hasher.putByte((byte) ((val >>> 48) & 0xFF));
+        hasher.putByte((byte) ((val >>> 40) & 0xFF));
+        hasher.putByte((byte) ((val >>> 32) & 0xFF));
+        hasher.putByte((byte) ((val >>> 24) & 0xFF));
+        hasher.putByte((byte) ((val >>> 16) & 0xFF));
+        hasher.putByte((byte) ((val >>>  8) & 0xFF));
+        hasher.putByte((byte)  ((val >>> 0) & 0xFF));
+    }
+
+    /**
+     * Helper function used exclusively by UUIDGen to create
+     **/
+    public static Collection<InetAddressAndPort> getAllLocalAddresses()
+    {
+        Set<InetAddressAndPort> localAddresses = new HashSet<>();
         try
         {
-            // Identify the host.
-            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            for(InetAddress addr : data)
-                messageDigest.update(addr.getAddress());
-
-            // Identify the process on the load: we use both the PID and class loader hash.
-            long pid = NativeLibrary.getProcessID();
-            if (pid < 0)
-                pid = new Random(System.currentTimeMillis()).nextLong();
-            FBUtilities.updateWithLong(messageDigest, pid);
-
-            ClassLoader loader = UUIDGen.class.getClassLoader();
-            int loaderId = loader != null ? System.identityHashCode(loader) : 0;
-            FBUtilities.updateWithInt(messageDigest, loaderId);
-
-            return messageDigest.digest();
+            Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
+            if (nets != null)
+            {
+                while (nets.hasMoreElements())
+                {
+                    Function<InetAddress, InetAddressAndPort> converter =
+                    address -> InetAddressAndPort.getByAddressOverrideDefaults(address, 0);
+                    List<InetAddressAndPort> addresses =
+                    Collections.list(nets.nextElement().getInetAddresses()).stream().map(converter).collect(Collectors.toList());
+                    localAddresses.addAll(addresses);
+                }
+            }
         }
-        catch (NoSuchAlgorithmException nsae)
+        catch (SocketException e)
         {
-            throw new RuntimeException("MD5 digest algorithm is not available", nsae);
+            throw new AssertionError(e);
         }
+        if (DatabaseDescriptor.isDaemonInitialized())
+        {
+            localAddresses.add(FBUtilities.getBroadcastAddressAndPort());
+            localAddresses.add(FBUtilities.getBroadcastNativeAddressAndPort());
+            localAddresses.add(FBUtilities.getLocalAddressAndPort());
+        }
+        return localAddresses;
     }
+
 }
 
 // for the curious, here is how I generated START_EPOCH

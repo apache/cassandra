@@ -21,7 +21,7 @@ package org.apache.cassandra.db.rows;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
@@ -34,11 +34,11 @@ import org.apache.cassandra.utils.Pair;
  */
 public class RowBuilder implements Row.Builder
 {
-    public List<Cell> cells = new LinkedList<>();
-    public Clustering clustering = null;
+    public List<Cell<?>> cells = new LinkedList<>();
+    public Clustering<?> clustering = null;
     public LivenessInfo livenessInfo = null;
     public Row.Deletion deletionTime = null;
-    public List<Pair<ColumnDefinition, DeletionTime>> complexDeletions = new LinkedList<>();
+    public List<Pair<ColumnMetadata, DeletionTime>> complexDeletions = new LinkedList<>();
 
     @Override
     public Builder copy()
@@ -46,7 +46,7 @@ public class RowBuilder implements Row.Builder
         throw new UnsupportedOperationException();
     }
 
-    public void addCell(Cell cell)
+    public void addCell(Cell<?> cell)
     {
         cells.add(cell);
     }
@@ -56,13 +56,13 @@ public class RowBuilder implements Row.Builder
         throw new UnsupportedOperationException();
     }
 
-    public void newRow(Clustering clustering)
+    public void newRow(Clustering<?> clustering)
     {
         assert this.clustering == null;
         this.clustering = clustering;
     }
 
-    public Clustering clustering()
+    public Clustering<?> clustering()
     {
         return clustering;
     }
@@ -79,7 +79,7 @@ public class RowBuilder implements Row.Builder
         deletionTime = deletion;
     }
 
-    public void addComplexDeletion(ColumnDefinition column, DeletionTime complexDeletion)
+    public void addComplexDeletion(ColumnMetadata column, DeletionTime complexDeletion)
     {
         complexDeletions.add(Pair.create(column, complexDeletion));
     }

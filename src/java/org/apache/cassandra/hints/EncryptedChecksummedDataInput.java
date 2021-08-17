@@ -25,10 +25,10 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.security.EncryptionUtils;
-import org.apache.cassandra.hints.CompressedChecksummedDataInput.Position;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.utils.Throwables;
 
 public class EncryptedChecksummedDataInput extends ChecksummedDataInput
 {
@@ -138,7 +138,15 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
-        return new EncryptedChecksummedDataInput(new ChannelProxy(input.getPath()), cipher, compressor, position);
+        ChannelProxy channel = new ChannelProxy(input.getPath());
+        try
+        {
+            return new EncryptedChecksummedDataInput(channel, cipher, compressor, position);
+        }
+        catch (Throwable t)
+        {
+            throw Throwables.cleaned(channel.close(t));
+        }
     }
 
     @VisibleForTesting

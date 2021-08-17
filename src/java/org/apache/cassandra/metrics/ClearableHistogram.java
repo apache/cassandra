@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.concurrent.atomic.LongAdder;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import com.codahale.metrics.Histogram;
@@ -43,6 +47,36 @@ public class ClearableHistogram extends Histogram
     @VisibleForTesting
     public void clear()
     {
+        clearCount();
         reservoirRef.clear();
+    }
+
+    private void clearCount()
+    {
+        // We have unfortunately no access to the count field so we need to use reflection to ensure that it is cleared.
+        // I hate that as it is fragile and pretty ugly but we only use that method for tests and it should fail pretty
+        // clearly if we start using an incompatible version of the metrics.
+        try
+        {
+            Field countField = Histogram.class.getDeclaredField("count");
+            countField.setAccessible(true);
+            // in 3.1 the counter object is a LongAdderAdapter which is a package private interface
+            // from com.codahale.metrics. In 4.0, it is a java LongAdder so the code will be simpler.
+            Object counter = countField.get(this);
+            if (counter instanceof LongAdder) // For com.codahale.metrics version >= 4.0
+            {
+                ((LongAdder) counter).reset();
+            }
+            else // 3.1 and 3.2
+            {
+                Method sumThenReset = counter.getClass().getDeclaredMethod("sumThenReset");
+                sumThenReset.setAccessible(true);
+                sumThenReset.invoke(counter);
+            }
+        }
+        catch (Exception e)
+        {
+            throw new IllegalStateException("Cannot reset the com.codahale.metrics.Histogram count. This might be due to a change of version of the metric library", e);
+        }
     }
 }

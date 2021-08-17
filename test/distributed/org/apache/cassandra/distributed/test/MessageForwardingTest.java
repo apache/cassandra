@@ -25,14 +25,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -44,28 +45,30 @@ public class MessageForwardingTest extends TestBaseImpl
     {
         String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
-        Map<InetAddress,Integer> commitCounts = new HashMap<>();
+        Map<InetAddress, Integer> forwardFromCounts = new HashMap<>();
+        Map<InetAddress, Integer> commitCounts = new HashMap<>();
 
-        try (Cluster cluster = init(Cluster.build()
-                                           .withDC("dc0", 1)
-                                           .withDC("dc1", 3)
-                                           .start()))
+        try (Cluster cluster = (Cluster) init(builder()
+                                              .withDC("dc0", 1)
+                                              .withDC("dc1", 3)
+                                              .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
             final UUID sessionId = UUIDGen.getTimeUUID();
-            Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) ->
-                cluster.coordinator(1).asyncExecuteWithTracing(sessionId,
-                                                         "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')",
-                                                               ConsistencyLevel.ALL)
-            );
+            Stream<Future<Object[][]>> inserts = IntStream.range(0, numInserts).mapToObj((idx) -> {
+                return cluster.coordinator(1).asyncExecuteWithTracing(sessionId,
+                                                                      "INSERT INTO " + KEYSPACE + ".tbl(pk,ck,v) VALUES (1, 1, 'x')",
+                                                                      ConsistencyLevel.ALL);
+            });
 
             // Wait for each of the futures to complete before checking the traces, don't care
             // about the result so
             //noinspection ResultOfMethodCallIgnored
-            inserts.map(IsolatedExecutor::waitOn).count();
+            inserts.map(IsolatedExecutor::waitOn).collect(Collectors.toList());
 
+            cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddress().getAddress(), 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
             List<TracingUtil.TraceEntry> traces = TracingUtil.getTrace(cluster, sessionId, ConsistencyLevel.ALL);
             traces.forEach(traceEntry -> {
@@ -73,7 +76,15 @@ public class MessageForwardingTest extends TestBaseImpl
                 {
                     commitCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
                 }
+                else if (traceEntry.activity.contains("Enqueuing forwarded write to "))
+                {
+                    forwardFromCounts.compute(traceEntry.source, (k, v) -> (v != null ? v : 0) + 1);
+                }
             });
+
+            // Check that each node in dc1 was the forwarder at least once.  There is a (1/3)^numInserts chance
+            // that the same node will be picked, but the odds of that are ~2e-48.
+            forwardFromCounts.forEach((source, count) -> Assert.assertTrue(source + " should have been randomized to forward messages", count > 0));
 
             // Check that each node received the forwarded messages once (and only once)
             commitCounts.forEach((source, count) ->

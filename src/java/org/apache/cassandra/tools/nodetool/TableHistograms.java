@@ -19,125 +19,156 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.String.format;
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.utils.EstimatedHistogram;
+
 import org.apache.commons.lang3.ArrayUtils;
 
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
 public class TableHistograms extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> | <keyspace.table>", description = "The keyspace and table name")
+    @Arguments(usage = "[<keyspace> <table> | <keyspace.table>]", description = "The keyspace and table name")
     private List<String> args = new ArrayList<>();
 
     @Override
     public void execute(NodeProbe probe)
     {
         PrintStream out = probe.output().out;
-        PrintStream err = probe.output().err;
-        String keyspace = null, table = null;
+        Multimap<String, String> tablesList = HashMultimap.create();
+
+        // a <keyspace, set<table>> mapping for verification or as reference if none provided
+        Multimap<String, String> allTables = HashMultimap.create();
+        Iterator<Map.Entry<String, ColumnFamilyStoreMBean>> tableMBeans = probe.getColumnFamilyStoreMBeanProxies();
+        while (tableMBeans.hasNext())
+        {
+            Map.Entry<String, ColumnFamilyStoreMBean> entry = tableMBeans.next();
+            allTables.put(entry.getKey(), entry.getValue().getTableName());
+        }
+
         if (args.size() == 2)
         {
-            keyspace = args.get(0);
-            table = args.get(1);
+            tablesList.put(args.get(0), args.get(1));
         }
         else if (args.size() == 1)
         {
             String[] input = args.get(0).split("\\.");
             checkArgument(input.length == 2, "tablehistograms requires keyspace and table name arguments");
-            keyspace = input[0];
-            table = input[1];
+            tablesList.put(input[0], input[1]);
         }
         else
         {
-            checkArgument(false, "tablehistograms requires keyspace and table name arguments");
+            // use all tables
+            tablesList = allTables;
         }
 
-        // calculate percentile of row size and column count
-        long[] estimatedPartitionSize = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedPartitionSizeHistogram");
-        long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedColumnCountHistogram");
-
-        // build arrays to store percentile values
-        double[] estimatedRowSizePercentiles = new double[7];
-        double[] estimatedColumnCountPercentiles = new double[7];
-        double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
-
-        if (ArrayUtils.isEmpty(estimatedPartitionSize) || ArrayUtils.isEmpty(estimatedColumnCount))
+        // verify that all tables to list exist
+        for (String keyspace : tablesList.keys())
         {
-            err.println("No SSTables exists, unable to calculate 'Partition Size' and 'Cell Count' percentiles");
-
-            for (int i = 0; i < 7; i++)
+            for (String table : tablesList.get(keyspace))
             {
-                estimatedRowSizePercentiles[i] = Double.NaN;
-                estimatedColumnCountPercentiles[i] = Double.NaN;
+                if (!allTables.containsEntry(keyspace, table))
+                    throw new IllegalArgumentException("Unknown table " + keyspace + '.' + table);
             }
         }
-        else
-        {
-            EstimatedHistogram partitionSizeHist = new EstimatedHistogram(estimatedPartitionSize);
-            EstimatedHistogram columnCountHist = new EstimatedHistogram(estimatedColumnCount);
 
-            if (partitionSizeHist.isOverflowed())
+        for (String keyspace : tablesList.keys())
+        {
+            for (String table : tablesList.get(keyspace))
             {
-                err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", partitionSizeHist.getLargestBucketOffset()));
-                for (int i = 0; i < offsetPercentiles.length; i++)
+                // calculate percentile of row size and column count
+                long[] estimatedPartitionSize = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedPartitionSizeHistogram");
+                long[] estimatedColumnCount = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedColumnCountHistogram");
+
+                // build arrays to store percentile values
+                double[] estimatedRowSizePercentiles = new double[7];
+                double[] estimatedColumnCountPercentiles = new double[7];
+                double[] offsetPercentiles = new double[]{0.5, 0.75, 0.95, 0.98, 0.99};
+
+                if (ArrayUtils.isEmpty(estimatedPartitionSize) || ArrayUtils.isEmpty(estimatedColumnCount))
+                {
+                    out.println("No SSTables exists, unable to calculate 'Partition Size' and 'Cell Count' percentiles");
+
+                    for (int i = 0; i < 7; i++)
+                    {
                         estimatedRowSizePercentiles[i] = Double.NaN;
-            }
-            else
-            {
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                    estimatedRowSizePercentiles[i] = partitionSizeHist.percentile(offsetPercentiles[i]);
-            }
+                        estimatedColumnCountPercentiles[i] = Double.NaN;
+                    }
+                }
+                else
+                {
+                    EstimatedHistogram partitionSizeHist = new EstimatedHistogram(estimatedPartitionSize);
+                    EstimatedHistogram columnCountHist = new EstimatedHistogram(estimatedColumnCount);
 
-            if (columnCountHist.isOverflowed())
-            {
-                err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountHist.getLargestBucketOffset()));
-                for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
-                    estimatedColumnCountPercentiles[i] = Double.NaN;
-            }
-            else
-            {
-                for (int i = 0; i < offsetPercentiles.length; i++)
-                    estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
-            }
+                    if (partitionSizeHist.isOverflowed())
+                    {
+                        out.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", partitionSizeHist.getLargestBucketOffset()));
+                        for (int i = 0; i < offsetPercentiles.length; i++)
+                            estimatedRowSizePercentiles[i] = Double.NaN;
+                    }
+                    else
+                    {
+                        for (int i = 0; i < offsetPercentiles.length; i++)
+                            estimatedRowSizePercentiles[i] = partitionSizeHist.percentile(offsetPercentiles[i]);
+                    }
 
-            // min value
-            estimatedRowSizePercentiles[5] = partitionSizeHist.min();
-            estimatedColumnCountPercentiles[5] = columnCountHist.min();
-            // max value
-            estimatedRowSizePercentiles[6] = partitionSizeHist.max();
-            estimatedColumnCountPercentiles[6] = columnCountHist.max();
+                    if (columnCountHist.isOverflowed())
+                    {
+                        out.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountHist.getLargestBucketOffset()));
+                        for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
+                            estimatedColumnCountPercentiles[i] = Double.NaN;
+                    }
+                    else
+                    {
+                        for (int i = 0; i < offsetPercentiles.length; i++)
+                            estimatedColumnCountPercentiles[i] = columnCountHist.percentile(offsetPercentiles[i]);
+                    }
+
+                    // min value
+                    estimatedRowSizePercentiles[5] = partitionSizeHist.min();
+                    estimatedColumnCountPercentiles[5] = columnCountHist.min();
+                    // max value
+                    estimatedRowSizePercentiles[6] = partitionSizeHist.max();
+                    estimatedColumnCountPercentiles[6] = columnCountHist.max();
+                }
+
+                String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
+                Double[] readLatency = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspace, table, "ReadLatency"));
+                Double[] writeLatency = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspace, table, "WriteLatency"));
+                Double[] sstablesPerRead = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspace, table, "SSTablesPerReadHistogram"));
+
+                out.println(format("%s/%s histograms", keyspace, table));
+                out.println(format("%-10s%18s%18s%18s%18s%18s",
+                        "Percentile", "Read Latency", "Write Latency", "SSTables", "Partition Size", "Cell Count"));
+                out.println(format("%-10s%18s%18s%18s%18s%18s",
+                        "", "(micros)", "(micros)", "", "(bytes)", ""));
+
+                for (int i = 0; i < percentiles.length; i++)
+                {
+                    out.println(format("%-10s%18.2f%18.2f%18.2f%18.0f%18.0f",
+                            percentiles[i],
+                            readLatency[i],
+                            writeLatency[i],
+                            sstablesPerRead[i],
+                            estimatedRowSizePercentiles[i],
+                            estimatedColumnCountPercentiles[i]));
+                }
+                out.println();
+            }
         }
-
-        String[] percentiles = new String[]{"50%", "75%", "95%", "98%", "99%", "Min", "Max"};
-        double[] readLatency = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspace, table, "ReadLatency"));
-        double[] writeLatency = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspace, table, "WriteLatency"));
-        double[] sstablesPerRead = probe.metricPercentilesAsArray((CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspace, table, "SSTablesPerReadHistogram"));
-
-        out.println(format("%s/%s histograms", keyspace, table));
-        out.println(format("%-10s%10s%18s%18s%18s%18s",
-                "Percentile", "SSTables", "Write Latency", "Read Latency", "Partition Size", "Cell Count"));
-        out.println(format("%-10s%10s%18s%18s%18s%18s",
-                "", "", "(micros)", "(micros)", "(bytes)", ""));
-
-        for (int i = 0; i < percentiles.length; i++)
-        {
-            out.println(format("%-10s%10.2f%18.2f%18.2f%18.0f%18.0f",
-                    percentiles[i],
-                    sstablesPerRead[i],
-                    writeLatency[i],
-                    readLatency[i],
-                    estimatedRowSizePercentiles[i],
-                    estimatedColumnCountPercentiles[i]));
-        }
-        out.println();
     }
 }

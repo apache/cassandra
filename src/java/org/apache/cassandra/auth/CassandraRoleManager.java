@@ -20,11 +20,14 @@ package org.apache.cassandra.auth;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import com.google.common.base.*;
-import com.google.common.base.Objects;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,14 +35,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
@@ -80,41 +81,24 @@ public class CassandraRoleManager implements IRoleManager
     static final String DEFAULT_SUPERUSER_PASSWORD = "cassandra";
 
     // Transform a row in the AuthKeyspace.ROLES to a Role instance
-    private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = new Function<UntypedResultSet.Row, Role>()
+    private static final Function<UntypedResultSet.Row, Role> ROW_TO_ROLE = row ->
     {
-        public Role apply(UntypedResultSet.Row row)
+        try
         {
-            try
-            {
-                return new Role(row.getString("role"),
-                         row.getBoolean("is_superuser"),
-                         row.getBoolean("can_login"),
-                         row.has("member_of") ? row.getSet("member_of", UTF8Type.instance)
-                                              : Collections.<String>emptySet());
-            }
-            // Failing to deserialize a boolean in is_superuser or can_login will throw an NPE
-            catch (NullPointerException e)
-            {
-                logger.warn("An invalid value has been detected in the {} table for role {}. If you are " +
-                            "unable to login, you may need to disable authentication and confirm " +
-                            "that values in that table are accurate", AuthKeyspace.ROLES, row.getString("role"));
-                throw new RuntimeException(String.format("Invalid metadata has been detected for role %s", row.getString("role")), e);
-            }
-
+            return new Role(row.getString("role"),
+                            row.getBoolean("is_superuser"),
+                            row.getBoolean("can_login"),
+                            Collections.emptyMap(),
+                            row.has("member_of") ? row.getSet("member_of", UTF8Type.instance)
+                                                 : Collections.<String>emptySet());
         }
-    };
-
-    public static final String LEGACY_USERS_TABLE = "users";
-    // Transform a row in the legacy system_auth.users table to a Role instance,
-    // used to fallback to previous schema on a mixed cluster during an upgrade
-    private static final Function<UntypedResultSet.Row, Role> LEGACY_ROW_TO_ROLE = new Function<UntypedResultSet.Row, Role>()
-    {
-        public Role apply(UntypedResultSet.Row row)
+        // Failing to deserialize a boolean in is_superuser or can_login will throw an NPE
+        catch (NullPointerException e)
         {
-            return new Role(row.getString("name"),
-                            row.getBoolean("super"),
-                            true,
-                            Collections.<String>emptySet());
+            logger.warn("An invalid value has been detected in the {} table for role {}. If you are " +
+                        "unable to login, you may need to disable authentication and confirm " +
+                        "that values in that table are accurate", AuthKeyspace.ROLES, row.getString("role"));
+            throw new RuntimeException(String.format("Invalid metadata has been detected for role %s", row.getString("role")), e);
         }
     };
 
@@ -132,11 +116,7 @@ public class CassandraRoleManager implements IRoleManager
          return rounds;
     }
 
-    // NullObject returned when a supplied role name not found in AuthKeyspace.ROLES
-    private static final Role NULL_ROLE = new Role(null, false, false, Collections.<String>emptySet());
-
     private SelectStatement loadRoleStatement;
-    private SelectStatement legacySelectUserStatement;
 
     private final Set<Option> supportedOptions;
     private final Set<Option> alterableOptions;
@@ -159,27 +139,10 @@ public class CassandraRoleManager implements IRoleManager
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
                                                       SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
-        // If the old users table exists, we may need to migrate the legacy authn
-        // data to the new table. We also need to prepare a statement to read from
-        // it, so we can continue to use the old tables while the cluster is upgraded.
-        // Otherwise, we may need to create a default superuser role to enable others
-        // to be added.
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
-        {
-            legacySelectUserStatement = prepareLegacySelectUserStatement();
-
-            scheduleSetupTask(() -> {
-                convertLegacyData();
-                return null;
-            });
-        }
-        else
-        {
-            scheduleSetupTask(() -> {
-                setupDefaultRole();
-                return null;
-            });
-        }
+        scheduleSetupTask(() -> {
+            setupDefaultRole();
+            return null;
+        });
     }
 
     public Set<Option> supportedOptions()
@@ -226,8 +189,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         // Unlike most of the other data access methods here, this does not use a
         // prepared statement in order to allow the set of assignments to be variable.
-        String assignments = Joiner.on(',').join(Iterables.filter(optionsToAssignments(options.getOptions()),
-                                                                  Predicates.notNull()));
+        String assignments = optionsToAssignments(options.getOptions());
         if (!Strings.isNullOrEmpty(assignments))
         {
             process(String.format("UPDATE %s.%s SET %s WHERE role = '%s'",
@@ -277,29 +239,33 @@ public class CassandraRoleManager implements IRoleManager
                 consistencyForRole(role.getRoleName()));
     }
 
-    public Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited) throws RequestValidationException, RequestExecutionException
+    public Set<RoleResource> getRoles(RoleResource grantee, boolean includeInherited)
+    throws RequestValidationException, RequestExecutionException
     {
-        Set<RoleResource> roles = new HashSet<>();
-        Role role = getRole(grantee.getRoleName());
-        if (!role.equals(NULL_ROLE))
-        {
-            roles.add(RoleResource.role(role.name));
-            collectRoles(role, roles, includeInherited);
-        }
-        return roles;
+        return collectRoles(getRole(grantee.getRoleName()),
+                            includeInherited,
+                            filter())
+               .map(r -> r.resource)
+               .collect(Collectors.toSet());
+    }
+
+    public Set<Role> getRoleDetails(RoleResource grantee)
+    {
+        return collectRoles(getRole(grantee.getRoleName()),
+                            true,
+                            filter())
+               .collect(Collectors.toSet());
     }
 
     public Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException
     {
-        UntypedResultSet rows = process(String.format("SELECT role from %s.%s", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES), ConsistencyLevel.QUORUM);
-        Iterable<RoleResource> roles = Iterables.transform(rows, new Function<UntypedResultSet.Row, RoleResource>()
-        {
-            public RoleResource apply(UntypedResultSet.Row row)
-            {
-                return RoleResource.role(row.getString("role"));
-            }
-        });
-        return ImmutableSet.<RoleResource>builder().addAll(roles).build();
+        ImmutableSet.Builder<RoleResource> builder = ImmutableSet.builder();
+        UntypedResultSet rows = process(String.format("SELECT role from %s.%s",
+                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                      AuthKeyspace.ROLES),
+                                        ConsistencyLevel.QUORUM);
+        rows.forEach(row -> builder.add(RoleResource.role(row.getString("role"))));
+        return builder.build();
     }
 
     public boolean isSuper(RoleResource role)
@@ -335,7 +301,7 @@ public class CassandraRoleManager implements IRoleManager
 
     public boolean isExistingRole(RoleResource role)
     {
-        return getRole(role.getRoleName()) != NULL_ROLE;
+        return !Roles.isNullRole(getRole(role.getRoleName()));
     }
 
     public Set<? extends IResource> protectedResources()
@@ -389,101 +355,28 @@ public class CassandraRoleManager implements IRoleManager
                || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
     }
 
-    private void scheduleSetupTask(final Callable<Void> setupTask)
+    protected void scheduleSetupTask(final Callable<Void> setupTask)
     {
         // The delay is to give the node a chance to see its peers before attempting the operation
-        ScheduledExecutors.optionalTasks.schedule(new Runnable()
-        {
-            public void run()
+        ScheduledExecutors.optionalTasks.schedule(() -> {
+            isClusterReady = true;
+            try
             {
-                // If not all nodes are on 2.2, we don't want to initialize the role manager as this will confuse 2.1
-                // nodes (see CASSANDRA-9761 for details). So we re-schedule the setup for later, hoping that the upgrade
-                // will be finished by then.
-                if (!MessagingService.instance().areAllNodesAtLeast22())
-                {
-                    logger.trace("Not all nodes are upgraded to a version that supports Roles yet, rescheduling setup task");
-                    scheduleSetupTask(setupTask);
-                    return;
-                }
-
-                isClusterReady = true;
-                try
-                {
-                    setupTask.call();
-                }
-                catch (Exception e)
-                {
-                    logger.info("Setup task failed with error, rescheduling");
-                    scheduleSetupTask(setupTask);
-                }
+                setupTask.call();
+            }
+            catch (Exception e)
+            {
+                logger.info("Setup task failed with error, rescheduling");
+                scheduleSetupTask(setupTask);
             }
         }, AuthKeyspace.SUPERUSER_SETUP_DELAY, TimeUnit.MILLISECONDS);
-    }
-
-    /*
-     * Copy legacy auth data from the system_auth.users & system_auth.credentials tables to
-     * the new system_auth.roles table. This setup is not performed if AllowAllAuthenticator
-     * is configured (see Auth#setup).
-     */
-    private void convertLegacyData() throws Exception
-    {
-        try
-        {
-            // read old data at QUORUM as it may contain the data for the default superuser
-            if (Schema.instance.getCFMetaData("system_auth", "users") != null)
-            {
-                logger.info("Converting legacy users");
-                UntypedResultSet users = QueryProcessor.process("SELECT * FROM system_auth.users",
-                                                                ConsistencyLevel.QUORUM);
-                for (UntypedResultSet.Row row : users)
-                {
-                    RoleOptions options = new RoleOptions();
-                    options.setOption(Option.SUPERUSER, row.getBoolean("super"));
-                    options.setOption(Option.LOGIN, true);
-                    createRole(null, RoleResource.role(row.getString("name")), options);
-                }
-                logger.info("Completed conversion of legacy users");
-            }
-
-            if (Schema.instance.getCFMetaData("system_auth", "credentials") != null)
-            {
-                logger.info("Migrating legacy credentials data to new system table");
-                UntypedResultSet credentials = QueryProcessor.process("SELECT * FROM system_auth.credentials",
-                                                                      ConsistencyLevel.QUORUM);
-                for (UntypedResultSet.Row row : credentials)
-                {
-                    // Write the password directly into the table to avoid doubly encrypting it
-                    QueryProcessor.process(String.format("UPDATE %s.%s SET salted_hash = '%s' WHERE role = '%s'",
-                                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                         AuthKeyspace.ROLES,
-                                                         row.getString("salted_hash"),
-                                                         row.getString("username")),
-                                           consistencyForRole(row.getString("username")));
-                }
-                logger.info("Completed conversion of legacy credentials");
-            }
-        }
-        catch (Exception e)
-        {
-            logger.info("Unable to complete conversion of legacy auth data (perhaps not enough nodes are upgraded yet). " +
-                        "Conversion should not be considered complete");
-            logger.trace("Conversion error", e);
-            throw e;
-        }
-    }
-
-    private SelectStatement prepareLegacySelectUserStatement()
-    {
-        return (SelectStatement) prepare("SELECT * FROM %s.%s WHERE name = ?",
-                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                         LEGACY_USERS_TABLE);
     }
 
     private CQLStatement prepare(String template, String keyspace, String table)
     {
         try
         {
-            return QueryProcessor.parseStatement(String.format(template, keyspace, table)).prepare(ClientState.forInternalCalls()).statement;
+            return QueryProcessor.parseStatement(String.format(template, keyspace, table)).prepare(ClientState.forInternalCalls());
         }
         catch (RequestValidationException e)
         {
@@ -491,55 +384,42 @@ public class CassandraRoleManager implements IRoleManager
         }
     }
 
-    /*
-     * Retrieve all roles granted to the given role. includeInherited specifies
-     * whether to include only those roles granted directly or all inherited roles.
-     */
-    private void collectRoles(Role role, Set<RoleResource> collected, boolean includeInherited) throws RequestValidationException, RequestExecutionException
+    private Stream<Role> collectRoles(Role role, boolean includeInherited, Predicate<String> distinctFilter)
     {
-        for (String memberOf : role.memberOf)
-        {
-            Role granted = getRole(memberOf);
-            if (granted.equals(NULL_ROLE))
-                continue;
-            collected.add(RoleResource.role(granted.name));
-            if (includeInherited)
-                collectRoles(granted, collected, true);
-        }
+        if (Roles.isNullRole(role))
+            return Stream.empty();
+
+        if (!includeInherited)
+            return Stream.concat(Stream.of(role), role.memberOf.stream().map(this::getRole));
+
+
+        return Stream.concat(Stream.of(role),
+                             role.memberOf.stream()
+                                          .filter(distinctFilter)
+                                          .flatMap(r -> collectRoles(getRole(r), true, distinctFilter)));
+    }
+
+    // Used as a stateful filtering function when recursively collecting granted roles
+    private static Predicate<String> filter()
+    {
+        final Set<String> seen = new HashSet<>();
+        return seen::add;
     }
 
     /*
      * Get a single Role instance given the role name. This never returns null, instead it
-     * uses the null object NULL_ROLE when a role with the given name cannot be found. So
+     * uses a null object when a role with the given name cannot be found. So
      * it's always safe to call methods on the returned object without risk of NPE.
      */
     private Role getRole(String name)
     {
-        // If it exists, try the legacy users table in case the cluster
-        // is in the process of being upgraded and so is running with mixed
-        // versions of the authn schema.
-        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") == null)
-            return getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
-        else
-        {
-            if (legacySelectUserStatement == null)
-                legacySelectUserStatement = prepareLegacySelectUserStatement();
-            return getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE);
-        }
-    }
-
-    private Role getRoleFromTable(String name, SelectStatement statement, Function<UntypedResultSet.Row, Role> function)
-    throws RequestExecutionException, RequestValidationException
-    {
-        ResultMessage.Rows rows =
-            statement.execute(QueryState.forInternalCalls(),
-                              QueryOptions.forInternalCalls(consistencyForRole(name),
-                                                            Collections.singletonList(ByteBufferUtil.bytes(name))),
-                              System.nanoTime());
+        QueryOptions options = QueryOptions.forInternalCalls(consistencyForRole(name),
+                                                             Collections.singletonList(ByteBufferUtil.bytes(name)));
+        ResultMessage.Rows rows = select(loadRoleStatement, options);
         if (rows.result.isEmpty())
-            return NULL_ROLE;
+            return Roles.nullRole();
 
-        return function.apply(UntypedResultSet.create(rows.result).one());
+        return ROW_TO_ROLE.apply(UntypedResultSet.create(rows.result).one());
     }
 
     /*
@@ -588,27 +468,26 @@ public class CassandraRoleManager implements IRoleManager
      * Convert a map of Options from a CREATE/ALTER statement into
      * assignment clauses used to construct a CQL UPDATE statement
      */
-    private Iterable<String> optionsToAssignments(Map<Option, Object> options)
+    private String optionsToAssignments(Map<Option, Object> options)
     {
-        return Iterables.transform(
-                                  options.entrySet(),
-                                  new Function<Map.Entry<Option, Object>, String>()
-                                  {
-                                      public String apply(Map.Entry<Option, Object> entry)
-                                      {
-                                          switch (entry.getKey())
-                                          {
-                                              case LOGIN:
-                                                  return String.format("can_login = %s", entry.getValue());
-                                              case SUPERUSER:
-                                                  return String.format("is_superuser = %s", entry.getValue());
-                                              case PASSWORD:
-                                                  return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
-                                              default:
-                                                  return null;
-                                          }
-                                      }
-                                  });
+        return options.entrySet()
+                      .stream()
+                      .map(entry ->
+                           {
+                               switch (entry.getKey())
+                               {
+                                   case LOGIN:
+                                       return String.format("can_login = %s", entry.getValue());
+                                   case SUPERUSER:
+                                       return String.format("is_superuser = %s", entry.getValue());
+                                   case PASSWORD:
+                                       return String.format("salted_hash = '%s'", escape(hashpw((String) entry.getValue())));
+                                   default:
+                                       return null;
+                               }
+                           })
+                      .filter(Objects::nonNull)
+                      .collect(Collectors.joining(","));
     }
 
     protected static ConsistencyLevel consistencyForRole(String role)
@@ -634,7 +513,9 @@ public class CassandraRoleManager implements IRoleManager
      * This shouldn't be used during setup as this will directly return an error if the manager is not setup yet. Setup tasks
      * should use QueryProcessor.process directly.
      */
-    private UntypedResultSet process(String query, ConsistencyLevel consistencyLevel) throws RequestValidationException, RequestExecutionException
+    @VisibleForTesting
+    UntypedResultSet process(String query, ConsistencyLevel consistencyLevel)
+    throws RequestValidationException, RequestExecutionException
     {
         if (!isClusterReady)
             throw new InvalidRequestException("Cannot process role related query as the role manager isn't yet setup. "
@@ -644,36 +525,10 @@ public class CassandraRoleManager implements IRoleManager
         return QueryProcessor.process(query, consistencyLevel);
     }
 
-    private static final class Role
+    @VisibleForTesting
+    ResultMessage.Rows select(SelectStatement statement, QueryOptions options)
     {
-        private String name;
-        private final boolean isSuper;
-        private final boolean canLogin;
-        private Set<String> memberOf;
-
-        private Role(String name, boolean isSuper, boolean canLogin, Set<String> memberOf)
-        {
-            this.name = name;
-            this.isSuper = isSuper;
-            this.canLogin = canLogin;
-            this.memberOf = memberOf;
-        }
-
-        public boolean equals(Object o)
-        {
-            if (this == o)
-                return true;
-
-            if (!(o instanceof Role))
-                return false;
-
-            Role r = (Role) o;
-            return Objects.equal(name, r.name);
-        }
-
-        public int hashCode()
-        {
-            return Objects.hashCode(name);
-        }
+        return statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
     }
+
 }

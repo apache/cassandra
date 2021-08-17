@@ -40,12 +40,35 @@ the `source` subdirectory. The documentation uses [sphinx](http://www.sphinx-doc
 and is thus written in [reStructuredText](http://docutils.sourceforge.net/rst.html).
 
 To build the HTML documentation, you will need to first install sphinx and the
-[sphinx ReadTheDocs theme](the https://pypi.python.org/pypi/sphinx_rtd_theme), which
-on unix you can do with:
+[sphinx ReadTheDocs theme](https://pypi.org/project/sphinx_rtd_theme/).
+When using Python 3.6 on Windows, use `py -m pip install sphinx sphinx_rtd_theme`, on unix
+use:
 ```
 pip install sphinx sphinx_rtd_theme
 ```
 
 The documentation can then be built from this directory by calling `make html`
 (or `make.bat html` on windows). Alternatively, the top-level `ant gen-doc`
-target can be used.
+target can be used.  When using Python 3.6 on Windows, use `sphinx_build -b html source build`.
+
+To build the documentation with Docker Compose, run:
+
+```bash
+cd ./doc
+
+# build the Docker image
+docker-compose build build-docs
+
+# build the documentation
+docker-compose run build-docs
+```
+
+To regenerate the documentation from scratch, run:
+
+```bash
+# return to the root directory of the Cassandra project
+cd ..
+
+# remove all generated documentation files based on the source code
+ant realclean
+```

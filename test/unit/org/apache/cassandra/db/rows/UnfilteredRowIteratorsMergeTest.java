@@ -19,7 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -31,7 +31,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -47,11 +47,13 @@ public class UnfilteredRowIteratorsMergeTest
     }
     static DecoratedKey partitionKey = Util.dk("key");
     static DeletionTime partitionLevelDeletion = DeletionTime.LIVE;
-    static CFMetaData metadata = CFMetaData.Builder.create("UnfilteredRowIteratorsMergeTest", "Test").
-            addPartitionKey("key", AsciiType.instance).
-            addClusteringColumn("clustering", Int32Type.instance).
-            addRegularColumn("data", Int32Type.instance).
-            build();
+    static TableMetadata metadata =
+        TableMetadata.builder("UnfilteredRowIteratorsMergeTest", "Test")
+                     .addPartitionKeyColumn("key", AsciiType.instance)
+                     .addClusteringColumn("clustering", Int32Type.instance)
+                     .addRegularColumn("data", Int32Type.instance)
+                     .build();
+
     static Comparator<Clusterable> comparator = new ClusteringComparator(Int32Type.instance);
     static int nowInSec = FBUtilities.nowInSeconds();
 
@@ -110,7 +112,7 @@ public class UnfilteredRowIteratorsMergeTest
                 System.out.println("\nSeed " + seed);
 
             Random r = new Random(seed);
-            List<Function<Integer, Integer>> timeGenerators = ImmutableList.of(
+            List<IntUnaryOperator> timeGenerators = ImmutableList.of(
                     x -> -1,
                     x -> DEL_RANGE,
                     x -> r.nextInt(DEL_RANGE)
@@ -149,25 +151,24 @@ public class UnfilteredRowIteratorsMergeTest
 
     public UnfilteredRowIterator mergeIterators(List<UnfilteredRowIterator> us, boolean iterations)
     {
-        int now = FBUtilities.nowInSeconds();
         if (iterations)
         {
             UnfilteredRowIterator mi = us.get(0);
             int i;
             for (i = 1; i + 2 <= ITERATORS; i += 2)
-                mi = UnfilteredRowIterators.merge(ImmutableList.of(mi, us.get(i), us.get(i+1)), now);
+                mi = UnfilteredRowIterators.merge(ImmutableList.of(mi, us.get(i), us.get(i+1)));
             if (i + 1 <= ITERATORS)
-                mi = UnfilteredRowIterators.merge(ImmutableList.of(mi, us.get(i)), now);
+                mi = UnfilteredRowIterators.merge(ImmutableList.of(mi, us.get(i)));
             return mi;
         }
         else
         {
-            return UnfilteredRowIterators.merge(us, now);
+            return UnfilteredRowIterators.merge(us);
         }
     }
 
     @SuppressWarnings("unused")
-    private List<Unfiltered> generateSource(Random r, Function<Integer, Integer> timeGenerator)
+    private List<Unfiltered> generateSource(Random r, IntUnaryOperator timeGenerator)
     {
         int[] positions = new int[ITEMS + 1];
         for (int i=0; i<ITEMS; ++i)
@@ -238,11 +239,11 @@ public class UnfilteredRowIteratorsMergeTest
             if (prev != null && curr != null && prev.isClose(false) && curr.isOpen(false) && prev.clustering().invert().equals(curr.clustering()))
             {
                 // Join. Prefer not to use merger to check its correctness.
-                ClusteringBound b = ((RangeTombstoneBoundMarker) prev).clustering();
+                ClusteringBound<?> b = ((RangeTombstoneBoundMarker) prev).clustering();
                 ClusteringBoundary boundary = ClusteringBoundary.create(b.isInclusive()
-                                                                            ? ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY
-                                                                            : ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY,
-                                                                        b.getRawValues());
+                                                                        ? ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY
+                                                                        : ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY,
+                                                                        b);
                 prev = new RangeTombstoneBoundaryMarker(boundary, prev.closeDeletionTime(false), curr.openDeletionTime(false));
                 currUnfiltered = prev;
                 --di;
@@ -330,7 +331,7 @@ public class UnfilteredRowIteratorsMergeTest
     {
         if (curr == null)
             return "null";
-        return Int32Type.instance.getString(curr.clustering().get(0));
+        return Int32Type.instance.getString(curr.clustering().bufferAt(0));
     }
 
     private Unfiltered rowFor(Clusterable pointer, List<Unfiltered> list)
@@ -375,20 +376,20 @@ public class UnfilteredRowIteratorsMergeTest
         return def;
     }
 
-    private static ClusteringBound boundFor(int pos, boolean start, boolean inclusive)
+    private static ClusteringBound<?> boundFor(int pos, boolean start, boolean inclusive)
     {
-        return ClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
+        return BufferClusteringBound.create(ClusteringBound.boundKind(start, inclusive), new ByteBuffer[] {Int32Type.instance.decompose(pos)});
     }
 
-    private static Clustering clusteringFor(int i)
+    private static Clustering<?> clusteringFor(int i)
     {
         return Clustering.make(Int32Type.instance.decompose(i));
     }
 
-    static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)
+    static Row emptyRowAt(int pos, IntUnaryOperator timeGenerator)
     {
-        final Clustering clustering = clusteringFor(pos);
-        final LivenessInfo live = LivenessInfo.create(timeGenerator.apply(pos), nowInSec);
+        final Clustering<?> clustering = clusteringFor(pos);
+        final LivenessInfo live = LivenessInfo.create(timeGenerator.applyAsInt(pos), nowInSec);
         return BTreeRow.noCellLiveRow(clustering, live);
     }
 
@@ -403,7 +404,7 @@ public class UnfilteredRowIteratorsMergeTest
     {
         if (curr == null)
             return "null";
-        String val = Int32Type.instance.getString(curr.clustering().get(0));
+        String val = Int32Type.instance.getString(curr.clustering().bufferAt(0));
         if (curr instanceof RangeTombstoneMarker)
         {
             RangeTombstoneMarker marker = (RangeTombstoneMarker) curr;
@@ -424,7 +425,7 @@ public class UnfilteredRowIteratorsMergeTest
             super(UnfilteredRowIteratorsMergeTest.metadata,
                   UnfilteredRowIteratorsMergeTest.partitionKey,
                   UnfilteredRowIteratorsMergeTest.partitionLevelDeletion,
-                  UnfilteredRowIteratorsMergeTest.metadata.partitionColumns(),
+                  UnfilteredRowIteratorsMergeTest.metadata.regularAndStaticColumns(),
                   null,
                   reversed,
                   EncodingStats.NO_STATS);
@@ -505,8 +506,8 @@ public class UnfilteredRowIteratorsMergeTest
 
     private RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
     {
-        return new RangeTombstoneBoundMarker(ClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
-                                                                    new ByteBuffer[] {clusteringFor(pos).get(0)}),
+        return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
+                                                                    new ByteBuffer[] {clusteringFor(pos).bufferAt(0)}),
                                              new DeletionTime(delTime, delTime));
     }
 }

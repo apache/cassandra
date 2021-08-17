@@ -21,18 +21,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
-import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -44,13 +38,13 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  *   2) expiring cells: on top of regular cells, those have a ttl and a local deletion time (when they are expired).
  *   3) tombstone cells: those won't have value, but they have a local deletion time (when the tombstone was created).
  */
-public abstract class Cell extends ColumnData
+public abstract class Cell<V> extends ColumnData
 {
     public static final int NO_TTL = 0;
     public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
     public static final int MAX_DELETION_TIME = Integer.MAX_VALUE - 1;
 
-    public final static Comparator<Cell> comparator = (c1, c2) ->
+    public final static Comparator<Cell<?>> comparator = (c1, c2) ->
     {
         int cmp = c1.column().compareTo(c2.column());
         if (cmp != 0)
@@ -62,7 +56,12 @@ public abstract class Cell extends ColumnData
 
     public static final Serializer serializer = new BufferCell.Serializer();
 
-    protected Cell(ColumnDefinition column)
+    public interface Factory<V>
+    {
+        Cell<V> create(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, V value, CellPath path);
+    }
+
+    protected Cell(ColumnMetadata column)
     {
         super(column);
     }
@@ -74,12 +73,19 @@ public abstract class Cell extends ColumnData
      */
     public abstract boolean isCounterCell();
 
-    /**
-     * The cell value.
-     *
-     * @return the cell value.
-     */
-    public abstract ByteBuffer value();
+    public abstract V value();
+
+    public abstract ValueAccessor<V> accessor();
+
+    public int valueSize()
+    {
+        return accessor().size(value());
+    }
+
+    public ByteBuffer buffer()
+    {
+        return accessor().toBuffer(value());
+    }
 
     /**
      * The cell timestamp.
@@ -138,28 +144,28 @@ public abstract class Cell extends ColumnData
      */
     public abstract CellPath path();
 
-    public abstract Cell withUpdatedColumn(ColumnDefinition newColumn);
+    public abstract Cell<?> withUpdatedColumn(ColumnMetadata newColumn);
 
-    public abstract Cell withUpdatedValue(ByteBuffer newValue);
+    public abstract Cell<?> withUpdatedValue(ByteBuffer newValue);
 
-    public abstract Cell withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
+    public abstract Cell<?> withUpdatedTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
 
     /**
      * Used to apply the same optimization as in {@link Cell.Serializer#deserialize} when
      * the column is not queried but eventhough it's used for digest calculation.
      * @return a cell with an empty buffer as value
      */
-    public abstract Cell withSkippedValue();
+    public abstract Cell<?> withSkippedValue();
 
-    public abstract Cell copy(AbstractAllocator allocator);
-
-    @Override
-    // Overrides super type to provide a more precise return type.
-    public abstract Cell markCounterLocalToBeCleared();
+    public abstract Cell<?> copy(AbstractAllocator allocator);
 
     @Override
     // Overrides super type to provide a more precise return type.
-    public abstract Cell purge(DeletionPurger purger, int nowInSec);
+    public abstract Cell<?> markCounterLocalToBeCleared();
+
+    @Override
+    // Overrides super type to provide a more precise return type.
+    public abstract Cell<?> purge(DeletionPurger purger, int nowInSec);
 
     /**
      * The serialization format for cell is:
@@ -188,10 +194,10 @@ public abstract class Cell extends ColumnData
         private final static int USE_ROW_TIMESTAMP_MASK      = 0x08; // Wether the cell has the same timestamp than the row this is a cell of.
         private final static int USE_ROW_TTL_MASK            = 0x10; // Wether the cell has the same ttl than the row this is a cell of.
 
-        public void serialize(Cell cell, ColumnDefinition column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
+        public <T> void serialize(Cell<T> cell, ColumnMetadata column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
         {
             assert cell != null;
-            boolean hasValue = cell.value().hasRemaining();
+            boolean hasValue = cell.valueSize() > 0;
             boolean isDeleted = cell.isTombstone();
             boolean isExpiring = cell.isExpiring();
             boolean useRowTimestamp = !rowLiveness.isEmpty() && cell.timestamp() == rowLiveness.timestamp();
@@ -224,10 +230,10 @@ public abstract class Cell extends ColumnData
                 column.cellPathSerializer().serialize(cell.path(), out);
 
             if (hasValue)
-                header.getType(column).writeValue(cell.value(), out);
+                header.getType(column).writeValue(cell.value(), cell.accessor(), out);
         }
 
-        public Cell deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnDefinition column, SerializationHeader header, SerializationHelper helper) throws IOException
+        public <V> Cell<V> deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnMetadata column, SerializationHeader header, DeserializationHelper helper, ValueAccessor<V> accessor) throws IOException
         {
             int flags = in.readUnsignedByte();
             boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;
@@ -248,7 +254,7 @@ public abstract class Cell extends ColumnData
                             ? column.cellPathSerializer().deserialize(in)
                             : null;
 
-            ByteBuffer value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            V value = accessor.empty();
             if (hasValue)
             {
                 if (helper.canSkipValue(column) || (path != null && helper.canSkipValue(path)))
@@ -259,19 +265,19 @@ public abstract class Cell extends ColumnData
                 {
                     boolean isCounter = localDeletionTime == NO_DELETION_TIME && column.type.isCounter();
 
-                    value = header.getType(column).readValue(in, DatabaseDescriptor.getMaxValueSize());
+                    value = header.getType(column).read(accessor, in, DatabaseDescriptor.getMaxValueSize());
                     if (isCounter)
-                        value = helper.maybeClearCounterValue(value);
+                        value = helper.maybeClearCounterValue(value, accessor);
                 }
             }
 
-            return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
+            return accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
         }
 
-        public long serializedSize(Cell cell, ColumnDefinition column, LivenessInfo rowLiveness, SerializationHeader header)
+        public <T> long serializedSize(Cell<T> cell, ColumnMetadata column, LivenessInfo rowLiveness, SerializationHeader header)
         {
             long size = 1; // flags
-            boolean hasValue = cell.value().hasRemaining();
+            boolean hasValue = cell.valueSize() > 0;
             boolean isDeleted = cell.isTombstone();
             boolean isExpiring = cell.isExpiring();
             boolean useRowTimestamp = !rowLiveness.isEmpty() && cell.timestamp() == rowLiveness.timestamp();
@@ -289,13 +295,13 @@ public abstract class Cell extends ColumnData
                 size += column.cellPathSerializer().serializedSize(cell.path());
 
             if (hasValue)
-                size += header.getType(column).writtenLength(cell.value());
+                size += header.getType(column).writtenLength(cell.value(), cell.accessor());
 
             return size;
         }
 
         // Returns if the skipped cell was an actual cell (i.e. it had its presence flag).
-        public boolean skip(DataInputPlus in, ColumnDefinition column, SerializationHeader header) throws IOException
+        public boolean skip(DataInputPlus in, ColumnMetadata column, SerializationHeader header) throws IOException
         {
             int flags = in.readUnsignedByte();
             boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;

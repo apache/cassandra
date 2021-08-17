@@ -18,383 +18,315 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.util.Set;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Iterators;
+import org.apache.commons.lang3.ArrayUtils;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.ICluster;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.NoopCompressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.compress.ZstdCompressor;
 
-import static org.junit.Assert.assertEquals;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRow;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
-import static org.apache.cassandra.distributed.shared.AssertUtils.*;
-
-// TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
-public class SimpleReadWriteTest extends SharedClusterTestBase
+/**
+ * Simple read/write tests using different types of query, paticularly when the data is spread across memory and
+ * multiple sstables and using different compressors. All available compressors are tested. Both ascending and
+ * descending clustering orders are tested. The read queries are run using every node as a coordinator, with and without
+ * paging.
+ */
+@RunWith(Parameterized.class)
+public class SimpleReadWriteTest extends TestBaseImpl
 {
-    @Test
-    public void coordinatorReadTest() throws Throwable
+    private static final int NUM_NODES = 4;
+    private static final int REPLICATION_FACTOR = 3;
+    private static final String CREATE_TABLE = "CREATE TABLE %s(k int, c int, v int, PRIMARY KEY (k, c)) " +
+                                               "WITH CLUSTERING ORDER BY (c %s) " +
+                                               "AND COMPRESSION = { 'class': '%s' } " +
+                                               "AND READ_REPAIR = 'none'";
+    private static final String[] COMPRESSORS = new String[]{ NoopCompressor.class.getSimpleName(),
+                                                              LZ4Compressor.class.getSimpleName(),
+                                                              DeflateCompressor.class.getSimpleName(),
+                                                              SnappyCompressor.class.getSimpleName(),
+                                                              ZstdCompressor.class.getSimpleName() };
+    private static final int SECOND_SSTABLE_INTERVAL = 2;
+    private static final int MEMTABLE_INTERVAL = 5;
+
+    private static final AtomicInteger seq = new AtomicInteger();
+
+    /**
+     * The sstable compressor to be used.
+     */
+    @Parameterized.Parameter
+    public String compressor;
+
+    /**
+     * Whether the clustering order is reverse.
+     */
+    @Parameterized.Parameter(1)
+    public boolean reverse;
+
+    private String tableName;
+
+    @Parameterized.Parameters(name = "{index}: compressor={0} reverse={1}")
+    public static Collection<Object[]> data()
     {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-
-        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
-        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 2, 2)");
-        cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 3, 3)");
-
-        assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
-                                                  ConsistencyLevel.ALL,
-                                                  1),
-                   row(1, 1, 1),
-                   row(1, 2, 2),
-                   row(1, 3, 3));
+        List<Object[]> result = new ArrayList<>();
+        for (String compressor : COMPRESSORS)
+            for (boolean reverse : BOOLEANS)
+                result.add(new Object[]{ compressor, reverse });
+        return result;
     }
 
-    @Test
-    public void largeMessageTest() throws Throwable
+    private static Cluster cluster;
+
+    @BeforeClass
+    public static void setupCluster() throws IOException
     {
-        int largeMessageThreshold = 1024 * 64;
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < largeMessageThreshold; i++)
-            builder.append('a');
-        String s = builder.toString();
-        cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, ?)",
-                                       ConsistencyLevel.ALL,
-                                       s);
-        assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ?",
-                                                  ConsistencyLevel.ALL,
-                                                  1),
-                   row(1, 1, s));
+        cluster = init(Cluster.build(NUM_NODES).start(), REPLICATION_FACTOR);
     }
 
-    @Test
-    public void coordinatorWriteTest() throws Throwable
+    @AfterClass
+    public static void teardownCluster()
     {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-
-        cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)",
-                                       ConsistencyLevel.QUORUM);
-
-        for (int i = 0; i < 3; i++)
-        {
-            assertRows(cluster.get(1).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"),
-                       row(1, 1, 1));
-        }
-
-        assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                  ConsistencyLevel.QUORUM),
-                   row(1, 1, 1));
+        if (cluster != null)
+            cluster.close();
     }
 
-    @Test
-    public void readRepairTest() throws Throwable
+    @Before
+    public void before()
     {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        // create the table
+        tableName = String.format("%s.t_%d", KEYSPACE, seq.getAndIncrement());
+        cluster.schemaChange(String.format(CREATE_TABLE, tableName, reverse ? "DESC" : "ASC", compressor));
+    }
 
-        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
-        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)");
-
-        assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"));
-
-        assertRows(cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1",
-                                                  ConsistencyLevel.ALL), // ensure node3 in preflist
-                   row(1, 1, 1));
-
-        // Verify that data got repaired to the third node
-        assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"),
-                   row(1, 1, 1));
+    @After
+    public void after()
+    {
+        cluster.schemaChange(withTable("DROP TABLE %s"));
     }
 
     /**
-     * If a node receives a mutation for a column it's not aware of, it should fail, since it can't write the data.
+     * Simple put/get on a single partition with a few rows, reading with a single partition query.
+     * <p>
+     * Migrated from Python dtests putget_test.py:TestPutGet.test_putget[_snappy|_deflate]().
      */
     @Test
-    public void writeWithSchemaDisagreement() throws Throwable
+    public void testPartitionQuery()
     {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
+        int numRows = 10;
 
-        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
-        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
-        cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
+        writeRows(1, numRows);
 
-        // Introduce schema disagreement
-        cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD v2 int", 1);
-
-        Exception thrown = null;
-        try
+        Object[][] rows = readRows("SELECT * FROM %s WHERE k=?", 0);
+        Assert.assertEquals(numRows, rows.length);
+        for (int c = 0; c < numRows; c++)
         {
-            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) VALUES (2, 2, 2, 2)",
-                                           ConsistencyLevel.ALL);
+            validateRow(rows[c], numRows, 0, c);
         }
-        catch (RuntimeException e)
-        {
-            thrown = e;
-        }
-
-        Assert.assertTrue(thrown.getMessage().contains("Exception occurred on node"));
-        Assert.assertTrue(thrown.getCause().getCause().getCause().getMessage().contains("Unknown column v2"));
     }
-
-
 
     /**
-     * If a node isn't aware of a column, but receives a mutation without that column, the write should succeed
+     * Simple put/get on multiple partitions with multiple rows, reading with a range query.
+     * <p>
+     * Migrated from Python dtests putget_test.py:TestPutGet.test_rangeputget().
      */
     @Test
-    public void writeWithInconsequentialSchemaDisagreement() throws Throwable
+    public void testRangeQuery()
     {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, PRIMARY KEY (pk, ck))");
+        int numPartitions = 10;
+        int rowsPerPartition = 10;
 
-        cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
-        cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
-        cluster.get(3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (1, 1, 1)");
+        writeRows(numPartitions, rowsPerPartition);
 
-        // Introduce schema disagreement
-        cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl ADD v2 int", 1);
-
-        // this write shouldn't cause any problems because it doesn't write to the new column
-        cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1) VALUES (2, 2, 2)",
-                                       ConsistencyLevel.ALL);
-    }
-
-    @Test
-    public void simplePagedReadsTest() throws Throwable
-    {
-
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-
-        int size = 100;
-        Object[][] results = new Object[size][];
-        for (int i = 0; i < size; i++)
+        Object[][] rows = readRows("SELECT * FROM %s");
+        Assert.assertEquals(numPartitions * rowsPerPartition, rows.length);
+        for (int k = 0; k < numPartitions; k++)
         {
-            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)",
-                                           ConsistencyLevel.QUORUM,
-                                           i, i);
-            results[i] = new Object[]{ 1, i, i };
-        }
-
-        // Make sure paged read returns same results with different page sizes
-        for (int pageSize : new int[]{ 1, 2, 3, 5, 10, 20, 50 })
-        {
-            assertRows(cluster.coordinator(1).executeWithPaging("SELECT * FROM " + KEYSPACE + ".tbl",
-                                                                ConsistencyLevel.QUORUM,
-                                                                pageSize),
-                       results);
-        }
-    }
-
-    @Test
-    public void pagingWithRepairTest() throws Throwable
-    {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-
-        int size = 100;
-        Object[][] results = new Object[size][];
-        for (int i = 0; i < size; i++)
-        {
-            // Make sure that data lands on different nodes and not coordinator
-            cluster.get(i % 2 == 0 ? 2 : 3).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)",
-                                                            i, i);
-
-            results[i] = new Object[]{ 1, i, i };
-        }
-
-        // Make sure paged read returns same results with different page sizes
-        for (int pageSize : new int[]{ 1, 2, 3, 5, 10, 20, 50 })
-        {
-            assertRows(cluster.coordinator(1).executeWithPaging("SELECT * FROM " + KEYSPACE + ".tbl",
-                                                                ConsistencyLevel.ALL,
-                                                                pageSize),
-                       results);
-        }
-
-        assertRows(cluster.get(1).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl"),
-                   results);
-    }
-
-    @Test
-    public void pagingTests() throws Throwable
-    {
-        try (ICluster singleNode = init(builder().withNodes(1).withSubnet(1).start()))
-        {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-            singleNode.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-
-            for (int i = 0; i < 10; i++)
+            for (int c = 0; c < rowsPerPartition; c++)
             {
-                for (int j = 0; j < 10; j++)
-                {
-                    cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)",
-                                                   ConsistencyLevel.QUORUM,
-                                                   i, j, i + i);
-                    singleNode.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, ?, ?)",
-                                                      ConsistencyLevel.QUORUM,
-                                                      i, j, i + i);
-                }
+                Object[] row = rows[k * rowsPerPartition + c];
+                validateRow(row, rowsPerPartition, k, c);
             }
+        }
+    }
 
-            int[] pageSizes = new int[]{ 1, 2, 3, 5, 10, 20, 50 };
-            String[] statements = new String[]{ "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck >= 5",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 AND ck <= 10",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 LIMIT 3",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck >= 5 LIMIT 2",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 AND ck <= 10 LIMIT 2",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 ORDER BY ck DESC",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck >= 5 ORDER BY ck DESC",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 AND ck <= 10 ORDER BY ck DESC",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 ORDER BY ck DESC LIMIT 3",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck >= 5 ORDER BY ck DESC LIMIT 2",
-                                                "SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1 AND ck > 5 AND ck <= 10 ORDER BY ck DESC LIMIT 2",
-                                                "SELECT DISTINCT pk FROM " + KEYSPACE + ".tbl LIMIT 3",
-                                                "SELECT DISTINCT pk FROM " + KEYSPACE + ".tbl WHERE pk IN (3,5,8,10)",
-                                                "SELECT DISTINCT pk FROM " + KEYSPACE + ".tbl WHERE pk IN (3,5,8,10) LIMIT 2"
-            };
-            for (String statement : statements)
+    /**
+     * Simple put/get on a single partition with multiple rows, reading with slice queries.
+     * <p>
+     * Migrated from Python dtests putget_test.py:TestPutGet.test_wide_row().
+     */
+    @Test
+    public void testSliceQuery()
+    {
+        int numRows = 100;
+
+        writeRows(1, numRows);
+
+        String query = "SELECT * FROM %s WHERE k=? AND c>=? AND c<?";
+        for (int sliceSize : Arrays.asList(10, 20, 100))
+        {
+            for (int c = 0; c < numRows; c = c + sliceSize)
             {
-                for (int pageSize : pageSizes)
+                Object[][] rows = readRows(query, 0, c, c + sliceSize);
+                Assert.assertEquals(sliceSize, rows.length);
+
+                for (int i = 0; i < sliceSize; i++)
                 {
-                    assertRows(cluster.coordinator(1)
-                                      .executeWithPaging(statement,
-                                                         ConsistencyLevel.QUORUM, pageSize),
-                               singleNode.coordinator(1)
-                                         .executeWithPaging(statement,
-                                                            ConsistencyLevel.QUORUM, Integer.MAX_VALUE));
+                    Object[] row = rows[i];
+                    validateRow(row, numRows, 0, c + i);
                 }
             }
         }
     }
 
+    /**
+     * Simple put/get on multiple partitions with multiple rows, reading with IN queries.
+     */
     @Test
-    public void metricsCountQueriesTest() throws Throwable
+    public void testInQuery()
     {
-        cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-        for (int i = 0; i < 100; i++)
-            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?,?,?)", ConsistencyLevel.ALL, i, i, i);
+        int numPartitions = 10;
+        int rowsPerPartition = 10;
 
-        long readCount1 = readCount((IInvokableInstance) cluster.get(1));
-        long readCount2 = readCount((IInvokableInstance) cluster.get(2));
-        for (int i = 0; i < 100; i++)
-            cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = ? and ck = ?", ConsistencyLevel.ALL, i, i);
+        writeRows(numPartitions, rowsPerPartition);
 
-        readCount1 = readCount((IInvokableInstance) cluster.get(1)) - readCount1;
-        readCount2 = readCount((IInvokableInstance) cluster.get(2)) - readCount2;
-        assertEquals(readCount1, readCount2);
-        assertEquals(100, readCount1);
-    }
-
-
-    @Test
-    public void skippedSSTableWithPartitionDeletionTest() throws Throwable
-    {
-        try (Cluster cluster = init(Cluster.create(2)))
+        String query = "SELECT * FROM %s WHERE k IN (?, ?)";
+        for (int k = 0; k < numPartitions; k += 2)
         {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY(pk, ck))");
-            // insert a partition tombstone on node 1, the deletion timestamp should end up being the sstable's minTimestamp
-            cluster.get(1).executeInternal("DELETE FROM " + KEYSPACE + ".tbl USING TIMESTAMP 1 WHERE pk = 0");
-            // and a row from a different partition, to provide the sstable's min/max clustering
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) USING TIMESTAMP 2");
-            cluster.get(1).flush(KEYSPACE);
-            // expect a single sstable, where minTimestamp equals the timestamp of the partition delete
-            cluster.get(1).runOnInstance(() -> {
-                Set<SSTableReader> sstables = Keyspace.open(KEYSPACE)
-                                                      .getColumnFamilyStore("tbl")
-                                                      .getLiveSSTables();
-                assertEquals(1, sstables.size());
-                assertEquals(1, sstables.iterator().next().getMinTimestamp());
-            });
+            Object[][] rows = readRows(query, k, k + 1);
+            Assert.assertEquals(rowsPerPartition * 2, rows.length);
 
-            // on node 2, add a row for the deleted partition with an older timestamp than the deletion so it should be shadowed
-            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (0, 10, 10) USING TIMESTAMP 0");
-
-
-            Object[][] rows = cluster.coordinator(1)
-                                     .execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=0 AND ck > 5",
-                                              ConsistencyLevel.ALL);
-            assertEquals(0, rows.length);
+            for (int i = 0; i < 2; i++)
+            {
+                for (int c = 0; c < rowsPerPartition; c++)
+                {
+                    Object[] row = rows[i * rowsPerPartition + c];
+                    validateRow(row, rowsPerPartition, k + i, c);
+                }
+            }
         }
     }
 
-    @Test
-    public void skippedSSTableWithPartitionDeletionShadowingDataOnAnotherNode() throws Throwable
+    /**
+     * Writes {@code numPartitions} with {@code rowsPerPartition} each, with overrides in different sstables and memtables.
+     */
+    private void writeRows(int numPartitions, int rowsPerPartition)
     {
-        try (Cluster cluster = init(Cluster.create(2)))
+        String update = withTable("UPDATE %s SET v=? WHERE k=? AND c=?");
+        ICoordinator coordinator = cluster.coordinator(1);
+
+        // insert all the partition rows in a single sstable
+        for (int c = 0; c < rowsPerPartition; c++)
+            for (int k = 0; k < numPartitions; k++)
+                coordinator.execute(update, QUORUM, c, k, c);
+        cluster.forEach(i -> i.flush(KEYSPACE));
+
+        // override some rows in a second sstable
+        for (int c = 0; c < rowsPerPartition; c += SECOND_SSTABLE_INTERVAL)
+            for (int k = 0; k < numPartitions; k++)
+                coordinator.execute(update, QUORUM, c + rowsPerPartition, k, c);
+        cluster.forEach(i -> i.flush(KEYSPACE));
+
+        // override some rows only in memtable
+        for (int c = 0; c < rowsPerPartition; c += MEMTABLE_INTERVAL)
+            for (int k = 0; k < numPartitions; k++)
+                coordinator.execute(update, QUORUM, c + rowsPerPartition * 2, k, c);
+    }
+
+    /**
+     * Runs the specified query in all coordinators, with and without paging.
+     */
+    private Object[][] readRows(String query, Object... boundValues)
+    {
+        query = withTable(query);
+
+        // verify that all coordinators return the same results for the query, regardless of paging
+        Object[][] lastRows = null;
+        int lastNode = 1;
+        boolean lastPaging = false;
+        for (int node = 1; node <= NUM_NODES; node++)
         {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY(pk, ck))");
-            // insert a partition tombstone on node 1, the deletion timestamp should end up being the sstable's minTimestamp
-            cluster.get(1).executeInternal("DELETE FROM " + KEYSPACE + ".tbl USING TIMESTAMP 1 WHERE pk = 0");
-            // and a row from a different partition, to provide the sstable's min/max clustering
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) USING TIMESTAMP 1");
-            cluster.get(1).flush(KEYSPACE);
-            // sstable 1 has minTimestamp == maxTimestamp == 1 and is skipped due to its min/max clusterings. Now we
-            // insert a row which is not shadowed by the partition delete and flush to a second sstable. Importantly,
-            // this sstable's minTimestamp is > than the maxTimestamp of the first sstable. This would cause the first
-            // sstable not to be reincluded in the merge input, but we can't really make that decision as we don't
-            // know what data and/or tombstones are present on other nodes
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (0, 6, 6) USING TIMESTAMP 2");
-            cluster.get(1).flush(KEYSPACE);
+            ICoordinator coordinator = cluster.coordinator(node);
 
-            // on node 2, add a row for the deleted partition with an older timestamp than the deletion so it should be shadowed
-            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (0, 10, 10) USING TIMESTAMP 0");
+            for (boolean paging : BOOLEANS)
+            {
+                Object[][] rows = paging
+                                  ? Iterators.toArray(coordinator.executeWithPaging(query, QUORUM, 1, boundValues),
+                                                      Object[].class)
+                                  : coordinator.execute(query, QUORUM, boundValues);
 
-            Object[][] rows = cluster.coordinator(1)
-                                     .execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=0 AND ck > 5",
-                                              ConsistencyLevel.ALL);
-            // we expect that the row from node 2 (0, 10, 10) was shadowed by the partition delete, but the row from
-            // node 1 (0, 6, 6) was not.
-            assertRows(rows, new Object[] {0, 6 ,6});
+                if (lastRows != null)
+                {
+                    try
+                    {
+                        assertRows(lastRows, rows);
+                    }
+                    catch (AssertionError e)
+                    {
+                        fail(String.format("Node %d %s paging has returned different results " +
+                                           "for the same query than node %d %s paging:\n%s",
+                                           node, paging ? "with" : "without",
+                                           lastNode, lastPaging ? "with" : "without",
+                                           e.getMessage()));
+                    }
+                }
+
+                lastRows = rows;
+                lastPaging = paging;
+            }
+
+            lastNode = node;
         }
+        Assert.assertNotNull(lastRows);
+
+        // undo the clustering reverse sorting to ease validation
+        if (reverse)
+            ArrayUtils.reverse(lastRows);
+
+        // sort by partition key to ease validation
+        Arrays.sort(lastRows, Comparator.comparing(row -> (int) row[0]));
+
+        return lastRows;
     }
 
-    @Test
-    public void skippedSSTableWithPartitionDeletionShadowingDataOnAnotherNode2() throws Throwable
+    private void validateRow(Object[] row, int rowsPerPartition, int k, int c)
     {
-        // don't not add skipped sstables back just because the partition delete ts is < the local min ts
+        Assert.assertNotNull(row);
 
-        try (Cluster cluster = init(Cluster.create(2)))
-        {
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY(pk, ck))");
-            // insert a partition tombstone on node 1, the deletion timestamp should end up being the sstable's minTimestamp
-            cluster.get(1).executeInternal("DELETE FROM " + KEYSPACE + ".tbl USING TIMESTAMP 1 WHERE pk = 0");
-            // and a row from a different partition, to provide the sstable's min/max clustering
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1) USING TIMESTAMP 3");
-            cluster.get(1).flush(KEYSPACE);
-            // sstable 1 has minTimestamp == maxTimestamp == 1 and is skipped due to its min/max clusterings. Now we
-            // insert a row which is not shadowed by the partition delete and flush to a second sstable. The first sstable
-            // has a maxTimestamp > than the min timestamp of all sstables, so it is a candidate for reinclusion to the
-            // merge. Hoever, the second sstable's minTimestamp is > than the partition delete. This would  cause the
-            // first sstable not to be reincluded in the merge input, but we can't really make that decision as we don't
-            // know what data and/or tombstones are present on other nodes
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (0, 6, 6) USING TIMESTAMP 2");
-            cluster.get(1).flush(KEYSPACE);
-
-            // on node 2, add a row for the deleted partition with an older timestamp than the deletion so it should be shadowed
-            cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (0, 10, 10) USING TIMESTAMP 0");
-
-            Object[][] rows = cluster.coordinator(1)
-                                     .execute("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk=0 AND ck > 5",
-                                              ConsistencyLevel.ALL);
-            // we expect that the row from node 2 (0, 10, 10) was shadowed by the partition delete, but the row from
-            // node 1 (0, 6, 6) was not.
-            assertRows(rows, new Object[] {0, 6 ,6});
-        }
+        if (c % MEMTABLE_INTERVAL == 0)
+            assertRow(row, row(k, c, c + rowsPerPartition * 2));
+        else if (c % SECOND_SSTABLE_INTERVAL == 0)
+            assertRow(row, row(k, c, c + rowsPerPartition));
+        else
+            assertRow(row, row(k, c, c));
     }
 
-    private long readCount(IInvokableInstance instance)
+    private String withTable(String query)
     {
-        return instance.callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
+        return String.format(query, tableName);
     }
-
-    private static Object[][] rows(Object[]...rows)
-    {
-        Object[][] r = new Object[rows.length][];
-        System.arraycopy(rows, 0, r, 0, rows.length);
-        return r;
-    }
-
 }

@@ -17,24 +17,25 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.util.UUID;
-
 import com.google.common.collect.ImmutableMap;
-import io.netty.buffer.ByteBuf;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.statements.ParsedStatement;
+import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.UUIDGen;
 
 public class ExecuteMessage extends Message.Request
 {
@@ -42,13 +43,22 @@ public class ExecuteMessage extends Message.Request
     {
         public ExecuteMessage decode(ByteBuf body, ProtocolVersion version)
         {
-            byte[] id = CBUtil.readBytes(body);
-            return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.codec.decode(body, version));
+            MD5Digest statementId = MD5Digest.wrap(CBUtil.readBytes(body));
+
+            MD5Digest resultMetadataId = null;
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
+
+            return new ExecuteMessage(statementId, resultMetadataId, QueryOptions.codec.decode(body, version));
         }
 
         public void encode(ExecuteMessage msg, ByteBuf dest, ProtocolVersion version)
         {
             CBUtil.writeBytes(msg.statementId.bytes, dest);
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                CBUtil.writeBytes(msg.resultMetadataId.bytes, dest);
+
             if (version == ProtocolVersion.V1)
             {
                 CBUtil.writeValueList(msg.options.getValues(), dest);
@@ -64,6 +74,10 @@ public class ExecuteMessage extends Message.Request
         {
             int size = 0;
             size += CBUtil.sizeOfBytes(msg.statementId.bytes);
+
+            if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                size += CBUtil.sizeOfBytes(msg.resultMetadataId.bytes);
+
             if (version == ProtocolVersion.V1)
             {
                 size += CBUtil.sizeOfValueList(msg.options.getValues());
@@ -78,94 +92,124 @@ public class ExecuteMessage extends Message.Request
     };
 
     public final MD5Digest statementId;
+    public final MD5Digest resultMetadataId;
     public final QueryOptions options;
 
-    public ExecuteMessage(MD5Digest statementId, QueryOptions options)
+    public ExecuteMessage(MD5Digest statementId, MD5Digest resultMetadataId, QueryOptions options)
     {
         super(Message.Type.EXECUTE);
         this.statementId = statementId;
         this.options = options;
+        this.resultMetadataId = resultMetadataId;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected boolean isTraceable()
     {
+        return true;
+    }
+
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
+    {
+        QueryHandler.Prepared prepared = null;
         try
         {
             QueryHandler handler = ClientState.getCQLQueryHandler();
-            ParsedStatement.Prepared prepared = handler.getPrepared(statementId);
+            prepared = handler.getPrepared(statementId);
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            options.prepare(prepared.boundNames);
             CQLStatement statement = prepared.statement;
+            options.prepare(statement.getBindVariables());
 
             if (options.getPageSize() == 0)
                 throw new ProtocolException("The page size cannot be 0");
 
-            UUID tracingId = null;
-            if (isTracingRequested())
-            {
-                tracingId = UUIDGen.getTimeUUID();
-                state.prepareTracingSession(tracingId);
-            }
-
-            if (state.traceNextQuery())
-            {
-                state.createTracingSession(getCustomPayload());
-
-                ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-                if (options.getPageSize() > 0)
-                    builder.put("page_size", Integer.toString(options.getPageSize()));
-                if(options.getConsistency() != null)
-                    builder.put("consistency_level", options.getConsistency().name());
-                if(options.getSerialConsistency() != null)
-                    builder.put("serial_consistency_level", options.getSerialConsistency().name());
-                builder.put("query", prepared.rawCQLStatement);
-
-                for(int i=0;i<prepared.boundNames.size();i++)
-                {
-                    ColumnSpecification cs = prepared.boundNames.get(i);
-                    String boundName = cs.name.toString();
-                    String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
-                    if ( boundValue.length() > 1000 )
-                    {
-                        boundValue = boundValue.substring(0, 1000) + "...'";
-                    }
-
-                    //Here we prefix boundName with the index to avoid possible collission in builder keys due to
-                    //having multiple boundValues for the same variable
-                    builder.put("bound_var_" + Integer.toString(i) + "_" + boundName, boundValue);
-                }
-
-                Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
-            }
+            if (traceRequest)
+                traceQuery(state, prepared);
 
             // Some custom QueryHandlers are interested by the bound names. We provide them this information
             // by wrapping the QueryOptions.
-            QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.boundNames);
-            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
-            if (options.skipMetadata() && response instanceof ResultMessage.Rows)
-                ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
+            QueryOptions queryOptions = QueryOptions.addColumnSpecifications(options, prepared.statement.getBindVariables());
 
-            if (tracingId != null)
-                response.setTracingId(tracingId);
+            long requestStartTime = System.currentTimeMillis();
+
+            Message.Response response = handler.processPrepared(statement, state, queryOptions, getCustomPayload(), queryStartNanoTime);
+
+            QueryEvents.instance.notifyExecuteSuccess(prepared.statement, prepared.rawCQLStatement, options, state, requestStartTime, response);
+
+            if (response instanceof ResultMessage.Rows)
+            {
+                ResultMessage.Rows rows = (ResultMessage.Rows) response;
+
+                ResultSet.ResultMetadata resultMetadata = rows.result.metadata;
+
+                if (options.getProtocolVersion().isGreaterOrEqualTo(ProtocolVersion.V5))
+                {
+                    // For LWTs, always send a resultset metadata but avoid setting a metadata changed flag. This way
+                    // Client will always receive fresh metadata, but will avoid caching and reusing it. See CASSANDRA-13992
+                    // for details.
+                    if (!statement.hasConditions())
+                    {
+                        // Starting with V5 we can rely on the result metadata id coming with execute message in order to
+                        // check if there was a change, comparing it with metadata that's about to be returned to client.
+                        if (!resultMetadata.getResultMetadataId().equals(resultMetadataId))
+                            resultMetadata.setMetadataChanged();
+                        else if (options.skipMetadata())
+                            resultMetadata.setSkipMetadata();
+                    }
+                }
+                else
+                {
+                    // Pre-V5 code has to rely on the difference between the metadata in the prepared message cache
+                    // and compare it with the metadata to be returned to client.
+                    if (options.skipMetadata() && prepared.resultMetadataId.equals(resultMetadata.getResultMetadataId()))
+                        resultMetadata.setSkipMetadata();
+                }
+            }
 
             return response;
         }
         catch (Exception e)
         {
+            QueryEvents.instance.notifyExecuteFailure(prepared, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             return ErrorMessage.fromException(e);
         }
-        finally
+    }
+
+    private void traceQuery(QueryState state, QueryHandler.Prepared prepared)
+    {
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        if (options.getPageSize() > 0)
+            builder.put("page_size", Integer.toString(options.getPageSize()));
+        if (options.getConsistency() != null)
+            builder.put("consistency_level", options.getConsistency().name());
+        if (options.getSerialConsistency() != null)
+            builder.put("serial_consistency_level", options.getSerialConsistency().name());
+
+        builder.put("query", prepared.rawCQLStatement);
+
+        for (int i = 0; i < prepared.statement.getBindVariables().size(); i++)
         {
-            Tracing.instance.stopSession();
+            ColumnSpecification cs = prepared.statement.getBindVariables().get(i);
+            String boundName = cs.name.toString();
+            String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
+            if (boundValue.length() > 1000)
+                boundValue = boundValue.substring(0, 1000) + "...'";
+
+            //Here we prefix boundName with the index to avoid possible collission in builder keys due to
+            //having multiple boundValues for the same variable
+            builder.put("bound_var_" + i + '_' + boundName, boundValue);
         }
+
+        Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
     }
 
     @Override
     public String toString()
     {
-        return "EXECUTE " + statementId + " with " + options.getValues().size() + " values at consistency " + options.getConsistency();
+        return String.format("EXECUTE %s with %d values at consistency %s", statementId, options.getValues().size(), options.getConsistency());
     }
 }

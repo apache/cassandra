@@ -19,31 +19,27 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractCompositeType;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -59,15 +55,15 @@ import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -85,7 +81,6 @@ public class SSTableHeaderFixTest
     static
     {
         DatabaseDescriptor.toolInitialization();
-        DatabaseDescriptor.applyAddressConfig();
     }
 
     private File temporaryFolder;
@@ -167,12 +162,12 @@ public class SSTableHeaderFixTest
 
     private static final Version version = BigFormat.instance.getVersion("mc");
 
-    private CFMetaData tableMetadata;
+    private TableMetadata tableMetadata;
     private final Set<String> updatedColumns = new HashSet<>();
 
-    private ColumnDefinition getColDef(String n)
+    private ColumnMetadata getColDef(String n)
     {
-        return tableMetadata.getColumnDefinition(ByteBufferUtil.bytes(n));
+        return tableMetadata.getColumn(ByteBufferUtil.bytes(n));
     }
 
     /**
@@ -187,9 +182,11 @@ public class SSTableHeaderFixTest
         SerializationHeader.Component header = readHeader(sstable);
         assertFrozenUdt(header, false, true);
 
-        ColumnDefinition cd = getColDef("regular_c");
-        tableMetadata.removeColumnDefinition(cd);
-        tableMetadata.addColumnDefinition(ColumnDefinition.regularDef("ks", "cf", "regular_c", FloatType.instance));
+        ColumnMetadata cd = getColDef("regular_c");
+        tableMetadata = tableMetadata.unbuild()
+                                     .removeRegularOrStaticColumn(cd.name)
+                                     .addRegularColumn("regular_c", FloatType.instance)
+                                     .build();
 
         SSTableHeaderFix headerFix = builder().withPath(sstable.toPath())
                                               .build();
@@ -208,9 +205,9 @@ public class SSTableHeaderFixTest
     {
         File dir = temporaryFolder;
 
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
         File sstable = buildFakeSSTable(dir, 1, cols, false);
 
@@ -237,18 +234,20 @@ public class SSTableHeaderFixTest
     public void verifyWithUnknownColumnTest() throws Exception
     {
         File dir = temporaryFolder;
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "solr_query", UTF8Type.instance));
+        cols.addRegularColumn("solr_query", UTF8Type.instance);
         File sstable = buildFakeSSTable(dir, 1, cols, true);
 
         SerializationHeader.Component header = readHeader(sstable);
         assertFrozenUdt(header, false, true);
 
-        ColumnDefinition cd = getColDef("solr_query");
-        tableMetadata.removeColumnDefinition(cd);
+        ColumnMetadata cd = getColDef("solr_query");
+        tableMetadata = tableMetadata.unbuild()
+                                     .removeRegularOrStaticColumn(cd.name)
+                                     .build();
 
         SSTableHeaderFix headerFix = builder().withPath(sstable.toPath())
                                               .build();
@@ -270,19 +269,21 @@ public class SSTableHeaderFixTest
     public void verifyWithIndexedUnknownColumnTest() throws Exception
     {
         File dir = temporaryFolder;
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "solr_query", UTF8Type.instance));
+        cols.addRegularColumn("solr_query", UTF8Type.instance);
         File sstable = buildFakeSSTable(dir, 1, cols, true);
 
         SerializationHeader.Component header = readHeader(sstable);
         assertFrozenUdt(header, false, true);
 
-        ColumnDefinition cd = getColDef("solr_query");
-        tableMetadata.indexes(tableMetadata.getIndexes().with(IndexMetadata.fromSchemaMetadata("some search index", IndexMetadata.Kind.CUSTOM, Collections.singletonMap(IndexTarget.TARGET_OPTION_NAME, "solr_query"))));
-        tableMetadata.removeColumnDefinition(cd);
+        ColumnMetadata cd = getColDef("solr_query");
+        tableMetadata = tableMetadata.unbuild()
+                                     .indexes(tableMetadata.indexes.with(IndexMetadata.fromSchemaMetadata("some search index", IndexMetadata.Kind.CUSTOM, Collections.singletonMap(IndexTarget.TARGET_OPTION_NAME, "solr_query"))))
+                                     .removeRegularOrStaticColumn(cd.name)
+                                     .build();
 
         SSTableHeaderFix headerFix = builder().withPath(sstable.toPath())
                                               .build();
@@ -301,21 +302,21 @@ public class SSTableHeaderFixTest
     {
         File dir = temporaryFolder;
 
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "tuple_in_tuple", tupleInTuple));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_nested", udtNested));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_tuple", udtInTuple));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "tuple_in_composite", tupleInComposite));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_composite", udtInComposite));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_list", udtInList));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_set", udtInSet));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_map", udtInMap));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_frozen_list", udtInFrozenList));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_frozen_set", udtInFrozenSet));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_frozen_map", udtInFrozenMap));
+        cols.addRegularColumn("tuple_in_tuple", tupleInTuple)
+            .addRegularColumn("udt_nested", udtNested)
+            .addRegularColumn("udt_in_tuple", udtInTuple)
+            .addRegularColumn("tuple_in_composite", tupleInComposite)
+            .addRegularColumn("udt_in_composite", udtInComposite)
+            .addRegularColumn("udt_in_list", udtInList)
+            .addRegularColumn("udt_in_set", udtInSet)
+            .addRegularColumn("udt_in_map", udtInMap)
+            .addRegularColumn("udt_in_frozen_list", udtInFrozenList)
+            .addRegularColumn("udt_in_frozen_set", udtInFrozenSet)
+            .addRegularColumn("udt_in_frozen_map", udtInFrozenMap);
         File sstable = buildFakeSSTable(dir, 1, cols, true);
 
         SerializationHeader.Component header = readHeader(sstable);
@@ -340,33 +341,36 @@ public class SSTableHeaderFixTest
     {
         File dir = temporaryFolder;
 
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "tuple_in_tuple", tupleInTuple));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_nested", udtNested));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_tuple", udtInTuple));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "tuple_in_composite", tupleInComposite));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_composite", udtInComposite));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_list", udtInList));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_set", udtInSet));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_map", udtInMap));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_frozen_list", udtInFrozenList));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_frozen_set", udtInFrozenSet));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "udt_in_frozen_map", udtInFrozenMap));
+        cols.addRegularColumn("tuple_in_tuple", tupleInTuple)
+            .addRegularColumn("udt_nested", udtNested)
+            .addRegularColumn("udt_in_tuple", udtInTuple)
+            .addRegularColumn("tuple_in_composite", tupleInComposite)
+            .addRegularColumn("udt_in_composite", udtInComposite)
+            .addRegularColumn("udt_in_list", udtInList)
+            .addRegularColumn("udt_in_set", udtInSet)
+            .addRegularColumn("udt_in_map", udtInMap)
+            .addRegularColumn("udt_in_frozen_list", udtInFrozenList)
+            .addRegularColumn("udt_in_frozen_set", udtInFrozenSet)
+            .addRegularColumn("udt_in_frozen_map", udtInFrozenMap);
         File sstable = buildFakeSSTable(dir, 1, cols, true);
 
+        cols = tableMetadata.unbuild();
         for (String col : new String[]{"tuple_in_tuple", "udt_nested", "udt_in_tuple",
                                        "tuple_in_composite", "udt_in_composite",
                                        "udt_in_list", "udt_in_set", "udt_in_map",
                                        "udt_in_frozen_list", "udt_in_frozen_set", "udt_in_frozen_map"})
         {
-            ColumnDefinition cd = getColDef(col);
-            tableMetadata.removeColumnDefinition(cd);
-            AbstractType<?> dropType = SchemaKeyspace.expandUserTypes(cd.type);
-            tableMetadata.recordColumnDrop(new ColumnDefinition(cd.ksName, cd.cfName, cd.name, dropType, cd.position(), cd.kind), FBUtilities.timestampMicros());
+            ColumnIdentifier ci = new ColumnIdentifier(col, true);
+            ColumnMetadata cd = getColDef(col);
+            AbstractType<?> dropType = cd.type.expandUserTypes();
+            cols.removeRegularOrStaticColumn(ci)
+                .recordColumnDrop(new ColumnMetadata(cd.ksName, cd.cfName, cd.name, dropType, cd.position(), cd.kind), FBUtilities.timestampMicros());
         }
+        tableMetadata = cols.build();
 
         SerializationHeader.Component header = readHeader(sstable);
         assertFrozenUdt(header, false, true);
@@ -390,9 +394,9 @@ public class SSTableHeaderFixTest
     {
         File dir = temporaryFolder;
 
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
 
         ColSpec[] colSpecs = new ColSpec[]
                 {
@@ -410,14 +414,14 @@ public class SSTableHeaderFixTest
                                     true),
                         // 'frozen<udt>' / dropped
                         new ColSpec("frozen_udt_as_frozen_udt_dropped",
-                                    SchemaKeyspace.expandUserTypes(makeUDT2("frozen_udt_as_frozen_udt_dropped", true).freezeNestedMulticellTypes().freeze()),
+                                    makeUDT2("frozen_udt_as_frozen_udt_dropped", true).freezeNestedMulticellTypes().freeze().expandUserTypes(),
                                     makeUDT2("frozen_udt_as_frozen_udt_dropped", false),
                                     makeUDT2("frozen_udt_as_frozen_udt_dropped", false),
                                     true,
                                     false),
                         // 'frozen<udt>' / dropped / as 'udt'
                         new ColSpec("frozen_udt_as_unfrozen_udt_dropped",
-                                    SchemaKeyspace.expandUserTypes(makeUDT2("frozen_udt_as_unfrozen_udt_dropped", true).freezeNestedMulticellTypes().freeze()),
+                                    makeUDT2("frozen_udt_as_unfrozen_udt_dropped", true).freezeNestedMulticellTypes().freeze().expandUserTypes(),
                                     makeUDT2("frozen_udt_as_unfrozen_udt_dropped", true),
                                     makeUDT2("frozen_udt_as_unfrozen_udt_dropped", false),
                                     true,
@@ -431,7 +435,7 @@ public class SSTableHeaderFixTest
                         // 'udt' / dropped
 // TODO unable to test dropping a non-frozen UDT, as that requires an unfrozen tuple as well
 //                        new ColSpec("unfrozen_udt_as_unfrozen_udt_dropped",
-//                                    SchemaKeyspace.expandUserTypes(makeUDT2("unfrozen_udt_as_unfrozen_udt_dropped", true).freezeNestedMulticellTypes()),
+//                                    makeUDT2("unfrozen_udt_as_unfrozen_udt_dropped", true).freezeNestedMulticellTypes().expandUserTypes(),
 //                                    makeUDT2("unfrozen_udt_as_unfrozen_udt_dropped", true),
 //                                    makeUDT2("unfrozen_udt_as_unfrozen_udt_dropped", true),
 //                                    true,
@@ -450,25 +454,27 @@ public class SSTableHeaderFixTest
                                     false)
                 };
 
-        Arrays.stream(colSpecs).forEach(c -> cols.add(ColumnDefinition.regularDef("ks", "cf", c.name,
-                                                                              // use the initial column type for the serialization header header.
-                                                                              c.preFix)));
+        Arrays.stream(colSpecs).forEach(c -> cols.addRegularColumn(c.name,
+                                                                   // use the initial column type for the serialization header header.
+                                                                   c.preFix));
 
         Map<String, ColSpec> colSpecMap = Arrays.stream(colSpecs).collect(Collectors.toMap(c -> c.name, c -> c));
-        File sstable = buildFakeSSTable(dir, 1, cols, (s) -> s.map(c -> {
+        File sstable = buildFakeSSTable(dir, 1, cols, c -> {
             ColSpec cs = colSpecMap.get(c.name.toString());
             if (cs == null)
                 return c;
             // update the column type in the schema to the "correct" one.
-            return new ColumnDefinition(c.ksName, c.cfName, c.name, cs.schema, c.position(), c.kind);
-        }));
+            return c.withNewType(cs.schema);
+        });
 
         Arrays.stream(colSpecs)
               .filter(c -> c.dropped)
               .forEach(c -> {
-                  ColumnDefinition cd = getColDef(c.name);
-                  tableMetadata.removeColumnDefinition(cd);
-                  tableMetadata.recordColumnDrop(cd, FBUtilities.timestampMicros());
+                  ColumnMetadata cd = getColDef(c.name);
+                  tableMetadata = tableMetadata.unbuild()
+                                               .removeRegularOrStaticColumn(cd.name)
+                                               .recordColumnDrop(cd, FBUtilities.timestampMicros())
+                                               .build();
               });
 
         SerializationHeader.Component header = readHeader(sstable);
@@ -531,10 +537,10 @@ public class SSTableHeaderFixTest
     {
         File dir = temporaryFolder;
 
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk1", UTF8Type.instance, 0));
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk2", udtPK, 1));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk1", UTF8Type.instance)
+                                                  .addPartitionKeyColumn("pk2", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
         File sstable = buildFakeSSTable(dir, 1, cols, false);
 
@@ -557,10 +563,10 @@ public class SSTableHeaderFixTest
     @Test
     public void compositePartitionKey() throws Exception
     {
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk1", UTF8Type.instance, 0));
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk2", udtPK, 1));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk1", UTF8Type.instance)
+                                                  .addPartitionKeyColumn("pk2", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
 
         File dir = temporaryFolder;
@@ -588,10 +594,10 @@ public class SSTableHeaderFixTest
     @Test
     public void compositeClusteringKey() throws Exception
     {
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck1", Int32Type.instance, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck2", udtCK, 1));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck1", Int32Type.instance)
+                                                  .addClusteringColumn("ck2", udtCK);
         commonColumns(cols);
 
         File dir = temporaryFolder;
@@ -748,65 +754,60 @@ public class SSTableHeaderFixTest
 
     private File generateFakeSSTable(File dir, int generation)
     {
-        List<ColumnDefinition> cols = new ArrayList<>();
-        cols.add(ColumnDefinition.partitionKeyDef("ks", "cf", "pk", udtPK, 0));
-        cols.add(ColumnDefinition.clusteringDef("ks", "cf", "ck", udtCK, 0));
+        TableMetadata.Builder cols = TableMetadata.builder("ks", "cf")
+                                                  .addPartitionKeyColumn("pk", udtPK)
+                                                  .addClusteringColumn("ck", udtCK);
         commonColumns(cols);
         return buildFakeSSTable(dir, generation, cols, true);
     }
 
-    private void commonColumns(List<ColumnDefinition> cols)
+    private void commonColumns(TableMetadata.Builder cols)
     {
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "regular_a", UTF8Type.instance));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "regular_b", udtRegular));
-        cols.add(ColumnDefinition.regularDef("ks", "cf", "regular_c", Int32Type.instance));
-        cols.add(ColumnDefinition.staticDef("ks", "cf", "static_a", UTF8Type.instance));
-        cols.add(ColumnDefinition.staticDef("ks", "cf", "static_b", udtStatic));
-        cols.add(ColumnDefinition.staticDef("ks", "cf", "static_c", Int32Type.instance));
+        cols.addRegularColumn("regular_a", UTF8Type.instance)
+            .addRegularColumn("regular_b", udtRegular)
+            .addRegularColumn("regular_c", Int32Type.instance)
+            .addStaticColumn("static_a", UTF8Type.instance)
+            .addStaticColumn("static_b", udtStatic)
+            .addStaticColumn("static_c", Int32Type.instance);
     }
 
-    private File buildFakeSSTable(File dir, int generation, List<ColumnDefinition> cols, boolean freezeInSchema)
+    private File buildFakeSSTable(File dir, int generation, TableMetadata.Builder cols, boolean freezeInSchema)
     {
         return buildFakeSSTable(dir, generation, cols, freezeInSchema
-                                                       ? s -> s.map(c -> new ColumnDefinition(c.ksName, c.cfName, c.name, freezeUdt(c.type), c.position(), c.kind))
-                                                       : s -> s);
+                                                       ? c -> c.withNewType(freezeUdt(c.type))
+                                                       : c -> c);
     }
 
-    private File buildFakeSSTable(File dir, int generation, List<ColumnDefinition> cols, Function<Stream<ColumnDefinition>, Stream<ColumnDefinition>> freezer)
+    private File buildFakeSSTable(File dir, int generation, TableMetadata.Builder cols, Function<ColumnMetadata, ColumnMetadata> freezer)
     {
-        CFMetaData headerMetadata = CFMetaData.create("ks", "cf",
-                                                      UUID.randomUUID(),
-                                                      false, true, false, false, false,
-                                                      cols,
-                                                      new Murmur3Partitioner());
+        TableMetadata headerMetadata = cols.build();
 
-        List<ColumnDefinition> schemaCols = freezer.apply(cols.stream()).collect(Collectors.toList());
-        tableMetadata = CFMetaData.create("ks", "cf",
-                                          UUID.randomUUID(),
-                                          false, true, false, false, false,
-                                          schemaCols,
-                                          new Murmur3Partitioner());
+        TableMetadata.Builder schemaCols = TableMetadata.builder("ks", "cf");
+        for (ColumnMetadata cm : cols.columns())
+            schemaCols.addColumn(freezer.apply(cm));
+        tableMetadata = schemaCols.build();
 
         try
         {
-            Descriptor desc = new Descriptor(version, dir, "ks", "cf", generation, SSTableFormat.Type.BIG, Component.DATA);
+
+            Descriptor desc = new Descriptor(version, dir, "ks", "cf", generation, SSTableFormat.Type.BIG);
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)
                 assertTrue(new File(desc.filenameFor(component)).createNewFile());
 
-            AbstractType<?> partitionKey = headerMetadata.getKeyValidator();
+            AbstractType<?> partitionKey = headerMetadata.partitionKeyType;
             List<AbstractType<?>> clusteringKey = headerMetadata.clusteringColumns()
                                                                 .stream()
                                                                 .map(cd -> cd.type)
                                                                 .collect(Collectors.toList());
-            Map<ByteBuffer, AbstractType<?>> staticColumns = headerMetadata.allColumns()
+            Map<ByteBuffer, AbstractType<?>> staticColumns = headerMetadata.columns()
                                                                            .stream()
-                                                                           .filter(cd -> cd.kind == ColumnDefinition.Kind.STATIC)
+                                                                           .filter(cd -> cd.kind == ColumnMetadata.Kind.STATIC)
                                                                            .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a));
-            Map<ByteBuffer, AbstractType<?>> regularColumns = headerMetadata.allColumns()
+            Map<ByteBuffer, AbstractType<?>> regularColumns = headerMetadata.columns()
                                                                             .stream()
-                                                                            .filter(cd -> cd.kind == ColumnDefinition.Kind.REGULAR)
+                                                                            .filter(cd -> cd.kind == ColumnMetadata.Kind.REGULAR)
                                                                             .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a));
 
             File statsFile = new File(desc.filenameFor(Component.STATS));
@@ -955,7 +956,7 @@ public class SSTableHeaderFixTest
 
     private SerializationHeader.Component readHeader(File sstable) throws Exception
     {
-        Descriptor desc = Descriptor.fromFilename(sstable.getParentFile(), sstable.getName()).left;
+        Descriptor desc = Descriptor.fromFilename(sstable);
         return (SerializationHeader.Component) desc.getMetadataSerializer().deserialize(desc, MetadataType.HEADER);
     }
 

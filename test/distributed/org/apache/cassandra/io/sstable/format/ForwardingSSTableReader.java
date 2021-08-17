@@ -19,12 +19,11 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 import com.google.common.util.concurrent.RateLimiter;
 
@@ -53,38 +52,21 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.metrics.RestorableMeter;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.IFilter;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref;
 
 public abstract class ForwardingSSTableReader extends SSTableReader
 {
-    // This method is only accessiable via extension and not for calling directly;
-    // to work around this, rely on reflection if the method gets called
-    private static final Method ESTIMATE_ROWS_FROM_INDEX;
-
-    static
-    {
-        try
-        {
-            Method m = SSTable.class.getDeclaredMethod("estimateRowsFromIndex", RandomAccessReader.class);
-            m.setAccessible(true);
-            ESTIMATE_ROWS_FROM_INDEX = m;
-        }
-        catch (NoSuchMethodException e)
-        {
-            throw new AssertionError(e);
-        }
-    }
-
     private final SSTableReader delegate;
 
     public ForwardingSSTableReader(SSTableReader delegate)
     {
         super(delegate.descriptor, SSTable.componentsFor(delegate.descriptor),
-              delegate.metadata, delegate.maxDataAge, delegate.getSSTableMetadata(),
-              delegate.openReason, delegate.header);
+              TableMetadataRef.forOfflineTools(delegate.metadata()), delegate.maxDataAge, delegate.getSSTableMetadata(),
+              delegate.openReason, delegate.header, delegate.indexSummary, delegate.dfile, delegate.ifile, delegate.bf);
         this.delegate = delegate;
         this.first = delegate.first;
         this.last = delegate.last;
@@ -112,30 +94,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public void setupOnline()
     {
         delegate.setupOnline();
-    }
-
-    @Override
-    public boolean isKeyCacheSetup()
-    {
-        return delegate.isKeyCacheSetup();
-    }
-
-    @Override
-    public boolean loadSummary()
-    {
-        return delegate.loadSummary();
-    }
-
-    @Override
-    public void saveSummary()
-    {
-        delegate.saveSummary();
-    }
-
-    @Override
-    public void saveBloomFilter()
-    {
-        delegate.saveBloomFilter();
     }
 
     @Override
@@ -229,12 +187,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public void forceFilterFailures()
-    {
-        delegate.forceFilterFailures();
-    }
-
-    @Override
     public IFilter getBloomFilter()
     {
         return delegate.getBloomFilter();
@@ -289,7 +241,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public List<Pair<Long, Long>> getPositionsForRanges(Collection<Range<Token>> ranges)
+    public List<PartitionPositionBounds> getPositionsForRanges(Collection<Range<Token>> ranges)
     {
         return delegate.getPositionsForRanges(ranges);
     }
@@ -319,21 +271,27 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public boolean isKeyCacheEnabled()
+    {
+        return delegate.isKeyCacheEnabled();
+    }
+
+    @Override
     protected RowIndexEntry getPosition(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast, SSTableReadsListener listener)
     {
         return delegate.getPosition(key, op, updateCacheAndStats, permitMatchPastLast, listener);
     }
 
     @Override
-    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift, SSTableReadsListener listener)
+    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
     {
-        return delegate.iterator(key, slices, selectedColumns, reversed, isForThrift, listener);
+        return delegate.iterator(key, slices, selectedColumns, reversed, listener);
     }
 
     @Override
-    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
+    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
-        return delegate.iterator(file, key, indexEntry, slices, selectedColumns, reversed, isForThrift);
+        return delegate.iterator(file, key, indexEntry, slices, selectedColumns, reversed);
     }
 
     @Override
@@ -391,9 +349,21 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public void unmarkSuspect()
+    {
+        delegate.unmarkSuspect();
+    }
+
+    @Override
     public boolean isMarkedSuspect()
     {
         return delegate.isMarkedSuspect();
+    }
+
+    @Override
+    public ISSTableScanner getScanner(Range<Token> range)
+    {
+        return delegate.getScanner(range);
     }
 
     @Override
@@ -403,27 +373,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, boolean isForThrift, SSTableReadsListener listener)
+    public ISSTableScanner getScanner(Collection<Range<Token>> ranges)
     {
-        return delegate.getScanner(columns, dataRange, isForThrift, listener);
-    }
-
-    @Override
-    public ISSTableScanner getScanner(Range<Token> range, RateLimiter limiter)
-    {
-        return delegate.getScanner(range, limiter);
-    }
-
-    @Override
-    public ISSTableScanner getScanner(RateLimiter limiter)
-    {
-        return delegate.getScanner(limiter);
-    }
-
-    @Override
-    public ISSTableScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter)
-    {
-        return delegate.getScanner(ranges, limiter);
+        return delegate.getScanner(ranges);
     }
 
     @Override
@@ -433,9 +385,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift, SSTableReadsListener listener)
+    public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
     {
-        return delegate.getScanner(columns, dataRange, limiter, isForThrift, listener);
+        return delegate.getScanner(columns, dataRange, listener);
     }
 
     @Override
@@ -466,6 +418,36 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public DecoratedKey keyAt(long indexPosition) throws IOException
     {
         return delegate.keyAt(indexPosition);
+    }
+
+    @Override
+    public boolean isPendingRepair()
+    {
+        return delegate.isPendingRepair();
+    }
+
+    @Override
+    public UUID getPendingRepair()
+    {
+        return delegate.getPendingRepair();
+    }
+
+    @Override
+    public long getRepairedAt()
+    {
+        return delegate.getRepairedAt();
+    }
+
+    @Override
+    public boolean isTransient()
+    {
+        return delegate.isTransient();
+    }
+
+    @Override
+    public boolean intersects(Collection<Range<Token>> ranges)
+    {
+        return delegate.intersects(ranges);
     }
 
     @Override
@@ -505,9 +487,9 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public EstimatedHistogram getEstimatedColumnCount()
+    public EstimatedHistogram getEstimatedCellPerPartitionCount()
     {
-        return delegate.getEstimatedColumnCount();
+        return delegate.getEstimatedCellPerPartitionCount();
     }
 
     @Override
@@ -709,6 +691,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
+    public TableMetadata metadata()
+    {
+        return delegate.metadata();
+    }
+
+    @Override
     public IPartitioner getPartitioner()
     {
         return delegate.getPartitioner();
@@ -745,30 +733,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    protected long estimateRowsFromIndex(RandomAccessReader ifile) throws IOException
-    {
-        try
-        {
-            return (Long) ESTIMATE_ROWS_FROM_INDEX.invoke(delegate, ifile);
-        }
-        catch (IllegalAccessException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (InvocationTargetException e)
-        {
-            Throwable cause = e.getCause();
-            if (cause instanceof IOException)
-                throw (IOException) cause;
-            if (cause instanceof Error)
-                throw (Error) cause;
-            if (cause instanceof RuntimeException)
-                throw (RuntimeException) cause;
-            throw new RuntimeException(cause);
-        }
-    }
-
-    @Override
     public long bytesOnDisk()
     {
         return delegate.bytesOnDisk();
@@ -784,5 +748,11 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public void addComponents(Collection<Component> newComponents)
     {
         delegate.addComponents(newComponents);
+    }
+
+    @Override
+    public AbstractBounds<Token> getBounds()
+    {
+        return delegate.getBounds();
     }
 }

@@ -18,12 +18,25 @@
 
 Security
 --------
-
 There are three main components to the security features provided by Cassandra:
 
 - TLS/SSL encryption for client and inter-node communication
 - Client authentication
 - Authorization
+
+By default, these features are disabled as Cassandra is configured to easily find and be found by other members of a
+cluster. In other words, an out-of-the-box Cassandra installation presents a large attack surface for a bad actor.
+Enabling authentication for clients using the binary protocol is not sufficient to protect a cluster. Malicious users
+able to access internode communication and JMX ports can still:
+
+- Craft internode messages to insert users into authentication schema
+- Craft internode messages to truncate or drop schema
+- Use tools such as ``sstableloader`` to overwrite ``system_auth`` tables 
+- Attach to the cluster directly to capture write traffic
+
+Correct configuration of all three security components should negate theses vectors. Therefore, understanding Cassandra's
+security features is crucial to configuring your cluster to meet your security needs.
+
 
 TLS/SSL Encryption
 ^^^^^^^^^^^^^^^^^^
@@ -41,7 +54,17 @@ cassandra.yaml. See `the java document on FIPS <https://docs.oracle.com/javase/8
 for more details.
 
 For information on generating the keystore and truststore files used in SSL communications, see the
-`java documentation on creating keystores <http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
+`java documentation on creating keystores <https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore>`__
+
+SSL Certificate Hot Reloading
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Beginning with Cassandra 4, Cassandra supports hot reloading of SSL Certificates. If SSL/TLS support is enabled in Cassandra,
+the node periodically polls the Trust and Key Stores specified in cassandra.yaml. When the files are updated, Cassandra will
+reload them and use them for subsequent connections. Please note that the Trust & Key Store passwords are part of the yaml so
+the updated files should also use the same passwords. The default polling interval is 10 minutes.
+
+Certificate Hot reloading may also be triggered using the ``nodetool reloadssl`` command. Use this if you want to Cassandra to
+immediately notice the changed certificates.
 
 Inter-node Encryption
 ~~~~~~~~~~~~~~~~~~~~~
@@ -159,6 +182,8 @@ See also: :ref:`setting-credentials-for-internal-authentication`, :ref:`CREATE R
 :ref:`ALTER ROLE <alter-role-statement>`, :ref:`ALTER KEYSPACE <alter-keyspace-statement>` and :ref:`GRANT PERMISSION
 <grant-permission-statement>`,
 
+.. _authorization:
+
 Authorization
 ^^^^^^^^^^^^^
 
@@ -210,6 +235,8 @@ The following assumes that authentication has already been enabled via the proce
 See also: :ref:`GRANT PERMISSION <grant-permission-statement>`, `GRANT ALL <grant-all>` and :ref:`REVOKE PERMISSION
 <revoke-permission-statement>`
 
+.. _auth-caching:
+
 Caching
 ^^^^^^^
 
@@ -249,7 +276,7 @@ providers are available; the first based on standard JMX security and the second
 Cassandra's own auth subsystem.
 
 The default settings for Cassandra make JMX accessible only from localhost. To enable remote JMX connections, edit
-``cassandra-env.sh`` (or ``cassandra-env.ps1`` on Windows) to change the ``LOCAL_JMX`` setting to ``yes``. Under the
+``cassandra-env.sh`` to change the ``LOCAL_JMX`` setting to ``no``. Under the
 standard configuration, when remote JMX connections are enabled, :ref:`standard JMX authentication <standard-jmx-auth>`
 is also switched on.
 
@@ -356,6 +383,10 @@ jconsole or jmc in read-only mode would be defined as:
     GRANT EXECUTE ON MBEAN 'java.lang:type=Threading' TO jmx;
     GRANT EXECUTE ON MBEAN 'com.sun.management:type=HotSpotDiagnostic' TO jmx;
 
+    # Grant the role with necessary permissions to use nodetool commands (including nodetool status) in read-only mode
+    GRANT EXECUTE ON MBEAN 'org.apache.cassandra.db:type=EndpointSnitchInfo' TO jmx;
+    GRANT EXECUTE ON MBEAN 'org.apache.cassandra.db:type=StorageService' TO jmx;
+
     # Grant the jmx role to one with login permissions so that it can access the JMX tooling
     CREATE ROLE ks_user WITH PASSWORD = 'password' AND LOGIN = true AND SUPERUSER = false;
     GRANT jmx TO ks_user;
@@ -381,7 +412,7 @@ JMX With SSL
 ~~~~~~~~~~~~
 
 JMX SSL configuration is controlled by a number of system properties, some of which are optional. To turn on SSL, edit
-the relevant lines in ``cassandra-env.sh`` (or ``cassandra-env.ps1`` on Windows) to uncomment and set the values of these
+the relevant lines in ``cassandra-env.sh`` to uncomment and set the values of these
 properties as required:
 
 ``com.sun.management.jmxremote.ssl``

@@ -35,8 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -104,30 +103,30 @@ public class PagingTest
         IEndpointSnitch snitch = new AbstractEndpointSnitch()
         {
             private IEndpointSnitch oldSnitch = DatabaseDescriptor.getEndpointSnitch();
-            public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2)
+            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return oldSnitch.compareEndpoints(target, a1, a2);
             }
 
-            public String getRack(InetAddress endpoint)
+            public String getRack(InetAddressAndPort endpoint)
             {
                 return oldSnitch.getRack(endpoint);
             }
 
-            public String getDatacenter(InetAddress endpoint)
+            public String getDatacenter(InetAddressAndPort endpoint)
             {
                 return oldSnitch.getDatacenter(endpoint);
             }
 
             @Override
-            public boolean isWorthMergingForRangeQuery(List<InetAddress> merged, List<InetAddress> l1, List<InetAddress> l2)
+            public boolean isWorthMergingForRangeQuery(ReplicaCollection merged, ReplicaCollection l1, ReplicaCollection l2)
             {
                 return false;
             }
         };
         DatabaseDescriptor.setEndpointSnitch(snitch);
         StorageService.instance.getTokenMetadata().clearUnsafe();
-        StorageService.instance.getTokenMetadata().updateNormalToken(new LongToken(5097162189738624638L), FBUtilities.getBroadcastAddress());
+        StorageService.instance.getTokenMetadata().updateNormalToken(new LongToken(5097162189738624638L), FBUtilities.getBroadcastAddressAndPort());
         session.execute(createTableStatement);
 
         for (int i = 0; i < 110; i++)

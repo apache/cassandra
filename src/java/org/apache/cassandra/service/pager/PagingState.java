@@ -24,17 +24,19 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.LegacyLayout;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -332,7 +334,7 @@ public class PagingState
             this.protocolVersion = protocolVersion;
         }
 
-        private static List<AbstractType<?>> makeClusteringTypes(CFMetaData metadata)
+        private static List<AbstractType<?>> makeClusteringTypes(TableMetadata metadata)
         {
             // This is the types that will be used when serializing the clustering in the paging state. We can't really use the actual clustering
             // types however because we can't guarantee that there won't be a schema change between when we send the paging state and get it back,
@@ -346,7 +348,7 @@ public class PagingState
             return l;
         }
 
-        public static RowMark create(CFMetaData metadata, Row row, ProtocolVersion protocolVersion)
+        public static RowMark create(TableMetadata metadata, Row row, ProtocolVersion protocolVersion)
         {
             ByteBuffer mark;
             if (protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3))
@@ -354,18 +356,18 @@ public class PagingState
                 // We need to be backward compatible with 2.1/2.2 nodes paging states. Which means we have to send
                 // the full cellname of the "last" cell in the row we get (since that's how 2.1/2.2 nodes will start after
                 // that last row if they get that paging state).
-                Iterator<Cell> cells = row.cellsInLegacyOrder(metadata, true).iterator();
+                Iterator<Cell<?>> cells = row.cellsInLegacyOrder(metadata, true).iterator();
                 if (!cells.hasNext())
                 {
                     // If the last returned row has no cell, this means in 2.1/2.2 terms that we stopped on the row
-                    // marker. Note that this shouldn't happen if the table is COMPACT.
+                    // marker.  Note that this shouldn't happen if the table is COMPACT STORAGE tables.
                     assert !metadata.isCompactTable();
-                    mark = LegacyLayout.encodeCellName(metadata, row.clustering(), EMPTY_BYTE_BUFFER, null);
+                    mark = encodeCellName(metadata, row.clustering(), EMPTY_BYTE_BUFFER, null);
                 }
                 else
                 {
-                    Cell cell = cells.next();
-                    mark = LegacyLayout.encodeCellName(metadata, row.clustering(), cell.column().name.bytes, cell.column().isComplex() ? cell.path().get(0) : null);
+                    Cell<?> cell = cells.next();
+                    mark = encodeCellName(metadata, row.clustering(), cell.column().name.bytes, cell.column().isComplex() ? cell.path().get(0) : null);
                 }
             }
             else
@@ -377,14 +379,61 @@ public class PagingState
             return new RowMark(mark, protocolVersion);
         }
 
-        public Clustering clustering(CFMetaData metadata)
+        public Clustering<?> clustering(TableMetadata metadata)
         {
             if (mark == null)
                 return null;
 
             return protocolVersion.isSmallerOrEqualTo(ProtocolVersion.V3)
-                 ? LegacyLayout.decodeClustering(metadata, mark)
+                 ? decodeClustering(metadata, mark)
                  : Clustering.serializer.deserialize(mark, MessagingService.VERSION_30, makeClusteringTypes(metadata));
+        }
+
+        // Old (pre-3.0) encoding of cells. We need that for the protocol v3 as that is how things where encoded
+        private static ByteBuffer encodeCellName(TableMetadata metadata, Clustering<?> clustering, ByteBuffer columnName, ByteBuffer collectionElement)
+        {
+            boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
+
+            // We use comparator.size() rather than clustering.size() because of static clusterings
+            int clusteringSize = metadata.comparator.size();
+            int size = clusteringSize + 1 + (collectionElement == null ? 0 : 1);
+            ByteBuffer[] values = new ByteBuffer[size];
+            for (int i = 0; i < clusteringSize; i++)
+            {
+                if (isStatic)
+                {
+                    values[i] = EMPTY_BYTE_BUFFER;
+                    continue;
+                }
+
+                ByteBuffer v = clustering.bufferAt(i);
+                // we can have null (only for dense compound tables for backward compatibility reasons) but that
+                // means we're done and should stop there as far as building the composite is concerned.
+                if (v == null)
+                    return CompositeType.build(ByteBufferAccessor.instance, Arrays.copyOfRange(values, 0, i));
+
+                values[i] = v;
+            }
+
+            values[clusteringSize] = columnName;
+            if (collectionElement != null)
+                values[clusteringSize + 1] = collectionElement;
+
+            return CompositeType.build(ByteBufferAccessor.instance, isStatic, values);
+        }
+
+        private static Clustering<?> decodeClustering(TableMetadata metadata, ByteBuffer value)
+        {
+            int csize = metadata.comparator.size();
+            if (csize == 0)
+                return Clustering.EMPTY;
+
+            if (CompositeType.isStaticName(value, ByteBufferAccessor.instance))
+                return Clustering.STATIC_CLUSTERING;
+
+            List<ByteBuffer> components = CompositeType.splitName(value, ByteBufferAccessor.instance);
+
+            return Clustering.make(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
         }
 
         @Override

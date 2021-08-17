@@ -24,6 +24,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.utils.CassandraVersion;
 
 import static org.apache.cassandra.distributed.test.ReadDigestConsistencyTest.CREATE_TABLE;
 import static org.apache.cassandra.distributed.test.ReadDigestConsistencyTest.insertData;
@@ -35,10 +36,12 @@ public class MixedModeReadTest extends UpgradeTestBase
     public void mixedModeReadColumnSubsetDigestCheck() throws Throwable
     {
         new TestCase()
+        .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
         .nodes(2)
         .nodesToUpgrade(1)
-        .singleUpgrade(v30, v3X)
-        .withConfig(config -> config.with(Feature.GOSSIP, Feature.NETWORK))
+        // all upgrades from v30 up, excluding v30->v3X and from v40
+        .singleUpgrade(v30, v40)
+	      .singleUpgrade(v3X, v40)
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
             insertData(cluster.coordinator(1));
@@ -49,10 +52,11 @@ public class MixedModeReadTest extends UpgradeTestBase
             // we need to let gossip settle or the test will fail
             int attempts = 1;
             //noinspection Convert2MethodRef
-            while (!((IInvokableInstance) (cluster.get(1))).callOnInstance(() -> Gossiper.instance.isAnyNodeOn30()))
+            while (!((IInvokableInstance) cluster.get(1)).callOnInstance(() -> Gossiper.instance.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0) &&
+                                                                                 !Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion(("3.0")).familyLowerBound.get())))
             {
-                if (attempts++ > 30)
-                    throw new RuntimeException("Gossiper.instance.isAnyNodeOn30() continually returns false despite expecting to be true");
+                if (attempts++ > 90)
+                    throw new RuntimeException("Gossiper.instance.haveMajorVersion3Nodes() continually returns false despite expecting to be true");
                 Thread.sleep(1000);
             }
 

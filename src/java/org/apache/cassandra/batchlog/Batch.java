@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -65,6 +67,7 @@ public final class Batch
      *
      * The mutations will always be encoded using the current messaging version.
      */
+    @SuppressWarnings("RedundantTypeArguments")
     public static Batch createRemote(UUID id, long creationTime, Collection<ByteBuffer> mutations)
     {
         return new Batch(id, creationTime, Collections.<Mutation>emptyList(), mutations);
@@ -77,12 +80,30 @@ public final class Batch
     {
         return decodedMutations.size() + encodedMutations.size();
     }
+    
+    @VisibleForTesting
+    public Collection<ByteBuffer> getEncodedMutations()
+    {
+        return encodedMutations;
+    }
 
-    static final class Serializer implements IVersionedSerializer<Batch>
+    /**
+     * Local batches contain only already decoded {@link Mutation} instances. Unlike remote 
+     * batches, which contain mutations encoded as {@link ByteBuffer} instances, local batches 
+     * can be serialized and sent over the wire.
+     * 
+     * @return {@code true} if there are no encoded mutations present, and {@code false} otherwise 
+     */
+    public boolean isLocal()
+    {
+        return encodedMutations.isEmpty();
+    }
+    
+    public static final class Serializer implements IVersionedSerializer<Batch>
     {
         public long serializedSize(Batch batch, int version)
         {
-            assert batch.encodedMutations.isEmpty() : "attempted to serialize a 'remote' batch";
+            assert batch.isLocal() : "attempted to serialize a 'remote' batch";
 
             long size = UUIDSerializer.serializer.serializedSize(batch.id, version);
             size += sizeof(batch.creationTime);
@@ -90,7 +111,7 @@ public final class Batch
             size += sizeofUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
-                int mutationSize = (int) Mutation.serializer.serializedSize(mutation, version);
+                int mutationSize = mutation.serializedSize(version);
                 size += sizeofUnsignedVInt(mutationSize);
                 size += mutationSize;
             }
@@ -100,7 +121,7 @@ public final class Batch
 
         public void serialize(Batch batch, DataOutputPlus out, int version) throws IOException
         {
-            assert batch.encodedMutations.isEmpty() : "attempted to serialize a 'remote' batch";
+            assert batch.isLocal() : "attempted to serialize a 'remote' batch";
 
             UUIDSerializer.serializer.serialize(batch.id, out, version);
             out.writeLong(batch.creationTime);
@@ -108,7 +129,7 @@ public final class Batch
             out.writeUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
-                out.writeUnsignedVInt(Mutation.serializer.serializedSize(mutation, version));
+                out.writeUnsignedVInt(mutation.serializedSize(version));
                 Mutation.serializer.serialize(mutation, out, version);
             }
         }

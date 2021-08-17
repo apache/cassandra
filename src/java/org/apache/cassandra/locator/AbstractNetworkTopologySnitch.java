@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.locator;
 
-import java.net.InetAddress;
-
 /**
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
  * requests more efficiently.
@@ -30,17 +28,20 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
      * @param endpoint a specified endpoint
      * @return string of rack
      */
-    abstract public String getRack(InetAddress endpoint);
+    abstract public String getRack(InetAddressAndPort endpoint);
 
     /**
      * Return the data center for which an endpoint resides in
      * @param endpoint a specified endpoint
      * @return string of data center
      */
-    abstract public String getDatacenter(InetAddress endpoint);
+    abstract public String getDatacenter(InetAddressAndPort endpoint);
 
-    public int compareEndpoints(InetAddress address, InetAddress a1, InetAddress a2)
+    @Override
+    public int compareEndpoints(InetAddressAndPort address, Replica r1, Replica r2)
     {
+        InetAddressAndPort a1 = r1.endpoint();
+        InetAddressAndPort a2 = r2.endpoint();
         if (address.equals(a1) && !address.equals(a2))
             return -1;
         if (address.equals(a2) && !address.equals(a1))

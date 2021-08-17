@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.gms;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -31,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -72,7 +75,7 @@ public class EndpointStateTest
             public void run()
             {
                 state.addApplicationState(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-                state.addApplicationState(ApplicationState.STATUS, valueFactory.normal(tokens));
+                state.addApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens));
             }
         });
 
@@ -86,7 +89,7 @@ public class EndpointStateTest
                     for (Map.Entry<ApplicationState, VersionedValue> entry : state.states())
                         values.put(entry.getKey(), entry.getValue());
 
-                    if (values.containsKey(ApplicationState.STATUS) && !values.containsKey(ApplicationState.TOKENS))
+                    if (values.containsKey(ApplicationState.STATUS_WITH_PORT) && !values.containsKey(ApplicationState.TOKENS))
                     {
                         numFailures.incrementAndGet();
                         System.out.println(String.format("Failed: %s", values));
@@ -105,7 +108,7 @@ public class EndpointStateTest
     }
 
     @Test
-    public void testMultiThreadWriteConsistency() throws InterruptedException
+    public void testMultiThreadWriteConsistency() throws InterruptedException, UnknownHostException
     {
         for (int i = 0; i < 500; i++)
             innerTestMultiThreadWriteConsistency();
@@ -114,11 +117,11 @@ public class EndpointStateTest
     /**
      * Test that two threads can update the state map concurrently.
      */
-    private void innerTestMultiThreadWriteConsistency() throws InterruptedException
+    private void innerTestMultiThreadWriteConsistency() throws InterruptedException, UnknownHostException
     {
         final Token token = DatabaseDescriptor.getPartitioner().getRandomToken();
         final List<Token> tokens = Collections.singletonList(token);
-        final String ip = "127.0.0.1";
+        final InetAddress ip = InetAddress.getByAddress(null, new byte[] { 127, 0, 0, 1});
         final UUID hostId = UUID.randomUUID();
         final HeartBeatState hb = new HeartBeatState(0);
         final EndpointState state = new EndpointState(hb);
@@ -129,7 +132,7 @@ public class EndpointStateTest
             {
                 Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
                 states.put(ApplicationState.TOKENS, valueFactory.tokens(tokens));
-                states.put(ApplicationState.STATUS, valueFactory.normal(tokens));
+                states.put(ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokens));
                 state.addApplicationStates(states);
             }
         });
@@ -158,7 +161,7 @@ public class EndpointStateTest
         for (Map.Entry<ApplicationState, VersionedValue> entry : states)
             values.put(entry.getKey(), entry.getValue());
 
-        assertTrue(values.containsKey(ApplicationState.STATUS));
+        assertTrue(values.containsKey(ApplicationState.STATUS_WITH_PORT));
         assertTrue(values.containsKey(ApplicationState.TOKENS));
         assertTrue(values.containsKey(ApplicationState.INTERNAL_IP));
         assertTrue(values.containsKey(ApplicationState.HOST_ID));

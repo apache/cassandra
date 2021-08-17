@@ -23,7 +23,7 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
 
 /**
  * Buffer manager used for reading from a ChunkReader when cache is not in use. Instances of this class are
@@ -42,14 +42,14 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     protected BufferManagingRebufferer(ChunkReader wrapped)
     {
         this.source = wrapped;
-        buffer = BufferPool.get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
+        buffer = BufferPools.forChunkCache().get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
         buffer.limit(0);
     }
 
     @Override
     public void closeReader()
     {
-        BufferPool.put(buffer);
+        BufferPools.forChunkCache().put(buffer);
         offset = -1;
     }
 
@@ -89,7 +89,7 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     @Override
     public String toString()
     {
-        return "BufferManagingRebufferer." + getClass().getSimpleName() + ":" + source.toString();
+        return "BufferManagingRebufferer." + getClass().getSimpleName() + ":" + source;
     }
 
     // BufferHolder methods

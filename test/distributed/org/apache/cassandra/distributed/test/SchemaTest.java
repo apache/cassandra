@@ -22,6 +22,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+
 import static org.junit.Assert.assertTrue;
 
 public class SchemaTest extends TestBaseImpl

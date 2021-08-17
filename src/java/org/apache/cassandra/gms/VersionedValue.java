@@ -33,10 +33,10 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.VersionAndType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang3.StringUtils;
@@ -90,17 +90,18 @@ public class VersionedValue implements Comparable<VersionedValue>
     private VersionedValue(String value, int version)
     {
         assert value != null;
-        // blindly interning everything is somewhat suboptimal -- lots of VersionedValues are unique --
-        // but harmless, and interning the non-unique ones saves significant memory.  (Unfortunately,
-        // we don't really have enough information here in VersionedValue to tell the probably-unique
-        // values apart.)  See CASSANDRA-6410.
-        this.value = value.intern();
+        this.value = value;
         this.version = version;
     }
 
     private VersionedValue(String value)
     {
         this(value, VersionGenerator.getNextVersion());
+    }
+
+    public static VersionedValue unsafeMakeVersionedValue(String value, int version)
+    {
+        return new VersionedValue(value, version);
     }
 
     public int compareTo(VersionedValue value)
@@ -111,7 +112,7 @@ public class VersionedValue implements Comparable<VersionedValue>
     @Override
     public String toString()
     {
-        return "Value(" + value + "," + version + ")";
+        return "Value(" + value + ',' + version + ')';
     }
 
     public byte[] toBytes()
@@ -138,9 +139,15 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(value.value);
         }
 
+        @Deprecated
         public VersionedValue bootReplacing(InetAddress oldNode)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddress()));
+        }
+
+        public VersionedValue bootReplacingWithPort(InetAddressAndPort oldNode)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddressAndPort()));
         }
 
         public VersionedValue bootstrapping(Collection<Token> tokens)
@@ -253,9 +260,14 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(endpoint.getHostAddress());
         }
 
+        public VersionedValue nativeaddressAndPort(InetAddressAndPort address)
+        {
+            return new VersionedValue(address.getHostAddressAndPort());
+        }
+
         public VersionedValue releaseVersion()
         {
-            return releaseVersion(FBUtilities.getReleaseVersionString());
+            return new VersionedValue(FBUtilities.getReleaseVersionString());
         }
 
         @VisibleForTesting
@@ -264,14 +276,25 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(version);
         }
 
+        @VisibleForTesting
+        public VersionedValue networkVersion(int version)
+        {
+            return new VersionedValue(String.valueOf(version));
+        }
+
         public VersionedValue networkVersion()
         {
             return new VersionedValue(String.valueOf(MessagingService.current_version));
         }
 
-        public VersionedValue internalIP(String private_ip)
+        public VersionedValue internalIP(InetAddress private_ip)
         {
-            return new VersionedValue(private_ip);
+            return new VersionedValue(private_ip.getHostAddress());
+        }
+
+        public VersionedValue internalAddressAndPort(InetAddressAndPort private_ip_and_port)
+        {
+            return new VersionedValue(private_ip_and_port.getHostAddressAndPort());
         }
 
         public VersionedValue severity(double value)

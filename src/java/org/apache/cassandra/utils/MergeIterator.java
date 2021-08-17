@@ -31,6 +31,7 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
         this.reducer = reducer;
     }
 
+    @SuppressWarnings("resource")
     public static <In, Out> MergeIterator<In, Out> get(List<? extends Iterator<In>> sources,
                                                        Comparator<? super In> comparator,
                                                        Reducer<In, Out> reducer)
@@ -51,8 +52,9 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
     public void close()
     {
-        for (Iterator<In> iterator : this.iterators)
+        for (int i=0, isize=iterators.size(); i<isize; i++)
         {
+            Iterator<In> iterator = iterators.get(i);
             try
             {
                 if (iterator instanceof AutoCloseable)

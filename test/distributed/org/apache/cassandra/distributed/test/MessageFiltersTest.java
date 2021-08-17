@@ -26,19 +26,25 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICluster;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.hints.HintMessage;
-import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.net.Verb;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -64,10 +70,9 @@ public class MessageFiltersTest extends TestBaseImpl
 
     private static void simpleFiltersTest(boolean inbound)
     {
-        int VERB1 = MessagingService.Verb.READ.ordinal();
-        int VERB2 = MessagingService.Verb.REQUEST_RESPONSE.ordinal();
-        int VERB3 = MessagingService.Verb.READ_REPAIR.ordinal();
-
+        int VERB1 = Verb.READ_REQ.id;
+        int VERB2 = Verb.READ_RSP.id;
+        int VERB3 = Verb.READ_REPAIR_REQ.id;
         int i1 = 1;
         int i2 = 2;
         int i3 = 3;
@@ -139,15 +144,20 @@ public class MessageFiltersTest extends TestBaseImpl
             public int id() { return 0; }
             public int version() { return 0;  }
             public InetSocketAddress from() { return null; }
+            public int fromPort()
+            {
+                return 0;
+            }
         };
     }
+
     @Test
     public void testFilters() throws Throwable
     {
         String read = "SELECT * FROM " + KEYSPACE + ".tbl";
         String write = "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)";
 
-        try (Cluster cluster = Cluster.create(2))
+        try (ICluster cluster = builder().withNodes(2).start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
@@ -161,7 +171,7 @@ public class MessageFiltersTest extends TestBaseImpl
 
             cluster.filters().reset();
             // Reads are going to timeout only when 1 serves as a coordinator
-            cluster.verbs(MessagingService.Verb.RANGE_SLICE).from(1).to(2).drop();
+            cluster.filters().verbs(Verb.RANGE_REQ.id).from(1).to(2).drop();
             assertTimeOut(() -> cluster.coordinator(1).execute(read, ConsistencyLevel.ALL));
             cluster.coordinator(2).execute(read, ConsistencyLevel.ALL);
 
@@ -177,42 +187,84 @@ public class MessageFiltersTest extends TestBaseImpl
         String read = "SELECT * FROM " + KEYSPACE + ".tbl";
         String write = "INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (1, 1, 1)";
 
-        try (Cluster cluster = Cluster.create(2))
+        try (ICluster<IInvokableInstance> cluster = builder().withNodes(2).withConfig(c -> c.set("range_request_timeout_in_ms", 20000)).start())
         {
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + cluster.size() + "};");
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
             AtomicInteger counter = new AtomicInteger();
 
-            Set<Integer> verbs = new HashSet<>(Arrays.asList(MessagingService.Verb.RANGE_SLICE.ordinal(),
-                                                             MessagingService.Verb.MUTATION.ordinal()));
+            Set<Integer> verbs = Sets.newHashSet(Arrays.asList(Verb.RANGE_REQ.id,
+                                                               Verb.RANGE_RSP.id,
+                                                               Verb.MUTATION_REQ.id,
+                                                               Verb.MUTATION_RSP.id));
 
-            // Reads and writes are going to time out in both directions
-            IMessageFilters.Filter filter = cluster.filters()
-                                                   .allVerbs()
-                                                   .from(1)
-                                                   .to(2)
-                                                   .messagesMatching((from, to, msg) -> {
-                                                       // Decode and verify message on instance; return the result back here
-                                                       Integer id = cluster.get(1).callsOnInstance((IIsolatedExecutor.SerializableCallable<Integer>) () -> {
-                                                           MessageIn decoded = Instance.deserializeMessage(msg);
-                                                           if (decoded != null)
-                                                               return (Integer) decoded.verb.ordinal();
-                                                           return -1;
-                                                       }).call();
-                                                       if (id > 0)
+            for (boolean inbound : Arrays.asList(true, false))
+            {
+                counter.set(0);
+                // Reads and writes are going to time out in both directions
+                IMessageFilters.Filter filter = cluster.filters()
+                                                       .allVerbs()
+                                                       .inbound(inbound)
+                                                       .from(1)
+                                                       .to(2)
+                                                       .messagesMatching((from, to, msg) -> {
+                                                           // Decode and verify message on instance; return the result back here
+                                                           Integer id = cluster.get(1).callsOnInstance((IIsolatedExecutor.SerializableCallable<Integer>) () -> {
+                                                               Message decoded = Instance.deserializeMessage(msg);
+                                                               return (Integer) decoded.verb().id;
+                                                           }).call();
                                                            Assert.assertTrue(verbs.contains(id));
-                                                       counter.incrementAndGet();
-                                                       return false;
-                                                   }).drop();
+                                                           counter.incrementAndGet();
+                                                           return false;
+                                                       }).drop();
 
-            for (int i : new int[]{ 1, 2 })
-                cluster.coordinator(i).execute(read, ConsistencyLevel.ALL);
-            for (int i : new int[]{ 1, 2 })
-                cluster.coordinator(i).execute(write, ConsistencyLevel.ALL);
+                for (int i : new int[]{ 1, 2 })
+                    cluster.coordinator(i).execute(read, ConsistencyLevel.ALL);
+                for (int i : new int[]{ 1, 2 })
+                    cluster.coordinator(i).execute(write, ConsistencyLevel.ALL);
 
-            filter.off();
-            Assert.assertEquals(4, counter.get());
+                filter.off();
+                Assert.assertEquals(4, counter.get());
+            }
+        }
+    }
+
+    @Test
+    public void outboundBeforeInbound() throws Throwable
+    {
+        try (Cluster cluster = Cluster.create(2))
+        {
+            InetAddressAndPort other = InetAddressAndPort.getByAddressOverrideDefaults(cluster.get(2).broadcastAddress().getAddress(),
+                                                                                       cluster.get(2).broadcastAddress().getPort());
+            CountDownLatch waitForIt = new CountDownLatch(1);
+            Set<Integer> outboundMessagesSeen = new HashSet<>();
+            Set<Integer> inboundMessagesSeen = new HashSet<>();
+            AtomicBoolean outboundAfterInbound = new AtomicBoolean(false);
+            cluster.filters().outbound().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).messagesMatching((from, to, msg) -> {
+                outboundMessagesSeen.add(msg.verb());
+                if (inboundMessagesSeen.contains(msg.verb()))
+                    outboundAfterInbound.set(true);
+                return false;
+            }).drop(); // drop is confusing since I am not dropping, im just listening...
+            cluster.filters().inbound().verbs(Verb.ECHO_REQ.id, Verb.ECHO_RSP.id).messagesMatching((from, to, msg) -> {
+                inboundMessagesSeen.add(msg.verb());
+                return false;
+            }).drop(); // drop is confusing since I am not dropping, im just listening...
+            cluster.filters().inbound().verbs(Verb.ECHO_RSP.id).messagesMatching((from, to, msg) -> {
+                waitForIt.countDown();
+                return false;
+            }).drop(); // drop is confusing since I am not dropping, im just listening...
+            cluster.get(1).runOnInstance(() -> {
+                MessagingService.instance().send(Message.out(Verb.ECHO_REQ, NoPayload.noPayload), other);
+            });
+
+            waitForIt.await();
+
+            Assert.assertEquals(outboundMessagesSeen, inboundMessagesSeen);
+            // since both are equal, only need to confirm the size of one
+            Assert.assertEquals(2, outboundMessagesSeen.size());
+            Assert.assertFalse("outbound message saw after inbound", outboundAfterInbound.get());
         }
     }
 
@@ -231,7 +283,7 @@ public class MessageFiltersTest extends TestBaseImpl
                                     ConsistencyLevel.QUORUM,
                                     1);
             CountDownLatch latch = new CountDownLatch(1);
-            cluster.filters().verbs(MessagingService.Verb.HINT.ordinal()).messagesMatching((a,b,msg) -> {
+            cluster.filters().verbs(Verb.HINT_REQ.id).messagesMatching((a,b,msg) -> {
                 cluster.get(1).acceptsOnInstance((IIsolatedExecutor.SerializableConsumer<IMessage>) (m) -> {
                     HintMessage hintMessage = (HintMessage) Instance.deserializeMessage(m).payload;
                     assert hintMessage != null;
@@ -250,13 +302,13 @@ public class MessageFiltersTest extends TestBaseImpl
         IMessageFilters filters = cluster.filters();
 
         // Drop exactly one coordinated message
-        filters.verbs(MessagingService.Verb.MUTATION.ordinal()).from(coordinator).messagesMatching(new IMessageFilters.Matcher()
+        filters.verbs(Verb.MUTATION_REQ.id).from(coordinator).messagesMatching(new IMessageFilters.Matcher()
         {
             private final AtomicBoolean issued = new AtomicBoolean();
 
             public boolean matches(int from, int to, IMessage message)
             {
-                if (from != coordinator || message.verb() != MessagingService.Verb.MUTATION.ordinal())
+                if (from != coordinator || message.verb() != Verb.MUTATION_REQ.id)
                     return false;
 
                 return !issued.getAndSet(true);

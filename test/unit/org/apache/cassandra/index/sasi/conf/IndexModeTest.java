@@ -25,22 +25,22 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 
 public class IndexModeTest
 {
 
-    private final CFMetaData cfm = CFMetaData.Builder.create("ks", "cf")
-                        .addPartitionKey("pkey", AsciiType.instance)
+    private final TableMetadata cfm = TableMetadata.builder("ks", "cf")
+                        .addPartitionKeyColumn("pkey", AsciiType.instance)
                         .build();
 
     @BeforeClass
@@ -65,7 +65,7 @@ public class IndexModeTest
     @Test
     public void test_asciiType()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), AsciiType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), AsciiType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("something", "nothing"));
         Assert.assertNull(result.analyzerClass);
@@ -78,7 +78,7 @@ public class IndexModeTest
     @Test
     public void test_asciiType_notLiteral()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), AsciiType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), AsciiType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("is_literal", "false"));
         Assert.assertNull(result.analyzerClass);
@@ -91,7 +91,7 @@ public class IndexModeTest
     @Test
     public void test_asciiType_errLiteral()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), AsciiType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), AsciiType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("is_literal", "junk"));
         Assert.assertNull(result.analyzerClass);
@@ -104,7 +104,7 @@ public class IndexModeTest
     @Test
     public void test_asciiType_analyzed()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), AsciiType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), AsciiType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("analyzed", "true"));
         Assert.assertNull(result.analyzerClass);
@@ -117,7 +117,7 @@ public class IndexModeTest
     @Test
     public void test_utf8Type()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), UTF8Type.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), UTF8Type.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("something", "nothing"));
         Assert.assertNull(result.analyzerClass);
@@ -130,7 +130,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("something", "nothing"));
         Assert.assertNull(result.analyzerClass);
@@ -143,7 +143,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType_isLiteral()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("is_literal", "true"));
         Assert.assertNull(result.analyzerClass);
@@ -156,7 +156,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType_errLiteral()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("is_literal", "junk"));
         Assert.assertNull(result.analyzerClass);
@@ -169,7 +169,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType_analyzed()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("analyzed", "true"));
         Assert.assertNull(result.analyzerClass);
@@ -182,7 +182,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType_analyzer()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("analyzer_class", "java.lang.Object"));
         Assert.assertEquals(Object.class, result.analyzerClass);
@@ -195,7 +195,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType_analyzer_unanalyzed()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, ImmutableMap.of("analyzer_class", "java.lang.Object",
                                                                  "analyzed", "false"));
@@ -210,7 +210,7 @@ public class IndexModeTest
     @Test
     public void test_bytesType_maxCompactionFlushMemoryInBytes()
     {
-        ColumnDefinition cd = ColumnDefinition.regularDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition"), BytesType.instance);
+        ColumnMetadata cd = ColumnMetadata.regularColumn(cfm, ByteBufferUtil.bytes("TestColumnMetadata"), BytesType.instance);
 
         IndexMode result = IndexMode.getMode(cd, Collections.singletonMap("max_compaction_flush_memory_in_mb", "1"));
         Assert.assertNull(result.analyzerClass);

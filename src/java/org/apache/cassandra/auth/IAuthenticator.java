@@ -21,6 +21,8 @@ import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 
+import javax.security.cert.X509Certificate;
+
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -65,12 +67,26 @@ public interface IAuthenticator
     SaslNegotiator newSaslNegotiator(InetAddress clientAddress);
 
     /**
-     * For implementations which support the Thrift login method that accepts arbitrary
-     * key/value pairs containing credentials data.
-     * Also used by CQL native protocol v1, in which username and password are sent from
-     * client to server in a {@link org.apache.cassandra.transport.messages.CredentialsMessage}
-     * Implementations where support for Thrift and CQL protocol v1 is not required should make
-     * this an unsupported operation.
+     * Provide a SASL handler to perform authentication for an single connection. SASL
+     * is a stateful protocol, so a new instance must be used for each authentication
+     * attempt. This method accepts certificates as well. Authentication strategies can
+     * override this method to gain access to client's certificate chain, if present.
+     * @param clientAddress the IP address of the client whom we wish to authenticate, or null
+     *                      if an internal client (one not connected over the remote transport).
+     * @param certificates the peer's X509 Certificate chain, if present.
+     * @return org.apache.cassandra.auth.IAuthenticator.SaslNegotiator implementation
+     * (see {@link org.apache.cassandra.auth.PasswordAuthenticator.PlainTextSaslAuthenticator})
+     */
+    default SaslNegotiator newSaslNegotiator(InetAddress clientAddress, X509Certificate[] certificates)
+    {
+        return newSaslNegotiator(clientAddress);
+    }
+
+    /**
+     * A legacy method that is still used by JMX authentication.
+     *
+     * You should implement this for having JMX authentication through your
+     * authenticator.
      *
      * Should never return null - always throw AuthenticationException instead.
      * Returning AuthenticatedUser.ANONYMOUS_USER is an option as well if authentication is not required.
@@ -89,7 +105,7 @@ public interface IAuthenticator
     public interface SaslNegotiator
     {
         /**
-         * Evaluates the client response data and generates a byte[] reply which may be a further challenge or purely
+         * Evaluates the client response data and generates a byte[] response which may be a further challenge or purely
          * informational in the case that the negotiation is completed on this round.
          *
          * This method is called each time a {@link org.apache.cassandra.transport.messages.AuthResponse} is received

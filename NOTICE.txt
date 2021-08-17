@@ -1,91 +1,10 @@
 Apache Cassandra
-Copyright 2009-2019 The Apache Software Foundation
+Copyright 2009-2021 The Apache Software Foundation
 
 This product includes software developed by The Apache Software
 Foundation (http://www.apache.org/).
 
-Some alternate data structures provided by high-scale-lib from
-http://sourceforge.net/projects/high-scale-lib/.
-Written by Cliff Click and released as Public Domain.
-
-Some alternate data structures provided by concurrentlinkedhashmap
-from http://code.google.com/p/concurrentlinkedhashmap/.
-Copyright 2009 Benjamin Manes
-
-Alternative collection types provided by google-collections from
-http://code.google.com/p/google-collections/.
-Copyright (C) 2007 Google Inc.
-
-JSON (de)serialization provided by jackson (http://jackson.codehaus.org).
-Copyright (C) 2010 Tatu Saloranta and others.
-
-Alternative JSON (de)serialization by json-simple from
-(http://code.google.com/p/json-simple).
-Copyright (C) 2009 Fang Yidong and Chris Nokleberg
-
-This product includes the Jetty HTTP server
-(http://jetty.codehaus.org/jetty/).
-Copyright 1995-2006 Mort Bay Consulting Pty Ltd
-
-YAML support provided by snakeyaml (http://code.google.com/p/snakeyaml/).
-Copyright (c) 2008-2010 Andrey Somov
-
-Compression support provided by snappy-java (http://code.google.com/p/snappy-java/)
-Written by Taro L. Saito.
-
-Streaming compression support provided by ning-compress
-(https://github.com/ning/compress)
-Copyright 2009-2010 Ning, Inc.
-
-CQL Native transport uses Netty
-(https://netty.io/)
-Copyright (C) 2011 The Netty Project
-
-LZ4 compression support provided by lz4-java (http://github.com/jpountz/lz4-java)
-Written by Adrien Grand.
-Contains bindings to the C LZ4 implementation (http://code.google.com/p/lz4/)
-Copyright (C) 2011-2012, Yann Collet.
-
-Alternative Disruptor backed thrift server from https://github.com/xedin/disruptor_thrift_server
-Written by Pavel Yaskevich.
-
-LMAX Disruptor
-(http://lmax-exchange.github.io/disruptor/)
-Copyright 2011 LMAX Ltd.
-
-Airline
-(https://github.com/airlift/airline)
-Copyright 2011, Dain Sundstrom dain@iq80.com
-Copyright 2010, Cedric Beust cedric@beust.com
-
-HLL++ support provided by stream-lib
-(https://github.com/addthis/stream-lib)
-
-Eclipse JDT
-Java compilation software for user-defined-functions is provided by Eclipse,
-which is open source software.  The original software and
-related information is available at http://www.eclipse.org/
-(http://www.eclipse.org/jdt/)
-
-SIGAR
-http://sigar.hyperic.com/
-
-OHC
-(https://github.com/snazy/ohc)
-Java Off-Heap-Cache, licensed under APLv2
-Copyright 2014-2015 Robert Stupp, Germany.
-
-Protocol buffers for varint encoding
-https://developers.google.com/protocol-buffers/
-Copyright 2008 Google Inc.  All rights reserved.
-BSD 3-clause
-
-ASM
-(http://asm.ow2.org/)
-Copyright (c) 2000-2011 INRIA, France Telecom
-
-HdrHistogram
-http://hdrhistogram.org
-
-JCTools
-http://jctools.github.io/JCTools/
+Android Code
+Copyright 2005-2008 The Android Open Source Project
+This product includes software developed as part of
+The Android Open Source Project (http://source.android.com).

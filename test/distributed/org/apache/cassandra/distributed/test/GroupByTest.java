@@ -152,14 +152,14 @@ public class GroupByTest extends TestBaseImpl
     private static void initFunctions(Cluster cluster)
     {
         cluster.schemaChange(withKeyspace("CREATE FUNCTION %s.concat_strings_fn(a text, b text) " +
-                             "RETURNS NULL ON NULL INPUT " +
-                             "RETURNS text " +
-                             "LANGUAGE java " +
-                             "AS 'return a + \" \" + b;'"));
+                                          "RETURNS NULL ON NULL INPUT " +
+                                          "RETURNS text " +
+                                          "LANGUAGE java " +
+                                          "AS 'return a + \" \" + b;'"));
 
         cluster.schemaChange(withKeyspace("CREATE AGGREGATE %s.concat(text)" +
-                             " SFUNC concat_strings_fn" +
-                             " STYPE text" +
-                             " INITCOND '_'"));
+                                          " SFUNC concat_strings_fn" +
+                                          " STYPE text" +
+                                          " INITCOND '_'"));
     }
 }

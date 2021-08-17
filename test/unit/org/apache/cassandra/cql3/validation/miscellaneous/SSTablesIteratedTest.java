@@ -919,10 +919,11 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 1 AND c = 1", 3, row(null, 3));
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 2 AND c = 1", 2, row(1, 3));
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 3 AND c = 3", 3, row(3, 1));
+
         // As we have the primary key liveness and all the queried columns in the first SSTable we can stop at this point
         executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 1, row(3));
         executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 2, row(3));
-        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 3, row(1));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 1, row(1));
         executeAndCheck("SELECT s FROM %s WHERE pk = 1", 3, row((Integer) null));
         executeAndCheck("SELECT s FROM %s WHERE pk = 2", 2, row(1), row(1));
         executeAndCheck("SELECT DISTINCT s FROM %s WHERE pk = 2", 2, row(1));

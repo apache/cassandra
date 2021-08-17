@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://www.netbeans.org/ns/project/1">
+    <type>org.netbeans.modules.ant.freeform</type>
+    <configuration>
+        <general-data xmlns="http://www.netbeans.org/ns/freeform-project/2">
+            <name>apache-cassandra</name>
+            <properties>
+                <property name="project.dir">..</property>
+                <!-- the compile classpaths should be distinct per compilation unit… but it is kept simple and the build will catch errors -->
+                <property name="cassandra.classpath.jars">${project.dir}/build/lib/jars/HdrHistogram-2.1.9.jar:${project.dir}/build/lib/jars/ST4-4.0.8.jar:${project.dir}/build/lib/jars/airline-0.8.jar:${project.dir}/build/lib/jars/antlr-3.5.2.jar:${project.dir}/build/lib/jars/antlr-runtime-3.5.2.jar:${project.dir}/build/lib/jars/asm-7.1.jar:${project.dir}/build/lib/jars/assertj-core-3.15.0.jar:${project.dir}/build/lib/jars/byteman-4.0.6.jar:${project.dir}/build/lib/jars/byteman-bmunit-4.0.6.jar:${project.dir}/build/lib/jars/byteman-install-4.0.6.jar:${project.dir}/build/lib/jars/byteman-submit-4.0.6.jar:${project.dir}/build/lib/jars/caffeine-2.3.5.jar:${project.dir}/build/lib/jars/cassandra-driver-core-3.11.0-shaded.jar:${project.dir}/build/lib/jars/chronicle-bytes-2.20.111.jar:${project.dir}/build/lib/jars/chronicle-core-2.20.126.jar:${project.dir}/build/lib/jars/chronicle-queue-5.20.123.jar:${project.dir}/build/lib/jars/chronicle-threads-2.20.111.jar:${project.dir}/build/lib/jars/chronicle-wire-2.20.117.jar:${project.dir}/build/lib/jars/commons-beanutils-1.7.0.jar:${project.dir}/build/lib/jars/commons-beanutils-core-1.8.0.jar:${project.dir}/build/lib/jars/commons-cli-1.1.jar:${project.dir}/build/lib/jars/commons-codec-1.9.jar:${project.dir}/build/lib/jars/commons-collections-3.2.1.jar:${project.dir}/build/lib/jars/commons-configuration-1.6.jar:${project.dir}/build/lib/jars/commons-digester-1.8.jar:${project.dir}/build/lib/jars/commons-el-1.0.jar:${project.dir}/build/lib/jars/commons-httpclient-3.0.1.jar:${project.dir}/build/lib/jars/commons-lang-2.4.jar:${project.dir}/build/lib/jars/commons-lang3-3.11.jar:${project.dir}/build/lib/jars/commons-math-2.1.jar:${project.dir}/build/lib/jars/commons-math3-3.2.jar:${project.dir}/build/lib/jars/commons-net-1.4.1.jar:${project.dir}/build/lib/jars/compile-command-annotations-1.2.0.jar:${project.dir}/build/lib/jars/compress-lzf-0.8.4.jar:${project.dir}/build/lib/jars/concurrent-trees-2.4.0.jar:${project.dir}/build/lib/jars/ecj-4.6.1.jar:${project.dir}/build/lib/jars/ftplet-api-1.0.0.jar:${project.dir}/build/lib/jars/ftpserver-core-1.0.0.jar:${project.dir}/build/lib/jars/ftpserver-deprecated-1.0.0-M2.jar:${project.dir}/build/lib/jars/guava-27.0-jre.jar:${project.dir}/build/lib/jars/hadoop-core-1.0.3.jar:${project.dir}/build/lib/jars/hadoop-minicluster-1.0.3.jar:${project.dir}/build/lib/jars/hadoop-test-1.0.3.jar:${project.dir}/build/lib/jars/high-scale-lib-1.0.6.jar:${project.dir}/build/lib/jars/hppc-0.8.1.jar:${project.dir}/build/lib/jars/hsqldb-1.8.0.10.jar:${project.dir}/build/lib/jars/j2objc-annotations-1.3.jar:${project.dir}/build/lib/jars/jackson-annotations-2.9.10.jar:${project.dir}/build/lib/jars/jackson-core-2.9.10.jar:${project.dir}/build/lib/jars/jackson-core-asl-1.0.1.jar:${project.dir}/build/lib/jars/jackson-databind-2.9.10.8.jar:${project.dir}/build/lib/jars/jackson-mapper-asl-1.0.1.jar:${project.dir}/build/lib/jars/jacocoagent.jar:${project.dir}/build/lib/jars/jamm-0.3.2.jar:${project.dir}/build/lib/jars/jasper-compiler-5.5.12.jar:${project.dir}/build/lib/jars/jasper-runtime-5.5.12.jar:${project.dir}/build/lib/jars/java-cup-runtime-11b-20160615.jar:${project.dir}/build/lib/jars/javax.inject-1.jar:${project.dir}/build/lib/jars/jbcrypt-0.3m.jar:${project.dir}/build/lib/jars/jcl-over-slf4j-1.7.25.jar:${project.dir}/build/lib/jars/jcommander-1.30.jar:${project.dir}/build/lib/jars/jctools-core-3.1.0.jar:${project.dir}/build/lib/jars/jersey-core-1.0.jar:${project.dir}/build/lib/jars/jersey-server-1.0.jar:${project.dir}/build/lib/jars/jets3t-0.7.1.jar:${project.dir}/build/lib/jars/jetty-6.1.26.jar:${project.dir}/build/lib/jars/jetty-util-6.1.26.jar:${project.dir}/build/lib/jars/jflex-1.8.2.jar:${project.dir}/build/lib/jars/jna-5.6.0.jar:${project.dir}/build/lib/jars/json-simple-1.1.jar:${project.dir}/build/lib/jars/jsp-2.1-6.1.14.jar:${project.dir}/build/lib/jars/jsp-api-2.1-6.1.14.jar:${project.dir}/build/lib/jars/jsr305-2.0.2.jar:${project.dir}/build/lib/jars/jsr311-api-1.0.jar:${project.dir}/build/lib/jars/jvm-attach-api-1.5.jar:${project.dir}/build/lib/jars/kfs-0.3.jar:${project.dir}/build/lib/jars/log4j-over-slf4j-1.7.25.jar:${project.dir}/build/lib/jars/logback-classic-1.2.3.jar:${project.dir}/build/lib/jars/logback-core-1.2.3.jar:${project.dir}/build/lib/jars/lz4-java-1.7.1.jar:${project.dir}/build/lib/jars/metrics-core-3.1.5.jar:${project.dir}/build/lib/jars/metrics-jvm-3.1.5.jar:${project.dir}/build/lib/jars/metrics-logback-3.1.5.jar:${project.dir}/build/lib/jars/mina-core-2.0.0-M5.jar:${project.dir}/build/lib/jars/mxdump-0.14.jar:${project.dir}/build/lib/jars/netty-all-4.1.58.Final.jar:${project.dir}/build/lib/jars/netty-tcnative-boringssl-static-2.0.36.Final.jar:${project.dir}/build/lib/jars/ohc-core-0.5.1.jar:${project.dir}/build/lib/jars/ohc-core-j8-0.5.1.jar:${project.dir}/build/lib/jars/oro-2.0.8.jar:${project.dir}/build/lib/jars/psjava-0.1.19.jar:${project.dir}/build/lib/jars/reporter-config-base-3.0.3.jar:${project.dir}/build/lib/jars/reporter-config3-3.0.3.jar:${project.dir}/build/lib/jars/servlet-api-2.5-6.1.14.jar:${project.dir}/build/lib/jars/sigar-1.6.4.jar:${project.dir}/build/lib/jars/sjk-cli-0.14.jar:${project.dir}/build/lib/jars/sjk-core-0.14.jar:${project.dir}/build/lib/jars/sjk-json-0.14.jar:${project.dir}/build/lib/jars/sjk-stacktrace-0.14.jar:${project.dir}/build/lib/jars/slf4j-api-1.7.25.jar:${project.dir}/build/lib/jars/snakeyaml-1.26.jar:${project.dir}/build/lib/jars/snappy-java-1.1.2.6.jar:${project.dir}/build/lib/jars/snowball-stemmer-1.3.0.581.1.jar:${project.dir}/build/lib/jars/stream-2.5.2.jar:${project.dir}/build/lib/jars/xmlenc-0.52.jar:${project.dir}/build/lib/jars/zstd-jni-1.3.8-5.jar:${project.dir}/build/test/lib/jars/animal-sniffer-annotations-1.14.jar:${project.dir}/build/test/lib/jars/ant-1.9.7.jar:${project.dir}/build/test/lib/jars/ant-junit-1.9.7.jar:${project.dir}/build/test/lib/jars/ant-launcher-1.9.7.jar:${project.dir}/build/test/lib/jars/asm-6.0.jar:${project.dir}/build/test/lib/jars/asm-analysis-6.0.jar:${project.dir}/build/test/lib/jars/asm-commons-6.0.jar:${project.dir}/build/test/lib/jars/asm-tree-6.0.jar:${project.dir}/build/test/lib/jars/asm-util-6.0.jar:${project.dir}/build/test/lib/jars/asm-xml-6.0.jar:${project.dir}/build/test/lib/jars/assertj-core-3.15.0.jar:${project.dir}/build/test/lib/jars/awaitility-4.0.3.jar:${project.dir}/build/test/lib/jars/byte-buddy-1.10.5.jar:${project.dir}/build/test/lib/jars/byte-buddy-agent-1.10.5.jar:${project.dir}/build/test/lib/jars/byteman-4.0.6.jar:${project.dir}/build/test/lib/jars/byteman-bmunit-4.0.6.jar:${project.dir}/build/test/lib/jars/byteman-install-4.0.6.jar:${project.dir}/build/test/lib/jars/byteman-submit-4.0.6.jar:${project.dir}/build/test/lib/jars/checker-qual-2.0.0.jar:${project.dir}/build/test/lib/jars/commons-io-2.6.jar:${project.dir}/build/test/lib/jars/commons-math3-3.2.jar:${project.dir}/build/test/lib/jars/compile-command-annotations-1.2.0.jar:${project.dir}/build/test/lib/jars/dtest-api-0.0.7.jar:${project.dir}/build/test/lib/jars/error_prone_annotations-2.0.18.jar:${project.dir}/build/test/lib/jars/guava-23.5-android.jar:${project.dir}/build/test/lib/jars/hamcrest-2.2.jar:${project.dir}/build/test/lib/jars/j2objc-annotations-1.1.jar:${project.dir}/build/test/lib/jars/java-allocation-instrumenter-3.1.0.jar:${project.dir}/build/test/lib/jars/javassist-3.26.0-GA.jar:${project.dir}/build/test/lib/jars/jmh-core-1.21.jar:${project.dir}/build/test/lib/jars/jmh-generator-annprocess-1.21.jar:${project.dir}/build/test/lib/jars/jopt-simple-4.6.jar:${project.dir}/build/test/lib/jars/jsr305-1.3.9.jar:${project.dir}/build/test/lib/jars/junit-4.12.jar:${project.dir}/build/test/lib/jars/mockito-core-3.2.4.jar:${project.dir}/build/test/lib/jars/objenesis-2.6.jar:${project.dir}/build/test/lib/jars/org.jacoco.agent-0.8.6.jar:${project.dir}/build/test/lib/jars/org.jacoco.ant-0.8.6.jar:${project.dir}/build/test/lib/jars/org.jacoco.core-0.8.6.jar:${project.dir}/build/test/lib/jars/org.jacoco.report-0.8.6.jar:${project.dir}/build/test/lib/jars/quicktheories-0.26.jar:${project.dir}/build/test/lib/jars/reflections-0.9.12.jar:${project.dir}/build/test/lib/jars/slf4j-api-1.7.25.jar:</property>
+            </properties>
+            <folders>
+                <source-folder>
+                    <label>src/gen-java</label>
+                    <type>java</type>
+                    <location>${project.dir}/src/gen-java</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>src/java</label>
+                    <type>java</type>
+                    <location>${project.dir}/src/java</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>src/fqltool</label>
+                    <type>java</type>
+                    <location>${project.dir}/tools/fqltool/src</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>src/stress</label>
+                    <type>java</type>
+                    <location>${project.dir}/tools/stress/src</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/unit</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/unit</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/fqltool/</label>
+                    <type>java</type>
+                    <location>${project.dir}/tools/fqltool/test/unit</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/stress</label>
+                    <type>java</type>
+                    <location>${project.dir}/tools/stress/test/unit</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/distributed</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/distributed</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/burn</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/burn</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/long</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/long</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>test/microbench</label>
+                    <type>java</type>
+                    <location>${project.dir}/test/microbench</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+                <source-folder>
+                    <label>apache-cassandra</label>
+                    <location>${project.dir}</location>
+                    <encoding>UTF-8</encoding>
+                </source-folder>
+            </folders>
+            <ide-actions>
+                <action name="build">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>build</target>
+                </action>
+                <action name="clean">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>clean</target>
+                </action>
+                <action name="rebuild">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>clean</target>
+                    <target>build</target>
+                </action>
+                <action name="run">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>run</target>
+                </action>
+                <action name="debug">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>debug</target>
+                </action>
+                <action name="profile">
+                    <script>nbproject/ide-actions.xml</script>
+                    <target>profile</target>
+                </action>
+            </ide-actions>
+            <export>
+                <type>folder</type>
+                <location>${project.dir}/build/classes/main</location>
+                <script>../build.xml</script>
+                <build-target>build</build-target>
+            </export>
+            <export>
+                <type>folder</type>
+                <location>${project.dir}/build/classes/fqltool</location>
+                <script>../build.xml</script>
+                <build-target>fqltool-build</build-target>
+            </export>
+            <export>
+                <type>folder</type>
+                <location>${project.dir}/build/classes/stress</location>
+                <script>../build.xml</script>
+                <build-target>stress-build</build-target>
+            </export>
+            <export>
+                <type>folder</type>
+                <location>${project.dir}/build/test/classes</location>
+                <script>../build.xml</script>
+                <build-target>build-test</build-target>
+            </export>
+            <export>
+                <type>folder</type>
+                <location>${project.dir}/build/test/fqltool-classes</location>
+                <script>../build.xml</script>
+                <build-target>fqltool-build-test</build-target>
+            </export>
+            <export>
+                <type>folder</type>
+                <location>${project.dir}/build/test/stress-classes</location>
+                <script>../build.xml</script>
+                <build-target>stress-build-test</build-target>
+            </export>
+            <view>
+                <items>
+                    <source-folder style="packages">
+                        <label>src/gen-java</label>
+                        <location>${project.dir}/src/gen-java</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>src/java</label>
+                        <location>${project.dir}/src/java</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>src/fqltool</label>
+                        <location>${project.dir}/tools/fqltool/src</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>src/stress</label>
+                        <location>${project.dir}/tools/stress/src</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/unit</label>
+                        <location>${project.dir}/test/unit</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/fqltool/</label>
+                        <location>${project.dir}/tools/fqltool/test/unit</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/stress</label>
+                        <location>${project.dir}/tools/stress/test/unit</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/distributed</label>
+                        <location>${project.dir}/test/distributed</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/burn</label>
+                        <location>${project.dir}/test/burn</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/long</label>
+                        <location>${project.dir}/test/long</location>
+                    </source-folder>
+                    <source-folder style="packages">
+                        <label>test/microbench</label>
+                        <location>${project.dir}/test/microbench</location>
+                    </source-folder>
+                    <source-file>
+                        <location>${project.dir}/build.xml</location>
+                    </source-file>
+                </items>
+                <context-menu>
+                    <ide-action name="build"/>
+                    <ide-action name="rebuild"/>
+                    <ide-action name="clean"/>
+                    <ide-action name="run"/>
+                    <ide-action name="debug"/>
+                </context-menu>
+            </view>
+        </general-data>
+        <java-data xmlns="http://www.netbeans.org/ns/freeform-project-java/4">
+            <compilation-unit>
+                <package-root>${project.dir}/src/gen-java</package-root>
+                <package-root>${project.dir}/src/java</package-root>
+                <classpath mode="compile">${cassandra.classpath.jars}</classpath>
+                <built-to>${project.dir}/build/classes/main</built-to>
+                <source-level>1.8</source-level>
+            </compilation-unit>
+            <compilation-unit>
+                <package-root>${project.dir}/tools/fqltool/src</package-root>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main</classpath>
+                <built-to>${project.dir}/build/classes/fqltool</built-to>
+                <source-level>1.8</source-level>
+            </compilation-unit>
+            <compilation-unit>
+                <package-root>${project.dir}/tools/stress/src</package-root>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main</classpath>
+                <built-to>${project.dir}/build/classes/stress</built-to>
+                <source-level>1.8</source-level>
+            </compilation-unit>
+            <compilation-unit>
+                <package-root>${project.dir}/test/unit</package-root>
+                <package-root>${project.dir}/test/distributed</package-root>
+                <package-root>${project.dir}/test/long</package-root>
+                <package-root>${project.dir}/test/microbench</package-root>
+                <package-root>${project.dir}/test/burn</package-root>
+                <unit-tests/>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/:${project.dir}/build/classes/stress/</classpath>
+                <built-to>${project.dir}/build/test/classes</built-to>
+                <source-level>1.8</source-level>
+            </compilation-unit>
+            <compilation-unit>
+                <package-root>${project.dir}/tools/fqltool/test/unit</package-root>
+                <unit-tests/>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/fqltool/</classpath>
+                <built-to>${project.dir}/build/test/fqltool-classes</built-to>
+                <source-level>1.8</source-level>
+            </compilation-unit>
+            <compilation-unit>
+                <package-root>${project.dir}/tools/stress/test/unit</package-root>
+                <unit-tests/>
+                <classpath mode="compile">${cassandra.classpath.jars}:${project.dir}/build/classes/main:${project.dir}/build/classes/stress/</classpath>
+                <built-to>${project.dir}/build/test/stress-classes</built-to>
+                <source-level>1.8</source-level>
+            </compilation-unit>
+        </java-data>
+    </configuration>
+</project>

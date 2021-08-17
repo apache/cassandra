@@ -15,6 +15,7 @@
 .. limitations under the License.
 
 .. highlight:: none
+.. _patches:
 
 Contributing Code Changes
 *************************
@@ -32,12 +33,12 @@ As a general rule of thumb:
 
 .. hint::
 
-   Not sure what to work? Just pick an issue tagged with the `low hanging fruit label <https://issues.apache.org/jira/secure/IssueNavigator.jspa?reset=true&jqlQuery=project+=+12310865+AND+labels+=+lhf+AND+status+!=+resolved>`_ in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
+   Not sure what to work? Just pick an issue marked as `Low Hanging Fruit <https://issues.apache.org/jira/issues/?jql=project%20%3D%20CASSANDRA%20AND%20Complexity%20%3D%20%22Low%20Hanging%20Fruit%22%20and%20status%20!%3D%20resolved>`_ Complexity in JIRA, which we use to flag issues that could turn out to be good starter tasks for beginners.
 
 Before You Start Coding
 =======================
 
-Although contributions are highly appreciated, we do not guarantee that each contribution will become a part of Cassandra. Therefor it's generally a good idea to first get some feedback on the things you plan to work on, especially about any new features or major changes to the code base. You can reach out to other developers on the mailing list or IRC channel listed on our `community page <http://cassandra.apache.org/community/>`_.
+Although contributions are highly appreciated, we do not guarantee that each contribution will become a part of Cassandra. Therefore it's generally a good idea to first get some feedback on the things you plan to work on, especially about any new features or major changes to the code base. You can reach out to other developers on the mailing list or :ref:`Slack <slack>`.
 
 You should also
  * Avoid redundant work by searching for already reported issues in `JIRA <https://issues.apache.org/jira/browse/CASSANDRA>`_
@@ -61,18 +62,26 @@ There are currently multiple Cassandra versions maintained in individual branche
 ======= ======
 Version Policy
 ======= ======
-3.x     Tick-tock (see below)
-3.0     Bug fixes only
-2.2     Bug fixes only
+4.0     Code freeze (see below)
+3.11    Critical bug fixes only
+3.0     Critical bug fixes only
+2.2     Critical bug fixes only
 2.1     Critical bug fixes only
 ======= ======
 
 Corresponding branches in git are easy to recognize as they are named ``cassandra-<release>`` (e.g. ``cassandra-3.0``). The ``trunk`` branch is an exception, as it contains the most recent commits from all other branches and is used for creating new branches for future tick-tock releases.
 
-Tick-Tock Releases
-""""""""""""""""""
+4.0 Code Freeze
+"""""""""""""""
 
-New releases created as part of the `tick-tock release process <http://www.planetcassandra.org/blog/cassandra-2-2-3-0-and-beyond/>`_ will either focus on stability (odd version numbers) or introduce new features (even version numbers). Any code for new Cassandra features you should be based on the latest, unreleased 3.x branch with even version number or based on trunk.
+Patches for new features are currently not accepted for 4.0 or any earlier versions. Starting with the code freeze in September, all efforts should focus on stabilizing the 4.0 branch before the first official release. During that time, only the following patches will be considered for acceptance:
+
+ * Bug fixes
+ * Measurable performance improvements
+ * Changes not distributed as part of the release such as:
+ * Testing related improvements and fixes
+ * Build and infrastructure related changes
+ * Documentation
 
 Bug Fixes
 """""""""
@@ -92,14 +101,21 @@ So you've finished coding and the great moment arrives: it's time to submit your
 
  1. Create a branch for your changes if you haven't done already. Many contributors name their branches based on ticket number and Cassandra version, e.g. ``git checkout -b 12345-3.0``
  2. Verify that you follow Cassandra's :doc:`code_style`
- 3. Make sure all tests (including yours) pass using ant as described in :doc:`testing`. If you suspect a test failure is unrelated to your change, it may be useful to check the test's status by searching the issue tracker or looking at `CI <https://cassci.datastax.com/>`_ results for the relevant upstream version.  Note that the full test suites take many hours to complete, so it is common to only run specific relevant tests locally before uploading a patch.  Once a patch has been uploaded, the reviewer or committer can help setup CI jobs to run the full test suites.
+ 3. Make sure all tests (including yours) pass using ant as described in :doc:`testing`. If you suspect a test failure is unrelated to your change, it may be useful to check the test's status by searching the issue tracker or looking at `CI <https://builds.apache.org/>`_ results for the relevant upstream version.  Note that the full test suites take many hours to complete, so it is common to only run specific relevant tests locally before uploading a patch.  Once a patch has been uploaded, the reviewer or committer can help setup CI jobs to run the full test suites.
  4. Consider going through the :doc:`how_to_review` for your code. This will help you to understand how others will consider your change for inclusion.
  5. Don’t make the committer squash commits for you in the root branch either. Multiple commits are fine - and often preferable - during review stage, especially for incremental review, but once +1d, do either:
 
    a. Attach a patch to JIRA with a single squashed commit in it (per branch), or
    b. Squash the commits in-place in your branches into one
 
- 6. Include a CHANGES.txt entry (put it at the top of the list), and format the commit message appropriately in your patch ending with the following statement on the last line: ``patch by X; reviewed by Y for CASSANDRA-ZZZZZ``
+ 6. Include a CHANGES.txt entry (put it at the top of the list), and format the commit message appropriately in your patch as below. Please note that only user-impacting items `should <https://lists.apache.org/thread.html/rde1128131a621e43b0a9c88778398c053a234da0f4c654b82dcbbe0e%40%3Cdev.cassandra.apache.org%3E>`_ be listed in CHANGES.txt. If you fix a test that does not affect users and does not require changes in runtime code, then no CHANGES.txt entry is necessary.
+ 
+    ::
+
+      <One sentence description, usually Jira title and CHANGES.txt summary>
+      <Optional lengthier description>
+      patch by <Authors>; reviewed by <Reviewers> for CASSANDRA-#####
+ 
  7. When you're happy with the result, create a patch:
 
    ::

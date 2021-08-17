@@ -105,8 +105,8 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
                            "Node is not yet bootstrapped completely");
 
         node.nodetoolResult("join").asserts()
-             .failure()
-             .errorContains("Cannot join the ring until bootstrap completes");
+            .failure()
+            .errorContains("Cannot join the ring until bootstrap completes");
 
         RewriteEnabled.disable();
         node.nodetoolResult("bootstrap", "resume").asserts().success();

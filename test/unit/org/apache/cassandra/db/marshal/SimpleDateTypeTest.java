@@ -95,29 +95,29 @@ public class SimpleDateTypeTest
                 SimpleDateSerializer.instance.deserialize(d1),
                 SimpleDateSerializer.instance.deserialize(d2));
 
-        d1 = SimpleDateType.instance.fromString("-10000-10-10");
-        d2 = SimpleDateType.instance.fromString("10000-10-10");
+        d1 = SimpleDateType.instance.fromString("-2200-10-10");
+        d2 = SimpleDateType.instance.fromString("2200-10-10");
         assert SimpleDateType.instance.compare(d1, d2) < 0 :
             String.format("Failed neg/pos string comparison with %s and %s",
                 SimpleDateSerializer.instance.deserialize(d1),
                 SimpleDateSerializer.instance.deserialize(d2));
 
         d1 = SimpleDateType.instance.fromString("1969-12-31");
-        d2 = SimpleDateType.instance.fromString("1970-1-1");
+        d2 = SimpleDateType.instance.fromString("1970-01-01");
         assert SimpleDateType.instance.compare(d1, d2) < 0 :
             String.format("Failed pre/post epoch comparison with %s and %s",
                 SimpleDateSerializer.instance.deserialize(d1),
                 SimpleDateSerializer.instance.deserialize(d2));
 
-        d1 = SimpleDateType.instance.fromString("1970-1-1");
-        d2 = SimpleDateType.instance.fromString("1970-1-1");
+        d1 = SimpleDateType.instance.fromString("1970-01-01");
+        d2 = SimpleDateType.instance.fromString("1970-01-01");
         assert SimpleDateType.instance.compare(d1, d2) == 0 :
             String.format("Failed == date from string comparison with %s and %s",
                 SimpleDateSerializer.instance.deserialize(d1),
                 SimpleDateSerializer.instance.deserialize(d2));
 
-        d1 = SimpleDateType.instance.fromString("1970-1-1");
-        d2 = SimpleDateType.instance.fromString("1970-1-2");
+        d1 = SimpleDateType.instance.fromString("1970-01-01");
+        d2 = SimpleDateType.instance.fromString("1970-01-02");
         assert SimpleDateType.instance.compare(d1, d2) < 0 :
             String.format("Failed post epoch string comparison with %s and %s",
                 SimpleDateSerializer.instance.deserialize(d1),

@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.db.transform;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * A validating transformation that sanity-checks the sequence of RT bounds and boundaries in every partition.
@@ -63,13 +63,13 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
     private final static class RowsTransformation extends Transformation
     {
         private final Stage stage;
-        private final CFMetaData metadata;
+        private final TableMetadata metadata;
         private final boolean isReverseOrder;
         private final boolean enforceIsClosed;
 
         private DeletionTime openMarkerDeletionTime;
 
-        private RowsTransformation(Stage stage, CFMetaData metadata, boolean isReverseOrder, boolean enforceIsClosed)
+        private RowsTransformation(Stage stage, TableMetadata metadata, boolean isReverseOrder, boolean enforceIsClosed)
         {
             this.stage = stage;
             this.metadata = metadata;
@@ -115,8 +115,8 @@ public final class RTBoundValidator extends Transformation<UnfilteredRowIterator
 
         private IllegalStateException ise(String why)
         {
-            String message = String.format("%s UnfilteredRowIterator for %s.%s has an illegal RT bounds sequence: %s",
-                                           stage, metadata.ksName, metadata.cfName, why);
+            String message =
+                String.format("%s UnfilteredRowIterator for %s has an illegal RT bounds sequence: %s", stage, metadata, why);
             throw new IllegalStateException(message);
         }
     }

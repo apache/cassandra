@@ -28,8 +28,11 @@ import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.service.CassandraDaemon;
 
 import com.google.common.base.Preconditions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /*
  * A wrapper around various mechanisms for syncing files that makes it possible it intercept
@@ -38,11 +41,13 @@ import com.google.common.base.Preconditions;
  */
 public class SyncUtil
 {
-    public static boolean SKIP_SYNC = Boolean.getBoolean(Config.PROPERTY_PREFIX + "skip_sync");
+    public static final boolean SKIP_SYNC;
 
     private static final Field mbbFDField;
     private static final Field fdClosedField;
     private static final Field fdUseCountField;
+
+    private static final Logger logger = LoggerFactory.getLogger(SyncUtil.class);
 
     static
     {
@@ -80,6 +85,15 @@ public class SyncUtil
         {
         }
         fdUseCountField = fdUseCountTemp;
+
+        //If skipping syncing is requested by any means then skip them.
+        boolean skipSyncProperty = Boolean.getBoolean(Config.PROPERTY_PREFIX + "skip_sync");
+        boolean skipSyncEnv = Boolean.valueOf(System.getenv().getOrDefault("CASSANDRA_SKIP_SYNC", "false"));
+        SKIP_SYNC = skipSyncProperty || skipSyncEnv;
+        if (SKIP_SYNC)
+        {
+            logger.info("Skip fsync enabled due to property {} and environment {}", skipSyncProperty, skipSyncEnv);
+        }
     }
 
     public static MappedByteBuffer force(MappedByteBuffer buf)

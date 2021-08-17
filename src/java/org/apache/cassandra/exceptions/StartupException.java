@@ -26,6 +26,7 @@ public class StartupException extends Exception
     public final static int ERR_WRONG_MACHINE_STATE = 1;
     public final static int ERR_WRONG_DISK_STATE = 3;
     public final static int ERR_WRONG_CONFIG = 100;
+    public final static int ERR_OUTDATED_SCHEMA = 101;
 
     public final int returnCode;
 

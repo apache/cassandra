@@ -19,9 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.collect.Iterables.toArray;
 import static org.apache.commons.lang3.StringUtils.join;
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
-import io.airlift.command.Option;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -73,7 +73,7 @@ public class Snapshot extends NodeToolCmd
                 else
                 {
                     throw new IOException(
-                            "When specifying the Keyspace columfamily list for a snapshot, you should not specify columnfamily");
+                            "When specifying the Keyspace table list (using -kt,--kt-list,-kc,--kc.list), you must not also specify keyspaces to snapshot");
                 }
                 if (!snapshotName.isEmpty())
                     sb.append(" with snapshot name [").append(snapshotName).append("]");

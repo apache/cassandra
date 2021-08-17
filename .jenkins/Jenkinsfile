@@ -27,14 +27,14 @@ pipeline {
   agent { label 'cassandra' }
   stages {
     stage('Init') {
-        steps {
-            cleanWs()
-        }
+      steps {
+          cleanWs()
+      }
     }
     stage('Build') {
-        steps {
-            build job: "${env.JOB_NAME}-artifacts"
-        }
+      steps {
+          build job: "${env.JOB_NAME}-artifacts"
+      }
     }
     stage('Test') {
         parallel {
@@ -51,6 +51,24 @@ pipeline {
                   warnError('missing test xml files') {
                       script {
                           copyTestResults('stress-test', stress.getNumber())
+                      }
+                  }
+              }
+            }
+          }
+          stage('fqltool') {
+            steps {
+                script {
+                  fqltool = build job: "${env.JOB_NAME}-fqltool-test", propagate: false
+                  if (fqltool.result != 'SUCCESS') unstable('fqltool test failures')
+                  if (fqltool.result == 'FAILURE') currentBuild.result='FAILURE'
+                }
+            }
+            post {
+              always {
+                  warnError('missing test xml files') {
+                      script {
+                          copyTestResults('fqltool-test', fqltool.getNumber())
                       }
                   }
               }
@@ -189,16 +207,16 @@ pipeline {
                   if (cqlsh.result != 'SUCCESS') unstable('cqlsh failures')
                   if (cqlsh.result == 'FAILURE') currentBuild.result='FAILURE'
                 }
-            }
-            post {
-              always {
-                  warnError('missing test xml files') {
-                      script {
-                          copyTestResults('cqlsh-tests', cqlsh.getNumber())
-                      }
-                  }
+              }
+              post {
+                always {
+                    warnError('missing test xml files') {
+                        script {
+                            copyTestResults('cqlsh-tests', cqlsh.getNumber())
+                        }
+                    }
                 }
-            }
+              }
           }
         }
     }

@@ -20,7 +20,6 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.*;
 
 import org.junit.Test;
@@ -30,6 +29,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
 
 import org.apache.cassandra.utils.FBUtilities;
+
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class DynamicEndpointSnitchLongTest
 {
@@ -53,21 +54,23 @@ public class DynamicEndpointSnitchLongTest
             StorageService.instance.unsafeInitialize();
             SimpleSnitch ss = new SimpleSnitch();
             DynamicEndpointSnitch dsnitch = new DynamicEndpointSnitch(ss, String.valueOf(ss.hashCode()));
-            InetAddress self = FBUtilities.getBroadcastAddress();
+            InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
 
-            List<InetAddress> hosts = new ArrayList<>();
+            EndpointsForRange.Builder replicasBuilder = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE);
             // We want a big list of hosts so  sorting takes time, making it much more likely to reproduce the
             // problem we're looking for.
             for (int i = 0; i < 100; i++)
                 for (int j = 0; j < 256; j++)
-                    hosts.add(InetAddress.getByAddress(new byte[]{127, 0, (byte)i, (byte)j}));
+                    replicasBuilder.add(ReplicaUtils.full(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, (byte)i, (byte)j})));
 
-            ScoreUpdater updater = new ScoreUpdater(dsnitch, hosts);
+            EndpointsForRange replicas = replicasBuilder.build();
+
+            ScoreUpdater updater = new ScoreUpdater(dsnitch, replicas);
             updater.start();
 
-            List<InetAddress> result = null;
+            EndpointsForRange result = replicas;
             for (int i = 0; i < ITERATIONS; i++)
-                result = dsnitch.getSortedListByProximity(self, hosts);
+                result = dsnitch.sortedByProximity(self, result);
 
             updater.stopped = true;
             updater.join();
@@ -85,10 +88,10 @@ public class DynamicEndpointSnitchLongTest
         public volatile boolean stopped;
 
         private final DynamicEndpointSnitch dsnitch;
-        private final List<InetAddress> hosts;
+        private final EndpointsForRange hosts;
         private final Random random = new Random();
 
-        public ScoreUpdater(DynamicEndpointSnitch dsnitch, List<InetAddress> hosts)
+        public ScoreUpdater(DynamicEndpointSnitch dsnitch, EndpointsForRange hosts)
         {
             this.dsnitch = dsnitch;
             this.hosts = hosts;
@@ -98,9 +101,9 @@ public class DynamicEndpointSnitchLongTest
         {
             while (!stopped)
             {
-                InetAddress host = hosts.get(random.nextInt(hosts.size()));
+                Replica host = hosts.get(random.nextInt(hosts.size()));
                 int score = random.nextInt(SCORE_RANGE);
-                dsnitch.receiveTiming(host, score);
+                dsnitch.receiveTiming(host.endpoint(), score, MILLISECONDS);
             }
         }
     }

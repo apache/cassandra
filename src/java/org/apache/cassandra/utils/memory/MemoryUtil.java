@@ -27,7 +27,6 @@ import com.sun.jna.Native;
 import org.apache.cassandra.utils.Architecture;
 
 import sun.misc.Unsafe;
-import sun.nio.ch.DirectBuffer;
 
 public abstract class MemoryUtil
 {
@@ -158,7 +157,7 @@ public abstract class MemoryUtil
     public static ByteBuffer getByteBuffer(long address, int length, ByteOrder order)
     {
         ByteBuffer instance = getHollowDirectByteBuffer(order);
-        setByteBuffer(instance, address, length);
+        setDirectByteBuffer(instance, address, length);
         return instance;
     }
 
@@ -197,11 +196,9 @@ public abstract class MemoryUtil
         return instance;
     }
 
-    public static void setByteBuffer(ByteBuffer instance, long address, int length)
+    public static boolean isExactlyDirect(ByteBuffer buffer)
     {
-        unsafe.putLong(instance, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, address);
-        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, length);
-        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, length);
+        return buffer.getClass() == DIRECT_BYTE_BUFFER_CLASS;
     }
 
     public static Object getAttachment(ByteBuffer instance)
@@ -224,6 +221,26 @@ public abstract class MemoryUtil
         unsafe.putInt(hollowBuffer, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, unsafe.getInt(source, DIRECT_BYTE_BUFFER_LIMIT_OFFSET));
         unsafe.putInt(hollowBuffer, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, unsafe.getInt(source, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET));
         return hollowBuffer;
+    }
+
+    public static ByteBuffer sliceDirectByteBuffer(ByteBuffer source, ByteBuffer hollowBuffer, int offset, int length)
+    {
+        assert source.getClass() == DIRECT_BYTE_BUFFER_CLASS || source.getClass() == RO_DIRECT_BYTE_BUFFER_CLASS;
+        setDirectByteBuffer(hollowBuffer, offset + unsafe.getLong(source, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET), length);
+        return hollowBuffer;
+    }
+
+    public static void setDirectByteBuffer(ByteBuffer instance, long address, int length)
+    {
+        unsafe.putLong(instance, DIRECT_BYTE_BUFFER_ADDRESS_OFFSET, address);
+        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_POSITION_OFFSET, 0);
+        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, length);
+        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_LIMIT_OFFSET, length);
+    }
+
+    public static void setByteBufferCapacity(ByteBuffer instance, int capacity)
+    {
+        unsafe.putInt(instance, DIRECT_BYTE_BUFFER_CAPACITY_OFFSET, capacity);
     }
 
     public static long getLongByByte(long address)
@@ -337,7 +354,7 @@ public abstract class MemoryUtil
             return;
 
         if (buffer.isDirect())
-            setBytes(((DirectBuffer)buffer).address() + start, address, count);
+            setBytes(getAddress(buffer) + start, address, count);
         else
             setBytes(address, buffer.array(), buffer.arrayOffset() + start, count);
     }

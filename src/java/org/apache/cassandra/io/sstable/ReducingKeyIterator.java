@@ -33,39 +33,45 @@ import org.apache.cassandra.utils.MergeIterator;
 public class ReducingKeyIterator implements CloseableIterator<DecoratedKey>
 {
     private final ArrayList<KeyIterator> iters;
-    private IMergeIterator<DecoratedKey,DecoratedKey> mi;
+    private volatile IMergeIterator<DecoratedKey, DecoratedKey> mi;
 
     public ReducingKeyIterator(Collection<SSTableReader> sstables)
     {
         iters = new ArrayList<>(sstables.size());
         for (SSTableReader sstable : sstables)
-            iters.add(new KeyIterator(sstable.descriptor, sstable.metadata));
+            iters.add(new KeyIterator(sstable.descriptor, sstable.metadata()));
     }
 
     private void maybeInit()
     {
-        if (mi == null)
+        if (mi != null)
+            return;
+
+        synchronized (this)
         {
-            mi = MergeIterator.get(iters, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey,DecoratedKey>()
+            if (mi == null)
             {
-                DecoratedKey reduced = null;
-
-                @Override
-                public boolean trivialReduceIsTrivial()
+                mi = MergeIterator.get(iters, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey, DecoratedKey>()
                 {
-                    return true;
-                }
+                    DecoratedKey reduced = null;
 
-                public void reduce(int idx, DecoratedKey current)
-                {
-                    reduced = current;
-                }
+                    @Override
+                    public boolean trivialReduceIsTrivial()
+                    {
+                        return true;
+                    }
 
-                protected DecoratedKey getReduced()
-                {
-                    return reduced;
-                }
-            });
+                    public void reduce(int idx, DecoratedKey current)
+                    {
+                        reduced = current;
+                    }
+
+                    protected DecoratedKey getReduced()
+                    {
+                        return reduced;
+                    }
+                });
+            }
         }
     }
 

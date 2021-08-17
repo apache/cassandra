@@ -63,7 +63,6 @@ public class JMXAuthTest extends CQLTester
     @BeforeClass
     public static void setupClass() throws Exception
     {
-        DatabaseDescriptor.daemonInitialization();
         setupAuthorizer();
         setupJMXServer();
     }
@@ -91,7 +90,7 @@ public class JMXAuthTest extends CQLTester
         System.setProperty("java.security.auth.login.config", config);
         System.setProperty("cassandra.jmx.remote.login.config", "TestLogin");
         System.setProperty("cassandra.jmx.authorizer", NoSuperUserAuthorizationProxy.class.getName());
-        jmxServer = JMXServerUtils.createJMXServer(9999, true);
+        jmxServer = JMXServerUtils.createJMXServer(9999, "localhost", true);
         jmxServer.start();
 
         JMXServiceURL jmxUrl = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://localhost:9999/jmxrmi");

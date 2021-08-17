@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.gms;
 
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
 
@@ -26,6 +25,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertFalse;
@@ -43,7 +43,7 @@ public class ExpireEndpointTest
     @Test
     public void testExpireEndpoint() throws UnknownHostException
     {
-        InetAddress hostAddress = InetAddress.getByName("127.0.0.2");
+        InetAddressAndPort hostAddress = InetAddressAndPort.getByName("127.0.0.2");
         UUID hostId = UUID.randomUUID();
         long expireTime = System.currentTimeMillis() - 1;
 
@@ -51,7 +51,7 @@ public class ExpireEndpointTest
 
         EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(hostAddress);
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.markDead(hostAddress, endpointState));
-        endpointState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
+        endpointState.addApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.removedNonlocal(hostId, expireTime));
         Gossiper.instance.addExpireTimeForEndpoint(hostAddress, expireTime);
 
         assertTrue("Expiring endpoint not unreachable before status check", Gossiper.instance.getUnreachableMembers().contains(hostAddress));

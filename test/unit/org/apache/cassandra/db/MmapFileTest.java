@@ -29,7 +29,7 @@ import javax.management.ObjectName;
 import org.junit.Assert;
 import org.junit.Test;
 
-import sun.nio.ch.DirectBuffer;
+import org.apache.cassandra.io.util.FileUtils;
 
 public class MmapFileTest
 {
@@ -48,9 +48,9 @@ public class MmapFileTest
         Assert.assertEquals("# of mapped buffers should be 0", Long.valueOf(0L), mmapCount);
         Assert.assertEquals("amount of mapped memory should be 0", Long.valueOf(0L), mmapMemoryUsed);
 
-        File f1 = File.createTempFile("MmapFileTest1", ".bin");
-        File f2 = File.createTempFile("MmapFileTest2", ".bin");
-        File f3 = File.createTempFile("MmapFileTest2", ".bin");
+        File f1 = FileUtils.createTempFile("MmapFileTest1", ".bin");
+        File f2 = FileUtils.createTempFile("MmapFileTest2", ".bin");
+        File f3 = FileUtils.createTempFile("MmapFileTest2", ".bin");
 
         try
         {
@@ -87,8 +87,8 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
                 buffer.putInt(42);
-
-                ((DirectBuffer) buffer).cleaner().clean();
+                
+                FileUtils.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -115,7 +115,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                ((DirectBuffer) buffer).cleaner().clean();
+                FileUtils.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");
@@ -140,7 +140,7 @@ public class MmapFileTest
                 buffer.putInt(42);
                 buffer.putInt(42);
 
-                ((DirectBuffer) buffer).cleaner().clean();
+                FileUtils.clean(buffer);
             }
 
             mmapCount = (Long) mbs.getAttribute(bpmName, "Count");

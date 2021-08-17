@@ -19,10 +19,24 @@ package org.apache.cassandra.io.compress;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.EnumSet;
 import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
 
 public interface ICompressor
 {
+    /**
+     * Ways that a particular instance of ICompressor should be used internally in Cassandra.
+     *
+     * GENERAL: Suitable for general use
+     * FAST_COMPRESSION: Suitable for use in particularly latency sensitive compression situations (flushes).
+     */
+    enum Uses {
+        GENERAL,
+        FAST_COMPRESSION
+    }
+
     public int initialCompressedBufferLength(int chunkLength);
 
     public int uncompress(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset) throws IOException;
@@ -57,4 +71,16 @@ public interface ICompressor
     public boolean supports(BufferType bufferType);
 
     public Set<String> supportedOptions();
+
+    /**
+     * Hints to Cassandra which uses this compressor is recommended for. For example a compression algorithm which gets
+     * good compression ratio may trade off too much compression speed to be useful in certain compression heavy use
+     * cases such as flushes or mutation hints.
+     *
+     * Note that Cassandra may ignore these recommendations, it is not a strict contract.
+     */
+    default Set<Uses> recommendedUses()
+    {
+        return ImmutableSet.copyOf(EnumSet.allOf(Uses.class));
+    }
 }

@@ -25,10 +25,9 @@ import java.util.*;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FBUtilities;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -195,17 +194,17 @@ public class HintsCatalogTest
     {
         Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, dk(key));
 
-        builder.update(Schema.instance.getCFMetaData(KEYSPACE, TABLE0))
+        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE0))
                .timestamp(now)
                .row("column0")
                .add("val", "value0");
 
-        builder.update(Schema.instance.getCFMetaData(KEYSPACE, TABLE1))
+        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE1))
                .timestamp(now + 1)
                .row("column1")
                .add("val", "value1");
 
-        builder.update(Schema.instance.getCFMetaData(KEYSPACE, TABLE2))
+        builder.update(Schema.instance.getTableMetadata(KEYSPACE, TABLE2))
                .timestamp(now + 2)
                .row("column2")
                .add("val", "value2");

@@ -19,15 +19,20 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,6 +52,9 @@ public final class JVMStabilityInspector
     private static Object lock = new Object();
     private static boolean printingHeapHistogram;
 
+    // It is used for unit test
+    public static OnKillHook killerHook;
+
     private JVMStabilityInspector() {}
 
     /**
@@ -55,7 +63,7 @@ public final class JVMStabilityInspector
      * @param t
      *      The Throwable to check for server-stop conditions
      */
-    public static void inspectThrowable(Throwable t)
+    public static void inspectThrowable(Throwable t) throws OutOfMemoryError
     {
         inspectThrowable(t, JVMStabilityInspector::inspectDiskError);
     }
@@ -94,9 +102,16 @@ public final class JVMStabilityInspector
             logger.error("OutOfMemory error letting the JVM handle the error:", t);
 
             StorageService.instance.removeShutdownHook();
+
+            forceHeapSpaceOomMaybe((OutOfMemoryError) t);
+
             // We let the JVM handle the error. The startup checks should have warned the user if it did not configure
             // the JVM behavior in case of OOM (CASSANDRA-13006).
             throw (OutOfMemoryError) t;
+        }
+        else if (t instanceof UnrecoverableIllegalStateException)
+        {
+            isUnstable = true;
         }
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
@@ -115,6 +130,34 @@ public final class JVMStabilityInspector
 
         if (t.getCause() != null)
             inspectThrowable(t.getCause(), fn);
+    }
+
+    /**
+     * Intentionally produce a heap space OOM upon seeing a Direct buffer memory OOM.
+     * Direct buffer OOM cannot trigger JVM OOM error related options,
+     * e.g. OnOutOfMemoryError, HeapDumpOnOutOfMemoryError, etc.
+     * See CASSANDRA-15214 for more details
+     */
+    @Exclude // Exclude from just in time compilation.
+    private static void forceHeapSpaceOomMaybe(OutOfMemoryError oom)
+    {
+        // See the oom thrown from java.nio.Bits.reserveMemory.
+        // In jdk 13 and up, the message is "Cannot reserve XX bytes of direct buffer memory (...)"
+        // In jdk 11 and below, the message is "Direct buffer memory"
+        if ((oom.getMessage() != null && oom.getMessage().toLowerCase().contains("direct buffer memory")) ||
+            Arrays.stream(oom.getStackTrace()).anyMatch(x -> x.getClassName().equals("java.nio.Bits")
+                                                             && x.getMethodName().equals("reserveMemory")))
+        {
+            logger.error("Force heap space OutOfMemoryError in the presence of", oom);
+            // Start to produce heap space OOM forcibly.
+            List<long[]> ignored = new ArrayList<>();
+            while (true)
+            {
+                // java.util.AbstractCollection.MAX_ARRAY_SIZE is defined as Integer.MAX_VALUE - 8
+                // so Integer.MAX_VALUE / 2 should be a large enough and safe size to request.
+                ignored.add(new long[Integer.MAX_VALUE / 2]);
+            }
+        }
     }
 
     private static void inspectCommitLogError(Throwable t)
@@ -181,11 +224,26 @@ public final class JVMStabilityInspector
                 t.printStackTrace(System.err);
                 logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
             }
-            if (killing.compareAndSet(false, true))
+
+            boolean doExit = killerHook != null ? killerHook.execute(t) : true;
+
+            if (doExit && killing.compareAndSet(false, true))
             {
                 StorageService.instance.removeShutdownHook();
                 System.exit(100);
             }
         }
+    }
+
+    /**
+     * This class is usually used to avoid JVM exit when running junit tests.
+     */
+    public interface OnKillHook
+    {
+        /**
+         *
+         * @return False will skip exit
+         */
+        boolean execute(Throwable t);
     }
 }

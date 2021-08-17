@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.context;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +28,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ClockAndCount;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
 
@@ -91,7 +93,7 @@ public class CounterContext
 
     private static final Logger logger = LoggerFactory.getLogger(CounterContext.class);
 
-    public static enum Relationship
+    public enum Relationship
     {
         EQUAL, GREATER_THAN, LESS_THAN, DISJOINT
     }
@@ -137,14 +139,6 @@ public class CounterContext
     }
 
     /**
-     * Returns the count associated with the update counter id, or 0 if no such shard is present.
-     */
-    public long getUpdateCount(ByteBuffer context)
-    {
-        return getClockAndCountOf(context, UPDATE_CLOCK_ID).count;
-    }
-
-    /**
      * Creates a counter context with a single global, 2.1+ shard (a result of increment).
      */
     public ByteBuffer createGlobal(CounterId id, long clock, long count)
@@ -176,9 +170,9 @@ public class CounterContext
         return state.context;
     }
 
-    private static int headerLength(ByteBuffer context)
+    public static <V> int headerLength(V context, ValueAccessor<V> accessor)
     {
-        return HEADER_SIZE_LENGTH + Math.abs(context.getShort(context.position())) * HEADER_ELT_LENGTH;
+        return HEADER_SIZE_LENGTH + Math.abs(accessor.getShort(context, 0)) * HEADER_ELT_LENGTH;
     }
 
     private static int compareId(ByteBuffer bb1, int pos1, ByteBuffer bb2, int pos2)
@@ -575,34 +569,39 @@ public class CounterContext
      * @param context a counter context
      * @return the aggregated count represented by {@code context}
      */
-    public long total(ByteBuffer context)
+    public <V> long total(V context, ValueAccessor<V> accessor)
     {
         long total = 0L;
         // we could use a ContextState but it is easy enough that we avoid the object creation
-        for (int offset = context.position() + headerLength(context); offset < context.limit(); offset += STEP_LENGTH)
-            total += context.getLong(offset + CounterId.LENGTH + CLOCK_LENGTH);
+        for (int offset = headerLength(context, accessor), size=accessor.size(context); offset < size; offset += STEP_LENGTH)
+            total += accessor.getLong(context, offset + CounterId.LENGTH + CLOCK_LENGTH);
         return total;
     }
 
-    public boolean shouldClearLocal(ByteBuffer context)
+    public <V> long total(Cell<V> cell)
+    {
+        return total(cell.value(), cell.accessor());
+    }
+
+    public <V> boolean shouldClearLocal(V context, ValueAccessor<V> accessor)
     {
         // #elt being negative means we have to clean local shards.
-        return context.getShort(context.position()) < 0;
+        return accessor.getShort(context, 0) < 0;
     }
 
     /**
      * Detects whether or not the context has any legacy (local or remote) shards in it.
      */
-    public boolean hasLegacyShards(ByteBuffer context)
+    public <V>  boolean hasLegacyShards(V context, ValueAccessor<V> accessor)
     {
-        int totalCount = (context.remaining() - headerLength(context)) / STEP_LENGTH;
-        int localAndGlobalCount = Math.abs(context.getShort(context.position()));
+        int totalCount = (accessor.size(context) - headerLength(context, accessor)) / STEP_LENGTH;
+        int localAndGlobalCount = Math.abs(accessor.getShort(context, 0));
 
         if (localAndGlobalCount < totalCount)
             return true; // remote shard(s) present
 
         for (int i = 0; i < localAndGlobalCount; i++)
-            if (context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
+            if (accessor.getShort(context, HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH) >= 0)
                 return true; // found a local shard
 
         return false;
@@ -637,7 +636,7 @@ public class CounterContext
 
         ByteBuffer marked = ByteBuffer.allocate(context.remaining());
         marked.putShort(marked.position(), (short) (count * -1));
-        ByteBufferUtil.arrayCopy(context,
+        ByteBufferUtil.copyBytes(context,
                                  context.position() + HEADER_SIZE_LENGTH,
                                  marked,
                                  marked.position() + HEADER_SIZE_LENGTH,
@@ -645,22 +644,16 @@ public class CounterContext
         return marked;
     }
 
-    /**
-     * Remove all the local of a context (but keep global).
-     *
-     * @param context a counter context
-     * @return a version of {@code context} where no shards are local.
-     */
-    public ByteBuffer clearAllLocal(ByteBuffer context)
+    public <V> V clearAllLocal(V context, ValueAccessor<V> accessor)
     {
-        int count = Math.abs(context.getShort(context.position()));
+        int count = Math.abs(accessor.getShort(context, 0));
         if (count == 0)
             return context; // no local or global shards present.
 
         List<Short> globalShardIndexes = new ArrayList<>(count);
         for (int i = 0; i < count; i++)
         {
-            short elt = context.getShort(context.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH);
+            short elt = accessor.getShort(context, HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH);
             if (elt < 0)
                 globalShardIndexes.add(elt);
         }
@@ -669,43 +662,27 @@ public class CounterContext
             return context; // no local shards detected.
 
         // allocate a smaller BB for the cleared context - with no local header elts.
-        ByteBuffer cleared = ByteBuffer.allocate(context.remaining() - (count - globalShardIndexes.size()) * HEADER_ELT_LENGTH);
+        V cleared = accessor.allocate(accessor.size(context) - (count - globalShardIndexes.size()) * HEADER_ELT_LENGTH);
 
-        cleared.putShort(cleared.position(), (short) globalShardIndexes.size());
+        accessor.putShort(cleared, 0, (short) globalShardIndexes.size());
         for (int i = 0; i < globalShardIndexes.size(); i++)
-            cleared.putShort(cleared.position() + HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH, globalShardIndexes.get(i));
+            accessor.putShort(cleared, HEADER_SIZE_LENGTH + i * HEADER_ELT_LENGTH, globalShardIndexes.get(i));
 
-        int origHeaderLength = headerLength(context);
-        ByteBufferUtil.arrayCopy(context,
-                                 context.position() + origHeaderLength,
-                                 cleared,
-                                 cleared.position() + headerLength(cleared),
-                                 context.remaining() - origHeaderLength);
+        int origHeaderLength = headerLength(context, accessor);
+        accessor.copyTo(context,
+                        origHeaderLength,
+                        cleared,
+                        accessor,
+                        headerLength(cleared, accessor),
+                        accessor.size(context) - origHeaderLength);
 
         return cleared;
     }
 
-    public void validateContext(ByteBuffer context) throws MarshalException
+    public <V> void validateContext(V context, ValueAccessor<V> accessor) throws MarshalException
     {
-        if ((context.remaining() - headerLength(context)) % STEP_LENGTH != 0)
+        if ((accessor.size(context) - headerLength(context, accessor)) % STEP_LENGTH != 0)
             throw new MarshalException("Invalid size for a counter context");
-    }
-
-    /**
-     * Update a MessageDigest with the content of a context.
-     * Note that this skips the header entirely since the header information
-     * has local meaning only, while digests are meant for comparison across
-     * nodes. This means in particular that we always have:
-     *  updateDigest(ctx) == updateDigest(clearAllLocal(ctx))
-     */
-    public void updateDigest(MessageDigest message, ByteBuffer context)
-    {
-        // context can be empty due to the optimization from CASSANDRA-10657
-        if (!context.hasRemaining())
-            return;
-        ByteBuffer dup = context.duplicate();
-        dup.position(context.position() + headerLength(context));
-        message.update(dup);
     }
 
     /**
@@ -714,6 +691,14 @@ public class CounterContext
     public ClockAndCount getLocalClockAndCount(ByteBuffer context)
     {
         return getClockAndCountOf(context, CounterId.getLocalId());
+    }
+
+    /**
+     * Returns the count associated with the local counter id, or 0 if no such shard is present.
+     */
+    public long getLocalCount(ByteBuffer context)
+    {
+        return getLocalClockAndCount(context).count;
     }
 
     /**
@@ -737,7 +722,7 @@ public class CounterContext
     @VisibleForTesting
     public int findPositionOf(ByteBuffer context, CounterId id)
     {
-        int headerLength = headerLength(context);
+        int headerLength = headerLength(context, ByteBufferAccessor.instance);
         int offset = context.position() + headerLength;
 
         int left = 0;
@@ -782,7 +767,7 @@ public class CounterContext
         private ContextState(ByteBuffer context)
         {
             this.context = context;
-            this.headerLength = this.bodyOffset = headerLength(context);
+            this.headerLength = this.bodyOffset = headerLength(context, ByteBufferAccessor.instance);
             this.headerOffset = HEADER_SIZE_LENGTH;
             updateIsGlobalOrLocal();
         }

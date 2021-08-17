@@ -177,7 +177,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         for (int r = 0; r < 3; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            new RowUpdateBuilder(cfs.metadata, r, key.getKey())
+            new RowUpdateBuilder(cfs.metadata(), r, key.getKey())
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
 
@@ -188,7 +188,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         {
             // And add progressively more cells into each sstable
             DecoratedKey key = Util.dk(String.valueOf(r));
-            new RowUpdateBuilder(cfs.metadata, r, key.getKey())
+            new RowUpdateBuilder(cfs.metadata(), r, key.getKey())
                 .clustering("column")
                 .add("val", value).build().applyUnsafe();
             cfs.forceBlockingFlush();
@@ -231,9 +231,9 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         for (int r = 5; r < numSSTables; r++)
         {
             DecoratedKey key = Util.dk(String.valueOf(r));
-            for(int i = 0; i < r; i++)
+            for (int i = 0; i < r; i++)
             {
-                new RowUpdateBuilder(cfs.metadata, tstamp + r, key.getKey())
+                new RowUpdateBuilder(cfs.metadata(), tstamp + r, key.getKey())
                     .clustering("column")
                     .add("val", value).build().applyUnsafe();
             }
@@ -268,7 +268,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         // Create a expiring sstable with a TTL
         DecoratedKey key = Util.dk("expired");
-        new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), TTL_SECONDS, key.getKey())
+        new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), TTL_SECONDS, key.getKey())
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
@@ -278,7 +278,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         // Create a second sstable without TTL
         key = Util.dk("nonexpired");
-        new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), key.getKey())
+        new RowUpdateBuilder(cfs.metadata(), System.currentTimeMillis(), key.getKey())
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
@@ -320,7 +320,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         // Create a expiring sstable with a TTL
         DecoratedKey key = Util.dk("expired");
-        new RowUpdateBuilder(cfs.metadata, timestamp, TTL_SECONDS, key.getKey())
+        new RowUpdateBuilder(cfs.metadata(), timestamp, TTL_SECONDS, key.getKey())
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 
@@ -329,11 +329,11 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         Thread.sleep(10);
 
         // Create a second sstable without TTL and with a row superceded by the expiring row
-        new RowUpdateBuilder(cfs.metadata, timestamp - 1000, key.getKey())
+        new RowUpdateBuilder(cfs.metadata(), timestamp - 1000, key.getKey())
             .clustering("column")
             .add("val", value).build().applyUnsafe();
         key = Util.dk("nonexpired");
-        new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
+        new RowUpdateBuilder(cfs.metadata(), timestamp, key.getKey())
             .clustering("column")
             .add("val", value).build().applyUnsafe();
 

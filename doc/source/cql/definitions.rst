@@ -46,8 +46,10 @@ To aid in specifying the CQL syntax, we will use the following conventions in th
 Identifiers and keywords
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-The CQL language uses *identifiers* (or *names*) to identify tables, columns and other objects. An identifier is a token
-matching the regular expression ``[a-zA-Z][a-zA-Z0-9_]*``.
+The CQL language uses *identifiers* (or *names*) to identify tables, columns and other objects. An identifier can be either
+unquoted or quoted. The unquoted identifier is a token matching the regular expression ``[a-zA-Z][a-zA-Z0-9_]*``.
+In the case of quoted, the identity can contain non-ASCII characters between the quotation marks, with one exception that
+Cassandra does not accept non-ASCII characters, if the quoted identifier is used for keyspace name or table name.
 
 A number of such identifiers, like ``SELECT`` or ``WITH``, are *keywords*. They have a fixed meaning for the language
 and most are reserved. The list of those keywords can be found in :ref:`appendix-A`.
@@ -119,9 +121,10 @@ Terms
 CQL has the notion of a *term*, which denotes the kind of values that CQL support. Terms are defined by:
 
 .. productionlist::
-   term: `constant` | `literal` | `function_call` | `type_hint` | `bind_marker`
+   term: `constant` | `literal` | `function_call` | `arithmetic_operation` | `type_hint` | `bind_marker`
    literal: `collection_literal` | `udt_literal` | `tuple_literal`
    function_call: `identifier` '(' [ `term` (',' `term`)* ] ')'
+   arithmetic_operation: '-' `term` | `term` ('+' | '-' | '*' | '/' | '%') `term`
    type_hint: '(' `cql_type` `)` term
    bind_marker: '?' | ':' `identifier`
 
@@ -132,6 +135,7 @@ A term is thus one of:
   (see the linked sections for details).
 - A function call: see :ref:`the section on functions <cql-functions>` for details on which :ref:`native function
   <native-functions>` exists and how to define your own :ref:`user-defined ones <udfs>`.
+- An arithmetic operation between terms. see :ref:`the section on arithmetic operations <arithmetic_operators>`
 - A *type hint*: see the :ref:`related section <type-hints>` for details.
 - A bind marker, which denotes a variable to be bound at execution time. See the section on :ref:`prepared-statements`
   for details. A bind marker can be either anonymous (``?``) or named (``:some_name``). The latter form provides a more

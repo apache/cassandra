@@ -21,11 +21,14 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteOrder;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 
+@NotThreadSafe
 public class RandomAccessReader extends RebufferingInputStream implements FileDataInput
 {
     // The default buffer size when the client doesn't specify it
@@ -169,7 +172,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + ':' + rebufferer.toString();
+        return getClass().getSimpleName() + ':' + rebufferer;
     }
 
     /**
@@ -210,8 +213,10 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     @Override
     public int skipBytes(int n) throws IOException
     {
-        if (n < 0)
+        if (n <= 0)
             return 0;
+        if (buffer == null)
+            throw new IOException("Attempted skipBytes() on a closed RAR");
         long current = current();
         long newPosition = Math.min(current + n, length());
         n = (int)(newPosition - current);

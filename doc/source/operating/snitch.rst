@@ -16,6 +16,8 @@
 
 .. highlight:: none
 
+.. _snitch:
+
 Snitch
 ------
 
@@ -35,8 +37,8 @@ configured with the following properties on ``cassandra.yaml``:
 - ``dynamic_snitch``: whether the dynamic snitch should be enabled or disabled.
 - ``dynamic_snitch_update_interval_in_ms``: controls how often to perform the more expensive part of host score
   calculation.
-- ``dynamic_snitch_reset_interval_in_ms``: if set greater than zero and read_repair_chance is < 1.0, this will allow
-  'pinning' of replicas to hosts in order to increase cache capacity.
+- ``dynamic_snitch_reset_interval_in_ms``: if set greater than zero, this will allow 'pinning' of replicas to hosts
+  in order to increase cache capacity.
 - ``dynamic_snitch_badness_threshold:``: The badness threshold will control how much worse the pinned host has to be
   before the dynamic snitch will prefer other replicas over it.  This is expressed as a double which represents a
   percentage.  Thus, a value of 0.2 means Cassandra would continue to prefer the static snitch values until the pinned
@@ -45,7 +47,7 @@ configured with the following properties on ``cassandra.yaml``:
 Snitch classes
 ^^^^^^^^^^^^^^
 
-The ``endpoint_snitch`` parameter in ``cassandra.yaml`` should be set to the class the class that implements
+The ``endpoint_snitch`` parameter in ``cassandra.yaml`` should be set to the class that implements
 ``IEndPointSnitch`` which will be wrapped by the dynamic snitch and decide if two endpoints are in the same data center
 or on the same rack. Out of the box, Cassandra provides the snitch implementations:
 
@@ -63,9 +65,11 @@ PropertyFileSnitch
     ``cassandra-topology.properties``.
 
 Ec2Snitch
-    Appropriate for EC2 deployments in a single Region. Loads Region and Availability Zone information from the EC2 API.
-    The Region is treated as the datacenter, and the Availability Zone as the rack. Only private IPs are used, so this
-    will not work across multiple regions.
+    Appropriate for EC2 deployments in a single Region, or in multiple regions with inter-region VPC enabled (available
+    since the end of 2017, see `AWS announcement <https://aws.amazon.com/about-aws/whats-new/2017/11/announcing-support-for-inter-region-vpc-peering/>`_).
+    Loads Region and Availability Zone information from the EC2 API. The Region is treated as the datacenter, and the
+    Availability Zone as the rack. Only private IPs are used, so this will work across multiple regions only if
+    inter-region VPC is enabled.
 
 Ec2MultiRegionSnitch
     Uses public IPs as broadcast_address to allow cross-region connectivity (thus, you should set seed addresses to the

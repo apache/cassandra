@@ -46,6 +46,8 @@ Creating a role uses the ``CREATE ROLE`` statement:
               :| LOGIN '=' `boolean`
               :| SUPERUSER '=' `boolean`
               :| OPTIONS '=' `map_literal`
+              :| ACCESS TO DATACENTERS `set_literal`
+              :| ACCESS TO ALL DATACENTERS
 
 For instance::
 
@@ -53,6 +55,8 @@ For instance::
     CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
     CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = true;
     CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND ACCESS TO DATACENTERS {'DC1', 'DC3'};
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND ACCESS TO ALL DATACENTERS;
 
 By default roles do not possess ``LOGIN`` privileges or ``SUPERUSER`` status.
 
@@ -81,6 +85,14 @@ quotation marks.
 If internal authentication has not been set up or the role does not have ``LOGIN`` privileges, the ``WITH PASSWORD``
 clause is not necessary.
 
+Restricting connections to specific datacenters
+```````````````````````````````````````````````
+
+If a ``network_authorizer`` has been configured, you can restrict login roles to specific datacenters with the
+``ACCESS TO DATACENTERS`` clause followed by a set literal of datacenters the user can access. Not specifiying
+datacenters implicitly grants access to all datacenters. The clause ``ACCESS TO ALL DATACENTERS`` can be used for
+explicitness, but there's no functional difference.
+
 Creating a role conditionally
 `````````````````````````````
 
@@ -105,6 +117,13 @@ For instance::
 
     ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
 
+Restricting connections to specific datacenters
+```````````````````````````````````````````````
+
+If a ``network_authorizer`` has been configured, you can restrict login roles to specific datacenters with the
+``ACCESS TO DATACENTERS`` clause followed by a set literal of datacenters the user can access. To remove any
+data center restrictions, use the ``ACCESS TO ALL DATACENTERS`` clause.
+
 Conditions on executing ``ALTER ROLE`` statements:
 
 -  A client must have ``SUPERUSER`` status to alter the ``SUPERUSER`` status of another role
@@ -128,6 +147,14 @@ status may ``DROP`` another ``SUPERUSER`` role.
 
 Attempting to drop a role which does not exist results in an invalid query condition unless the ``IF EXISTS`` option is
 used. If the option is used and the role does not exist the statement is a no-op.
+
+.. note:: DROP ROLE intentionally does not terminate any open user sessions. Currently connected sessions will remain
+   connected and will retain the ability to perform any database actions which do not require :ref:`authorization<authorization>`.
+   However, if authorization is enabled, :ref:`permissions<cql-permissions>` of the dropped role are also revoked,
+   subject to the :ref:`caching options<auth-caching>` configured in :ref:`cassandra.yaml<cassandra-yaml>`.
+   Should a dropped role be subsequently recreated and have new :ref:`permissions<grant-permission-statement>` or
+   :ref:`roles<grant-role-statement>` granted to it, any client sessions still connected will acquire the newly granted
+   permissions and roles.
 
 .. _grant-role-statement:
 
@@ -471,6 +498,15 @@ For instance::
     REVOKE DROP ON keyspace1.table1 FROM schema_owner;
     REVOKE EXECUTE ON FUNCTION keyspace1.user_function( int ) FROM report_writer;
     REVOKE DESCRIBE ON ALL ROLES FROM role_admin;
+
+Because of their function in normal driver operations, certain tables cannot have their `SELECT` permissions
+revoked. The following tables will be available to all authorized users regardless of their assigned role::
+
+* `system_schema.keyspaces`
+* `system_schema.columns`
+* `system_schema.tables`
+* `system.local`
+* `system.peers`
 
 .. _list-permissions-statement:
 

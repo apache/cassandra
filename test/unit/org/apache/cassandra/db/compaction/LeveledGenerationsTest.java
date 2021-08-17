@@ -27,7 +27,6 @@ import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -35,6 +34,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static junit.framework.Assert.assertFalse;

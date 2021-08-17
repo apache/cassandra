@@ -116,4 +116,53 @@ public interface CompactionManagerMBean
      * @param number New maximum of validator threads
      */
     public void setMaximumValidatorThreads(int number);
+
+    /**
+     * Returns core size of view build thread pool
+     */
+    public int getCoreViewBuildThreads();
+
+    /**
+     * Enable / disable STCS in L0
+     */
+    public boolean getDisableSTCSInL0();
+    public void setDisableSTCSInL0(boolean disabled);
+
+    /**
+     * Allows user to resize maximum size of the view build thread pool.
+     * @param number New maximum of view build threads
+     */
+    public void setCoreViewBuildThreads(int number);
+
+    /**
+     * Returns size of view build thread pool
+     */
+    public int getMaximumViewBuildThreads();
+
+    /**
+     * Allows user to resize maximum size of the view build thread pool.
+     * @param number New maximum of view build threads
+     */
+    public void setMaximumViewBuildThreads(int number);
+
+    /**
+     * Get automatic sstable upgrade enabled
+     */
+    public boolean getAutomaticSSTableUpgradeEnabled();
+    /**
+     * Set if automatic sstable upgrade should be enabled
+     */
+    public void setAutomaticSSTableUpgradeEnabled(boolean enabled);
+
+    /**
+     * Get the number of concurrent sstable upgrade tasks we should run
+     * when automatic sstable upgrades are enabled
+     */
+    public int getMaxConcurrentAutoUpgradeTasks();
+
+    /**
+     * Set the number of concurrent sstable upgrade tasks we should run
+     * when automatic sstable upgrades are enabled
+     */
+    public void setMaxConcurrentAutoUpgradeTasks(int value);
 }

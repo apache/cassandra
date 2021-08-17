@@ -24,16 +24,17 @@
         <exclude-output />
         <content url="file://$MODULE_DIR$">
             <sourceFolder url="file://$MODULE_DIR$/src/java" isTestSource="false" />
-            <sourceFolder url="file://$MODULE_DIR$/src/gen-java" isTestSource="false" />
+            <sourceFolder url="file://$MODULE_DIR$/src/gen-java" isTestSource="false" generated="true" />
             <sourceFolder url="file://$MODULE_DIR$/src/resources" type="java-resource" />
-            <sourceFolder url="file://$MODULE_DIR$/interface/thrift/gen-java" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/tools/stress/src" isTestSource="false" />
             <sourceFolder url="file://$MODULE_DIR$/tools/stress/test/unit" isTestSource="true" />
+            <sourceFolder url="file://$MODULE_DIR$/tools/fqltool/src" isTestSource="false" />
+            <sourceFolder url="file://$MODULE_DIR$/tools/fqltool/test/unit" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/unit" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/long" isTestSource="true" />
+            <sourceFolder url="file://$MODULE_DIR$/test/memory" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/microbench" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/burn" isTestSource="true" />
-            <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />
             <sourceFolder url="file://$MODULE_DIR$/test/distributed" isTestSource="true" />
             <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
             <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />

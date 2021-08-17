@@ -32,10 +32,13 @@ import org.slf4j.LoggerFactory;
 import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SimpleCachedBufferPool;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -81,7 +84,8 @@ public abstract class AbstractCommitLogSegmentManager
      */
     private final AtomicLong size = new AtomicLong();
 
-    private Thread managerThread;
+    @VisibleForTesting
+    Thread managerThread;
     protected final CommitLog commitLog;
     private volatile boolean shutdown;
     private final BooleanSupplier managerThreadWaitCondition = () -> (availableSegment == null && !atSegmentBufferLimit()) || shutdown;
@@ -156,6 +160,7 @@ public abstract class AbstractCommitLogSegmentManager
                                                      bufferType);
 
         shutdown = false;
+
         managerThread = NamedThreadFactory.createThread(runnable, "COMMIT-LOG-ALLOCATOR");
         managerThread.start();
 
@@ -188,17 +193,10 @@ public abstract class AbstractCommitLogSegmentManager
         }
     }
 
-
     /**
      * Allocate a segment within this CLSM. Should either succeed or throw.
      */
     public abstract Allocation allocate(Mutation mutation, int size);
-
-    /**
-     * The recovery and replay process replays mutations into memtables and flushes them to disk. Individual CLSM
-     * decide what to do with those segments on disk after they've been replayed.
-     */
-    abstract void handleReplayedSegment(final File file);
 
     /**
      * Hook to allow segment managers to track state surrounding creation of new segments. Onl perform as task submit
@@ -281,7 +279,7 @@ public abstract class AbstractCommitLogSegmentManager
      *
      * Flushes any dirty CFs for this segment and any older segments, and then discards the segments
      */
-    void forceRecycleAll(Iterable<UUID> droppedCfs)
+    void forceRecycleAll(Iterable<TableId> droppedTables)
     {
         List<CommitLogSegment> segmentsToRecycle = new ArrayList<>(activeSegments);
         CommitLogSegment last = segmentsToRecycle.get(segmentsToRecycle.size() - 1);
@@ -301,8 +299,8 @@ public abstract class AbstractCommitLogSegmentManager
             future.get();
 
             for (CommitLogSegment segment : activeSegments)
-                for (UUID cfId : droppedCfs)
-                    segment.markClean(cfId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
+                for (TableId tableId : droppedTables)
+                    segment.markClean(tableId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
 
             // now recycle segments that are unused, as we may not have triggered a discardCompletedSegments()
             // if the previous active segment was the only one to recycle (since an active segment isn't
@@ -337,6 +335,18 @@ public abstract class AbstractCommitLogSegmentManager
         // if archiving (command) was not successful then leave the file alone. don't delete or recycle.
         logger.debug("Segment {} is no longer active and will be deleted {}", segment, archiveSuccess ? "now" : "by the archive script");
         discard(segment, archiveSuccess);
+    }
+
+    /**
+     * Delete untracked segment files after replay
+     *
+     * @param file segment file that is no longer in use.
+     */
+    void handleReplayedSegment(final File file)
+    {
+        // (don't decrease managed size, since this was never a "live" segment)
+        logger.trace("(Unopened) segment {} is no longer needed and will be deleted now", file);
+        FileUtils.deleteWithConfirm(file);
     }
 
     /**
@@ -376,27 +386,26 @@ public abstract class AbstractCommitLogSegmentManager
         final CommitLogPosition maxCommitLogPosition = segments.get(segments.size() - 1).getCurrentCommitLogPosition();
 
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
-        final Map<UUID, ListenableFuture<?>> flushes = new LinkedHashMap<>();
+        final Map<TableId, ListenableFuture<?>> flushes = new LinkedHashMap<>();
 
         for (CommitLogSegment segment : segments)
         {
-            for (UUID dirtyCFId : segment.getDirtyCFIDs())
+            for (TableId dirtyTableId : segment.getDirtyTableIds())
             {
-                Pair<String,String> pair = Schema.instance.getCF(dirtyCFId);
-                if (pair == null)
+                TableMetadata metadata = Schema.instance.getTableMetadata(dirtyTableId);
+                if (metadata == null)
                 {
                     // even though we remove the schema entry before a final flush when dropping a CF,
                     // it's still possible for a writer to race and finish his append after the flush.
-                    logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
-                    segment.markClean(dirtyCFId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
+                    logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyTableId);
+                    segment.markClean(dirtyTableId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
                 }
-                else if (!flushes.containsKey(dirtyCFId))
+                else if (!flushes.containsKey(dirtyTableId))
                 {
-                    String keyspace = pair.left;
-                    final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
+                    final ColumnFamilyStore cfs = Keyspace.open(metadata.keyspace).getColumnFamilyStore(dirtyTableId);
                     // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
                     // no deadlock possibility since switchLock removal
-                    flushes.put(dirtyCFId, force ? cfs.forceFlush() : cfs.forceFlush(maxCommitLogPosition));
+                    flushes.put(dirtyTableId, force ? cfs.forceFlush() : cfs.forceFlush(maxCommitLogPosition));
                 }
             }
         }
@@ -434,7 +443,8 @@ public abstract class AbstractCommitLogSegmentManager
     /**
      * To be used by tests only. Not safe if mutation slots are being allocated concurrently.
      */
-    void awaitManagementTasksCompletion()
+    @VisibleForTesting
+    public void awaitManagementTasksCompletion()
     {
         if (availableSegment == null && !atSegmentBufferLimit())
         {
@@ -488,8 +498,11 @@ public abstract class AbstractCommitLogSegmentManager
      */
     public void awaitTermination() throws InterruptedException
     {
-        managerThread.join();
-        managerThread = null;
+        if (managerThread != null)
+        {
+            managerThread.join();
+            managerThread = null;
+        }
 
         for (CommitLogSegment segment : activeSegments)
             segment.close();

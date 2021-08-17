@@ -17,15 +17,19 @@
  */
 package org.apache.cassandra.dht;
 
-import java.net.InetAddress;
 import java.util.Collections;
 
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.DefaultConnectionFactory;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -39,6 +43,7 @@ public class StreamStateStoreTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     @Test
@@ -49,9 +54,9 @@ public class StreamStateStoreTest
         Token.TokenFactory factory = p.getTokenFactory();
         Range<Token> range = new Range<>(factory.fromString("0"), factory.fromString("100"));
 
-        InetAddress local = FBUtilities.getBroadcastAddress();
-        StreamSession session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, false);
-        session.addStreamRequest("keyspace1", Collections.singleton(range), Collections.singleton("cf"), 0);
+        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        StreamSession session = new StreamSession(StreamOperation.BOOTSTRAP, local, new DefaultConnectionFactory(), false, 0, null, PreviewKind.NONE);
+        session.addStreamRequest("keyspace1", RangesAtEndpoint.toDummyList(Collections.singleton(range)), RangesAtEndpoint.toDummyList(Collections.emptyList()), Collections.singleton("cf"));
 
         StreamStateStore store = new StreamStateStore();
         // session complete event that is not completed makes data not available for keyspace/ranges
@@ -71,8 +76,8 @@ public class StreamStateStoreTest
 
         // add different range within the same keyspace
         Range<Token> range2 = new Range<>(factory.fromString("100"), factory.fromString("200"));
-        session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, false);
-        session.addStreamRequest("keyspace1", Collections.singleton(range2), Collections.singleton("cf"), 0);
+        session = new StreamSession(StreamOperation.BOOTSTRAP, local, new DefaultConnectionFactory(), false, 0, null, PreviewKind.NONE);
+        session.addStreamRequest("keyspace1", RangesAtEndpoint.toDummyList(Collections.singleton(range2)), RangesAtEndpoint.toDummyList(Collections.emptyList()), Collections.singleton("cf"));
         session.state(StreamSession.State.COMPLETE);
         store.handleStreamEvent(new StreamEvent.SessionCompleteEvent(session));
 

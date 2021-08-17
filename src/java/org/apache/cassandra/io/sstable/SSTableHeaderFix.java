@@ -39,12 +39,8 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -60,7 +56,11 @@ import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
@@ -103,7 +103,7 @@ public abstract class SSTableHeaderFix
                     FBUtilities.getReleaseVersionString());
 
         SSTableHeaderFix instance = SSTableHeaderFix.builder()
-                                                    .schemaCallback(() -> Schema.instance::getCFMetaData)
+                                                    .schemaCallback(() -> Schema.instance::getTableMetadata)
                                                     .build();
         instance.execute();
     }
@@ -116,7 +116,7 @@ public abstract class SSTableHeaderFix
     protected final Consumer<String> warn;
     protected final Consumer<String> error;
     protected final boolean dryRun;
-    protected final Function<Descriptor, CFMetaData> schemaCallback;
+    protected final Function<Descriptor, TableMetadata> schemaCallback;
 
     private final List<Descriptor> descriptors;
 
@@ -161,7 +161,7 @@ public abstract class SSTableHeaderFix
         private Consumer<String> warn = (ln) -> logger.warn("{}", ln);
         private Consumer<String> error = (ln) -> logger.error("{}", ln);
         private boolean dryRun;
-        private Supplier<Function<Descriptor, CFMetaData>> schemaCallback = () -> null;
+        private Supplier<Function<Descriptor, TableMetadata>> schemaCallback = () -> null;
 
         private Builder()
         {}
@@ -218,7 +218,7 @@ public abstract class SSTableHeaderFix
          * Schema callback to retrieve the schema of a table. Production code always delegates to the
          * live schema ({@code Schema.instance}). Unit tests use this method to feed a custom schema.
          */
-        public Builder schemaCallback(Supplier<Function<Descriptor, CFMetaData>> schemaCallback)
+        public Builder schemaCallback(Supplier<Function<Descriptor, TableMetadata>> schemaCallback)
         {
             this.schemaCallback = schemaCallback;
             return this;
@@ -298,10 +298,7 @@ public abstract class SSTableHeaderFix
     {
         Stream.of(path)
               .flatMap(SSTableHeaderFix::maybeExpandDirectory)
-              .filter(p -> {
-                  File f = p.toFile();
-                  return Component.fromFilename(f.getParentFile(), f.getName()).right.type == Component.Type.DATA;
-              })
+              .filter(p -> Descriptor.fromFilenameWithComponent(p.toFile()).right.type == Component.Type.DATA)
               .map(Path::toString)
               .map(Descriptor::fromFilename)
               .forEach(descriptors::add);
@@ -328,7 +325,7 @@ public abstract class SSTableHeaderFix
             return;
         }
 
-        CFMetaData tableMetadata = schemaCallback.apply(desc);
+        TableMetadata tableMetadata = schemaCallback.apply(desc);
         if (tableMetadata == null)
         {
             error("Table %s.%s not found in the schema - NOT checking sstable %s", desc.ksname, desc.cfname, desc);
@@ -364,8 +361,8 @@ public abstract class SSTableHeaderFix
         List<AbstractType<?>> clusteringTypes = validateClusteringColumns(desc, tableMetadata, header);
 
         // check static and regular columns
-        Map<ByteBuffer, AbstractType<?>> staticColumns = validateColumns(desc, tableMetadata, header.getStaticColumns(), ColumnDefinition.Kind.STATIC);
-        Map<ByteBuffer, AbstractType<?>> regularColumns = validateColumns(desc, tableMetadata, header.getRegularColumns(), ColumnDefinition.Kind.REGULAR);
+        Map<ByteBuffer, AbstractType<?>> staticColumns = validateColumns(desc, tableMetadata, header.getStaticColumns(), ColumnMetadata.Kind.STATIC);
+        Map<ByteBuffer, AbstractType<?>> regularColumns = validateColumns(desc, tableMetadata, header.getRegularColumns(), ColumnMetadata.Kind.REGULAR);
 
         SerializationHeader.Component newHeader = SerializationHeader.Component.buildComponentForTools(keyType,
                                                                                                        clusteringTypes,
@@ -383,11 +380,11 @@ public abstract class SSTableHeaderFix
         updates.add(Pair.create(desc, newMetadata));
     }
 
-    private AbstractType<?> validatePartitionKey(Descriptor desc, CFMetaData tableMetadata, SerializationHeader.Component header)
+    private AbstractType<?> validatePartitionKey(Descriptor desc, TableMetadata tableMetadata, SerializationHeader.Component header)
     {
         boolean keyMismatch = false;
         AbstractType<?> headerKeyType = header.getKeyType();
-        AbstractType<?> schemaKeyType = tableMetadata.getKeyValidator();
+        AbstractType<?> schemaKeyType = tableMetadata.partitionKeyType;
         boolean headerKeyComposite = headerKeyType instanceof CompositeType;
         boolean schemaKeyComposite = schemaKeyType instanceof CompositeType;
         if (headerKeyComposite != schemaKeyComposite)
@@ -452,12 +449,12 @@ public abstract class SSTableHeaderFix
         return headerKeyType;
     }
 
-    private List<AbstractType<?>> validateClusteringColumns(Descriptor desc, CFMetaData tableMetadata, SerializationHeader.Component header)
+    private List<AbstractType<?>> validateClusteringColumns(Descriptor desc, TableMetadata tableMetadata, SerializationHeader.Component header)
     {
         List<AbstractType<?>> headerClusteringTypes = header.getClusteringTypes();
         List<AbstractType<?>> clusteringTypes = new ArrayList<>();
         boolean clusteringMismatch = false;
-        List<ColumnDefinition> schemaClustering = tableMetadata.clusteringColumns();
+        List<ColumnMetadata> schemaClustering = tableMetadata.clusteringColumns();
         if (schemaClustering.size() != headerClusteringTypes.size())
         {
             clusteringMismatch = true;
@@ -470,7 +467,7 @@ public abstract class SSTableHeaderFix
             for (int i = 0; i < headerClusteringTypes.size(); i++)
             {
                 AbstractType<?> headerType = headerClusteringTypes.get(i);
-                ColumnDefinition column = schemaClustering.get(i);
+                ColumnMetadata column = schemaClustering.get(i);
                 AbstractType<?> schemaType = column.type;
                 AbstractType<?> fixedType = fixType(desc, column.name.bytes, headerType, schemaType, false);
                 if (fixedType == null)
@@ -488,7 +485,7 @@ public abstract class SSTableHeaderFix
         return clusteringTypes;
     }
 
-    private Map<ByteBuffer, AbstractType<?>> validateColumns(Descriptor desc, CFMetaData tableMetadata, Map<ByteBuffer, AbstractType<?>> columns, ColumnDefinition.Kind kind)
+    private Map<ByteBuffer, AbstractType<?>> validateColumns(Descriptor desc, TableMetadata tableMetadata, Map<ByteBuffer, AbstractType<?>> columns, ColumnMetadata.Kind kind)
     {
         Map<ByteBuffer, AbstractType<?>> target = new LinkedHashMap<>();
         for (Map.Entry<ByteBuffer, AbstractType<?>> nameAndType : columns.entrySet())
@@ -512,29 +509,29 @@ public abstract class SSTableHeaderFix
         return target;
     }
 
-    private AbstractType<?> validateColumn(Descriptor desc, CFMetaData tableMetadata, ColumnDefinition.Kind kind, ByteBuffer name, AbstractType<?> type)
+    private AbstractType<?> validateColumn(Descriptor desc, TableMetadata tableMetadata, ColumnMetadata.Kind kind, ByteBuffer name, AbstractType<?> type)
     {
-        ColumnDefinition cd = tableMetadata.getColumnDefinition(name);
+        ColumnMetadata cd = tableMetadata.getColumn(name);
         if (cd == null)
         {
             // In case the column was dropped, there is not much that we can actually validate.
             // The column could have been recreated using the same or a different kind or the same or
             // a different type. Lottery...
 
-            cd = tableMetadata.getDroppedColumnDefinition(name, kind == ColumnDefinition.Kind.STATIC);
+            cd = tableMetadata.getDroppedColumn(name, kind == ColumnMetadata.Kind.STATIC);
             if (cd == null)
             {
-                for (IndexMetadata indexMetadata : tableMetadata.getIndexes())
+                for (IndexMetadata indexMetadata : tableMetadata.indexes)
                 {
                     String target = indexMetadata.options.get(IndexTarget.TARGET_OPTION_NAME);
                     if (target != null && ByteBufferUtil.bytes(target).equals(name))
                     {
                         warn.accept(String.format("sstable %s: contains column '%s', which is not a column in the table '%s.%s', but a target for that table's index '%s'",
-                                                  desc,
-                                                  logColumnName(name),
-                                                  tableMetadata.ksName,
-                                                  tableMetadata.cfName,
-                                                  indexMetadata.name));
+                                desc,
+                                logColumnName(name),
+                                tableMetadata.keyspace,
+                                tableMetadata.name,
+                                indexMetadata.name));
                         return type;
                     }
                 }

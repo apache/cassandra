@@ -17,12 +17,9 @@
  */
 package org.apache.cassandra.locator;
 
-
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
 public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
@@ -34,22 +31,22 @@ public class EndpointSnitchInfo implements EndpointSnitchInfoMBean
 
     public String getDatacenter(String host) throws UnknownHostException
     {
-        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(InetAddress.getByName(host));
+        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(InetAddressAndPort.getByName(host));
     }
 
     public String getRack(String host) throws UnknownHostException
     {
-        return DatabaseDescriptor.getEndpointSnitch().getRack(InetAddress.getByName(host));
+        return DatabaseDescriptor.getEndpointSnitch().getRack(InetAddressAndPort.getByName(host));
     }
 
     public String getDatacenter()
     {
-        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+        return DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
     }
 
     public String getRack()
     {
-        return DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
+        return DatabaseDescriptor.getEndpointSnitch().getLocalRack();
     }
 
     public String getSnitchName()

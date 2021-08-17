@@ -184,6 +184,9 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
              * The first int tells us if it's a range or bounds (depending on the value) _and_ if it's tokens or keys (depending on the
              * sign). We use negative kind for keys so as to preserve the serialization of token from older version.
              */
+            // !WARNING! While we don't support the pre-3.0 messaging protocol, we serialize the token range in the
+            // system table (see SystemKeypsace.rangeToBytes) using the old/pre-3.0 format and until we deal with that
+            // problem, we have to preserve this code.
             if (version < MessagingService.VERSION_30)
                 out.writeInt(kindInt(range));
             else
@@ -195,6 +198,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
         public AbstractBounds<T> deserialize(DataInput in, IPartitioner p, int version) throws IOException
         {
             boolean isToken, startInclusive, endInclusive;
+            // !WARNING! See serialize method above for why we still need to have that condition.
             if (version < MessagingService.VERSION_30)
             {
                 int kind = in.readInt();
@@ -226,6 +230,7 @@ public abstract class AbstractBounds<T extends RingPosition<T>> implements Seria
 
         public long serializedSize(AbstractBounds<T> ab, int version)
         {
+            // !WARNING! See serialize method above for why we still need to have that condition.
             int size = version < MessagingService.VERSION_30
                      ? TypeSizes.sizeof(kindInt(ab))
                      : 1;

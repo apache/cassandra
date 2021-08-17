@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Random;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_EGD;
+
 public class GuidGenerator
 {
     private static final Random myRand;
@@ -29,7 +31,7 @@ public class GuidGenerator
 
     static
     {
-        if (System.getProperty("java.security.egd") == null)
+        if (!JAVA_SECURITY_EGD.isPresent())
         {
             System.setProperty("java.security.egd", "file:/dev/urandom");
         }
@@ -37,7 +39,7 @@ public class GuidGenerator
         long secureInitializer = mySecureRand.nextLong();
         myRand = new Random(secureInitializer);
         try {
-            s_id = FBUtilities.getLocalAddress().toString();
+            s_id = FBUtilities.getLocalAddressAndPort().toString();
         }
         catch (RuntimeException e) {
             throw new AssertionError(e);
@@ -83,7 +85,7 @@ public class GuidGenerator
                         .append(Long.toString(rand));
 
         String valueBeforeMD5 = sbValueBeforeMD5.toString();
-        return ByteBuffer.wrap(FBUtilities.threadLocalMD5Digest().digest(valueBeforeMD5.getBytes()));
+        return ByteBuffer.wrap(MD5Digest.threadLocalMD5Digest().digest(valueBeforeMD5.getBytes()));
     }
 
     public static ByteBuffer guidAsBytes()

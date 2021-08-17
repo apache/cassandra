@@ -28,7 +28,7 @@ public class DistinctQueryPagingTest extends CQLTester
     @Test
     public void testSelectDistinct() throws Throwable
     {
-        // Test a regular(CQL3) table.
+        // Test a regular (CQL3) table.
         createTable("CREATE TABLE %s (pk0 int, pk1 int, ck0 int, val int, PRIMARY KEY((pk0, pk1), ck0))");
 
         for (int i = 0; i < 3; i++)
@@ -48,37 +48,6 @@ public class DistinctQueryPagingTest extends CQLTester
         // Test selection validation.
         assertInvalidMessage("queries must request all the partition key columns", "SELECT DISTINCT pk0 FROM %s");
         assertInvalidMessage("queries must only request partition key columns", "SELECT DISTINCT pk0, pk1, ck0 FROM %s");
-
-        //Test a 'compact storage' table.
-        createTable("CREATE TABLE %s (pk0 int, pk1 int, val int, PRIMARY KEY((pk0, pk1))) WITH COMPACT STORAGE");
-
-        for (int i = 0; i < 3; i++)
-            execute("INSERT INTO %s (pk0, pk1, val) VALUES (?, ?, ?)", i, i, i);
-
-        assertRows(execute("SELECT DISTINCT pk0, pk1 FROM %s LIMIT 1"),
-                   row(0, 0));
-
-        assertRows(execute("SELECT DISTINCT pk0, pk1 FROM %s LIMIT 3"),
-                   row(0, 0),
-                   row(2, 2),
-                   row(1, 1));
-
-        // Test a 'wide row' thrift table.
-        createTable("CREATE TABLE %s (pk int, name text, val int, PRIMARY KEY(pk, name)) WITH COMPACT STORAGE");
-
-        for (int i = 0; i < 3; i++)
-        {
-            execute("INSERT INTO %s (pk, name, val) VALUES (?, 'name0', 0)", i);
-            execute("INSERT INTO %s (pk, name, val) VALUES (?, 'name1', 1)", i);
-        }
-
-        assertRows(execute("SELECT DISTINCT pk FROM %s LIMIT 1"),
-                   row(1));
-
-        assertRows(execute("SELECT DISTINCT pk FROM %s LIMIT 3"),
-                   row(1),
-                   row(0),
-                   row(2));
     }
 
     /**

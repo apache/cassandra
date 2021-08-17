@@ -26,7 +26,7 @@ import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.FrameCompressor;
+import org.apache.cassandra.transport.Compressor;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -57,13 +57,14 @@ public class OptionsMessage extends Message.Request
         super(Message.Type.OPTIONS);
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         List<String> cqlVersions = new ArrayList<String>();
         cqlVersions.add(QueryProcessor.CQL_VERSION.toString());
 
         List<String> compressions = new ArrayList<String>();
-        if (FrameCompressor.SnappyCompressor.instance != null)
+        if (Compressor.SnappyCompressor.instance != null)
             compressions.add("snappy");
         // LZ4 is always available since worst case scenario it default to a pure JAVA implem.
         compressions.add("lz4");

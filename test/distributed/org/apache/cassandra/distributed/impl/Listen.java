@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.LockSupport;
-import java.util.function.Supplier;
+import java.util.function.Consumer;
 
+import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.distributed.api.IListen;
+import org.apache.cassandra.gms.GossiperEvent;
+import org.apache.cassandra.schema.SchemaEvent;
 
 public class Listen implements IListen
 {
@@ -36,31 +36,15 @@ public class Listen implements IListen
 
     public Cancel schema(Runnable onChange)
     {
-        return start(onChange, instance::schemaVersion);
+        Consumer<SchemaEvent> consumer = event -> onChange.run();
+        DiagnosticEventService.instance().subscribe(SchemaEvent.class, SchemaEvent.SchemaEventType.VERSION_UPDATED, consumer);
+        return () -> DiagnosticEventService.instance().unsubscribe(SchemaEvent.class, consumer);
     }
 
     public Cancel liveMembers(Runnable onChange)
     {
-        return start(onChange, instance::liveMemberCount);
-    }
-
-    protected <T> Cancel start(Runnable onChange, Supplier<T> valueSupplier) {
-        AtomicBoolean cancel = new AtomicBoolean(false);
-        instance.isolatedExecutor.execute(() -> {
-            T prev = valueSupplier.get();
-            while (true)
-            {
-                if (cancel.get())
-                    return;
-
-                LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(10L));
-
-                T cur = valueSupplier.get();
-                if (!prev.equals(cur))
-                    onChange.run();
-                prev = cur;
-            }
-        });
-        return () -> cancel.set(true);
+        Consumer<GossiperEvent> consumer = event -> onChange.run();
+        DiagnosticEventService.instance().subscribe(GossiperEvent.class, GossiperEvent.GossiperEventType.REAL_MARKED_ALIVE, consumer);
+        return () -> DiagnosticEventService.instance().unsubscribe(GossiperEvent.class, consumer);
     }
 }

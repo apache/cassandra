@@ -20,10 +20,11 @@ package org.apache.cassandra.transport.messages;
 import java.nio.ByteBuffer;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
-import org.apache.cassandra.metrics.AuthMetrics;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 
@@ -68,7 +69,7 @@ public class AuthResponse extends Message.Request
     }
 
     @Override
-    public Response execute(QueryState queryState, long queryStartNanoTime)
+    protected Response execute(QueryState queryState, long queryStartNanoTime, boolean traceRequest)
     {
         try
         {
@@ -78,7 +79,8 @@ public class AuthResponse extends Message.Request
             {
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
-                AuthMetrics.instance.markSuccess();
+                ClientMetrics.instance.markAuthSuccess();
+                AuthEvents.instance.notifyAuthSuccess(queryState);
                 // authentication is complete, send a ready message to the client
                 return new AuthSuccess(challenge);
             }
@@ -89,7 +91,8 @@ public class AuthResponse extends Message.Request
         }
         catch (AuthenticationException e)
         {
-            AuthMetrics.instance.markFailure();
+            ClientMetrics.instance.markAuthFailure();
+            AuthEvents.instance.notifyAuthFailure(queryState, e);
             return ErrorMessage.fromException(e);
         }
     }

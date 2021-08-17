@@ -32,7 +32,6 @@ import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -67,6 +66,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
     private final List<SSTableWriter> writers = new ArrayList<>();
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
+    private final boolean eagerWriterMetaRelease; // true if the writer metadata should be released when switch is called
 
     private SSTableWriter writer;
     private Map<DecoratedKey, RowIndexEntry> cachedKeys = new HashMap<>();
@@ -75,49 +75,38 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private boolean throwEarly, throwLate;
 
     @Deprecated
-    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline)
+    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
-        this(transaction, maxAge, isOffline, true);
-    }
-    @Deprecated
-    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
-    {
-        this(transaction, maxAge, calculateOpenInterval(shouldOpenEarly), false);
+        this(transaction, maxAge, preemptiveOpenInterval, keepOriginals, false);
     }
 
-    @VisibleForTesting
-    public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
+    SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals, boolean eagerWriterMetaRelease)
     {
         this.transaction = transaction;
         this.maxAge = maxAge;
-        this.keepOriginals = keepOriginals;
         this.preemptiveOpenInterval = preemptiveOpenInterval;
-    }
-
-    @Deprecated
-    public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean isOffline)
-    {
-        return constructKeepingOriginals(transaction, keepOriginals, maxAge);
+        this.keepOriginals = keepOriginals;
+        this.eagerWriterMetaRelease = eagerWriterMetaRelease;
     }
 
     public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals, true);
     }
 
     public static SSTableRewriter constructWithoutEarlyOpening(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals, true);
     }
 
     public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals, true);
     }
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
     {
-        long interval = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() * (1L << 20);
+        long interval = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMB() * (1L << 20);
         if (disableEarlyOpeningForTests || !shouldOpenEarly || interval < 0)
             interval = Long.MAX_VALUE;
         return interval;
@@ -134,14 +123,17 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         DecoratedKey key = partition.partitionKey();
         maybeReopenEarly(key);
         RowIndexEntry index = writer.append(partition);
-        if (!transaction.isOffline() && index != null)
+        if (DatabaseDescriptor.shouldMigrateKeycacheOnCompaction())
         {
-            for (SSTableReader reader : transaction.originals())
+            if (!transaction.isOffline() && index != null)
             {
-                if (reader.getCachedPosition(key, false) != null)
+                for (SSTableReader reader : transaction.originals())
                 {
-                    cachedKeys.put(key, index);
-                    break;
+                    if (reader.getCachedPosition(key, false) != null)
+                    {
+                        cachedKeys.put(key, index);
+                        break;
+                    }
                 }
             }
         }
@@ -223,9 +215,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
      */
     private void moveStarts(SSTableReader newReader, DecoratedKey lowerbound)
     {
-        if (transaction.isOffline())
-            return;
-        if (preemptiveOpenInterval == Long.MAX_VALUE)
+        if (transaction.isOffline() || preemptiveOpenInterval == Long.MAX_VALUE)
             return;
 
         newReader.setupOnline();
@@ -302,6 +292,9 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     {
         if (newWriter != null)
             writers.add(newWriter.setMaxDataAge(maxAge));
+
+        if (eagerWriterMetaRelease && writer != null)
+            writer.releaseMetadataOverhead();
 
         if (writer == null || writer.getFilePointer() == 0)
         {

@@ -33,6 +33,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeAwareSSTableWriter implements SSTableMultiWriter
@@ -42,6 +43,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final int sstableLevel;
     private final long estimatedKeys;
     private final long repairedAt;
+    private final UUID pendingRepair;
+    private final boolean isTransient;
     private final SSTableFormat.Type format;
     private final SerializationHeader header;
     private final LifecycleNewTracker lifecycleNewTracker;
@@ -51,7 +54,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final List<SSTableReader> finishedReaders = new ArrayList<>();
     private SSTableMultiWriter currentWriter = null;
 
-    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, SSTableFormat.Type format, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
+    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, UUID pendingRepair, boolean isTransient, SSTableFormat.Type format, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
     {
         DiskBoundaries db = cfs.getDiskBoundaries();
         directories = db.directories;
@@ -59,6 +62,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         this.cfs = cfs;
         this.estimatedKeys = estimatedKeys / directories.size();
         this.repairedAt = repairedAt;
+        this.pendingRepair = pendingRepair;
+        this.isTransient = isTransient;
         this.format = format;
         this.lifecycleNewTracker = lifecycleNewTracker;
         this.header = header;
@@ -69,8 +74,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
             if (localDir == null)
                 throw new IOException(String.format("Insufficient disk space to store %s",
                                                     FBUtilities.prettyPrintMemory(totalSize)));
-            Descriptor desc = Descriptor.fromFilename(cfs.getSSTablePath(cfs.getDirectories().getLocationForDisk(localDir), format));
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, sstableLevel, header, lifecycleNewTracker);
+            Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(localDir), format);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, sstableLevel, header, lifecycleNewTracker);
         }
     }
 
@@ -91,8 +96,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
             if (currentWriter != null)
                 finishedWriters.add(currentWriter);
 
-            Descriptor desc = Descriptor.fromFilename(cfs.getSSTablePath(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex))), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, sstableLevel, header, lifecycleNewTracker);
+            Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, sstableLevel, header, lifecycleNewTracker);
         }
     }
 
@@ -160,9 +165,9 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     }
 
     @Override
-    public UUID getCfId()
+    public TableId getTableId()
     {
-        return currentWriter.getCfId();
+        return currentWriter.getTableId();
     }
 
     @Override

@@ -30,9 +30,8 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 
-class ReservedKeywords
+public final class ReservedKeywords
 {
-
     private static final String FILE_NAME = "reserved_keywords.txt";
 
     @VisibleForTesting
@@ -57,7 +56,7 @@ class ReservedKeywords
         return builder.build();
     }
 
-    static boolean isReserved(String text)
+    public static boolean isReserved(String text)
     {
         return reservedKeywords.contains(text.toUpperCase());
     }

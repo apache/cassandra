@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.auth;
 
-import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
 
 import org.junit.Test;
 
@@ -27,6 +28,9 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.UnavailableException;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class AuthCacheTest
 {
@@ -110,12 +114,79 @@ public class AuthCacheTest
         assertEquals(2, loadCounter);
     }
 
+    @Test
+    public void testCacheLoaderIsCalledAfterReset()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+
+        authCache.cache = null;
+        int result = authCache.get("10");
+
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testThatZeroValidityTurnOffCaching()
+    {
+        setValidity(0);
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+        authCache.get("10");
+        int result = authCache.get("10");
+
+        assertNull(authCache.cache);
+        assertEquals(10, result);
+        assertEquals(2, loadCounter);
+    }
+
+    @Test
+    public void testThatRaisingValidityTurnOnCaching()
+    {
+        setValidity(0);
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        authCache.setValidity(2000);
+        authCache.cache = authCache.initCache(null);
+
+        assertNotNull(authCache.cache);
+    }
+
+    @Test
+    public void testDisableCache()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        assertNull(authCache.cache);
+    }
+
+    @Test
+    public void testDynamicallyEnableCache()
+    {
+        isCacheEnabled = false;
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        isCacheEnabled = true;
+        authCache.cache = authCache.initCache(null);
+
+        assertNotNull(authCache.cache);
+    }
+
+    @Test
+    public void testDefaultPolicies()
+    {
+        TestCache<String, Integer> authCache = new TestCache<>(this::countingLoader, this::setValidity, () -> validity, () -> isCacheEnabled);
+
+        assertTrue(authCache.cache.policy().expireAfterWrite().isPresent());
+        assertTrue(authCache.cache.policy().refreshAfterWrite().isPresent());
+        assertTrue(authCache.cache.policy().eviction().isPresent());
+    }
+
     @Test(expected = UnavailableException.class)
     public void testCassandraExceptionPassThroughWhenCacheEnabled()
     {
-        TestCache<String, Integer> cache = new TestCache<>(s -> {
-            throw new UnavailableException(ConsistencyLevel.QUORUM, 3, 1);
-        }, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache<String, Integer> cache = new TestCache<>(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); }, this::setValidity, () -> validity, () -> isCacheEnabled);
 
         cache.get("expect-exception");
     }
@@ -124,9 +195,7 @@ public class AuthCacheTest
     public void testCassandraExceptionPassThroughWhenCacheDisable()
     {
         isCacheEnabled = false;
-        TestCache<String, Integer> cache = new TestCache<>(s -> {
-            throw new UnavailableException(ConsistencyLevel.QUORUM, 3, 1);
-        }, this::setValidity, () -> validity, () -> isCacheEnabled);
+        TestCache<String, Integer> cache = new TestCache<>(s -> { throw UnavailableException.create(ConsistencyLevel.QUORUM, 3, 1); }, this::setValidity, () -> validity, () -> isCacheEnabled);
 
         cache.get("expect-exception");
     }
@@ -146,16 +215,14 @@ public class AuthCacheTest
     {
         private static int nameCounter = 0; // Allow us to create many instances of cache with same name prefix
 
-        TestCache(Function<K, V> loadFunction, Consumer<Integer> setValidityDelegate, Supplier<Integer> getValidityDelegate, Supplier<Boolean> cacheEnabledDelegate)
+        TestCache(Function<K, V> loadFunction, IntConsumer setValidityDelegate, IntSupplier getValidityDelegate, BooleanSupplier cacheEnabledDelegate)
         {
             super("TestCache" + nameCounter++,
                   setValidityDelegate,
                   getValidityDelegate,
-                  (updateInterval) -> {
-                  },
+                  (updateInterval) -> {},
                   () -> 1000,
-                  (maxEntries) -> {
-                  },
+                  (maxEntries) -> {},
                   () -> 10,
                   loadFunction,
                   cacheEnabledDelegate);

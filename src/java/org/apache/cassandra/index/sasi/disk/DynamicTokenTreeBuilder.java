@@ -23,7 +23,7 @@ import java.util.*;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
 
-import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.cursors.LongCursor;
 
@@ -49,7 +49,7 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
     {
         LongSet found = tokens.get(token);
         if (found == null)
-            tokens.put(token, (found = new LongOpenHashSet(2)));
+            tokens.put(token, (found = new LongHashSet(2)));
 
         found.add(keyPosition);
     }
@@ -70,7 +70,7 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
         {
             LongSet found = tokens.get(newEntry.getKey());
             if (found == null)
-                tokens.put(newEntry.getKey(), (found = new LongOpenHashSet(4)));
+                tokens.put(newEntry.getKey(), (found = new LongHashSet(4)));
 
             for (LongCursor offset : newEntry.getValue())
                 found.add(offset.value);

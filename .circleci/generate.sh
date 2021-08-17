@@ -30,7 +30,7 @@ circleci config process $BASEDIR/config-2_1.yml.MIDRES > $BASEDIR/config.yml.MID
 cat $BASEDIR/license.yml $BASEDIR/config.yml.MIDRES.tmp > $BASEDIR/config.yml.MIDRES
 rm $BASEDIR/config-2_1.yml.MIDRES $BASEDIR/config.yml.MIDRES.tmp
 
-# setup highres
+# setup higher
 patch -o $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config-2_1.yml $BASEDIR/config-2_1.yml.high_res.patch
 circleci config process $BASEDIR/config-2_1.yml.HIGHRES > $BASEDIR/config.yml.HIGHRES.tmp
 cat $BASEDIR/license.yml $BASEDIR/config.yml.HIGHRES.tmp > $BASEDIR/config.yml.HIGHRES
@@ -38,4 +38,3 @@ rm $BASEDIR/config-2_1.yml.HIGHRES $BASEDIR/config.yml.HIGHRES.tmp
 
 # copy lower into config.yml to make sure this gets updated
 cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
-

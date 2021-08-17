@@ -25,8 +25,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
@@ -45,13 +46,14 @@ import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
-import junit.framework.Assert;
+import org.junit.Assert;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -62,6 +64,7 @@ public class SSTableFlushObserverTest
     public static void initDD()
     {
         DatabaseDescriptor.daemonInitialization();
+        CommitLog.instance.start();
     }
 
     private static final String KS_NAME = "test";
@@ -70,12 +73,13 @@ public class SSTableFlushObserverTest
     @Test
     public void testFlushObserver()
     {
-        CFMetaData cfm = CFMetaData.Builder.create(KS_NAME, CF_NAME)
-                                           .addPartitionKey("id", UTF8Type.instance)
-                                           .addRegularColumn("first_name", UTF8Type.instance)
-                                           .addRegularColumn("age", Int32Type.instance)
-                                           .addRegularColumn("height", LongType.instance)
-                                           .build();
+        TableMetadata cfm =
+            TableMetadata.builder(KS_NAME, CF_NAME)
+                         .addPartitionKeyColumn("id", UTF8Type.instance)
+                         .addRegularColumn("first_name", UTF8Type.instance)
+                         .addRegularColumn("age", Int32Type.instance)
+                         .addRegularColumn("height", LongType.instance)
+                         .build();
 
         LifecycleTransaction transaction = LifecycleTransaction.offline(OperationType.COMPACTION);
         FlushObserver observer = new FlushObserver();
@@ -89,19 +93,19 @@ public class SSTableFlushObserverTest
 
         SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
 
-        BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion().version,
+        BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion(),
                                                                   directory,
                                                                   KS_NAME, CF_NAME,
                                                                   0,
                                                                   sstableFormat),
-                                                   10L, 0L, cfm,
+                                                   10L, 0L, null, false, TableMetadataRef.forOfflineTools(cfm),
                                                    new MetadataCollector(cfm.comparator).sstableLevel(0),
-                                                   new SerializationHeader(true, cfm, cfm.partitionColumns(), EncodingStats.NO_STATS),
+                                                   new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS),
                                                    Collections.singletonList(observer),
                                                    transaction);
 
         SSTableReader reader = null;
-        Multimap<ByteBuffer, Cell> expected = ArrayListMultimap.create();
+        Multimap<ByteBuffer, Cell<?>> expected = ArrayListMultimap.create();
 
         try
         {
@@ -161,12 +165,12 @@ public class SSTableFlushObserverTest
     {
         private final Iterator<Unfiltered> rows;
 
-        public RowIterator(CFMetaData cfm, ByteBuffer key, Collection<Unfiltered> content)
+        public RowIterator(TableMetadata cfm, ByteBuffer key, Collection<Unfiltered> content)
         {
             super(cfm,
                   DatabaseDescriptor.getPartitioner().decorateKey(key),
                   DeletionTime.LIVE,
-                  cfm.partitionColumns(),
+                  cfm.regularAndStaticColumns(),
                   BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING),
                   false,
                   EncodingStats.NO_STATS);
@@ -183,7 +187,7 @@ public class SSTableFlushObserverTest
 
     private static class FlushObserver implements SSTableFlushObserver
     {
-        private final Multimap<Pair<ByteBuffer, Long>, Cell> rows = ArrayListMultimap.create();
+        private final Multimap<Pair<ByteBuffer, Long>, Cell<?>> rows = ArrayListMultimap.create();
         private Pair<ByteBuffer, Long> currentKey;
         private boolean isComplete;
 
@@ -201,7 +205,7 @@ public class SSTableFlushObserverTest
         public void nextUnfilteredCluster(Unfiltered row)
         {
             if (row.isRow())
-                ((Row) row).forEach((c) -> rows.put(currentKey, (Cell) c));
+                ((Row) row).forEach((c) -> rows.put(currentKey, (Cell<?>) c));
         }
 
         @Override
@@ -211,7 +215,7 @@ public class SSTableFlushObserverTest
         }
     }
 
-    private static Row buildRow(Collection<Cell> cells)
+    private static Row buildRow(Collection<Cell<?>> cells)
     {
         Row.Builder rowBuilder = BTreeRow.sortedBuilder();
         rowBuilder.newRow(Clustering.EMPTY);
@@ -219,8 +223,8 @@ public class SSTableFlushObserverTest
         return rowBuilder.build();
     }
 
-    private static ColumnDefinition getColumn(CFMetaData cfm, String name)
+    private static ColumnMetadata getColumn(TableMetadata cfm, String name)
     {
-        return cfm.getColumnDefinition(UTF8Type.instance.fromString(name));
+        return cfm.getColumn(UTF8Type.instance.fromString(name));
     }
 }

@@ -75,7 +75,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Apache Cassandra'
-copyright = u'2016, The Apache Cassandra team'
+copyright = u'2020, The Apache Cassandra team'
 author = u'The Apache Cassandra team'
 
 # The version info for the project you're documenting, acts as replacement for

@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -62,7 +63,17 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
     public void gossiperStarting()
     {
         super.gossiperStarting();
-        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(localPrivateAddress));
+        InetAddressAndPort address;
+        try
+        {
+            address = InetAddressAndPort.getByName(localPrivateAddress);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT, StorageService.instance.valueFactory.internalAddressAndPort(address));
+        Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(address.address));
         Gossiper.instance.register(new ReconnectableSnitchHelper(this, ec2region, true));
     }
 }

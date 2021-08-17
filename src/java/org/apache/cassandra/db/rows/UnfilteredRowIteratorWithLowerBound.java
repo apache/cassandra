@@ -25,7 +25,8 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -34,7 +35,6 @@ import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.utils.IteratorWithLowerBound;
 
 /**
@@ -50,29 +50,20 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     private final SSTableReader sstable;
     private final ClusteringIndexFilter filter;
     private final ColumnFilter selectedColumns;
-    private final boolean isForThrift;
-    private final int nowInSec;
-    private final boolean applyThriftTransformation;
     private final SSTableReadsListener listener;
-    private ClusteringBound lowerBound;
+    private ClusteringBound<?> lowerBound;
     private boolean firstItemRetrieved;
 
     public UnfilteredRowIteratorWithLowerBound(DecoratedKey partitionKey,
                                                SSTableReader sstable,
                                                ClusteringIndexFilter filter,
                                                ColumnFilter selectedColumns,
-                                               boolean isForThrift,
-                                               int nowInSec,
-                                               boolean applyThriftTransformation,
                                                SSTableReadsListener listener)
     {
         super(partitionKey);
         this.sstable = sstable;
         this.filter = filter;
         this.selectedColumns = selectedColumns;
-        this.isForThrift = isForThrift;
-        this.nowInSec = nowInSec;
-        this.applyThriftTransformation = applyThriftTransformation;
         this.listener = listener;
         this.lowerBound = null;
         this.firstItemRetrieved = false;
@@ -86,11 +77,11 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         // The partition index lower bound is more accurate than the sstable metadata lower bound but it is only
         // present if the iterator has already been initialized, which we only do when there are tombstones since in
         // this case we cannot use the sstable metadata clustering values
-        ClusteringBound ret = getPartitionIndexLowerBound();
+        ClusteringBound<?> ret = getPartitionIndexLowerBound();
         return ret != null ? makeBound(ret) : makeBound(getMetadataLowerBound());
     }
 
-    private Unfiltered makeBound(ClusteringBound bound)
+    private Unfiltered makeBound(ClusteringBound<?> bound)
     {
         if (bound == null)
             return null;
@@ -105,12 +96,12 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     protected UnfilteredRowIterator initializeIterator()
     {
         @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-        UnfilteredRowIterator iter = sstable.iterator(partitionKey(), filter.getSlices(metadata()), selectedColumns, filter.isReversed(), isForThrift, listener);
-
-        if (isForThrift && applyThriftTransformation)
-            iter = ThriftResultsMerger.maybeWrap(iter, nowInSec);
-
-        return RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false);
+        UnfilteredRowIterator iter = RTBoundValidator.validate(
+            sstable.iterator(partitionKey(), filter.getSlices(metadata()), selectedColumns, filter.isReversed(), listener),
+            RTBoundValidator.Stage.SSTABLE,
+            false
+        );
+        return iter;
     }
 
     @Override
@@ -125,8 +116,8 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         if (lowerBound != null && ret != null)
             assert comparator().compare(lowerBound, ret.clustering()) <= 0
                 : String.format("Lower bound [%s ]is bigger than first returned value [%s] for sstable %s",
-                                lowerBound.toString(sstable.metadata),
-                                ret.toString(sstable.metadata),
+                                lowerBound.toString(metadata()),
+                                ret.toString(metadata()),
                                 sstable.getFilename());
 
         return ret;
@@ -134,13 +125,13 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
 
     private Comparator<Clusterable> comparator()
     {
-        return filter.isReversed() ? sstable.metadata.comparator.reversed() : sstable.metadata.comparator;
+        return filter.isReversed() ? metadata().comparator.reversed() : metadata().comparator;
     }
 
     @Override
-    public CFMetaData metadata()
+    public TableMetadata metadata()
     {
-        return sstable.metadata;
+        return sstable.metadata();
     }
 
     @Override
@@ -150,7 +141,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     }
 
     @Override
-    public PartitionColumns columns()
+    public RegularAndStaticColumns columns()
     {
         return selectedColumns.fetchedColumns();
     }
@@ -179,10 +170,15 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         return super.staticRow();
     }
 
+    private static <V> ClusteringBound<V> createInclusiveOpen(boolean isReversed, ClusteringPrefix<V> from)
+    {
+        return from.accessor().factory().inclusiveOpen(isReversed, from.getRawValues());
+    }
+
     /**
      * @return the lower bound stored on the index entry for this partition, if available.
      */
-    private ClusteringBound getPartitionIndexLowerBound()
+    private ClusteringBound<?> getPartitionIndexLowerBound()
     {
         // NOTE: CASSANDRA-11206 removed the lookup against the key-cache as the IndexInfo objects are no longer
         // in memory for not heap backed IndexInfo objects (so, these are on disk).
@@ -200,13 +196,13 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
         {
             IndexInfo column = onHeapRetriever.columnsIndex(filter.isReversed() ? rowIndexEntry.columnsIndexCount() - 1 : 0);
-            ClusteringPrefix lowerBoundPrefix = filter.isReversed() ? column.lastName : column.firstName;
-            assert lowerBoundPrefix.getRawValues().length <= sstable.metadata.comparator.size() :
+            ClusteringPrefix<?> lowerBoundPrefix = filter.isReversed() ? column.lastName : column.firstName;
+            assert lowerBoundPrefix.getRawValues().length <= metadata().comparator.size() :
             String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
                           lowerBoundPrefix.getRawValues().length,
-                          sstable.metadata.comparator.size(),
+                          metadata().comparator.size(),
                           sstable.getFilename());
-            return ClusteringBound.inclusiveOpen(filter.isReversed(), lowerBoundPrefix.getRawValues());
+            return createInclusiveOpen(filter.isReversed(), lowerBoundPrefix);
         }
         catch (IOException e)
         {
@@ -242,25 +238,25 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         // Side-note: pre-2.1 sstable stat file had clustering value arrays whose size may not match the comparator size
         // and that would break getMetadataLowerBound. We don't support upgrade from 2.0 to 3.0 directly however so it's
         // not a true concern. Besides, !sstable.mayHaveTombstones already ensure this is a 3.0 sstable anyway.
-        return !sstable.mayHaveTombstones() && !sstable.metadata.isCompactTable();
+        return !sstable.mayHaveTombstones() && !sstable.metadata().isCompactTable();
     }
 
     /**
      * @return a global lower bound made from the clustering values stored in the sstable metadata, note that
      * this currently does not correctly compare tombstone bounds, especially ranges.
      */
-    private ClusteringBound getMetadataLowerBound()
+    private ClusteringBound<?> getMetadataLowerBound()
     {
         if (!canUseMetadataLowerBound())
             return null;
 
         final StatsMetadata m = sstable.getSSTableMetadata();
         List<ByteBuffer> vals = filter.isReversed() ? m.maxClusteringValues : m.minClusteringValues;
-        assert vals.size() <= sstable.metadata.comparator.size() :
+        assert vals.size() <= metadata().comparator.size() :
         String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
                       vals.size(),
-                      sstable.metadata.comparator.size(),
+                      metadata().comparator.size(),
                       sstable.getFilename());
-        return  ClusteringBound.inclusiveOpen(filter.isReversed(), vals.toArray(new ByteBuffer[vals.size()]));
+        return ByteBufferAccessor.instance.factory().inclusiveOpen(filter.isReversed(), vals.toArray(new ByteBuffer[vals.size()]));
     }
 }

@@ -19,21 +19,26 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.BloomCalculations;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
+import static java.util.stream.Collectors.toMap;
 
 public final class TableParams
 {
-    public static final TableParams DEFAULT = TableParams.builder().build();
-
     public enum Option
     {
         BLOOM_FILTER_FP_CHANCE,
@@ -41,17 +46,17 @@ public final class TableParams
         COMMENT,
         COMPACTION,
         COMPRESSION,
-        DCLOCAL_READ_REPAIR_CHANCE,
         DEFAULT_TIME_TO_LIVE,
         EXTENSIONS,
         GC_GRACE_SECONDS,
         MAX_INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
-        READ_REPAIR_CHANCE,
         SPECULATIVE_RETRY,
+        ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
-        CDC;
+        CDC,
+        READ_REPAIR;
 
         @Override
         public String toString()
@@ -60,19 +65,7 @@ public final class TableParams
         }
     }
 
-    public static final String DEFAULT_COMMENT = "";
-    public static final double DEFAULT_READ_REPAIR_CHANCE = 0.0;
-    public static final double DEFAULT_DCLOCAL_READ_REPAIR_CHANCE = 0.1;
-    public static final int DEFAULT_GC_GRACE_SECONDS = 864000; // 10 days
-    public static final int DEFAULT_DEFAULT_TIME_TO_LIVE = 0;
-    public static final int DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS = 0;
-    public static final int DEFAULT_MIN_INDEX_INTERVAL = 128;
-    public static final int DEFAULT_MAX_INDEX_INTERVAL = 2048;
-    public static final double DEFAULT_CRC_CHECK_CHANCE = 1.0;
-
     public final String comment;
-    public final double readRepairChance;
-    public final double dcLocalReadRepairChance;
     public final double bloomFilterFpChance;
     public final double crcCheckChance;
     public final int gcGraceSeconds;
@@ -80,18 +73,18 @@ public final class TableParams
     public final int memtableFlushPeriodInMs;
     public final int minIndexInterval;
     public final int maxIndexInterval;
-    public final SpeculativeRetryParam speculativeRetry;
+    public final SpeculativeRetryPolicy speculativeRetry;
+    public final SpeculativeRetryPolicy additionalWritePolicy;
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
+    public final ReadRepairStrategy readRepair;
 
     private TableParams(Builder builder)
     {
         comment = builder.comment;
-        readRepairChance = builder.readRepairChance;
-        dcLocalReadRepairChance = builder.dcLocalReadRepairChance;
         bloomFilterFpChance = builder.bloomFilterFpChance == null
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
@@ -102,11 +95,13 @@ public final class TableParams
         minIndexInterval = builder.minIndexInterval;
         maxIndexInterval = builder.maxIndexInterval;
         speculativeRetry = builder.speculativeRetry;
+        additionalWritePolicy = builder.additionalWritePolicy;
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
         extensions = builder.extensions;
         cdc = builder.cdc;
+        readRepair = builder.readRepair;
     }
 
     public static Builder builder()
@@ -121,17 +116,22 @@ public final class TableParams
                             .comment(params.comment)
                             .compaction(params.compaction)
                             .compression(params.compression)
-                            .dcLocalReadRepairChance(params.dcLocalReadRepairChance)
                             .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
                             .gcGraceSeconds(params.gcGraceSeconds)
                             .maxIndexInterval(params.maxIndexInterval)
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
-                            .readRepairChance(params.readRepairChance)
                             .speculativeRetry(params.speculativeRetry)
+                            .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
-                            .cdc(params.cdc);
+                            .cdc(params.cdc)
+                            .readRepair(params.readRepair);
+    }
+
+    public Builder unbuild()
+    {
+        return builder(this);
     }
 
     public void validate()
@@ -146,20 +146,6 @@ public final class TableParams
                  Option.BLOOM_FILTER_FP_CHANCE,
                  minBloomFilterFpChanceValue,
                  bloomFilterFpChance);
-        }
-
-        if (dcLocalReadRepairChance < 0 || dcLocalReadRepairChance > 1.0)
-        {
-            fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
-                 Option.DCLOCAL_READ_REPAIR_CHANCE,
-                 dcLocalReadRepairChance);
-        }
-
-        if (readRepairChance < 0 || readRepairChance > 1.0)
-        {
-            fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
-                 Option.READ_REPAIR_CHANCE,
-                 readRepairChance);
         }
 
         if (crcCheckChance < 0 || crcCheckChance > 1.0)
@@ -211,8 +197,6 @@ public final class TableParams
         TableParams p = (TableParams) o;
 
         return comment.equals(p.comment)
-            && readRepairChance == p.readRepairChance
-            && dcLocalReadRepairChance == p.dcLocalReadRepairChance
             && bloomFilterFpChance == p.bloomFilterFpChance
             && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
@@ -225,15 +209,14 @@ public final class TableParams
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
             && extensions.equals(p.extensions)
-            && cdc == p.cdc;
+            && cdc == p.cdc
+            && readRepair == p.readRepair;
     }
 
     @Override
     public int hashCode()
     {
         return Objects.hashCode(comment,
-                                readRepairChance,
-                                dcLocalReadRepairChance,
                                 bloomFilterFpChance,
                                 crcCheckChance,
                                 gcGraceSeconds,
@@ -246,7 +229,8 @@ public final class TableParams
                                 compaction,
                                 compression,
                                 extensions,
-                                cdc);
+                                cdc,
+                                readRepair);
     }
 
     @Override
@@ -254,8 +238,6 @@ public final class TableParams
     {
         return MoreObjects.toStringHelper(this)
                           .add(Option.COMMENT.toString(), comment)
-                          .add(Option.READ_REPAIR_CHANCE.toString(), readRepairChance)
-                          .add(Option.DCLOCAL_READ_REPAIR_CHANCE.toString(), dcLocalReadRepairChance)
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
                           .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
@@ -269,27 +251,69 @@ public final class TableParams
                           .add(Option.COMPRESSION.toString(), compression)
                           .add(Option.EXTENSIONS.toString(), extensions)
                           .add(Option.CDC.toString(), cdc)
+                          .add(Option.READ_REPAIR.toString(), readRepair)
                           .toString();
+    }
+
+    public void appendCqlTo(CqlBuilder builder)
+    {
+        // option names should be in alphabetical order
+        builder.append("additional_write_policy = ").appendWithSingleQuotes(additionalWritePolicy.toString())
+               .newLine()
+               .append("AND bloom_filter_fp_chance = ").append(bloomFilterFpChance)
+               .newLine()
+               .append("AND caching = ").append(caching.asMap())
+               .newLine()
+               .append("AND cdc = ").append(cdc)
+               .newLine()
+               .append("AND comment = ").appendWithSingleQuotes(comment)
+               .newLine()
+               .append("AND compaction = ").append(compaction.asMap())
+               .newLine()
+               .append("AND compression = ").append(compression.asMap())
+               .newLine()
+               .append("AND crc_check_chance = ").append(crcCheckChance)
+               .newLine()
+               .append("AND default_time_to_live = ").append(defaultTimeToLive)
+               .newLine()
+               .append("AND extensions = ").append(extensions.entrySet()
+                                                             .stream()
+                                                             .collect(toMap(Entry::getKey,
+                                                                             e -> "0x" + ByteBufferUtil.bytesToHex(e.getValue()))),
+                                                   false)
+               .newLine()
+               .append("AND gc_grace_seconds = ").append(gcGraceSeconds)
+               .newLine()
+               .append("AND max_index_interval = ").append(maxIndexInterval)
+               .newLine()
+               .append("AND memtable_flush_period_in_ms = ").append(memtableFlushPeriodInMs)
+               .newLine()
+               .append("AND min_index_interval = ").append(minIndexInterval)
+               .newLine()
+               .append("AND read_repair = ").appendWithSingleQuotes(readRepair.toString())
+               .newLine()
+               .append("AND speculative_retry = ").appendWithSingleQuotes(speculativeRetry.toString());
+
     }
 
     public static final class Builder
     {
-        private String comment = DEFAULT_COMMENT;
-        private double readRepairChance = DEFAULT_READ_REPAIR_CHANCE;
-        private double dcLocalReadRepairChance = DEFAULT_DCLOCAL_READ_REPAIR_CHANCE;
+        private String comment = "";
         private Double bloomFilterFpChance;
-        public Double crcCheckChance = DEFAULT_CRC_CHECK_CHANCE;
-        private int gcGraceSeconds = DEFAULT_GC_GRACE_SECONDS;
-        private int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
-        private int memtableFlushPeriodInMs = DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS;
-        private int minIndexInterval = DEFAULT_MIN_INDEX_INTERVAL;
-        private int maxIndexInterval = DEFAULT_MAX_INDEX_INTERVAL;
-        private SpeculativeRetryParam speculativeRetry = SpeculativeRetryParam.DEFAULT;
+        private double crcCheckChance = 1.0;
+        private int gcGraceSeconds = 864000; // 10 days
+        private int defaultTimeToLive = 0;
+        private int memtableFlushPeriodInMs = 0;
+        private int minIndexInterval = 128;
+        private int maxIndexInterval = 2048;
+        private SpeculativeRetryPolicy speculativeRetry = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
+        private SpeculativeRetryPolicy additionalWritePolicy = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
+        private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
 
         public Builder()
         {
@@ -303,18 +327,6 @@ public final class TableParams
         public Builder comment(String val)
         {
             comment = val;
-            return this;
-        }
-
-        public Builder readRepairChance(double val)
-        {
-            readRepairChance = val;
-            return this;
-        }
-
-        public Builder dcLocalReadRepairChance(double val)
-        {
-            dcLocalReadRepairChance = val;
             return this;
         }
 
@@ -360,9 +372,15 @@ public final class TableParams
             return this;
         }
 
-        public Builder speculativeRetry(SpeculativeRetryParam val)
+        public Builder speculativeRetry(SpeculativeRetryPolicy val)
         {
             speculativeRetry = val;
+            return this;
+        }
+
+        public Builder additionalWritePolicy(SpeculativeRetryPolicy val)
+        {
+            additionalWritePolicy = val;
             return this;
         }
 
@@ -387,6 +405,12 @@ public final class TableParams
         public Builder cdc(boolean val)
         {
             cdc = val;
+            return this;
+        }
+
+        public Builder readRepair(ReadRepairStrategy val)
+        {
+            readRepair = val;
             return this;
         }
 

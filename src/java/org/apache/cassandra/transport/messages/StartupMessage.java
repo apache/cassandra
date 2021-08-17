@@ -23,6 +23,7 @@ import java.util.Map;
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -36,7 +37,8 @@ public class StartupMessage extends Message.Request
     public static final String CQL_VERSION = "CQL_VERSION";
     public static final String COMPRESSION = "COMPRESSION";
     public static final String PROTOCOL_VERSIONS = "PROTOCOL_VERSIONS";
-    public static final String NO_COMPACT = "NO_COMPACT";
+    public static final String DRIVER_NAME = "DRIVER_NAME";
+    public static final String DRIVER_VERSION = "DRIVER_VERSION";
     public static final String THROW_ON_OVERLOAD = "THROW_ON_OVERLOAD";
 
     public static final Message.Codec<StartupMessage> codec = new Message.Codec<StartupMessage>()
@@ -65,7 +67,8 @@ public class StartupMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state, long queryStartNanoTime)
+    @Override
+    protected Message.Response execute(QueryState state, long queryStartNanoTime, boolean traceRequest)
     {
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)
@@ -86,13 +89,17 @@ public class StartupMessage extends Message.Request
             String compression = options.get(COMPRESSION).toLowerCase();
             if (compression.equals("snappy"))
             {
-                if (FrameCompressor.SnappyCompressor.instance == null)
+                if (Compressor.SnappyCompressor.instance == null)
                     throw new ProtocolException("This instance does not support Snappy compression");
-                connection.setCompressor(FrameCompressor.SnappyCompressor.instance);
+
+                if (getSource().header.version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    throw new ProtocolException("Snappy compression is not supported in protocol V5");
+
+                connection.setCompressor(Compressor.SnappyCompressor.instance);
             }
             else if (compression.equals("lz4"))
             {
-                connection.setCompressor(FrameCompressor.LZ4Compressor.instance);
+                connection.setCompressor(Compressor.LZ4Compressor.instance);
             }
             else
             {
@@ -100,10 +107,15 @@ public class StartupMessage extends Message.Request
             }
         }
 
-        if (options.containsKey(NO_COMPACT) && Boolean.parseBoolean(options.get(NO_COMPACT)))
-            state.getClientState().setNoCompactMode();
-
         connection.setThrowOnOverload("1".equals(options.get(THROW_ON_OVERLOAD)));
+
+        ClientState clientState = state.getClientState();
+        String driverName = options.get(DRIVER_NAME);
+        if (null != driverName)
+        {
+            clientState.setDriverName(driverName);
+            clientState.setDriverVersion(options.get(DRIVER_VERSION));
+        }
 
         if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return new AuthenticateMessage(DatabaseDescriptor.getAuthenticator().getClass().getName());
