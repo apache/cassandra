@@ -427,7 +427,7 @@ public class TTLTest extends CQLTester
                 if (reinsertOverflowedTTL)
                     Assertions.assertThat(tool.getStdout()).contains("Fixed 2 rows with overflowed local deletion time.");
                 else
-                    Assertions.assertThat(tool.getStdout()).contains("Unable to recover 2 rows that were skipped.");
+                    Assertions.assertThat(tool.getStdout()).contains("No valid partitions found while scrubbing");
             }
             finally
             {
