@@ -21,10 +21,10 @@ jobs:
   j8_jvm_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 4
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -826,6 +826,68 @@ jobs:
     - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+  utests_stress:
+    docker:
+    - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
+    resource_class: medium
+    working_directory: ~/
+    shell: /bin/bash -eo pipefail -l
+    parallelism: 1
+    steps:
+    - attach_workspace:
+        at: /home/cassandra
+    - run:
+        name: Run Unit Tests (stress-test)
+        command: |
+          export PATH=$JAVA_HOME/bin:$PATH
+          time mv ~/cassandra /tmp
+          cd /tmp/cassandra
+          if [ -d ~/dtest_jars ]; then
+            cp ~/dtest_jars/dtest* /tmp/cassandra/build/
+          fi
+          ant stress-test -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
+        no_output_timeout: 15m
+    - store_test_results:
+        path: /tmp/cassandra/build/test/output/
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/output
+        destination: junitxml
+    - store_artifacts:
+        path: /tmp/cassandra/build/test/logs
+        destination: logs
+    environment:
+    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    - ANT_HOME: /usr/share/ant
+    - LANG: en_US.UTF-8
+    - KEEP_TEST_DIR: true
+    - DEFAULT_DIR: /home/cassandra/cassandra-dtest
+    - PYTHONIOENCODING: utf-8
+    - PYTHONUNBUFFERED: true
+    - CASS_DRIVER_NO_EXTENSIONS: true
+    - CASS_DRIVER_NO_CYTHON: true
+    - CASSANDRA_SKIP_SYNC: true
+    - DTEST_REPO: git://github.com/apache/cassandra-dtest.git
+    - DTEST_BRANCH: trunk
+    - CCM_MAX_HEAP_SIZE: 1024M
+    - CCM_HEAP_NEWSIZE: 256M
+    - REPEATED_UTEST_TARGET: testsome
+    - REPEATED_UTEST_CLASS: null
+    - REPEATED_UTEST_METHODS: null
+    - REPEATED_UTEST_COUNT: 100
+    - REPEATED_UTEST_STOP_ON_FAILURE: false
+    - REPEATED_DTEST_NAME: null
+    - REPEATED_DTEST_VNODES: false
+    - REPEATED_DTEST_COUNT: 100
+    - REPEATED_DTEST_STOP_ON_FAILURE: false
+    - REPEATED_UPGRADE_DTEST_NAME: null
+    - REPEATED_UPGRADE_DTEST_COUNT: 100
+    - REPEATED_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    - REPEATED_JVM_UPGRADE_DTEST_CLASS: null
+    - REPEATED_JVM_UPGRADE_DTEST_METHODS: null
+    - REPEATED_JVM_UPGRADE_DTEST_COUNT: 100
+    - REPEATED_JVM_UPGRADE_DTEST_STOP_ON_FAILURE: false
+    - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+    - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
   j8_unit_tests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
@@ -1011,10 +1073,10 @@ jobs:
   j8_jvm_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:20210304
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 10
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1135,7 +1197,7 @@ jobs:
           if [ -d ~/dtest_jars ]; then
             cp ~/dtest_jars/dtest* /tmp/cassandra/build/
           fi
-          ant clean long-test
+          ant long-test -Dtest.classlistfile=/tmp/java_tests_${CIRCLE_NODE_INDEX}_final.txt  -Dtest.classlistprefix=unit
         no_output_timeout: 15m
     - store_test_results:
         path: /tmp/cassandra/build/test/output/
@@ -1579,6 +1641,13 @@ workflows:
     - utests_compression:
         requires:
         - start_utests_compression
+    - start_utests_stress:
+        type: approval
+        requires:
+        - build
+    - utests_stress:
+        requires:
+        - start_utests_stress
     - start_j8_dtest_jars_build:
         type: approval
     - j8_dtest_jars_build:
