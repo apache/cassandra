@@ -336,7 +336,10 @@ public class Util
 
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command)
     {
-        return getAllUnfiltered(command, command.executionController());
+        try (ReadExecutionController controller = command.executionController())
+        {
+            return getAllUnfiltered(command, controller);
+        }
     }
     
     public static List<ImmutableBTreePartition> getAllUnfiltered(ReadCommand command, ReadExecutionController controller)
@@ -357,7 +360,10 @@ public class Util
 
     public static List<FilteredPartition> getAll(ReadCommand command)
     {
-        return getAll(command, command.executionController());
+        try (ReadExecutionController controller = command.executionController())
+        {
+            return getAll(command, controller);
+        }
     }
     
     public static List<FilteredPartition> getAll(ReadCommand command, ReadExecutionController controller)
@@ -413,7 +419,10 @@ public class Util
 
     public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd)
     {
-        return getOnlyPartitionUnfiltered(cmd, cmd.executionController());
+        try (ReadExecutionController controller = cmd.executionController())
+        {
+            return getOnlyPartitionUnfiltered(cmd, controller);
+        }
     }
     
     public static ImmutableBTreePartition getOnlyPartitionUnfiltered(ReadCommand cmd, ReadExecutionController controller)
