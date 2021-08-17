@@ -31,9 +31,11 @@ import com.google.common.collect.ImmutableList;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.ClientAuth;
+import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslProvider;
+import org.apache.cassandra.config.Config;
 
 /**
  * Abstract class implementing {@code ISslContextFacotry} to provide most of the functionality that any
@@ -51,6 +53,8 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
      * by extracting it from the default "TLS" SSL Context instance
      */
     static protected final List<String> TLS_PROTOCOL_SUBSTITUTION = SSLFactory.tlsInstanceProtocolSubstitution();
+
+    protected boolean openSslIsAvailable;
 
     protected final Map<String,Object> parameters;
     protected final List<String> cipher_suites;
@@ -81,6 +85,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         require_endpoint_verification = false;
         enabled = null;
         optional = null;
+        deriveIfOpenSslAvailable();
     }
 
     protected AbstractSslContextFactory(Map<String,Object> parameters) {
@@ -94,6 +99,20 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
         require_endpoint_verification = getBoolean("require_endpoint_verification", false);
         enabled = getBoolean("enabled");
         this.optional = getBoolean("optional");
+        deriveIfOpenSslAvailable();
+    }
+
+    /**
+     * Dervies if {@code OpenSSL} is available. It allows in-jvm dtests to disable tcnative openssl support by
+     * setting {@code cassandra.disable_tcactive_openssl} system property as {@code true}. Otherwise, it creates a
+     * circular reference that prevents the instance class loader from being garbage collected.
+     */
+    protected void deriveIfOpenSslAvailable() {
+        if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl")) {
+            openSslIsAvailable = false;
+        } else {
+            openSslIsAvailable = OpenSsl.isAvailable();
+        }
     }
 
     protected String getString(String key, String defaultValue) {
@@ -138,7 +157,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, boolean useOpenSsl,
+    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         /*
@@ -161,7 +180,7 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
             builder = SslContextBuilder.forClient().keyManager(kmf);
         }
 
-        builder.sslProvider(useOpenSsl ? SslProvider.OPENSSL : SslProvider.JDK).protocols(getAcceptedProtocols());
+        builder.sslProvider(getSslProvider()).protocols(getAcceptedProtocols());
 
         // only set the cipher suites if the operator has explicity configured values for it; else, use the default
         // for each ssl implemention (jdk or openssl)
@@ -217,6 +236,14 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     @Override
     public List<String> getCipherSuites() {
         return cipher_suites;
+    }
+
+    /**
+     * Returns {@link SslProvider} to be used to build Netty's SslContext.
+     * @return appropriate SslProvider
+     */
+    protected SslProvider getSslProvider() {
+        return openSslIsAvailable ? SslProvider.OPENSSL : SslProvider.JDK;
     }
 
     abstract protected KeyManagerFactory buildKeyManagerFactory() throws SSLException;

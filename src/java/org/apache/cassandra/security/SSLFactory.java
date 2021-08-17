@@ -32,7 +32,6 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,26 +132,14 @@ public final class SSLFactory
     public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean verifyPeerCertificate,
                                                    SocketType socketType) throws IOException
     {
-        return getOrCreateSslContext(options, verifyPeerCertificate, socketType, openSslIsAvailable());
-    }
-
-    /**
-     * Get a netty {@link SslContext} instance.
-     */
-    @VisibleForTesting
-    static SslContext getOrCreateSslContext(EncryptionOptions options,
-                                            boolean verifyPeerCertificate,
-                                            SocketType socketType,
-                                            boolean useOpenSsl) throws IOException
-    {
-        CacheKey key = new CacheKey(options, socketType, useOpenSsl);
+        CacheKey key = new CacheKey(options, socketType);
         SslContext sslContext;
 
         sslContext = cachedSslContexts.get(key);
         if (sslContext != null)
             return sslContext;
 
-        sslContext = createNettySslContext(options, verifyPeerCertificate, socketType, useOpenSsl);
+        sslContext = createNettySslContext(options, verifyPeerCertificate, socketType);
 
         SslContext previous = cachedSslContexts.putIfAbsent(key, sslContext);
         if (previous == null)
@@ -166,9 +153,9 @@ public final class SSLFactory
      * Create a Netty {@link SslContext}
      */
     static SslContext createNettySslContext(EncryptionOptions options, boolean verifyPeerCertificate,
-                                            SocketType socketType, boolean useOpenSsl) throws IOException
+                                            SocketType socketType) throws IOException
     {
-        return createNettySslContext(options, verifyPeerCertificate, socketType, useOpenSsl,
+        return createNettySslContext(options, verifyPeerCertificate, socketType,
                                      LoggingCipherSuiteFilter.QUIET_FILTER);
     }
 
@@ -176,9 +163,9 @@ public final class SSLFactory
      * Create a Netty {@link SslContext} with a supplied cipherFilter
      */
     static SslContext createNettySslContext(EncryptionOptions options, boolean verifyPeerCertificate,
-                                            SocketType socketType, boolean useOpenSsl, CipherSuiteFilter cipherFilter) throws IOException
+                                            SocketType socketType, CipherSuiteFilter cipherFilter) throws IOException
     {
-        return options.sslContextFactoryInstance.createNettySslContext(verifyPeerCertificate, socketType, useOpenSsl,
+        return options.sslContextFactoryInstance.createNettySslContext(verifyPeerCertificate, socketType,
                                                                        cipherFilter);
     }
 
@@ -335,7 +322,7 @@ public final class SSLFactory
             {
                 CipherSuiteFilter loggingCipherSuiteFilter = logProtocolAndCiphers ? new LoggingCipherSuiteFilter(contextDescription)
                                                                                    : LoggingCipherSuiteFilter.QUIET_FILTER;
-                SslContext serverSslContext = createNettySslContext(options, verifyPeerCertificate, SocketType.SERVER, openSslIsAvailable(), loggingCipherSuiteFilter);
+                SslContext serverSslContext = createNettySslContext(options, verifyPeerCertificate, SocketType.SERVER, loggingCipherSuiteFilter);
                 try
                 {
                     SSLEngine engine = serverSslContext.newEngine(ByteBufAllocator.DEFAULT);
@@ -380,7 +367,7 @@ public final class SSLFactory
                 }
 
                 // Make sure it is possible to build the client context too
-                SslContext clientSslContext = createNettySslContext(options, verifyPeerCertificate, SocketType.CLIENT, openSslIsAvailable());
+                SslContext clientSslContext = createNettySslContext(options, verifyPeerCertificate, SocketType.CLIENT);
                 ReferenceCountUtil.release(clientSslContext);
             }
             catch (Exception e)
@@ -403,13 +390,11 @@ public final class SSLFactory
     {
         private final EncryptionOptions encryptionOptions;
         private final SocketType socketType;
-        private final boolean useOpenSSL;
 
-        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType, boolean useOpenSSL)
+        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType)
         {
             this.encryptionOptions = encryptionOptions;
             this.socketType = socketType;
-            this.useOpenSSL = useOpenSSL;
         }
 
         public boolean equals(Object o)
@@ -418,7 +403,6 @@ public final class SSLFactory
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
             return (socketType == cacheKey.socketType &&
-                    useOpenSSL == cacheKey.useOpenSSL &&
                     Objects.equals(encryptionOptions, cacheKey.encryptionOptions));
         }
 
@@ -427,7 +411,6 @@ public final class SSLFactory
             int result = 0;
             result += 31 * socketType.hashCode();
             result += 31 * encryptionOptions.hashCode();
-            result += 31 * Boolean.hashCode(useOpenSSL);
             return result;
         }
     }

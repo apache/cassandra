@@ -40,7 +40,7 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, boolean useOpenSsl,
+    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         return null;

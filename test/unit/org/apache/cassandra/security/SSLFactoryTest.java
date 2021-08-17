@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.Map;
-import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.Assert;
@@ -85,19 +84,9 @@ public class SSLFactoryTest
         }
 
         EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, true);
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
         Assert.assertNotNull(sslContext);
         Assert.assertTrue(sslContext instanceof OpenSslContext);
-    }
-
-    @Test
-    public void getSslContext_JdkSsl() throws IOException
-    {
-        EncryptionOptions options = addKeystoreOptions(encryptionOptions);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, false);
-        Assert.assertNotNull(sslContext);
-        Assert.assertTrue(sslContext instanceof JdkSslContext);
-        Assert.assertEquals(encryptionOptions.cipher_suites, sslContext.cipherSuites());
     }
 
     private ServerEncryptionOptions addKeystoreOptions(ServerEncryptionOptions options)
@@ -116,8 +105,7 @@ public class SSLFactoryTest
 
             SSLFactory.initHotReloading(options, options, true);
 
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, OpenSsl
-                                                                                                           .isAvailable());
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
             File keystoreFile = new File(options.keystore);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
@@ -125,8 +113,7 @@ public class SSLFactoryTest
             keystoreFile.setLastModified(System.currentTimeMillis() + 15000);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, OpenSsl
-                                                                                                          .isAvailable());
+            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
 
             Assert.assertNotSame(oldCtx, newCtx);
         }
@@ -158,8 +145,7 @@ public class SSLFactoryTest
             ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions);
 
             SSLFactory.initHotReloading(options, options, true);
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, OpenSsl
-                                                                                                          .isAvailable());
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
             File keystoreFile = new File(options.keystore);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
@@ -168,8 +154,7 @@ public class SSLFactoryTest
             ServerEncryptionOptions modOptions = new ServerEncryptionOptions(options)
                                                  .withKeyStorePassword("bad password");
             SSLFactory.checkCertFilesForHotReloading(modOptions, modOptions);
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, OpenSsl
-                                                                                                          .isAvailable());
+            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
 
             Assert.assertSame(oldCtx, newCtx);
         }
@@ -192,16 +177,14 @@ public class SSLFactoryTest
 
 
             SSLFactory.initHotReloading(options, options, true);
-            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, OpenSsl
-                                                                                                          .isAvailable());
+            SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
             SSLFactory.checkCertFilesForHotReloading(options, options);
 
             testKeystoreFile.setLastModified(System.currentTimeMillis() + 15000);
             FileUtils.forceDelete(testKeystoreFile);
 
             SSLFactory.checkCertFilesForHotReloading(options, options);
-            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, OpenSsl
-                                                                                                          .isAvailable());
+            SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
 
             Assert.assertSame(oldCtx, newCtx);
         }
@@ -224,7 +207,7 @@ public class SSLFactoryTest
                                     .withCipherSuites("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256");
 
         SslContext ctx1 = SSLFactory.getOrCreateSslContext(options, true,
-                                                           ISslContextFactory.SocketType.SERVER, OpenSsl.isAvailable());
+                                                           ISslContextFactory.SocketType.SERVER);
 
         Assert.assertTrue(ctx1.isServer());
         Assert.assertEquals(ctx1.cipherSuites(), options.cipher_suites);
@@ -232,7 +215,7 @@ public class SSLFactoryTest
         options = options.withCipherSuites("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256");
 
         SslContext ctx2 = SSLFactory.getOrCreateSslContext(options, true,
-                                                           ISslContextFactory.SocketType.CLIENT, OpenSsl.isAvailable());
+                                                           ISslContextFactory.SocketType.CLIENT);
 
         Assert.assertTrue(ctx2.isClient());
         Assert.assertEquals(ctx2.cipherSuites(), options.cipher_suites);
@@ -251,8 +234,8 @@ public class SSLFactoryTest
         .withRequireClientAuth(true)
         .withRequireEndpointVerification(false);
 
-        SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, ISslContextFactory.SocketType.SERVER,
-                                                                false);
+        SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, ISslContextFactory.SocketType.SERVER
+        );
 
         Map<String,String> parameters2 = new HashMap<>();
         parameters2.put("key1", "value1");
@@ -264,8 +247,8 @@ public class SSLFactoryTest
         .withRequireClientAuth(true)
         .withRequireEndpointVerification(false);
 
-        SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, ISslContextFactory.SocketType.SERVER,
-                                                                false);
+        SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, ISslContextFactory.SocketType.SERVER
+        );
 
         Assert.assertEquals(cacheKey1, cacheKey2);
     }
@@ -281,8 +264,8 @@ public class SSLFactoryTest
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters1))
         .withProtocol("TLSv1.1");
 
-        SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, ISslContextFactory.SocketType.SERVER,
-                                                                false);
+        SSLFactory.CacheKey cacheKey1 = new SSLFactory.CacheKey(encryptionOptions1, ISslContextFactory.SocketType.SERVER
+        );
 
         Map<String,String> parameters2 = new HashMap<>();
         parameters2.put("key1", "value21");
@@ -292,8 +275,8 @@ public class SSLFactoryTest
         .withSslContextFactory(new ParameterizedClass(DummySslContextFactoryImpl.class.getName(), parameters2))
         .withProtocol("TLSv1.1");
 
-        SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, ISslContextFactory.SocketType.SERVER,
-                                                                false);
+        SSLFactory.CacheKey cacheKey2 = new SSLFactory.CacheKey(encryptionOptions2, ISslContextFactory.SocketType.SERVER
+        );
 
         Assert.assertNotEquals(cacheKey1, cacheKey2);
     }

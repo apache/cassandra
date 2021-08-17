@@ -28,6 +28,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.netty.handler.ssl.SslProvider;
+
 public class DefaultSslContextFactoryTest
 {
     private Map<String,Object> commonConfig = new HashMap<>();
@@ -129,5 +131,18 @@ public class DefaultSslContextFactoryTest
         Assert.assertFalse(defaultSslContextFactoryImpl3.checkedExpiry);
         defaultSslContextFactoryImpl3.buildKeyManagerFactory();
         Assert.assertTrue(defaultSslContextFactoryImpl3.checkedExpiry);
+    }
+
+    @Test
+    public void testDisableOpenSslForInJvmDtests() {
+        // The configuration name below is hard-coded intentionally to make sure we don't break the contract without
+        // changing the documentation appropriately
+        System.setProperty("cassandra.disable_tcactive_openssl","true");
+        Map<String,Object> config = new HashMap<>();
+        config.putAll(commonConfig);
+
+        DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
+        Assert.assertEquals(SslProvider.JDK, defaultSslContextFactoryImpl.getSslProvider());
+        System.clearProperty("cassandra.disable_tcactive_openssl");
     }
 }

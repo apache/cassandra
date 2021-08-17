@@ -65,13 +65,12 @@ public interface ISslContextFactory
      *
      * @param verifyPeerCertificate {@code true} if SSL peer's certificate needs to be verified; {@code false} otherwise
      * @param socketType {@link SocketType} for Netty's Inbound or Outbound channels
-     * @param useOpenSsl {@code true} if openSsl is enabled;{@code false} otherwise
      * @param cipherFilter to allow Netty's cipher suite filtering, e.g.
      * {@link io.netty.handler.ssl.SslContextBuilder#ciphers(Iterable, CipherSuiteFilter)}
      * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
-    SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, boolean useOpenSsl,
+    SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                      CipherSuiteFilter cipherFilter) throws SSLException;
 
     /**
