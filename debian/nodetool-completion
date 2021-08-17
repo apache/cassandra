@@ -71,6 +71,7 @@ have nodetool && have cqlsh &&
             enablehandoff
             enablethrift
             enablehintsfordc
+            expiresnapshots
             failuredetector
             gcstats
             getcompactionthroughput

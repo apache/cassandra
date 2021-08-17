@@ -93,6 +93,7 @@ public class NodeTool
                 DisableGossip.class,
                 EnableHandoff.class,
                 EnableThrift.class,
+                ExpireSnapshots.class,
                 GcStats.class,
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
