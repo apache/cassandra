@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -42,12 +44,15 @@ public class ReadExecutionController implements AutoCloseable
 
     private final long createdAtNanos; // Only used while sampling
 
-    private ReadExecutionController(ReadCommand command,
+    private final RepairedDataInfo repairedDataInfo;
+
+     ReadExecutionController(ReadCommand command,
                                     OpOrder.Group baseOp,
                                     TableMetadata baseMetadata,
                                     ReadExecutionController indexController,
                                     WriteContext writeContext,
-                                    long createdAtNanos)
+                                    long createdAtNanos,
+                                    boolean trackRepairedStatus)
     {
         // We can have baseOp == null, but only when empty() is called, in which case the controller will never really be used
         // (which validForReadOn should ensure). But if it's not null, we should have the proper metadata too.
@@ -58,6 +63,30 @@ public class ReadExecutionController implements AutoCloseable
         this.writeContext = writeContext;
         this.command = command;
         this.createdAtNanos = createdAtNanos;
+
+        // TODO: Is this the best location for this comment?
+        /*
+         * When active, a digest will be created from data read from repaired SSTables. The digests
+         * from each replica can then be compared on the coordinator to detect any divergence in their
+         * repaired datasets. In this context, an sstable is considered repaired if it is marked
+         * repaired or has a pending repair session which has been committed.
+         * In addition to the digest, a set of ids for any pending but as yet uncommitted repair sessions
+         * is recorded and returned to the coordinator. This is to help reduce false positives caused
+         * by compaction lagging which can leave sstables from committed sessions in the pending state
+         * for a time.
+         */
+        if (trackRepairedStatus)
+        {
+            DataLimits.Counter repairedReadCount = command.limits().newCounter(command.nowInSec(),
+                                                                               false,
+                                                                               command.selectsFullPartition(),
+                                                                               metadata().enforceStrictLiveness()).onlyCount();
+            repairedDataInfo = new RepairedDataInfo(repairedReadCount);
+        }
+        else
+        {
+            repairedDataInfo = RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
+        }
     }
 
     public ReadExecutionController indexReadController()
@@ -77,7 +106,7 @@ public class ReadExecutionController implements AutoCloseable
 
     public static ReadExecutionController empty()
     {
-        return new ReadExecutionController(null, null, null, null, null, NO_SAMPLING);
+        return new ReadExecutionController(null, null, null, null, null, NO_SAMPLING, false);
     }
 
     /**
@@ -90,7 +119,7 @@ public class ReadExecutionController implements AutoCloseable
      * @return the created execution controller, which must always be closed.
      */
     @SuppressWarnings("resource") // ops closed during controller close
-    static ReadExecutionController forCommand(ReadCommand command)
+    static ReadExecutionController forCommand(ReadCommand command, boolean trackRepairedStatus)
     {
         ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(command.metadata());
         ColumnFamilyStore indexCfs = maybeGetIndexCfs(baseCfs, command);
@@ -98,7 +127,7 @@ public class ReadExecutionController implements AutoCloseable
         long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.now() : NO_SAMPLING;
 
         if (indexCfs == null)
-            return new ReadExecutionController(command, baseCfs.readOrdering.start(), baseCfs.metadata(), null, null, createdAtNanos);
+            return new ReadExecutionController(command, baseCfs.readOrdering.start(), baseCfs.metadata(), null, null, createdAtNanos, trackRepairedStatus);
 
         OpOrder.Group baseOp = null;
         WriteContext writeContext = null;
@@ -107,14 +136,14 @@ public class ReadExecutionController implements AutoCloseable
         try
         {
             baseOp = baseCfs.readOrdering.start();
-            indexController = new ReadExecutionController(command, indexCfs.readOrdering.start(), indexCfs.metadata(), null, null, NO_SAMPLING);
+            indexController = new ReadExecutionController(command, indexCfs.readOrdering.start(), indexCfs.metadata(), null, null, NO_SAMPLING, trackRepairedStatus);
             /*
              * TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try*
              * to delete stale entries, without blocking if there's no room
              * as it stands, we open a writeOp and keep it open for the duration to ensure that should this CF get flushed to make room we don't block the reclamation of any room being made
              */
             writeContext = baseCfs.keyspace.getWriteHandler().createContextForRead();
-            return new ReadExecutionController(command, baseOp, baseCfs.metadata(), indexController, writeContext, createdAtNanos);
+            return new ReadExecutionController(command, baseOp, baseCfs.metadata(), indexController, writeContext, createdAtNanos, trackRepairedStatus);
         }
         catch (RuntimeException e)
         {
@@ -169,6 +198,51 @@ public class ReadExecutionController implements AutoCloseable
 
         if (createdAtNanos != NO_SAMPLING)
             addSample();
+    }
+
+    public boolean isTrackingRepairedStatus()
+    {
+        return repairedDataInfo != RepairedDataInfo.NO_OP_REPAIRED_DATA_INFO;
+    }
+
+    /**
+     * Returns a digest of the repaired data read in the execution of this command.
+     *
+     * If either repaired status tracking is not active or the command has not yet been
+     * executed, then this digest will be an empty buffer.
+     * Otherwise, it will contain a digest* of the repaired data read, or empty buffer
+     * if no repaired data was read.
+     * @return digest of the repaired data read in the execution of the command
+     */
+    public ByteBuffer getRepairedDataDigest()
+    {
+        return repairedDataInfo.getDigest();
+    }
+
+    /**
+     * Returns a boolean indicating whether any relevant sstables were skipped during the read
+     * that produced the repaired data digest.
+     *
+     * If true, then no pending repair sessions or partition deletes have influenced the extent
+     * of the repaired sstables that went into generating the digest.
+     * This indicates whether or not the digest can reliably be used to infer consistency
+     * issues between the repaired sets across replicas.
+     *
+     * If either repaired status tracking is not active or the command has not yet been
+     * executed, then this will always return true.
+     *
+     * @return boolean to indicate confidence in the dwhether or not the digest of the repaired data can be
+     * reliably be used to infer inconsistency issues between the repaired sets across
+     * replicas.
+     */
+    public boolean isRepairedDataDigestConclusive()
+    {
+        return repairedDataInfo.isConclusive();
+    }
+    
+    public RepairedDataInfo getRepairedDataInfo()
+    {
+        return repairedDataInfo;
     }
 
     private void addSample()

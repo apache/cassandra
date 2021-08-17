@@ -398,7 +398,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     {
         // skip the row cache and go directly to sstables/memtable if repaired status of
         // data is being tracked. This is only requested after an initial digest mismatch
-        UnfilteredRowIterator partition = cfs.isRowCacheEnabled() && !isTrackingRepairedStatus()
+        UnfilteredRowIterator partition = cfs.isRowCacheEnabled() && !executionController.isTrackingRepairedStatus()
                                         ? getThroughCache(cfs, executionController)
                                         : queryMemtableAndDisk(cfs, executionController);
         return new SingletonUnfilteredPartitionIterator(partition);
@@ -566,10 +566,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         assert executionController != null && executionController.validForReadOn(cfs);
         Tracing.trace("Executing single-partition query on {}", cfs.name);
 
-        return queryMemtableAndDiskInternal(cfs);
+        return queryMemtableAndDiskInternal(cfs, executionController);
     }
 
-    private UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs)
+    private UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
         /*
          * We have 2 main strategies:
@@ -591,7 +591,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter
                 && !metadata().isCounter()
                 && !queriesMulticellType()
-                && !isTrackingRepairedStatus())
+                && !executionController.isTrackingRepairedStatus())
         {
             return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter());
         }
@@ -602,7 +602,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         ClusteringIndexFilter filter = clusteringIndexFilter();
         long minTimestamp = Long.MAX_VALUE;
         long mostRecentPartitionTombstone = Long.MIN_VALUE;
-        InputCollector<UnfilteredRowIterator> inputCollector = iteratorsForPartition(view);
+        InputCollector<UnfilteredRowIterator> inputCollector = iteratorsForPartition(view, executionController);
         try
         {
             for (Memtable memtable : view.memtables)
@@ -642,7 +642,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
             SSTableReadMetricsCollector metricsCollector = new SSTableReadMetricsCollector();
 
-            if (isTrackingRepairedStatus())
+            if (executionController.isTrackingRepairedStatus())
                 Tracing.trace("Collecting data from sstables and tracking repaired status");
 
             for (SSTableReader sstable : view.sstables)

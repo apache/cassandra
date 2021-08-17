@@ -262,7 +262,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         Tracing.trace("Executing seq scan across {} sstables for {}", view.sstables.size(), dataRange().keyRange().getString(metadata().partitionKeyType));
 
         // fetch data from current memtable, historical memtables, and SSTables in the correct order.
-        InputCollector<UnfilteredPartitionIterator> inputCollector = iteratorsForRange(view);
+        InputCollector<UnfilteredPartitionIterator> inputCollector = iteratorsForRange(view, executionController);
         try
         {
             for (Memtable memtable : view.memtables)

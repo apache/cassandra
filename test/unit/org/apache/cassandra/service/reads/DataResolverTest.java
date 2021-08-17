@@ -107,7 +107,10 @@ public class DataResolverTest extends AbstractReadResponseTest
         }
 
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
-        command.trackRepairedStatus();
+        
+        // TODO: Is this necessary?
+        //command.trackRepairedStatus();
+
         readRepair = new TestableReadRepair(command);
         Token token = Murmur3Partitioner.instance.getMinimumToken();
         EndpointsForRange.Builder replicas = EndpointsForRange.builder(ReplicaUtils.FULL_RANGE, num);
@@ -1255,7 +1258,7 @@ public class DataResolverTest extends AbstractReadResponseTest
 
             public TestableDataResolver(ReadCommand command, ReplicaPlan.SharedForRangeRead plan, ReadRepair readRepair, long queryStartNanoTime)
             {
-                super(command, plan, readRepair, queryStartNanoTime);
+                super(command, plan, readRepair, queryStartNanoTime, true);
             }
 
             protected RepairedDataVerifier getRepairedDataVerifier(ReadCommand command)

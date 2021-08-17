@@ -37,6 +37,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -64,7 +65,8 @@ public class ReadResponseTest
     {
         ByteBuffer digest = digest();
         ReadCommand command = command(key(), metadata, digest, true);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, digest, true, true);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertTrue(response.isRepairedDigestConclusive());
         assertEquals(digest, response.repairedDataDigest());
         verifySerDe(response);
@@ -75,7 +77,8 @@ public class ReadResponseTest
     {
         ByteBuffer digest = digest();
         ReadCommand command = command(key(), metadata, digest, false);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, digest, false, true);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertFalse(response.isRepairedDigestConclusive());
         assertEquals(digest, response.repairedDataDigest());
         verifySerDe(response);
@@ -85,7 +88,8 @@ public class ReadResponseTest
     public void fromCommandWithConclusiveEmptyRepairedDigest()
     {
         ReadCommand command = command(key(), metadata, ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, true);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertTrue(response.isRepairedDigestConclusive());
         assertEquals(ByteBufferUtil.EMPTY_BYTE_BUFFER, response.repairedDataDigest());
         verifySerDe(response);
@@ -95,7 +99,8 @@ public class ReadResponseTest
     public void fromCommandWithInconclusiveEmptyRepairedDigest()
     {
         ReadCommand command = command(key(), metadata, ByteBufferUtil.EMPTY_BYTE_BUFFER, false);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, ByteBufferUtil.EMPTY_BYTE_BUFFER, false, true);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertFalse(response.isRepairedDigestConclusive());
         assertEquals(ByteBufferUtil.EMPTY_BYTE_BUFFER, response.repairedDataDigest());
         verifySerDe(response);
@@ -109,7 +114,8 @@ public class ReadResponseTest
     public void digestResponseErrorsIfRepairedDataDigestRequested()
     {
         ReadCommand command = digestCommand(key(), metadata);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, false);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertTrue(response.isDigestResponse());
         assertFalse(response.mayIncludeRepairedDigest());
         response.repairedDataDigest();
@@ -119,7 +125,8 @@ public class ReadResponseTest
     public void digestResponseErrorsIfIsConclusiveRequested()
     {
         ReadCommand command = digestCommand(key(), metadata);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, false);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertTrue(response.isDigestResponse());
         assertFalse(response.mayIncludeRepairedDigest());
         response.isRepairedDigestConclusive();
@@ -129,7 +136,8 @@ public class ReadResponseTest
     public void digestResponseErrorsIfIteratorRequested()
     {
         ReadCommand command = digestCommand(key(), metadata);
-        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller = new StubExecutionController(command, ByteBufferUtil.EMPTY_BYTE_BUFFER, true, false);
+        ReadResponse response = command.createResponse(EmptyIterators.unfilteredPartition(metadata), controller);
         assertTrue(response.isDigestResponse());
         assertFalse(response.mayIncludeRepairedDigest());
         response.makeIterator(command);
@@ -144,11 +152,13 @@ public class ReadResponseTest
         int key = key();
         ByteBuffer digest1 = digest();
         ReadCommand command1 = command(key, metadata, digest1, true);
-        ReadResponse response1 = command1.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller1 = new StubExecutionController(command1, digest1, true, true);
+        ReadResponse response1 = command1.createResponse(EmptyIterators.unfilteredPartition(metadata), controller1);
 
         ByteBuffer digest2 = digest();
         ReadCommand command2 = command(key, metadata, digest2, false);
-        ReadResponse response2 = command1.createResponse(EmptyIterators.unfilteredPartition(metadata));
+        StubExecutionController controller2 = new StubExecutionController(command2, digest1, false, true);
+        ReadResponse response2 = command1.createResponse(EmptyIterators.unfilteredPartition(metadata), controller2);
 
         assertEquals(response1.digest(command1), response2.digest(command2));
     }
@@ -207,36 +217,24 @@ public class ReadResponseTest
 
     private ReadCommand digestCommand(int key, TableMetadata metadata)
     {
-        return new StubReadCommand(key, metadata, true, ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
+        return new StubReadCommand(key, metadata, true);
+        //return new StubReadCommand(key, metadata, true, ByteBufferUtil.EMPTY_BYTE_BUFFER, true);
     }
 
     private ReadCommand command(int key, TableMetadata metadata, ByteBuffer repairedDigest, boolean conclusive)
     {
-        return new StubReadCommand(key, metadata, false, repairedDigest, conclusive);
+        return new StubReadCommand(key, metadata, false);
+        //return new StubReadCommand(key, metadata, false, repairedDigest, conclusive);
     }
 
-    private static class StubReadCommand extends SinglePartitionReadCommand
+    private static class StubExecutionController extends ReadExecutionController
     {
-
         private final ByteBuffer repairedDigest;
         private final boolean conclusive;
-
-        StubReadCommand(int key, TableMetadata metadata,
-                        boolean isDigest,
-                        final ByteBuffer repairedDigest,
-                        final boolean conclusive)
+        
+        StubExecutionController(ReadCommand command, ByteBuffer repairedDigest, boolean conclusive, boolean trackRepairedStatus)
         {
-            super(isDigest,
-                  0,
-                  false,
-                  metadata,
-                  FBUtilities.nowInSeconds(),
-                  ColumnFilter.all(metadata),
-                  RowFilter.NONE,
-                  DataLimits.NONE,
-                  metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
-                  null,
-                  null);
+            super(command, new OpOrder().getCurrent(), command.metadata(), null, null, command.nowInSec(), trackRepairedStatus);
             this.repairedDigest = repairedDigest;
             this.conclusive = conclusive;
         }
@@ -251,6 +249,31 @@ public class ReadResponseTest
         public boolean isRepairedDataDigestConclusive()
         {
             return conclusive;
+        }
+    }
+    
+    private static class StubReadCommand extends SinglePartitionReadCommand
+    {
+        StubReadCommand(int key, TableMetadata metadata, boolean isDigest)
+        {
+            super(isDigest,
+                  0,
+                  false,
+                  metadata,
+                  FBUtilities.nowInSeconds(),
+                  ColumnFilter.all(metadata),
+                  RowFilter.NONE,
+                  DataLimits.NONE,
+                  metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
+                  null,
+                  null);
+           
+        }
+
+        @Override
+        public boolean selectsFullPartition()
+        {
+            return true;
         }
 
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController controller)

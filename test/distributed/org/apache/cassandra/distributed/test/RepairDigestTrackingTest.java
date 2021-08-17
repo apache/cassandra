@@ -61,12 +61,12 @@ import static org.junit.Assert.fail;
 public class RepairDigestTrackingTest extends TestBaseImpl
 {
     private static final String TABLE = "tbl";
-    private static final String KS_TABLE = KEYSPACE + "." + TABLE;
+    private static final String KS_TABLE = KEYSPACE + '.' + TABLE;
 
     @Test
     public void testInconsistenciesFound() throws Throwable
     {
-        try (Cluster cluster = (Cluster) init(builder().withNodes(2).start()))
+        try (Cluster cluster = init(builder().withNodes(2).start()))
         {
 
             cluster.get(1).runOnInstance(() -> {
@@ -109,7 +109,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     @Test
     public void testPurgeableTombstonesAreIgnored() throws Throwable
     {
-        try (Cluster cluster = (Cluster) init(builder().withNodes(2).start()))
+        try (Cluster cluster = init(builder().withNodes(2).start()))
         {
             cluster.get(1).runOnInstance(() -> {
                 StorageProxy.instance.enableRepairedDataTrackingForRangeReads();
@@ -445,7 +445,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             }
         }
 
-
+        @SuppressWarnings({ "unused", "UnstableApiUsage" })
         public static UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs,
                                                                ReadExecutionController controller,
                                                                @SuperCall Callable<UnfilteredPartitionIterator> zuperCall)
@@ -487,8 +487,9 @@ public class RepairDigestTrackingTest extends TestBaseImpl
             return list;
         }
 
+        @SuppressWarnings("unused")
         public static List<InetAddress> getLiveSortedEndpoints(Keyspace keyspace,
-                                                               RingPosition pos,
+                                                               RingPosition<?> pos,
                                                                @SuperCall Callable<List<InetAddress>> zuperCall)
         {
             // This is necessary so that the local node sorts last, making it perform a digest request

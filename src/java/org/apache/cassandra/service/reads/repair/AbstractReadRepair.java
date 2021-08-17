@@ -87,13 +87,13 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         return replicaPlan.get();
     }
 
-    void sendReadCommand(Replica to, ReadCallback readCallback, boolean speculative)
+    void sendReadCommand(Replica to, ReadCallback readCallback, boolean speculative, boolean trackRepairedStatus)
     {
         ReadCommand command = this.command;
 
         if (to.isSelf())
         {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback));
+            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback, trackRepairedStatus));
             return;
         }
 
@@ -113,7 +113,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
             Tracing.trace("Enqueuing {} data read to {}", type, to);
         }
         // if enabled, request additional info about repaired data from any full replicas
-        Message<ReadCommand> message = command.createMessage(command.isTrackingRepairedStatus() && to.isFull());
+        Message<ReadCommand> message = command.createMessage(trackRepairedStatus && to.isFull());
         MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
     }
 
@@ -123,19 +123,20 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
     public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer)
     {
         getRepairMeter().mark();
+        boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
-        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryStartNanoTime);
+        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryStartNanoTime, trackRepairedStatus);
         ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, queryStartNanoTime);
 
         digestRepair = new DigestRepair(resolver, readCallback, resultConsumer);
 
+        
         // if enabled, request additional info about repaired data from any full replicas
-        if (DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled())
-            command.trackRepairedStatus();
-
         for (Replica replica : replicaPlan().contacts())
-            sendReadCommand(replica, readCallback, false);
+        {
+            sendReadCommand(replica, readCallback, false, trackRepairedStatus);
+        }
 
         ReadRepairDiagnostics.startRepair(this, replicaPlan(), digestResolver);
     }
@@ -174,7 +175,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
                 return;
 
             replicaPlan.addToContacts(uncontacted);
-            sendReadCommand(uncontacted, repair.readCallback, true);
+            sendReadCommand(uncontacted, repair.readCallback, true, false);
             ReadRepairMetrics.speculatedRead.mark();
             ReadRepairDiagnostics.speculatedRead(this, uncontacted.endpoint(), replicaPlan());
         }

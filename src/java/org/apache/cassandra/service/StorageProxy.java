@@ -1968,12 +1968,19 @@ public class StorageProxy implements StorageProxyMBean
     {
         private final ReadCommand command;
         private final ReadCallback handler;
+        private final boolean trackRepairedStatus;
 
         public LocalReadRunnable(ReadCommand command, ReadCallback handler)
+        {
+            this(command, handler, false);
+        }
+
+        public LocalReadRunnable(ReadCommand command, ReadCallback handler, boolean trackRepairedStatus)
         {
             super(Verb.READ_REQ);
             this.command = command;
             this.handler = handler;
+            this.trackRepairedStatus = trackRepairedStatus;
         }
 
         protected void runMayThrow()
@@ -1983,10 +1990,10 @@ public class StorageProxy implements StorageProxyMBean
                 command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));
 
                 ReadResponse response;
-                try (ReadExecutionController executionController = command.executionController();
+                try (ReadExecutionController executionController = command.executionController(trackRepairedStatus);
                      UnfilteredPartitionIterator iterator = command.executeLocally(executionController))
                 {
-                    response = command.createResponse(iterator);
+                    response = command.createResponse(iterator, executionController);
                 }
 
                 if (command.complete())

@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,7 +30,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -135,6 +133,8 @@ public class PartitionTest
 
             ReadCommand cmd1 = Util.cmd(cfs, "key1").build();
             ReadCommand cmd2 = Util.cmd(cfs, "key2").build();
+
+            
             ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(cmd1);
             ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(cmd2);
 
