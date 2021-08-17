@@ -7,6 +7,7 @@
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
+ * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
  * Optimize bytes skipping when reading SSTable files (CASSANDRA-14415)
