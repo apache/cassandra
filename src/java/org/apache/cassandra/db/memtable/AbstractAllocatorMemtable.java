@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.memory.MemtableCleaner;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
+import org.github.jamm.Unmetered;
 
 /**
  * A memtable that uses memory tracked and maybe allocated via a MemtableAllocator from a MemtablePool.
@@ -55,17 +56,20 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     public static final MemtablePool MEMORY_POOL = AbstractAllocatorMemtable.createMemtableAllocatorPool();
 
+    @Unmetered
     protected final Owner owner;
     protected final MemtableAllocator allocator;
 
     // Record the comparator of the CFS at the creation of the memtable. This
     // is only used when a user update the CF comparator, to know if the
     // memtable was created with the new or old comparator.
+    @Unmetered
     public final ClusteringComparator initialComparator;
 
     private final long creationNano = System.nanoTime();
 
-    private static MemtablePool createMemtableAllocatorPool()
+    @VisibleForTesting
+    static MemtablePool createMemtableAllocatorPool()
     {
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMb() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMb() << 20;

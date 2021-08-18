@@ -27,6 +27,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
+import org.github.jamm.Unmetered;
 
 public abstract class MemtableAllocator
 {
@@ -105,6 +106,7 @@ public abstract class MemtableAllocator
     public static final class SubAllocator
     {
         // the tracker we are owning memory from
+        @Unmetered  // total pool size should not be included in memtable's deep size
         private final MemtablePool.SubPool parent;
 
         // the state of the memtable

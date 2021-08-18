@@ -37,6 +37,7 @@ public class ObjectSizes
                                              .ignoreKnownSingletons();
 
     private static final long BUFFER_EMPTY_SIZE = measure(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+    private static final long DIRECT_BUFFER_EMPTY_SIZE = measure(ByteBuffer.allocateDirect(0));
     private static final long STRING_EMPTY_SIZE = measure("");
 
     /**
@@ -109,7 +110,10 @@ public class ObjectSizes
 
     public static long sizeOnHeapExcludingData(ByteBuffer[] array)
     {
-        return BUFFER_EMPTY_SIZE * array.length + sizeOfArray(array);
+        long sum = sizeOfArray(array);
+        for (ByteBuffer b : array)
+            sum += sizeOnHeapExcludingData(b);
+        return sum;
     }
 
     /**
@@ -120,17 +124,26 @@ public class ObjectSizes
     public static long sizeOnHeapOf(ByteBuffer buffer)
     {
         if (buffer.isDirect())
-            return BUFFER_EMPTY_SIZE;
+            return DIRECT_BUFFER_EMPTY_SIZE;
         // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
         // allocated, so amortized over all the allocations the overhead is negligible and better to undercount than over)
-        if (buffer.capacity() > buffer.remaining())
-            return buffer.remaining();
-        return BUFFER_EMPTY_SIZE + sizeOfArray(buffer.capacity(), 1);
+        int capacity = buffer.capacity();
+        if (capacity > buffer.remaining())
+            return BUFFER_EMPTY_SIZE + buffer.remaining();
+        return BUFFER_EMPTY_SIZE + sizeOfArray(capacity, 1);
     }
 
     public static long sizeOnHeapExcludingData(ByteBuffer buffer)
     {
-        return BUFFER_EMPTY_SIZE;
+        if (buffer.isDirect())
+            return DIRECT_BUFFER_EMPTY_SIZE;
+        int capacity = buffer.capacity();
+        // if we're only referencing a sub-portion of the ByteBuffer, don't count the array overhead (assume it's slab
+        // allocated, so amortized over all the allocations the overhead is negligible and better to undercount than over)
+        if (capacity > buffer.remaining())
+            return BUFFER_EMPTY_SIZE;
+        // If buffers are dedicated, account for byte array size and any padding overhead
+        return BUFFER_EMPTY_SIZE + sizeOfArray(capacity, 1) - capacity;
     }
 
     /**

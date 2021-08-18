@@ -686,6 +686,9 @@ public class BTree
 
     public static long sizeOfStructureOnHeap(Object[] tree)
     {
+        if (tree == EMPTY_LEAF)
+            return 0;
+
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;

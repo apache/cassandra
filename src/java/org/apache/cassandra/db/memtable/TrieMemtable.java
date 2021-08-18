@@ -72,6 +72,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.EnsureOnHeap;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
+import org.github.jamm.Unmetered;
 
 public class TrieMemtable extends AbstractAllocatorMemtable
 {
@@ -118,6 +119,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
     // The boundaries will be NONE for system keyspaces or if StorageService is not yet initialized.
     // The fact this is fixed for the duration of the memtable lifetime, guarantees we'll always pick the same core
     // for the a given key, even if we race with the StorageService initialization or with topology changes.
+    @Unmetered
     private final ShardBoundaries boundaries;
 
     /**
@@ -132,6 +134,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
      */
     private final Trie<BTreePartitionData> mergedTrie;
 
+    @Unmetered
     private final TrieMemtableMetricsView metrics;
 
     @VisibleForTesting
@@ -417,6 +420,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
 
         private volatile long currentOperations = 0;
 
+        @Unmetered
         private ReentrantLock writeLock = new ReentrantLock();
 
         // Content map for the given shard. This is implemented as a memtable trie which uses the prefix-free
@@ -441,6 +445,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
 
         private final MemtableAllocator allocator;
 
+        @Unmetered
         private final TrieMemtableMetricsView metrics;
 
         MemtableShard(int shardId, TableMetadataRef metadata, TrieMemtableMetricsView metrics)
@@ -705,6 +710,15 @@ public class TrieMemtable extends AbstractAllocatorMemtable
             TrieMemtableMetricsView metrics = TrieMemtableMetricsView.getOrCreate(metadataRef.keyspace, metadataRef.name);
             return metrics::release;
         }
+    }
+
+    @VisibleForTesting
+    public long unusedReservedMemory()
+    {
+        long size = 0;
+        for (MemtableShard shard : shards)
+            size += shard.data.unusedReservedMemory();
+        return size;
     }
 
     @VisibleForTesting

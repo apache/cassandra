@@ -926,4 +926,13 @@ public class MemtableTrie<T> extends MemtableReadTrie<T>
     {
         return contentCount;
     }
+
+    public long unusedReservedMemory()
+    {
+        int pos = this.allocatedPos;
+        UnsafeBuffer buffer = getBuffer(pos);
+        if (buffer == null)
+            return 0;   // at the boundary, no reserve
+        return buffer.capacity() - getOffset(pos);
+    }
 }
