@@ -21,6 +21,8 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
@@ -247,7 +249,22 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                                          IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
-            throw  invalidRequest("IN restrictions are not supported on indexed columns");
+            // If the relation is of the type (c) IN ((x),(y),(z)) then it is equivalent to
+            // c IN (x, y, z) and we can perform filtering
+            if (getColumnDefs().size() == 1)
+            {
+                List<List<ByteBuffer>> splitValues = splitValues(options);
+                List<ByteBuffer> values = new ArrayList<>(splitValues.size());
+                for (List<ByteBuffer> splitValue : splitValues)
+                    values.add(splitValue.get(0));
+
+                ByteBuffer buffer = ListSerializer.pack(values, values.size(), ProtocolVersion.V3);
+                filter.add(getFirstColumn(), Operator.IN, buffer);
+            }
+            else
+            {
+                throw invalidRequest("Multicolumn IN filters are not supported");
+            }
         }
 
         protected abstract List<List<ByteBuffer>> splitValues(QueryOptions options);

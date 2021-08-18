@@ -440,9 +440,6 @@ public final class StatementRestrictions
                 if (!allowFiltering && !forView && !hasQueriableIndex)
                     throw new InvalidRequestException(REQUIRES_ALLOW_FILTERING_MESSAGE);
 
-                if (partitionKeyRestrictions.hasIN())
-                    throw new InvalidRequestException("IN restrictions are not supported when the query involves filtering");
-
                 isKeyRange = true;
                 usesSecondaryIndexing = hasQueriableIndex;
             }
