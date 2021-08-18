@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sasi;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
@@ -32,8 +33,10 @@ import org.junit.Assert;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public class SASICQLTest extends CQLTester
 {
@@ -347,5 +350,18 @@ public class SASICQLTest extends CQLTester
 
             }
         }
+    }
+
+    @Test
+    public void testInOperator() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int primary key, v int);");
+
+        createIndex("CREATE CUSTOM INDEX ON %s (v) USING 'org.apache.cassandra.index.sasi.SASIIndex';");
+
+        assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
+                                  StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                  InvalidQueryException.class,
+                                  "SELECT * FROM %s WHERE v IN (200, 250, 300)");
     }
 }

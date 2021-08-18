@@ -23,6 +23,9 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.ListSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
@@ -218,7 +221,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
-            throw invalidRequest("IN restrictions are not supported on indexed columns");
+            List<ByteBuffer> values = getValues(options);
+            ByteBuffer buffer = ListSerializer.pack(values, values.size(), ProtocolVersion.V3);
+            filter.add(columnDef, Operator.IN, buffer);
         }
 
         @Override

@@ -1930,4 +1930,46 @@ public class SelectMultiColumnRelationTest extends CQLTester
         assertInvalidMessage("Undefined column name e", "SELECT c AS e FROM %s WHERE (b, e) IN ((0, 1), (2, 4))");
         assertInvalidMessage("Undefined column name e", "SELECT c AS e FROM %s WHERE (b, e) > (0, 1) and b <= 2");
     }
+
+    @Test
+    public void testInRestrictionsWithAllowFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c1 text, c2 int, c3 int, v int, primary key(pk, c1, c2, c3))");
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "0", 0, 1, 3);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "1", 0, 2, 4);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "1", 1, 3, 5);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "2", 1, 4, 6);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "2", 2, 5, 7);
+
+        assertRows(execute("SELECT * FROM %s WHERE (c2) IN ((?), (?)) ALLOW FILTERING", 1, 3),
+                   row(1, "1", 1, 3, 5),
+                   row(1, "2", 1, 4, 6));
+
+        assertRows(execute("SELECT * FROM %s WHERE c2 IN (?, ?) ALLOW FILTERING", 1, 3),
+                   row(1, "1", 1, 3, 5),
+                   row(1, "2", 1, 4, 6));
+
+        assertInvalidMessage("Multicolumn IN filters are not supported",
+                             "SELECT * FROM %s WHERE (c2, c3) IN ((?, ?), (?, ?)) ALLOW FILTERING", 1, 0, 2, 0);
+    }
+
+    @Test
+    public void testInRestrictionsWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c1 text, c2 int, c3 int, v int, primary key(pk, c1, c2, c3))");
+        createIndex("CREATE INDEX ON %s (c3)");
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "0", 0, 1, 3);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "1", 0, 2, 4);
+        execute("INSERT INTO %s (pk, c1, c2, c3, v) values (?, ?, ?, ?, ?)", 1, "1", 1, 3, 5);
+
+        assertRows(execute("SELECT * FROM %s WHERE (c3) IN ((?), (?)) ALLOW FILTERING", 1, 3),
+                   row(1, "0", 0, 1, 3),
+                   row(1, "1", 1, 3, 5));
+
+        assertInvalidMessage("PRIMARY KEY column \"c2\" cannot be restricted as preceding column \"c1\" is not restricted",
+                             "SELECT * FROM %s WHERE (c2, c3) IN ((?, ?), (?, ?))", 1, 0, 2, 0);
+
+        assertInvalidMessage("Multicolumn IN filters are not supported",
+                             "SELECT * FROM %s WHERE (c2, c3) IN ((?, ?), (?, ?)) ALLOW FILTERING", 1, 0, 2, 0);
+    }
  }

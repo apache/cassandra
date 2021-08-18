@@ -20,9 +20,11 @@ package org.apache.cassandra.serializers;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -122,6 +124,41 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             return l;
         }
         catch (BufferUnderflowException | IndexOutOfBoundsException e)
+        {
+            throw new MarshalException("Not enough bytes to read a list");
+        }
+    }
+
+    public boolean anyMatch(ByteBuffer serializedList, Predicate<ByteBuffer> predicate)
+    {
+        return anyMatch(serializedList, ByteBufferAccessor.instance, predicate);
+    }
+
+    public <V> boolean anyMatch(V input, ValueAccessor<V> accessor, Predicate<V> predicate)
+    {
+        try
+        {
+            int s = readCollectionSize(input, accessor, ProtocolVersion.V3);
+            int offset = sizeOfCollectionSize(s, ProtocolVersion.V3);
+
+            for (int i = 0; i < s; i++)
+            {
+                int size = accessor.getInt(input, offset);
+                if (size < 0)
+                    continue;
+
+                offset += TypeSizes.INT_SIZE;
+
+                V value = accessor.slice(input, offset, size);
+
+                if (predicate.test(value))
+                    return true;
+
+                offset += size;
+            }
+            return false;
+        }
+        catch (BufferUnderflowException e)
         {
             throw new MarshalException("Not enough bytes to read a list");
         }
