@@ -67,6 +67,22 @@ public class ClusteringHeapSizeTest
         Assertions.assertThat(min).isLessThanOrEqualTo(max);
     }
 
+    @Test
+    public void testSingletonClusteringHeapSize()
+    {
+        Clustering<?> clustering = this.clustering.accessor().factory().staticClustering();
+        Assertions.assertThat(clustering.unsharedHeapSize())
+                  .isEqualTo(0);
+        Assertions.assertThat(clustering.unsharedHeapSizeExcludingData())
+                  .isEqualTo(0);
+
+        clustering = this.clustering.accessor().factory().clustering();
+        Assertions.assertThat(clustering.unsharedHeapSize())
+                  .isEqualTo(0);
+        Assertions.assertThat(clustering.unsharedHeapSizeExcludingData())
+                  .isEqualTo(0);
+    }
+
     @Parameterized.Parameters(name = "{0}")
     public static Collection<Object[]> data() {
         byte[] rawBytes = { 0, 1, 2, 3, 4, 5, 6 };
