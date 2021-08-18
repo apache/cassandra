@@ -97,7 +97,7 @@ public class NIODataInputStreamTest
         @Override
         public boolean isOpen()
         {
-            return isOpen();
+            return isOpen;
         }
 
         @Override
