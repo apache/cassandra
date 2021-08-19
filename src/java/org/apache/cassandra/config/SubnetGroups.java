@@ -71,18 +71,18 @@ public class SubnetGroups
         return false;
     }
 
-    public static class Group
+    private static class Group
     {
         private static final IPAddressNetwork.IPAddressGenerator IP_ADDRESS_GENERATOR = new IPAddressNetwork.IPAddressGenerator();
 
         private final IPAddressString subnet;
 
-        public Group(String range)
+        Group(String range)
         {
             subnet = new IPAddressString(range);
         }
 
-        public boolean contains(InetAddress address)
+        boolean contains(InetAddress address)
         {
             return subnet.contains(IP_ADDRESS_GENERATOR.from(address).toAddressString());
         }
