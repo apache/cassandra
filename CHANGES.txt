@@ -1,4 +1,5 @@
 4.1
+ * Request-Based Native Transport Rate-Limiting (CASSANDRA-16663)
  * Implement nodetool getauditlog command (CASSANDRA-16725)
  * Clean up repair code (CASSANDRA-13720)
  * Background schedule to clean up orphaned hints files (CASSANDRA-16815)

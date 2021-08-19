@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.*;
 
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -55,10 +56,12 @@ import org.apache.cassandra.transport.CQLMessageHandler.MessageConsumer;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.net.FramingTest.randomishBytes;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
+import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -622,7 +625,7 @@ public class CQLConnectionTest
             this.frameEncoder = frameEncoder;
         }
 
-        public void accept(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem)
+        public void accept(Channel channel, Message.Request message, Dispatcher.FlushItemConverter toFlushItem, Overload backpressure)
         {
             if (flusher == null)
                 flusher = new SimpleClient.SimpleFlusher(frameEncoder);
@@ -755,6 +758,12 @@ public class CQLConnectionTest
                     return delegate.endpointWaitQueue();
                 }
 
+                @Override
+                public NonBlockingRateLimiter requestRateLimiter()
+                {
+                    return NO_OP_LIMITER;
+                }
+                
                 public void release()
                 {
                     delegate.release();

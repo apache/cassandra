@@ -35,6 +35,9 @@ import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+
+import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
 
 public class BurnTestUtil
 {
@@ -143,6 +146,12 @@ public class BurnTestUtil
                     return delegate.endpointWaitQueue();
                 }
 
+                @Override
+                public NonBlockingRateLimiter requestRateLimiter()
+                {
+                    return NO_OP_LIMITER;
+                }
+                
                 public void release()
                 {
                     delegate.release();
