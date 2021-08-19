@@ -26,6 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 
 import inet.ipaddr.IPAddressNetwork;
@@ -53,11 +54,9 @@ public class SubnetGroups
 
     public boolean contains(SocketAddress address)
     {
-        if (address instanceof InetSocketAddress)
-        {
-            return contains(((InetSocketAddress) address).getAddress());
-        }
-        throw new IllegalArgumentException("Unsupported socket address type: " + (address == null ? null : address.getClass()));
+        Preconditions.checkNotNull(address);
+        Preconditions.checkArgument(address instanceof InetSocketAddress, "Unsupported socket address type: " + address.getClass());
+        return contains(((InetSocketAddress) address).getAddress());
     }
 
     public boolean contains(InetAddress address)
