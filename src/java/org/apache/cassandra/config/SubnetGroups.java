@@ -87,6 +87,7 @@ public class SubnetGroups
             return subnet.contains(IP_ADDRESS_GENERATOR.from(address).toAddressString());
         }
 
+        @Override
         public boolean equals(Object o)
         {
             if (this == o) return true;
@@ -95,11 +96,13 @@ public class SubnetGroups
             return subnet.equals(group.subnet);
         }
 
+        @Override
         public int hashCode()
         {
             return Objects.hash(subnet);
         }
 
+        @Override
         public String toString()
         {
             return subnet.toString();
