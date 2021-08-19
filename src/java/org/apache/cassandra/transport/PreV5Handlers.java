@@ -321,7 +321,7 @@ public class PreV5Handlers
             {
                 // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are
                 // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
-                // list
+                // list.
                 logger.debug("Not updating networking metrics as {} is excluded in configs", ctx.channel().remoteAddress());
                 return;
             }
