@@ -92,7 +92,7 @@ public class SubnetGroups
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Group group = (Group) o;
-            return Objects.equals(subnet, group.subnet);
+            return subnet.equals(group.subnet);
         }
 
         public int hashCode()
