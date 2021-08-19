@@ -90,7 +90,7 @@ public class ExceptionHandlers
                 }
             }
             
-            if (DatabaseDescriptor.getExcludeClientErrorsFrom().contains(ctx.channel().remoteAddress()))
+            if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
             {
                 // some times it is desirable to ignore exceptions from specific IPs; such as when security scans are
                 // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
