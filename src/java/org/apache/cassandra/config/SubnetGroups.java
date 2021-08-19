@@ -44,6 +44,8 @@ public class SubnetGroups
     {
     }
 
+    /** Used by SnakeYaml */
+    @SuppressWarnings("unused")
     public SubnetGroups(List<String> values)
     {
         this.subnets = ImmutableSet.copyOf(values.stream().map(Group::new).collect(Collectors.toSet()));
