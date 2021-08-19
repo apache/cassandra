@@ -20,6 +20,8 @@ package org.apache.cassandra.transport;
 
 import java.util.List;
 
+import com.google.common.base.Predicate;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.slf4j.Logger;
@@ -307,7 +309,7 @@ public class PreV5Handlers
             // Provide error message to client in case channel is still open
             if (ctx.channel().isOpen())
             {
-                ExceptionHandlers.UnexpectedChannelExceptionHandler handler = new ExceptionHandlers.UnexpectedChannelExceptionHandler(ctx.channel(), false);
+                Predicate<Throwable> handler = ExceptionHandlers.getUnexpectedExceptionHandler(ctx.channel(), false);
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(getConnectionVersion(ctx)));
                 // On protocol exception, close the channel as soon as the message have been sent.

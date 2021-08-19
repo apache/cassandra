@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 
 import org.slf4j.Logger;
@@ -68,7 +69,7 @@ public class ExceptionHandlers
             // Provide error message to client in case channel is still open
             if (ctx.channel().isOpen())
             {
-                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
+                Predicate<Throwable> handler = getUnexpectedExceptionHandler(ctx.channel(), false);
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 Envelope response = errorMessage.encode(version);
                 FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.envelopeSize(response.header));
@@ -131,6 +132,16 @@ public class ExceptionHandlers
             ClientMetrics.instance.markUnknownException();
             logger.warn("Unknown exception in client networking", cause);
         }
+    }
+
+    static Predicate<Throwable> getUnexpectedExceptionHandler(Channel channel, boolean alwaysLogAtError)
+    {
+        if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(channel.remoteAddress()))
+        {
+            logger.debug("Excluding client errors from {}", channel.remoteAddress());
+            return Predicates.alwaysTrue();
+        }
+        return new UnexpectedChannelExceptionHandler(channel, alwaysLogAtError);
     }
 
     /**

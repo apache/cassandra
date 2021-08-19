@@ -37,6 +37,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.LogAction;
+import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
@@ -48,6 +50,7 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
 {
     private static Cluster CLUSTER;
     private static List<String> CLUSTER_EXCLUDED_SUBNETS;
+    private static long LOG_MARK;
 
     @Parameterized.Parameter(0)
     public List<String> excludeSubnets;
@@ -103,9 +106,16 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
             Message.Response response = client.execute(new UnableToParseClientMessageTest.CustomHeaderMessage(new byte[]{ expectedVersion, 1, 2, 3, 4, 5, 6, 7, 8, 9 }), false);
             Assertions.assertThat(response).isInstanceOf(ErrorMessage.class);
 
-            node.logs().watchFor("Not updating networking metrics as");
+            LogAction logs = node.logs();
+            logs.watchFor("Not updating networking metrics as");
             Assertions.assertThat(node.metrics().getCounter("org.apache.cassandra.metrics.Client.ProtocolException")).isEqualTo(0);
             Assertions.assertThat(node.metrics().getCounter("org.apache.cassandra.metrics.Client.UnknownException")).isEqualTo(0);
+
+            LogResult<List<String>> matches = logs.grep(LOG_MARK, "Excluding client errors from");
+            Assertions.assertThat(matches.getResult()).hasSize(1);
+            matches = logs.grep(LOG_MARK, "Unexpected exception during request");
+            Assertions.assertThat(matches.getResult()).isEmpty();
+            LOG_MARK = matches.getMark();
         }
     }
 
@@ -124,6 +134,7 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
                                       .withConfig(c -> c.with(Feature.values()).set("client_error_reporting_exclusions", ImmutableMap.of("subnets", excludeSubnets)))
                                       .start());
                 CLUSTER_EXCLUDED_SUBNETS = excludeSubnets;
+                LOG_MARK = 0;
             }
             catch (IOException e)
             {
