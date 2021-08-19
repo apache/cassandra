@@ -36,6 +36,11 @@ public class NopCacheProvider implements CacheProvider<RowCacheKey, IRowCacheEnt
 
         public void setCapacity(long capacity)
         {
+            if (capacity != 0)
+            {
+                throw new UnsupportedOperationException("Setting capacity of " + NopCache.class.getSimpleName()
+                                                        + " is not permitted as this cache is disabled. Check your yaml settings if you want to enable it.");
+            }
         }
 
         public void put(RowCacheKey key, IRowCacheEntry value)
