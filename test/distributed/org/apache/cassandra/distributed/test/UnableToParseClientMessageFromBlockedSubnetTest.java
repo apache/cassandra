@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
@@ -57,7 +58,7 @@ public class UnableToParseClientMessageFromBlockedSubnetTest extends TestBaseImp
     public static Iterable<Object[]> params()
     {
         List<Object[]> tests = new ArrayList<>();
-        for (List<String> domains : Arrays.asList(Arrays.asList("127.0.0.1"), Arrays.asList("127.0.0.0/31")))
+        for (List<String> domains : Arrays.asList(Collections.singletonList("127.0.0.1"), Collections.singletonList("127.0.0.0/31")))
         {
             for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             {
