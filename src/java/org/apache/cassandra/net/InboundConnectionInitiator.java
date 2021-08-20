@@ -85,7 +85,7 @@ public class InboundConnectionInitiator
         public void initChannel(SocketChannel channel) throws Exception
         {
             // if any of the handlers added fail they will send the error to the "head", so this needs to be first
-            channel.pipeline().addFirst("Internode Error Exclussions", new InternodeErrorExclussionHandler());
+            channel.pipeline().addFirst("Internode Error Exclusions", new InternodeErrorExclusionsHandler());
 
             channelGroup.add(channel);
 
@@ -104,14 +104,14 @@ public class InboundConnectionInitiator
             {
                 case UNENCRYPTED:
                     // Handler checks for SSL connection attempts and cleanly rejects them if encryption is disabled
-                    pipeline.addAfter("Internode Error Exclussions", "rejectssl", new RejectSslHandler());
+                    pipeline.addAfter("Internode Error Exclusions", "rejectssl", new RejectSslHandler());
                     break;
                 case OPTIONAL:
-                    pipeline.addAfter("Internode Error Exclussions", "ssl", new OptionalSslHandler(settings.encryption));
+                    pipeline.addAfter("Internode Error Exclusions", "ssl", new OptionalSslHandler(settings.encryption));
                     break;
                 case ENCRYPTED:
                     SslHandler sslHandler = getSslHandler("creating", channel, settings.encryption);
-                    pipeline.addAfter("Internode Error Exclussions", "ssl", sslHandler);
+                    pipeline.addAfter("Internode Error Exclusions", "ssl", sslHandler);
                     break;
             }
 
@@ -122,7 +122,7 @@ public class InboundConnectionInitiator
         }
     }
 
-    private static class InternodeErrorExclussionHandler extends ChannelInboundHandlerAdapter
+    private static class InternodeErrorExclusionsHandler extends ChannelInboundHandlerAdapter
     {
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
