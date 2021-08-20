@@ -3438,4 +3438,9 @@ public class DatabaseDescriptor
     {
         return conf.client_error_reporting_exclusions;
     }
+
+    public static SubnetGroups getInternodeErrorReportingExclusions()
+    {
+        return conf.internode_error_reporting_exclusions;
+    }
 }

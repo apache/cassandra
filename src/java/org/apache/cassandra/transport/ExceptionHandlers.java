@@ -19,6 +19,7 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -96,7 +97,7 @@ public class ExceptionHandlers
                 // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are
                 // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
                 // list.
-                logger.debug("Not updating networking metrics as {} is excluded in configs", ctx.channel().remoteAddress());
+                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
                 return;
             }
             logClientNetworkingExceptions(cause);
@@ -136,10 +137,13 @@ public class ExceptionHandlers
 
     static Predicate<Throwable> getUnexpectedExceptionHandler(Channel channel, boolean alwaysLogAtError)
     {
-        if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(channel.remoteAddress()))
+        SocketAddress address = channel.remoteAddress();
+        if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(address))
         {
-            logger.debug("Excluding client errors from {}", channel.remoteAddress());
-            return Predicates.alwaysTrue();
+            return cause -> {
+                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", address, cause);
+                return true;
+            };
         }
         return new UnexpectedChannelExceptionHandler(channel, alwaysLogAtError);
     }

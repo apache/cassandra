@@ -71,6 +71,34 @@ public class SubnetGroups
         return false;
     }
 
+    public boolean isEmpty()
+    {
+        return subnets.isEmpty();
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SubnetGroups that = (SubnetGroups) o;
+        return Objects.equals(subnets, that.subnets);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(subnets);
+    }
+
+    @Override
+    public String toString()
+    {
+        return "SubnetGroups{" +
+               "subnets=" + subnets +
+               '}';
+    }
+
     private static class Group
     {
         private static final IPAddressNetwork.IPAddressGenerator IP_ADDRESS_GENERATOR = new IPAddressNetwork.IPAddressGenerator();
