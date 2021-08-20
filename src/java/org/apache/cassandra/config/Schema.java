@@ -118,6 +118,14 @@ public class Schema
     }
 
     /**
+     * @return whether or not the keyspace is the schema keyspace
+     */
+    public static boolean isSchemaKeyspace(String keyspaceName)
+    {
+        return keyspaceName.toLowerCase().equals(SchemaKeyspace.NAME);
+    }
+
+    /**
      * @return whether or not the keyspace is a replicated system keyspace (trace, auth, sys-ditributed)
      */
     public static boolean isReplicatedSystemKeyspace(String keyspaceName)

@@ -38,6 +38,7 @@ import com.google.common.collect.Ordering;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
@@ -55,10 +56,12 @@ import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+
 import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -82,6 +85,9 @@ public class CommitLogReplayer
 
     private final ReplayFilter replayFilter;
     private final CommitLogArchiver archiver;
+
+    // The OpOrder used to order mutations before and after schema mutations
+    private final OpOrder writeOrder = new OpOrder();
 
     CommitLogReplayer(CommitLog commitLog, ReplayPosition globalPosition, Map<UUID, IntervalSet<ReplayPosition>> cfPersisted, ReplayFilter replayFilter)
     {
@@ -386,6 +392,11 @@ public class CommitLogReplayer
      */
     private boolean shouldReplay(UUID cfId, ReplayPosition position)
     {
+        // If we are replaying schema mutations (unlikely event) it's possible that the table id
+        // is not present in cfPersisted map, eventhough we should replay the mutation.
+        if (cfPersisted.get(cfId) == null)
+            return true;
+
         return !cfPersisted.get(cfId).contains(position);
     }
 
@@ -679,6 +690,8 @@ public class CommitLogReplayer
         if (logger.isTraceEnabled())
             logger.trace("replaying mutation for {}.{}: {}", mutation.getKeyspaceName(), mutation.key(), "{" + StringUtils.join(mutation.getPartitionUpdates().iterator(), ", ") + "}");
 
+        boolean isSchemaMutation = Schema.isSchemaKeyspace(mutation.getKeyspaceName());
+
         Runnable runnable = new WrappedRunnable()
         {
             public void runMayThrow()
@@ -716,12 +729,28 @@ public class CommitLogReplayer
                     assert !newMutation.isEmpty();
 
                     Keyspace.open(newMutation.getKeyspaceName()).apply(newMutation, false, true, false);
+
+                    // We should reload in memory schema once we re-apply schema mutations
+                    // so tables/keyspaces are available for the next mutations.
+                    if (isSchemaMutation)
+                        SchemaKeyspace.reloadSchema();
+
                     keyspacesRecovered.add(keyspace);
                 }
             }
         };
-        futures.add(StageManager.getStage(Stage.MUTATION).submit(runnable));
-        if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT)
+
+        if (isSchemaMutation)
+            writeOrder.awaitNewBarrier();
+
+        futures.add(StageManager.getStage(Stage.MUTATION).submit(() -> {
+            try (OpOrder.Group opOrder = writeOrder.start())
+            {
+                runnable.run();
+            }
+        }));
+
+        if (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT || isSchemaMutation)
         {
             FBUtilities.waitOnFutures(futures);
             futures.clear();
