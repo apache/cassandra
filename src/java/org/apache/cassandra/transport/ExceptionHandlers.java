@@ -19,10 +19,12 @@
 package org.apache.cassandra.transport;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 
 import org.slf4j.Logger;
@@ -33,6 +35,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -67,7 +70,7 @@ public class ExceptionHandlers
             // Provide error message to client in case channel is still open
             if (ctx.channel().isOpen())
             {
-                UnexpectedChannelExceptionHandler handler = new UnexpectedChannelExceptionHandler(ctx.channel(), false);
+                Predicate<Throwable> handler = getUnexpectedExceptionHandler(ctx.channel(), false);
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 Envelope response = errorMessage.encode(version);
                 FrameEncoder.Payload payload = allocator.allocate(true, CQLMessageHandler.envelopeSize(response.header));
@@ -89,6 +92,14 @@ public class ExceptionHandlers
                 }
             }
             
+            if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
+            {
+                // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are
+                // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
+                // list.
+                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
+                return;
+            }
             logClientNetworkingExceptions(cause);
         }
 
@@ -122,6 +133,19 @@ public class ExceptionHandlers
             ClientMetrics.instance.markUnknownException();
             logger.warn("Unknown exception in client networking", cause);
         }
+    }
+
+    static Predicate<Throwable> getUnexpectedExceptionHandler(Channel channel, boolean alwaysLogAtError)
+    {
+        SocketAddress address = channel.remoteAddress();
+        if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(address))
+        {
+            return cause -> {
+                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", address, cause);
+                return true;
+            };
+        }
+        return new UnexpectedChannelExceptionHandler(channel, alwaysLogAtError);
     }
 
     /**

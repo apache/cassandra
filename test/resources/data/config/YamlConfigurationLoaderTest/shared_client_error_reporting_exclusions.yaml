@@ -1,0 +1,6 @@
+# This is used to test to validate that YAML Anchors ARE supported; this is useful for cases where client/internode errors are coming from the same sources (such as security scans)
+client_error_reporting_exclusions: &share
+  subnets:
+    - 127.0.0.1
+    - 127.0.0.0/31
+internode_error_reporting_exclusions: *share

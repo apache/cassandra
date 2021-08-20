@@ -3433,4 +3433,14 @@ public class DatabaseDescriptor
     {
         conf.consecutive_message_errors_threshold = value;
     }
+
+    public static SubnetGroups getClientErrorReportingExclusions()
+    {
+        return conf.client_error_reporting_exclusions;
+    }
+
+    public static SubnetGroups getInternodeErrorReportingExclusions()
+    {
+        return conf.internode_error_reporting_exclusions;
+    }
 }

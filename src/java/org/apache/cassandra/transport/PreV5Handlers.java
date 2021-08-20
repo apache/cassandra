@@ -20,6 +20,8 @@ package org.apache.cassandra.transport;
 
 import java.util.List;
 
+import com.google.common.base.Predicate;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.slf4j.Logger;
@@ -296,6 +298,8 @@ public class PreV5Handlers
     @ChannelHandler.Sharable
     public static final class ExceptionHandler extends ChannelInboundHandlerAdapter
     {
+        private static final Logger logger = LoggerFactory.getLogger(ExceptionHandler.class);
+
         public static final ExceptionHandler instance = new ExceptionHandler();
         private ExceptionHandler(){}
 
@@ -305,7 +309,7 @@ public class PreV5Handlers
             // Provide error message to client in case channel is still open
             if (ctx.channel().isOpen())
             {
-                ExceptionHandlers.UnexpectedChannelExceptionHandler handler = new ExceptionHandlers.UnexpectedChannelExceptionHandler(ctx.channel(), false);
+                Predicate<Throwable> handler = ExceptionHandlers.getUnexpectedExceptionHandler(ctx.channel(), false);
                 ErrorMessage errorMessage = ErrorMessage.fromException(cause, handler);
                 ChannelFuture future = ctx.writeAndFlush(errorMessage.encode(getConnectionVersion(ctx)));
                 // On protocol exception, close the channel as soon as the message have been sent.
@@ -315,6 +319,14 @@ public class PreV5Handlers
                     future.addListener((ChannelFutureListener) f -> ctx.close());
             }
             
+            if (DatabaseDescriptor.getClientErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
+            {
+                // Sometimes it is desirable to ignore exceptions from specific IPs; such as when security scans are
+                // running.  To avoid polluting logs and metrics, metrics are not updated when the IP is in the exclude
+                // list.
+                logger.debug("Excluding client exception for {}; address contained in client_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
+                return;
+            }
             ExceptionHandlers.logClientNetworkingExceptions(cause);
             JVMStabilityInspector.inspectThrowable(cause);
         }

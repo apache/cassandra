@@ -25,9 +25,11 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.distributed.shared.Metrics;
@@ -45,33 +47,43 @@ class InstanceMetrics implements Metrics
         this.metricsRegistry = metricsRegistry;
     }
 
+    @Override
     public List<String> getNames()
     {
         return new ArrayList<>(metricsRegistry.getNames());
     }
 
+    @Override
     public long getCounter(String name)
     {
-        return metricsRegistry.getCounters().get(name).getCount();
+        Metric metric = metricsRegistry.getMetrics().get(name);
+        if (metric instanceof Counting)
+            return ((Counting) metric).getCount();
+        // If the metric is not found or does not expose a getCount method
+        return 0;
     }
 
+    @Override
     public Map<String, Long> getCounters(Predicate<String> filter)
     {
         Map<String, Long> values = new HashMap<>();
-        for (Map.Entry<String, Counter> e : metricsRegistry.getCounters().entrySet())
+        for (Map.Entry<String, Metric> e : metricsRegistry.getMetrics().entrySet())
         {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), e.getValue().getCount());
+            Metric metric = e.getValue();
+            if (metric instanceof Counting && filter.test(e.getKey()))
+                values.put(e.getKey(), ((Counting) metric).getCount());
         }
         return values;
     }
 
+    @Override
     public double getHistogram(String name, MetricValue value)
     {
         Histogram histogram = metricsRegistry.getHistograms().get(name);
         return getValue(histogram, value);
     }
 
+    @Override
     public Map<String, Double> getHistograms(Predicate<String> filter, MetricValue value)
     {
         Map<String, Double> values = new HashMap<>();
@@ -83,11 +95,13 @@ class InstanceMetrics implements Metrics
         return values;
     }
 
+    @Override
     public Object getGauge(String name)
     {
         return metricsRegistry.getGauges().get(name).getValue();
     }
 
+    @Override
     public Map<String, Object> getGauges(Predicate<String> filter)
     {
         Map<String, Object> values = new HashMap<>();
@@ -99,11 +113,13 @@ class InstanceMetrics implements Metrics
         return values;
     }
 
+    @Override
     public double getMeter(String name, Rate value)
     {
         return getRate(metricsRegistry.getMeters().get(name), value);
     }
 
+    @Override
     public Map<String, Double> getMeters(Predicate<String> filter, Rate rate)
     {
         Map<String, Double> values = new HashMap<>();
@@ -115,11 +131,13 @@ class InstanceMetrics implements Metrics
         return values;
     }
 
+    @Override
     public double getTimer(String name, MetricValue value)
     {
         return getValue(metricsRegistry.getTimers().get(name).getSnapshot(), value);
     }
 
+    @Override
     public Map<String, Double> getTimers(Predicate<String> filter, MetricValue value)
     {
         Map<String, Double> values = new HashMap<>();
