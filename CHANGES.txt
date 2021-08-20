@@ -1,4 +1,5 @@
 4.0.2
+ * Avoid trying to acquire 0 permits from the rate limiter when taking snapshot (CASSANDRA-16872)
  * Upgrade Caffeine to 2.5.6 (CASSANDRA-15153)
  * Include SASI components to snapshots (CASSANDRA-15134)
  * Fix missed wait latencies in the output of `nodetool tpstats -F` (CASSANDRA-16938)

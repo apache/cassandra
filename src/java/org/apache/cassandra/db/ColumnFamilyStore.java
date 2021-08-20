@@ -1846,8 +1846,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader ssTable : currentView.sstables)
                 {
                     File snapshotDirectory = Directories.getSnapshotDirectory(ssTable.descriptor, snapshotName);
-                    rateLimiter.acquire(SSTableReader.componentsFor(ssTable.descriptor).size());
-                    ssTable.createLinks(snapshotDirectory.getPath()); // hard links
+                    ssTable.createLinks(snapshotDirectory.getPath(), rateLimiter); // hard links
                     filesJSONArr.add(ssTable.descriptor.relativeFilenameFor(Component.DATA));
 
                     if (logger.isTraceEnabled())
