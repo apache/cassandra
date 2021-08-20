@@ -25,9 +25,11 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Counting;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.Snapshot;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.distributed.shared.Metrics;
@@ -54,19 +56,10 @@ class InstanceMetrics implements Metrics
     @Override
     public long getCounter(String name)
     {
-        Counter counter = metricsRegistry.getCounters().get(name);
-        if (counter != null)
-            return counter.getCount();
-        Meter meter = metricsRegistry.getMeters().get(name);
-        if (meter != null)
-            return meter.getCount();
-        Histogram histogram = metricsRegistry.getHistograms().get(name);
-        if (histogram != null)
-            return histogram.getCount();
-        Timer timer = metricsRegistry.getTimers().get(name);
-        if (timer != null)
-            return timer.getCount();
-        //TODO no way to handle not found other than NPE?
+        Metric metric = metricsRegistry.getMetrics().get(name);
+        if (metric instanceof Counting)
+            return ((Counting) metric).getCount();
+        // If the metric is not found or does not expose a getCount method
         return 0;
     }
 
@@ -74,25 +67,11 @@ class InstanceMetrics implements Metrics
     public Map<String, Long> getCounters(Predicate<String> filter)
     {
         Map<String, Long> values = new HashMap<>();
-        for (Map.Entry<String, Counter> e : metricsRegistry.getCounters().entrySet())
+        for (Map.Entry<String, Metric> e : metricsRegistry.getMetrics().entrySet())
         {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), e.getValue().getCount());
-        }
-        for (Map.Entry<String, Meter> e : metricsRegistry.getMeters().entrySet())
-        {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), e.getValue().getCount());
-        }
-        for (Map.Entry<String, Histogram> e : metricsRegistry.getHistograms().entrySet())
-        {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), e.getValue().getCount());
-        }
-        for (Map.Entry<String, Timer> e : metricsRegistry.getTimers().entrySet())
-        {
-            if (filter.test(e.getKey()))
-                values.put(e.getKey(), e.getValue().getCount());
+            Metric metric = e.getValue();
+            if (metric instanceof Counting && filter.test(e.getKey()))
+                values.put(e.getKey(), ((Counting) metric).getCount());
         }
         return values;
     }
