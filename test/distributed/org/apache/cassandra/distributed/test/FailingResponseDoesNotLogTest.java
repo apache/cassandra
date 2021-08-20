@@ -98,39 +98,6 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
         }
     }
 
-    @Test
-    public void protocolError() throws IOException
-    {
-        System.setProperty("cassandra.custom_query_handler_class", AlwaysRejectErrorQueryHandler.class.getName());
-        try (Cluster cluster = Cluster.build(1)
-                                      .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
-                                                        .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1")))
-                                      )
-                                      .start())
-        {
-            try (SimpleClient client = SimpleClient.builder("127.0.0.1", 9042).build().connect(false))
-            {
-                client.execute("SELECT * FROM system.peers", ConsistencyLevel.ONE);
-                Assert.fail("Query should have failed");
-            }
-            catch (Exception e)
-            {
-                // ignore; expected
-            }
-
-            // logs happen before client response; so grep is enough
-            LogAction logs = cluster.get(1).logs();
-            LogResult<List<String>> matches = logs.grep("Excluding client errors from");
-            Assertions.assertThat(matches.getResult()).hasSize(1);
-            matches = logs.grep("Unexpected exception during request");
-            Assertions.assertThat(matches.getResult()).isEmpty();
-        }
-        finally
-        {
-            System.clearProperty("cassandra.custom_query_handler_class");
-        }
-    }
-
     public static class AlwaysRejectErrorQueryHandler implements QueryHandler
     {
         @Override
