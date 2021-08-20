@@ -87,7 +87,7 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
 
             // logs happen before client response; so grep is enough
             LogAction logs = cluster.get(1).logs();
-            LogResult<List<String>> matches = logs.grep("Excluding client errors from");
+            LogResult<List<String>> matches = logs.grep("address contained in client_error_reporting_exclusions");
             Assertions.assertThat(matches.getResult()).hasSize(1);
             matches = logs.grep("Unexpected exception during request");
             Assertions.assertThat(matches.getResult()).isEmpty();
