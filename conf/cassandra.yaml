@@ -1445,3 +1445,11 @@ enable_transient_replication: false
 # Enables the used of 'ALTER ... DROP COMPACT STORAGE' statements on this node.
 # 'ALTER ... DROP COMPACT STORAGE' is considered experimental and is not recommended for production use.
 enable_drop_compact_storage: false
+
+# When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
+# a client metric showing this; this logic will exclude specific subnets from updating these
+# metrics
+#client_error_reporting_exclusions:
+#  subnets:
+#    - 127.0.0.1
+#    - 127.0.0.0/31

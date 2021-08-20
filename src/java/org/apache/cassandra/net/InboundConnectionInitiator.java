@@ -34,6 +34,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -44,6 +45,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -67,6 +69,8 @@ public class InboundConnectionInitiator
 
     private static class Initializer extends ChannelInitializer<SocketChannel>
     {
+        private static final String PIPELINE_INTERNODE_ERROR_EXCLUSIONS = "Internode Error Exclusions";
+
         private final InboundConnectionSettings settings;
         private final ChannelGroup channelGroup;
         private final Consumer<ChannelPipeline> pipelineInjector;
@@ -82,6 +86,9 @@ public class InboundConnectionInitiator
         @Override
         public void initChannel(SocketChannel channel) throws Exception
         {
+            // if any of the handlers added fail they will send the error to the "head", so this needs to be first
+            channel.pipeline().addFirst(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, new InternodeErrorExclusionsHandler());
+
             channelGroup.add(channel);
 
             channel.config().setOption(ChannelOption.ALLOCATOR, GlobalBufferPoolAllocator.instance);
@@ -99,14 +106,14 @@ public class InboundConnectionInitiator
             {
                 case UNENCRYPTED:
                     // Handler checks for SSL connection attempts and cleanly rejects them if encryption is disabled
-                    pipeline.addFirst("rejectssl", new RejectSslHandler());
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "rejectssl", new RejectSslHandler());
                     break;
                 case OPTIONAL:
-                    pipeline.addFirst("ssl", new OptionalSslHandler(settings.encryption));
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "ssl", new OptionalSslHandler(settings.encryption));
                     break;
                 case ENCRYPTED:
                     SslHandler sslHandler = getSslHandler("creating", channel, settings.encryption);
-                    pipeline.addFirst("ssl", sslHandler);
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "ssl", sslHandler);
                     break;
             }
 
@@ -114,7 +121,20 @@ public class InboundConnectionInitiator
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
 
             channel.pipeline().addLast("handshake", new Handler(settings));
+        }
+    }
 
+    private static class InternodeErrorExclusionsHandler extends ChannelInboundHandlerAdapter
+    {
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
+        {
+            if (DatabaseDescriptor.getInternodeErrorReportingExclusions().contains(ctx.channel().remoteAddress()))
+            {
+                logger.debug("Excluding internode exception for {}; address contained in internode_error_reporting_exclusions", ctx.channel().remoteAddress(), cause);
+                return;
+            }
+            super.exceptionCaught(ctx, cause);
         }
     }
 

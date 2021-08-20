@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import org.junit.AfterClass;
@@ -169,7 +168,7 @@ public class UnableToParseClientMessageTest extends TestBaseImpl
                                                                          .getCount());
     }
 
-    private static class CustomHeaderMessage extends OptionsMessage
+    public static class CustomHeaderMessage extends OptionsMessage
     {
         private final ByteBuf headerEncoded;
 
