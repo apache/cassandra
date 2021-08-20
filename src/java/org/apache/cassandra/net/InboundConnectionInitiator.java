@@ -69,6 +69,8 @@ public class InboundConnectionInitiator
 
     private static class Initializer extends ChannelInitializer<SocketChannel>
     {
+        private static final String PIPELINE_INTERNODE_ERROR_EXCLUSIONS = "Internode Error Exclusions";
+
         private final InboundConnectionSettings settings;
         private final ChannelGroup channelGroup;
         private final Consumer<ChannelPipeline> pipelineInjector;
@@ -85,7 +87,7 @@ public class InboundConnectionInitiator
         public void initChannel(SocketChannel channel) throws Exception
         {
             // if any of the handlers added fail they will send the error to the "head", so this needs to be first
-            channel.pipeline().addFirst("Internode Error Exclusions", new InternodeErrorExclusionsHandler());
+            channel.pipeline().addFirst(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, new InternodeErrorExclusionsHandler());
 
             channelGroup.add(channel);
 
@@ -104,14 +106,14 @@ public class InboundConnectionInitiator
             {
                 case UNENCRYPTED:
                     // Handler checks for SSL connection attempts and cleanly rejects them if encryption is disabled
-                    pipeline.addAfter("Internode Error Exclusions", "rejectssl", new RejectSslHandler());
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "rejectssl", new RejectSslHandler());
                     break;
                 case OPTIONAL:
-                    pipeline.addAfter("Internode Error Exclusions", "ssl", new OptionalSslHandler(settings.encryption));
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "ssl", new OptionalSslHandler(settings.encryption));
                     break;
                 case ENCRYPTED:
                     SslHandler sslHandler = getSslHandler("creating", channel, settings.encryption);
-                    pipeline.addAfter("Internode Error Exclusions", "ssl", sslHandler);
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "ssl", sslHandler);
                     break;
             }
 

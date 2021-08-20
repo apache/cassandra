@@ -82,7 +82,7 @@ public class SubnetGroups
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SubnetGroups that = (SubnetGroups) o;
-        return Objects.equals(subnets, that.subnets);
+        return subnets.equals(that.subnets);
     }
 
     @Override
