@@ -56,10 +56,10 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
      */
     protected volatile List<HotReloadableFile> hotReloadableFiles = new ArrayList<>();
 
-    protected final String keystore;
-    protected final String keystore_password;
-    protected final String truststore;
-    protected final String truststore_password;
+    protected String keystore;
+    protected String keystore_password;
+    protected String truststore;
+    protected String truststore_password;
 
     public FileBasedSslContextFactory()
     {
