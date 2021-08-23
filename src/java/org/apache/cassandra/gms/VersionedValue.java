@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.TypeSizes;
@@ -95,6 +96,12 @@ public class VersionedValue implements Comparable<VersionedValue>
         // values apart.)  See CASSANDRA-6410.
         this.value = value.intern();
         this.version = version;
+    }
+
+    @VisibleForTesting
+    public static VersionedValue unsafeMakeVersionedValue(String value, int version)
+    {
+        return new VersionedValue(value, version);
     }
 
     private VersionedValue(String value)

@@ -25,10 +25,14 @@ import java.util.stream.IntStream;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
+import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 
@@ -38,7 +42,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class BootstrapTest extends TestBaseImpl
 {
-
     @Test
     public void bootstrapTest() throws Throwable
     {
@@ -53,7 +56,7 @@ public class BootstrapTest extends TestBaseImpl
         Map<Integer, Long> naturally = null;
         try (Cluster cluster = builder.withNodes(originalNodeCount).start())
         {
-            populate(cluster);
+            populate(cluster, 0, 1000);
 
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
@@ -73,7 +76,7 @@ public class BootstrapTest extends TestBaseImpl
 
         try (ICluster cluster = builder.start())
         {
-            populate(cluster);
+            populate(cluster, 0, 1000);
             naturally = count(cluster);
         }
 
@@ -81,12 +84,37 @@ public class BootstrapTest extends TestBaseImpl
             Assert.assertTrue(e.getValue() >= naturally.get(e.getKey()));
     }
 
-    public void populate(ICluster cluster)
+    @Test
+    public void readWriteDuringBootstrapTest() throws Throwable
+    {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .start())
+        {
+            IInstanceConfig config = cluster.newInstanceConfig();
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            withProperty("cassandra.join_ring", Boolean.toString(false),
+                         () -> newInstance.startup(cluster));
+
+            cluster.forEach(statusToBootstrap(newInstance));
+
+            populate(cluster,0, 100);
+
+            Assert.assertEquals(100, newInstance.executeInternal("SELECT *FROM " + KEYSPACE + ".tbl").length);
+        }
+    }
+
+    public void populate(ICluster cluster, int from, int to)
     {
         cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 3 + "};");
         cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = from; i < to; i++)
             cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
                                            ConsistencyLevel.QUORUM,
                                            i, i, i);
