@@ -3445,6 +3445,8 @@ public class DatabaseDescriptor
     public static SubnetGroups getInternodeErrorReportingExclusions()
     {
         return conf.internode_error_reporting_exclusions;
+    }
+    
     public static long getClientLargeReadWarnThresholdKB()
     {
         return conf.client_large_read_warn_threshold_kb;
