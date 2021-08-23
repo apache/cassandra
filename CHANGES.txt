@@ -25,6 +25,7 @@ Merged from 4.0:
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
+ * Validate SASI tokenizer options before adding index to schema (CASSANDRA-15135)
  * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
