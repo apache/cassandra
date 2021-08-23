@@ -363,8 +363,8 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (ReadAbortException e)
         {
-            casWriteMetrics.aborts.mark();
-            writeMetricsMap.get(consistencyForPaxos).aborts.mark();
+            casWriteMetrics.markAbort(e);
+            writeMetricsMap.get(consistencyForPaxos).markAbort(e);
             throw e;
         }
         catch (WriteFailureException | ReadFailureException e)
@@ -1810,9 +1810,9 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (ReadAbortException e)
         {
-            readMetrics.aborts.mark();
-            casReadMetrics.aborts.mark();
-            readMetricsMap.get(consistencyLevel).aborts.mark();
+            readMetrics.markAbort(e);
+            casReadMetrics.markAbort(e);
+            readMetricsMap.get(consistencyLevel).markAbort(e);
             throw e;
         }
         catch (ReadFailureException e)
@@ -1865,7 +1865,7 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (ReadAbortException e)
         {
-            recordReadRegularAbort(consistencyLevel);
+            recordReadRegularAbort(consistencyLevel, e);
             throw e;
         }
         catch (ReadFailureException e)
@@ -1885,10 +1885,10 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    public static void recordReadRegularAbort(ConsistencyLevel consistencyLevel)
+    public static void recordReadRegularAbort(ConsistencyLevel consistencyLevel, Throwable cause)
     {
-        readMetrics.aborts.mark();
-        readMetricsMap.get(consistencyLevel).aborts.mark();
+        readMetrics.markAbort(cause);
+        readMetricsMap.get(consistencyLevel).markAbort(cause);
     }
 
     public static PartitionIterator concatAndBlockOnRepair(List<PartitionIterator> iterators, List<ReadRepair<?, ?>> repairs)

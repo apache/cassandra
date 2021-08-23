@@ -132,7 +132,7 @@ class RangeCommandIterator extends AbstractIterator<RowIterator> implements Part
         }
         catch (ReadAbortException e)
         {
-            rangeMetrics.aborts.mark();
+            rangeMetrics.markAbort(e);
             throw e;
         }
         catch (ReadFailureException e)
