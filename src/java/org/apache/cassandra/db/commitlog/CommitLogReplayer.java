@@ -44,8 +44,10 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class CommitLogReplayer implements CommitLogReadHandler
 {
@@ -72,6 +74,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     @VisibleForTesting
     protected CommitLogReader commitLogReader;
+
+    // The OpOrder used to order mutations before and after schema mutations
+    private final OpOrder writeOrder = new OpOrder();
 
     CommitLogReplayer(CommitLog commitLog,
                       CommitLogPosition globalPosition,
@@ -222,11 +227,22 @@ public class CommitLogReplayer implements CommitLogReadHandler
                         assert !newMutation.isEmpty();
 
                         Keyspace.open(newMutation.getKeyspaceName()).apply(newMutation, false, true, false);
+
+                        // We should reload in memory schema once we re-apply schema mutations
+                        // so tables/keyspaces are available for the next mutations.
+                        if (SchemaConstants.isSchemaKeyspace(mutation.getKeyspaceName()))
+                            SchemaKeyspace.reloadSchema();
+
                         commitLogReplayer.keyspacesReplayed.add(keyspace);
                     }
                 }
             };
-            return StageManager.getStage(Stage.MUTATION).submit(runnable, serializedSize);
+            return StageManager.getStage(Stage.MUTATION).submit(() -> {
+                try (OpOrder.Group opOrder = commitLogReplayer.writeOrder.start())
+                {
+                    runnable.run();
+                }
+            }, serializedSize);
         }
     }
 
@@ -362,6 +378,11 @@ public class CommitLogReplayer implements CommitLogReadHandler
      */
     private boolean shouldReplay(UUID cfId, CommitLogPosition position)
     {
+        // If we are replaying schema mutations (unlikely event) it's possible that the table id
+        // is not present in cfPersisted map, eventhough we should replay the mutation.
+        if (cfPersisted.get(cfId) == null)
+            return true;
+
         return !cfPersisted.get(cfId).contains(position);
     }
 
@@ -380,16 +401,23 @@ public class CommitLogReplayer implements CommitLogReadHandler
     public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
     {
         pendingMutationBytes += size;
+
+        boolean isSchemaMutation = SchemaConstants.isSchemaKeyspace(m.getKeyspaceName());
+
+        if (isSchemaMutation)
+            writeOrder.awaitNewBarrier();
+
         futures.offer(mutationInitiator.initiateMutation(m,
                                                          desc.id,
                                                          size,
                                                          entryLocation,
                                                          this));
+
         // If there are finished mutations, or too many outstanding bytes/mutations
         // drain the futures in the queue
         while (futures.size() > MAX_OUTSTANDING_REPLAY_COUNT
                || pendingMutationBytes > MAX_OUTSTANDING_REPLAY_BYTES
-               || (!futures.isEmpty() && futures.peek().isDone()))
+               || (!futures.isEmpty() && (futures.peek().isDone() || isSchemaMutation)))
         {
             pendingMutationBytes -= FBUtilities.waitOnFuture(futures.poll());
         }
