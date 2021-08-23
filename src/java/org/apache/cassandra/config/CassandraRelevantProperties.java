@@ -159,6 +159,17 @@ public enum CassandraRelevantProperties
      */
     REPLACEMENT_ALLOW_EMPTY("cassandra.allow_empty_replace_address", "true"),
 
+    /**
+     * Directory where Cassandra puts its logs, defaults to "." which is current directory.
+     */
+    LOG_DIR("cassandra.logdir", "."),
+
+    /**
+     * Directory where Cassandra persists logs from audit logging. If this property is not set, the audit log framework
+     * will set it automatically to {@link CassandraRelevantProperties#LOG_DIR} + "/audit".
+     */
+    LOG_DIR_AUDIT("cassandra.logdir.audit"),
+
     //cassandra properties (without the "cassandra." prefix)
 
     /**

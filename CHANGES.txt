@@ -1,4 +1,8 @@
 4.1
+ * allow blocking IPs from updating metrics about traffic (CASSANDRA-16859)
+ * Request-Based Native Transport Rate-Limiting (CASSANDRA-16663)
+ * Implement nodetool getauditlog command (CASSANDRA-16725)
+ * Clean up repair code (CASSANDRA-13720)
  * Background schedule to clean up orphaned hints files (CASSANDRA-16815)
  * Modify SecondaryIndexManager#indexPartition() to retrieve only columns for which indexes are actually being built (CASSANDRA-16776)
  * Batch the token metadata update to improve the speed (CASSANDRA-15291)
@@ -21,6 +25,7 @@ Merged from 4.0:
  * Cleanup dependency scopes (CASSANDRA-16704)
  * Make JmxHistogram#getRecentValues() and JmxTimer#getRecentValues() thread-safe (CASSANDRA-16707)
 Merged from 3.11:
+ * Fixup scrub output when no data post-scrub and clear up old use of row, which really means partition (CASSANDRA-16835)
  * Reduce thread contention in CommitLogSegment and HintsBuffer (CASSANDRA-16072)
  * Make cqlsh use the same set of reserved keywords than the server uses (CASSANDRA-15663)
  * Optimize bytes skipping when reading SSTable files (CASSANDRA-14415)
