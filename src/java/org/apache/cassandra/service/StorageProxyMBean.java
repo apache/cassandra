@@ -59,6 +59,7 @@ public interface StorageProxyMBean
     public long getReadRepairAttempted();
     public long getReadRepairRepairedBlocking();
     public long getReadRepairRepairedBackground();
+    public long getReadRepairRepairTimedOut();
 
     @Deprecated
     public int getOtcBacklogExpirationInterval();
