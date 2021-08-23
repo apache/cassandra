@@ -2009,8 +2009,8 @@ public class StorageProxy implements StorageProxyMBean
             try
             {
                 MessageParams.reset();
-                // DatabaseDescriptor.getClientTrackWarningsEnabled() is used to set tracking, so do not need to check
-                command.trackWarnings();
+                if (DatabaseDescriptor.getClientTrackWarningsEnabled())
+                    command.trackWarnings();
 
                 boolean readRejected = false;
                 command.setMonitoringTime(approxCreationTimeNanos, false, verb.expiresAfterNanos(), DatabaseDescriptor.getSlowQueryTimeout(NANOSECONDS));

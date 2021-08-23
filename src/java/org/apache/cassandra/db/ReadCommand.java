@@ -286,7 +286,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     public void trackWarnings()
     {
-        trackWarnings = DatabaseDescriptor.getClientTrackWarningsEnabled();
+        trackWarnings = true;
     }
 
     public boolean isTrackingWarnings()
