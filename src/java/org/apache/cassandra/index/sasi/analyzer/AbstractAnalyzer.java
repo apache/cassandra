@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
@@ -38,17 +40,25 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
         throw new UnsupportedOperationException();
     }
 
-    public abstract void init(Map<String, String> options, AbstractType validator);
+    public void validate(Map<String, String> options, ColumnMetadata cm) throws ConfigurationException
+    {
+        if (!isCompatibleWith(cm.type))
+            throw new ConfigurationException(String.format("%s does not support type %s",
+                                                           this.getClass().getSimpleName(),
+                                                           cm.type.asCQL3Type()));
+    }
+
+    public abstract void init(Map<String, String> options, AbstractType<?> validator);
 
     public abstract void reset(ByteBuffer input);
 
     /**
      * Test whether the given validator is compatible with the underlying analyzer.
      *
-     * @param validator
-     * @return
+     * @param validator the validator to test the compatibility with
+     * @return true if the give validator is compatible, false otherwise
      */
-    public abstract boolean isCompatibleWith(AbstractType<?> validator);
+    protected abstract boolean isCompatibleWith(AbstractType<?> validator);
 
     /**
      * @return true if current analyzer provides text tokenization, false otherwise.
